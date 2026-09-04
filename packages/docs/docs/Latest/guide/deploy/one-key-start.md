@@ -26,13 +26,15 @@ cp .env.template .env
 
 注意：`.env` 中需要配置 `DATABASE_URL` 为实际的数据库连接地址。
 
+如果需要邮箱找回密码功能，请在 `.env` 中配置 SMTP。具体字段说明请参考[邮箱找回密码](/guide/features/password-reset)。
+
 ## 3. 安装依赖并构建
 
 ```bash
 # 安装依赖
 pnpm install
 # 构建应用
-pnpm build:app
+pnpm build
 # 启动服务
 pnpm start
 ```
