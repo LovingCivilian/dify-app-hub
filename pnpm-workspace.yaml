@@ -3,6 +3,7 @@ packages:
 
 overrides:
   mdast-util-gfm-autolink-literal: 2.0.0
+  browserslist: 4.28.9
   'brace-expansion@1': 1.1.18
   'brace-expansion@>=3': 5.0.9
   'esbuild@0.28': 0.28.1
