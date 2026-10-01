@@ -18,11 +18,11 @@ export enum ThemeModeEnum {
 /**
  * 主题模式文本枚举
  */
-export enum ThemeModeLabelEnum {
-	SYSTEM = '跟随系统',
-	LIGHT = '浅色',
-	DARK = '深色',
-}
+export const ThemeModeLabelEnum = {
+	SYSTEM: 'system.theme_mode_system',
+	LIGHT: 'system.theme_mode_light',
+	DARK: 'system.theme_mode_dark',
+} as const
 
 /**
  * 主题模式常量对应的选项

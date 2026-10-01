@@ -6,6 +6,7 @@ import { isTempId } from '@/lib/helpers'
 import { Button, Empty, Form, Spin } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Chatbox } from '@/components/chat/chatbox'
 import { useLatest } from '@/hooks/use-latest'
@@ -39,6 +40,7 @@ interface IChatboxWrapperProps {
  * 聊天容器 进入此组件时, 应保证应用信息和对话列表已经加载完成
  */
 export default function ChatboxWrapper(props: IChatboxWrapperProps) {
+	const { t } = useTranslation()
 	const { difyApi } = useDifyChatStore()
 	const {
 		conversationListLoading,
@@ -454,12 +456,12 @@ export default function ChatboxWrapper(props: IChatboxWrapperProps) {
 	if (!currentApp) {
 		return (
 			<div className="flex h-full w-full items-center justify-center">
-				<Empty description="请先配置 Dify 应用">
+				<Empty description={t('app.configure_first')}>
 					<Button
 						type="primary"
 						onClick={handleStartConfig}
 					>
-						开始配置
+						{t('app.start_configuring')}
 					</Button>
 				</Empty>
 			</div>

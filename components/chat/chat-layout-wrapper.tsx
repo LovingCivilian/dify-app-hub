@@ -18,6 +18,7 @@ import { createDifyApiInstance, DifyApi } from '@/lib/dify-client'
 import MainLayout from './main-layout'
 
 const ChatLayoutInner = (props: { appList: IDifyAppItem[]; difyApi: DifyApi | null }) => {
+	const { t } = useTranslation()
 	const currentAppId = useDifyChatStore(s => s.currentAppId)
 	const setCurrentAppId = useDifyChatStore(s => s.setCurrentAppId)
 	const currentApp = useDifyChatStore(s => s.currentApp)
@@ -57,7 +58,7 @@ const ChatLayoutInner = (props: { appList: IDifyAppItem[]; difyApi: DifyApi | nu
 						} as any)
 					})
 					.catch(err => {
-						message.error(`获取应用参数失败: ${err}`)
+						message.error(t('app.fetch_params_failed', { error: err }))
 						console.error(err)
 						useDifyChatStore.getState().setCurrentApp(null)
 					})
@@ -84,7 +85,7 @@ const ChatLayoutInner = (props: { appList: IDifyAppItem[]; difyApi: DifyApi | nu
 							className="inline-block shrink-0 cursor-pointer"
 							onClick={() => router.push('/apps')}
 						>
-							应用列表
+							{t('app.list')}
 						</span>
 						{currentAppId ? (
 							<div className="flex items-center overflow-hidden">
@@ -218,14 +219,14 @@ const ChatLayoutWrapper = () => {
 			<div className="flex h-screen w-screen items-center justify-center">
 				<Result
 					status="500"
-					title="加载失败"
+					title={t('app.load_failed')}
 					subTitle={error.message}
 					extra={
 						<Button
 							type="primary"
 							onClick={() => window.location.reload()}
 						>
-							刷新页面
+							{t('app.reload_page')}
 						</Button>
 					}
 				/>
@@ -238,7 +239,7 @@ const ChatLayoutWrapper = () => {
 			<div className="flex h-screen w-screen items-center justify-center">
 				<Spin
 					size="large"
-					description="应用加载中..."
+					description={t('app.loading')}
 				/>
 			</div>
 		)

@@ -2,6 +2,7 @@ import { useDifyChatStore } from '@/lib/core'
 import { XProvider } from '@ant-design/x'
 import { AppModeEnums, IDifyAppItem } from '@/lib/core'
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { colors } from '@/components/chat/theme-config'
 import { isChatLikeApp, isWorkflowLikeApp } from '@/components/chat/utils-index'
@@ -33,6 +34,7 @@ interface IMainLayoutProps {
  * 应用详情主界面布局
  */
 const MainLayout = (props: IMainLayoutProps) => {
+	const { t } = useTranslation()
 	const currentApp = useDifyChatStore(s => s.currentApp)
 
 	// FIXME: 去掉这里的默认值
@@ -48,7 +50,11 @@ const MainLayout = (props: IMainLayoutProps) => {
 					renderCenterTitle={props.renderCenterTitle}
 					extComponents={props.extComponents}
 				>
-					{isWorkflowLikeApp(appMode) ? <WorkflowLayout /> : <div>不支持的应用类型</div>}
+					{isWorkflowLikeApp(appMode) ? (
+						<WorkflowLayout />
+					) : (
+						<div>{t('common.unsupported_app_type')}</div>
+					)}
 				</CommonLayout>
 			)}
 		</XProvider>

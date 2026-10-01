@@ -6,17 +6,19 @@ import { useIsMobile } from '@/lib/helpers'
 import { useRequest } from 'ahooks'
 import { Col, Empty, message, Row } from 'antd'
 import { useRouter } from 'next/navigation'
+import { useTranslation } from 'react-i18next'
 
 import { LucideIcon } from '@/components/shared'
 import appService from '@/services/app'
 
 export default function AppListPage() {
+	const { t } = useTranslation()
 	const router = useRouter()
 	const isMobile = useIsMobile()
 
 	const { data: list } = useRequest(() => appService.getApps(), {
 		onError: error => {
-			message.error(`获取应用列表失败: ${error}`)
+			message.error(t('app.fetch_list_failed', { error }))
 			console.error(error)
 		},
 	})
@@ -29,7 +31,7 @@ export default function AppListPage() {
 					size={16}
 					className="mr-1"
 				/>
-				应用列表
+				{t('app.list')}
 			</div>
 			<div className="box-border flex-1 overflow-x-hidden overflow-y-auto rounded-t-3xl py-6">
 				{list?.length ? (
@@ -45,7 +47,7 @@ export default function AppListPage() {
 										span={isMobile ? 24 : 6}
 									>
 										<div className="hover:border-primary bg-theme-main-bg border-theme text-theme-text cursor-pointer rounded-2xl border p-3">
-											应用信息缺失，请检查
+											{t('app.info_missing')}
 										</div>
 									</Col>
 								)
@@ -77,7 +79,7 @@ export default function AppListPage() {
 											</div>
 										</div>
 										<div className="text-theme-desc mt-3 line-clamp-2 text-sm">
-											{item.info.description || '该应用暂无描述'}
+											{item.info.description || t('app.no_description_user')}
 										</div>
 										<div className="text-theme-desc mt-3 flex items-center truncate text-xs">
 											{hasTags && (
@@ -94,7 +96,7 @@ export default function AppListPage() {
 					</Row>
 				) : (
 					<div className="flex h-full items-center justify-center">
-						<Empty description="暂无应用数据，请联系管理员配置" />
+						<Empty description={t('app.empty_contact_admin')} />
 					</div>
 				)}
 			</div>
