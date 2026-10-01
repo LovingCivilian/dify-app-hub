@@ -3,8 +3,10 @@
 import { Alert, Button, Form, Input, message, Typography } from 'antd'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export default function InitPage() {
+	const { t } = useTranslation()
 	const router = useRouter()
 	const [loading, setLoading] = useState(false)
 	const [initialized, setInitialized] = useState<boolean | null>(null)
@@ -16,12 +18,12 @@ export default function InitPage() {
 				const data = await res.json()
 				setInitialized(!!data.initialized)
 				if (data.initialized) {
-					message.info('系统已初始化，正在跳转到登录页')
+					message.info(t('init.already_initialized'))
 					router.replace('/login')
 				}
 			} catch (e) {
-				console.error('初始化状态检查失败:', e)
-				message.error('初始化状态检查失败')
+				console.error('Failed to check init status:', e)
+				message.error(t('init.status_check_failed'))
 			}
 		}
 		checkStatus()
@@ -34,7 +36,7 @@ export default function InitPage() {
 		confirmPassword: string
 	}) => {
 		if (values.password !== values.confirmPassword) {
-			message.warning('两次输入的密码不一致')
+			message.warning(t('init.password_mismatch'))
 			return
 		}
 
@@ -46,15 +48,15 @@ export default function InitPage() {
 				body: JSON.stringify({ name: values.name, email: values.email, password: values.password }),
 			})
 			if (res.ok) {
-				message.success('管理员创建成功，请使用该账户登录')
+				message.success(t('init.admin_created'))
 				router.replace(`/login?email=${encodeURIComponent(values.email)}`)
 			} else {
-				const data = await res.json().catch(() => ({ message: '初始化失败' }))
-				message.error(data.message || '初始化失败')
+				const data = await res.json().catch(() => ({ message: t('init.failed') }))
+				message.error(data.message || t('init.failed'))
 			}
 		} catch (error) {
-			console.error('初始化失败:', error)
-			message.error('网络错误，请稍后重试')
+			console.error('Init failed:', error)
+			message.error(t('common.network_error_retry'))
 		} finally {
 			setLoading(false)
 		}
@@ -63,16 +65,14 @@ export default function InitPage() {
 	return (
 		<div className="flex min-h-screen items-center justify-center p-6">
 			<div className="w-full max-w-md rounded bg-white p-6 shadow">
-				<Typography.Title level={3}>系统初始化</Typography.Title>
-				<Typography.Paragraph>
-					首次使用，请创建管理员账户。初始化完成后将跳转至登录页。
-				</Typography.Paragraph>
+				<Typography.Title level={3}>{t('init.title')}</Typography.Title>
+				<Typography.Paragraph>{t('init.description')}</Typography.Paragraph>
 
 				{initialized === false && (
 					<Alert
 						type="info"
 						showIcon
-						message="系统未初始化，请创建管理员账户"
+						message={t('init.not_initialized')}
 						className="mb-4"
 					/>
 				)}
@@ -82,38 +82,38 @@ export default function InitPage() {
 					onFinish={onFinish}
 				>
 					<Form.Item
-						label="管理员姓名"
+						label={t('init.admin_name')}
 						name="name"
-						rules={[{ required: true, message: '请输入管理员姓名' }]}
+						rules={[{ required: true, message: t('init.admin_name_required') }]}
 					>
-						<Input placeholder="例如：管理员" />
+						<Input placeholder={t('init.admin_name_placeholder')} />
 					</Form.Item>
 					<Form.Item
-						label="管理员邮箱"
+						label={t('init.admin_email')}
 						name="email"
 						rules={[
-							{ required: true, message: '请输入管理员邮箱' },
-							{ type: 'email', message: '邮箱格式不正确' },
+							{ required: true, message: t('init.admin_email_required') },
+							{ type: 'email', message: t('init.email_invalid') },
 						]}
 					>
-						<Input placeholder="例如：admin@example.com" />
+						<Input placeholder={t('init.admin_email_placeholder')} />
 					</Form.Item>
 					<Form.Item
-						label="管理员密码"
+						label={t('init.admin_password')}
 						name="password"
 						rules={[
-							{ required: true, message: '请输入密码' },
-							{ min: 8, message: '密码至少 8 位' },
+							{ required: true, message: t('auth.password_required') },
+							{ min: 8, message: t('init.password_min_8') },
 						]}
 					>
-						<Input.Password placeholder="至少 8 位" />
+						<Input.Password placeholder={t('init.password_placeholder')} />
 					</Form.Item>
 					<Form.Item
-						label="确认密码"
+						label={t('auth.confirm_password')}
 						name="confirmPassword"
-						rules={[{ required: true, message: '请再次输入密码' }]}
+						rules={[{ required: true, message: t('init.confirm_password_required') }]}
 					>
-						<Input.Password placeholder="再次输入密码" />
+						<Input.Password placeholder={t('init.confirm_password_placeholder')} />
 					</Form.Item>
 					<Form.Item>
 						<Button
@@ -122,7 +122,7 @@ export default function InitPage() {
 							block
 							loading={loading}
 						>
-							创建管理员并初始化
+							{t('init.submit')}
 						</Button>
 					</Form.Item>
 				</Form>
