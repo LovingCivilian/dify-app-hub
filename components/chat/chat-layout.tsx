@@ -549,6 +549,7 @@ export default function ChatLayout(props: IChatLayoutProps) {
 								<ChatboxWrapper
 									conversationListLoading={conversationListLoading}
 									onAddConversation={onAddConversation}
+									onCurrentConversationIdChange={setCurrentConversationId}
 									conversationItemsChangeCallback={() => getConversationItems(false)}
 								/>
 							</div>

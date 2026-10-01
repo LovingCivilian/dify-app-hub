@@ -31,6 +31,10 @@ interface IChatboxWrapperProps {
 	 */
 	onAddConversation: () => void
 	/**
+	 * Tells the layout the real id once a temporary conversation has been created on the server
+	 */
+	onCurrentConversationIdChange: (id: string) => void
+	/**
 	 * 触发配置应用事件
 	 */
 	handleStartConfig?: () => void
@@ -45,6 +49,7 @@ export default function ChatboxWrapper(props: IChatboxWrapperProps) {
 	const {
 		conversationListLoading,
 		onAddConversation,
+		onCurrentConversationIdChange,
 		conversationItemsChangeCallback,
 		handleStartConfig,
 	} = props
@@ -278,6 +283,7 @@ export default function ChatboxWrapper(props: IChatboxWrapperProps) {
 		onConversationIdChange: id => {
 			setMessagesloadingEnabled(false)
 			setCurrentConversationId(id)
+			onCurrentConversationIdChange(id)
 			conversationItemsChangeCallback()
 		},
 		entryForm,
