@@ -30,7 +30,7 @@ function UserLayoutInner({ children }: { children: React.ReactNode }) {
 
 	return (
 		<ConfigProvider
-			locale={i18n.language === 'en' ? enUS : zhCN}
+			locale={i18n.resolvedLanguage === 'en' ? enUS : zhCN}
 			theme={{
 				algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
 			}}

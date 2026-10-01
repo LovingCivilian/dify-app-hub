@@ -23,7 +23,7 @@ function I18nSwitcher() {
 					key: lng,
 					label: lngs[lng as keyof typeof lngs].nativeName,
 					onClick: () => i18n.changeLanguage(lng),
-					className: lng === i18n.language ? '!text-primary' : '',
+					className: lng === i18n.resolvedLanguage ? '!text-primary' : '',
 				})),
 			}}
 		>

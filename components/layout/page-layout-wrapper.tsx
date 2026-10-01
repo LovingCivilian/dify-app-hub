@@ -3,19 +3,26 @@
 import { initResponsiveConfig } from '@/lib/helpers'
 import { ThemeContextProvider, useThemeContext } from '@/lib/theme'
 import { App, ConfigProvider, theme } from 'antd'
+import enUS from 'antd/es/locale/en_US'
+import zhCN from 'antd/es/locale/zh_CN'
 import { usePathname } from 'next/navigation'
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 
 import AuthGuard from '../auth/auth-guard'
 import AdminPageLayout from './admin-page-layout'
+
+import '@/libs/i18n'
 
 initResponsiveConfig()
 
 const ThemeContextWrapper = ({ children }: { children: React.ReactNode }) => {
 	const { isDark } = useThemeContext()
+	const { i18n } = useTranslation()
 
 	return (
 		<ConfigProvider
+			locale={i18n.resolvedLanguage === 'zh' ? zhCN : enUS}
 			theme={{
 				algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
 			}}
