@@ -8,7 +8,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
 	title: 'Dify App Hub',
-	description: '更贴近业务的 Dify Web APP',
+	description: 'A Dify web app that fits your business',
 }
 
 export default function RootLayout({
