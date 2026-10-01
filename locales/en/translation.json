@@ -346,7 +346,7 @@
 	},
 	"hitl": {
 		"title": "Human input required",
-		"remaining": "⏱ {{time}} left",
+		"remaining": "⏱ Time left: {{time}}",
 		"expired": "Expired",
 		"time_days_hours": "{{d}}d {{h}}h",
 		"time_hours_minutes": "{{h}}h {{m}}m",

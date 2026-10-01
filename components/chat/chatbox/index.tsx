@@ -224,6 +224,7 @@ export const Chatbox = (props: ChatboxProps) => {
 		onSubmit,
 		isRequesting,
 		entryForm,
+		t,
 	])
 
 	// 监听 items 更新，滚动到最底部
