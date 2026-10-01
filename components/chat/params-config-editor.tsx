@@ -1,6 +1,7 @@
 import { Checkbox, Input } from 'antd'
 import { isEqual } from 'lodash-es'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Dify 原始参数配置
@@ -50,6 +51,7 @@ const formatValueByParams = (params: IParamItem[], targetValue: IValueItem[]) =>
 }
 
 export default function ParamsConfigEditor(props: IParamsConfigEditorProps) {
+	const { t } = useTranslation()
 	const { params, value: propsValue = genDefaultValueByParams(params), onChange } = props
 
 	const [value, setValue] = useState<IValueItem[]>([])
@@ -105,10 +107,10 @@ export default function ParamsConfigEditor(props: IParamsConfigEditorProps) {
 					gap: 16,
 				}}
 			>
-				<div style={{ width: 120 }}>参数名</div>
-				<div style={{ width: 120 }}>标签</div>
-				<div style={{ width: 60 }}>必填</div>
-				<div style={{ width: 60 }}>隐藏</div>
+				<div style={{ width: 120 }}>{t('params.name')}</div>
+				<div style={{ width: 120 }}>{t('params.label')}</div>
+				<div style={{ width: 60 }}>{t('params.required')}</div>
+				<div style={{ width: 60 }}>{t('params.hidden')}</div>
 			</div>
 			{/* 参数行 */}
 			{params.map((param, idx) => {

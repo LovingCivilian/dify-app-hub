@@ -3,6 +3,7 @@ import { IFile, IMessageItem4Render } from '@/lib/api'
 import { AppModeEnums, Roles } from '@/lib/core'
 import { Tooltip } from 'antd'
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useDifyChatStore } from '@/lib/core'
 
@@ -36,6 +37,7 @@ interface IMessageContentProps {
  * 消息内容展示组件
  */
 export default function MessageContent(props: IMessageContentProps) {
+	const { t } = useTranslation()
 	const {
 		onSubmit,
 		messageItem: {
@@ -63,7 +65,7 @@ export default function MessageContent(props: IMessageContentProps) {
 					const parsedValue = JSON.parse(content)
 					return parsedValue.isFormSubmit ? currentApp.config.answerForm?.feedbackText : content
 				} catch (error) {
-					console.log('computedContent json 解析失败', error)
+					console.log('Failed to parse computedContent JSON', error)
 					return content
 				}
 			}
@@ -93,8 +95,8 @@ export default function MessageContent(props: IMessageContentProps) {
 		return (
 			<p className="text-orange-600">
 				<WarningOutlined className="mr-2" />
-				<span>消息内容为空</span>
-				<Tooltip title="可能是用户在生成内容的过程中点击了停止响应按钮">
+				<span>{t('message.empty_content')}</span>
+				<Tooltip title={t('message.empty_content_hint')}>
 					<QuestionCircleOutlined className="ml-2" />
 				</Tooltip>
 			</p>

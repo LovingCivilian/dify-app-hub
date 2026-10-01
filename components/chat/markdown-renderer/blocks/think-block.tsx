@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { getThinkTime, setThinkTime } from '@/hooks/useX/think-time-storage'
 
@@ -83,6 +84,7 @@ const detectThinkBlock = (props: any): boolean => {
 }
 
 export const ThinkBlock = ({ children, ...props }: any) => {
+	const { t } = useTranslation()
 	const ctx = useThinkBlockContext()
 	const isThink = detectThinkBlock(props)
 	const isMode2 = isThink && !props['data-think']
@@ -118,8 +120,10 @@ export const ThinkBlock = ({ children, ...props }: any) => {
 						/>
 					</svg>
 					{isComplete
-						? `已完成深度思考${displayTime != null ? ` (${displayTime.toFixed(1)}s)` : ''}`
-						: `深度思考中...(${elapsedTime.toFixed(1)}s)`}
+						? displayTime != null
+							? t('message.think.done_with_time', { seconds: displayTime.toFixed(1) })
+							: t('message.think.done')
+						: t('message.think.in_progress', { seconds: elapsedTime.toFixed(1) })}
 				</div>
 			</summary>
 			<div className="text-theme-desc mt-1 ml-5 rounded-lg border-l border-gray-300">

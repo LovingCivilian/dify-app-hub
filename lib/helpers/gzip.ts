@@ -19,7 +19,7 @@ export const unParseGzipString = (encodedStr: string) => {
 			data: decompressedData,
 		}
 	} catch (error) {
-		console.error('解压缩过程中出现错误:', error)
+		console.error('Error during decompression:', error)
 		return {
 			error: error,
 			data: '',

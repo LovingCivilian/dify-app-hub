@@ -1,6 +1,7 @@
 import { IAgentMessage, IWorkflowNode } from '@/lib/api'
 import { Loader2 } from 'lucide-react'
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import LucideIcon from '@/components/shared/lucide-icon'
 import { TreeView, TreeItem, TreeItemTrigger, TreeItemContent } from '@/components/ui/tree-view'
@@ -14,6 +15,7 @@ interface IWorkflowLogsProps {
 }
 
 export default function WorkflowLogs(props: IWorkflowLogsProps) {
+	const { t } = useTranslation()
 	const { items, status, className } = props
 
 	const statusIcon = useMemo(() => {
@@ -71,7 +73,7 @@ export default function WorkflowLogs(props: IWorkflowLogsProps) {
 					<TreeItemTrigger>
 						<span className="flex items-center gap-2">
 							{statusIcon}
-							工作流
+							{t('workflow.title')}
 						</span>
 					</TreeItemTrigger>
 					<TreeItemContent>
@@ -91,7 +93,9 @@ export default function WorkflowLogs(props: IWorkflowLogsProps) {
 													</span>
 													{item.status === 'success' && (
 														<span className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground">
-															<span>{item.elapsed_time?.toFixed(3)} 秒</span>
+															<span>
+																{t('workflow.seconds', { value: item.elapsed_time?.toFixed(3) })}
+															</span>
 															{totalTokens ? <span>{totalTokens} tokens</span> : null}
 														</span>
 													)}
@@ -100,9 +104,17 @@ export default function WorkflowLogs(props: IWorkflowLogsProps) {
 											<TreeItemContent>
 												<ul className="ml-4 pl-3 border-l-2 pt-0.5 space-y-0.5">
 													{[
-														{ key: 'input', label: '输入', data: item.inputs },
-														{ key: 'process', label: '处理过程', data: item.process_data },
-														{ key: 'output', label: '输出', data: item.outputs as string },
+														{ key: 'input', label: t('workflow.input'), data: item.inputs },
+														{
+															key: 'process',
+															label: t('workflow.process'),
+															data: item.process_data,
+														},
+														{
+															key: 'output',
+															label: t('workflow.output'),
+															data: item.outputs as string,
+														},
 													].map(leaf => (
 														<li key={leaf.key}>
 															<TreeItem>

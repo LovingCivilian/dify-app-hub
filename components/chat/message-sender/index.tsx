@@ -10,6 +10,7 @@ import { RcFile } from 'antd/es/upload'
 import { useSearchParams } from 'pure-react-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 
 import { FileTypeMap, getDifyFileType, getFileExtByName } from './utils'
 
@@ -48,6 +49,7 @@ interface IMessageSenderProps {
  * 用户消息发送区
  */
 export const MessageSender = (props: IMessageSenderProps) => {
+	const { t } = useTranslation()
 	const { isRequesting, onSubmit, className, onCancel, disabled } = props
 	const { difyApi } = useDifyChatStore()
 	const currentApp = useDifyChatStore(s => s.currentApp)
@@ -161,7 +163,7 @@ export const MessageSender = (props: IMessageSenderProps) => {
 
 	const senderHeader = (
 		<Sender.Header
-			title="上传文件"
+			title={t('sender.upload_file')}
 			open={open}
 			onOpenChange={setOpen}
 			styles={{
@@ -178,7 +180,7 @@ export const MessageSender = (props: IMessageSenderProps) => {
 					const ext = getFileExtByName(file.name)
 					// 校验文件类型
 					if (allowedFileTypes.length > 0 && !allowedFileTypes.includes(ext!)) {
-						message.error(`不支持的文件类型: ${ext}`)
+						message.error(t('common.unsupported_file_type', { ext }))
 						return false
 					}
 
@@ -193,12 +195,9 @@ export const MessageSender = (props: IMessageSenderProps) => {
 							}
 						: {
 								icon: <CloudUploadOutlined />,
-								title: '点击或拖拽文件到此区域上传',
+								title: t('sender.upload_hint'),
 								description: (
-									<div>
-										支持的文件类型：
-										{allowedFileTypes.join(', ')}
-									</div>
+									<div>{t('sender.supported_types', { types: allowedFileTypes.join(', ') })}</div>
 								),
 							}
 				}
@@ -261,7 +260,7 @@ export const MessageSender = (props: IMessageSenderProps) => {
 								type: 'audio/webm',
 							})
 							setAudio2TextLoading(true)
-							setContent('正在识别...')
+							setContent(t('sender.recognizing'))
 							difyApi
 								?.audio2Text?.(blob as File)
 								.then((res: any) => {
@@ -269,8 +268,8 @@ export const MessageSender = (props: IMessageSenderProps) => {
 									recordedChunks.current = []
 								})
 								.catch((error: any) => {
-									console.error('语音转文本错误', error)
-									message.error(`语音转文本错误: ${error}`)
+									console.error('Speech-to-text error', error)
+									message.error(t('sender.speech_to_text_error', { error }))
 									setContent('')
 								})
 								.finally(() => {
@@ -289,7 +288,7 @@ export const MessageSender = (props: IMessageSenderProps) => {
 				setRecording(nextRecording)
 			},
 		} as GetProp<typeof Sender, 'allowSpeech'>
-	}, [currentApp, recording, difyApi])
+	}, [currentApp, recording, difyApi, t])
 
 	// 是否允许文件上传
 	const enableFileUpload = currentApp?.parameters?.file_upload?.enabled
@@ -323,7 +322,7 @@ export const MessageSender = (props: IMessageSenderProps) => {
 				enableFileUpload
 					? (firstFile: any, files: any) => {
 							if (files?.length > 1) {
-								message.warning('暂不支持一次性上传多个文件，请逐个上传')
+								message.warning(t('sender.single_file_only'))
 								return
 							}
 							// 如果附件面板是关闭状态，则打开
@@ -337,12 +336,12 @@ export const MessageSender = (props: IMessageSenderProps) => {
 			}
 			onSubmit={async content => {
 				if (!content) {
-					message.error('内容不能为空')
+					message.error(t('sender.content_required'))
 					return
 				}
 				// 当文件存在时，判断是否所有文件都已上传完成
 				if (files?.length && !files.every(item => item.status === 'done')) {
-					message.error('请等待所有文件上传完成')
+					message.error(t('sender.wait_for_uploads'))
 					return
 				}
 				await onSubmit(content, {

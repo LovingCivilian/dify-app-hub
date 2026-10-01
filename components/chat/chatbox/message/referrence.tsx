@@ -9,6 +9,7 @@ import {
 import { IRetrieverResource } from '@/lib/api'
 import { useIsMobile } from '@/lib/helpers'
 import { Divider, Popover, Space, Tooltip } from 'antd'
+import { useTranslation } from 'react-i18next'
 
 interface IRetrieverResourceGroupedItem {
 	id: string
@@ -41,6 +42,7 @@ const MetricItem = (props: IMetricItemProps) => {
 }
 
 const ReferenceItem = (props: IRetrieverResourceGroupedItem) => {
+	const { t } = useTranslation()
 	const isMobile = useIsMobile()
 	return (
 		<div
@@ -104,28 +106,30 @@ const ReferenceItem = (props: IRetrieverResourceGroupedItem) => {
 												{
 													id: `${item.segment_id}_word_count`,
 													icon: <FileWordOutlined />,
-													title: `字符: ${item.word_count}`,
+													title: t('message.reference.word_count', { value: item.word_count }),
 													value: item.word_count,
 													visible: !!item.word_count,
 												},
 												{
 													id: `${item.segment_id}_hit_count`,
 													icon: <AimOutlined />,
-													title: `召回次数: ${item.hit_count}`,
+													title: t('message.reference.hit_count', { value: item.hit_count }),
 													value: item.hit_count,
 													visible: !!item.hit_count,
 												},
 												{
 													id: `${item.segment_id}_index_node_hash`,
 													icon: <ShareAltOutlined />,
-													title: `向量哈希: ${item.index_node_hash}`,
+													title: t('message.reference.vector_hash', {
+														value: item.index_node_hash,
+													}),
 													value: item.index_node_hash?.substring(0, 7),
 													visible: !!item.index_node_hash,
 												},
 												{
 													id: `${item.segment_id}_score`,
 													icon: <StarOutlined />,
-													title: `召回得分: ${item.score}`,
+													title: t('message.reference.score', { value: item.score }),
 													value: item.score,
 													visible: !!item.score,
 												},
@@ -171,6 +175,7 @@ interface IMessageReferrenceProps {
  * 消息引用链接列表
  */
 export default function MessageReferrence(props: IMessageReferrenceProps) {
+	const { t } = useTranslation()
 	const { items } = props
 
 	if (!items?.length) {
@@ -196,7 +201,7 @@ export default function MessageReferrence(props: IMessageReferrenceProps) {
 	return (
 		<div className="pb-3">
 			<div className="flex items-center text-gray-400">
-				<span className="mr-3 text-sm">引用</span>
+				<span className="mr-3 text-sm">{t('message.reference.title')}</span>
 				<div className="h-0 flex-1 border-0 border-t border-dashed border-gray-400" />
 			</div>
 			{groupedItems.map(item => {

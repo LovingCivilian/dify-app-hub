@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, Input } from 'antd'
 import type { IHumanInputFormData, IHumanInputAction } from '@/lib/api/types'
 
@@ -15,6 +16,7 @@ export default function HumanInterventionForm({
 	disabled = false,
 	onSubmit,
 }: HumanInterventionFormProps) {
+	const { t } = useTranslation()
 	const { form_content, inputs, resolved_default_values, user_actions, expiration_time } = formData
 
 	const [values, setValues] = useState<Record<string, string>>(resolved_default_values)
@@ -48,29 +50,29 @@ export default function HumanInterventionForm({
 			try {
 				await onSubmit(values, action.id)
 			} catch (e) {
-				setError((e as Error).message || '提交失败，请重试')
+				setError((e as Error).message || t('hitl.submit_failed'))
 				setSubmitting(false)
 			}
 		},
-		[expired, disabled, submitting, values, onSubmit],
+		[expired, disabled, submitting, values, onSubmit, t],
 	)
 
 	const formatTime = (seconds: number) => {
-		if (seconds <= 0) return '已过期'
+		if (seconds <= 0) return t('hitl.expired')
 		const d = Math.floor(seconds / 86400)
 		const h = Math.floor((seconds % 86400) / 3600)
 		const m = Math.floor((seconds % 3600) / 60)
 		const s = seconds % 60
-		if (d > 0) return `${d}天${h}小时`
-		if (h > 0) return `${h}小时${m}分`
-		return `${m}分${s}秒`
+		if (d > 0) return t('hitl.time_days_hours', { d, h })
+		if (h > 0) return t('hitl.time_hours_minutes', { h, m })
+		return t('hitl.time_minutes_seconds', { m, s })
 	}
 
 	return (
 		<div className="hitl-form-card rounded-lg border border-orange-200 bg-orange-50 p-4">
 			<div className="mb-3 flex items-center gap-2 text-orange-700">
 				<span className="text-lg">🔔</span>
-				<span className="font-medium">人工介入</span>
+				<span className="font-medium">{t('hitl.title')}</span>
 			</div>
 
 			<div className="mb-3 text-sm">{form_content}</div>
@@ -90,7 +92,9 @@ export default function HumanInterventionForm({
 				))}
 			</div>
 
-			<div className="mb-3 text-xs text-gray-400">⏱ 剩余 {formatTime(remainingSeconds)}</div>
+			<div className="mb-3 text-xs text-gray-400">
+				{t('hitl.remaining', { time: formatTime(remainingSeconds) })}
+			</div>
 
 			{error && <div className="mb-2 text-sm text-red-500">{error}</div>}
 

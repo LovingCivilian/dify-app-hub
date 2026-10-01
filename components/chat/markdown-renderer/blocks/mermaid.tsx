@@ -5,6 +5,7 @@ import { usePrevious } from 'ahooks'
 import { Radio } from 'antd'
 import mermaid from 'mermaid'
 import React, { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export function cleanUpSvgCode(svgCode: string): string {
 	return svgCode.replaceAll('<br>', '<br/>')
@@ -33,6 +34,7 @@ const Flowchart = (
 		ref?: React.RefObject<HTMLDivElement | null>
 	},
 ) => {
+	const { t } = useTranslation()
 	const { ref, ...props } = flowChartProps
 	const [svgCode, setSvgCode] = useState(null)
 	const [look, setLook] = useState<'classic' | 'handDrawn'>('classic')
@@ -102,8 +104,8 @@ const Flowchart = (
 								else setLook('classic')
 							}}
 						>
-							<Radio value="classic">经典</Radio>
-							<Radio value="handDrawn">手绘</Radio>
+							<Radio value="classic">{t('message.mermaid_classic')}</Radio>
+							<Radio value="handDrawn">{t('message.mermaid_hand_drawn')}</Radio>
 						</Radio.Group>
 					</label>
 				</div>

@@ -160,7 +160,7 @@ export class CustomProvider<
 		try {
 			parsedData = JSON.parse(chunk.data)
 		} catch (error) {
-			console.error('解析 JSON 失败', error)
+			console.error('Failed to parse JSON', error)
 			return originMessage as ChatMessage
 		}
 		if (parsedData.conversation_id && parsedData.conversation_id !== this.currentConversationId) {
@@ -205,7 +205,7 @@ export class CustomProvider<
 				workflows,
 			} as unknown as ChatMessage
 		} else if (parsedData.event === EventEnum.WORKFLOW_FINISHED) {
-			console.log('工作流结束', parsedData)
+			console.log('Workflow finished', parsedData)
 			workflows.status = 'finished'
 			this.setWorkflowDataStorage({
 				conversationId: this.currentConversationId!,
@@ -217,7 +217,7 @@ export class CustomProvider<
 				workflows,
 			} as unknown as ChatMessage
 		} else if (parsedData.event === EventEnum.WORKFLOW_NODE_STARTED) {
-			console.log('节点开始', parsedData)
+			console.log('Node started', parsedData)
 			if (!(workflows.nodes || []).some(n => n.id === innerData.id)) {
 				workflows.nodes = [
 					...(workflows.nodes || []),
