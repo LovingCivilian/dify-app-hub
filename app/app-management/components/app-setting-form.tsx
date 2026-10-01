@@ -1,5 +1,6 @@
 import { AppModeOptions, OpeningStatementDisplayModeOptions } from '@/lib/core'
 import { Form, FormInstance, Input, Select } from 'antd'
+import { useTranslation } from 'react-i18next'
 
 import { IDifyAppItem } from '@/types'
 
@@ -12,6 +13,7 @@ interface ISettingFormProps {
 }
 
 export default function SettingForm(props: ISettingFormProps) {
+	const { t } = useTranslation()
 	const { formInstance, mode, appItem } = props
 
 	const enableAnswerForm = Form.useWatch('enableAnswerForm', formInstance)
@@ -34,100 +36,100 @@ export default function SettingForm(props: ISettingFormProps) {
 		>
 			<div className="mb-3 flex items-center text-base">
 				<div className="h-4 w-1 rounded bg-[#1669ee]"></div>
-				<div className="ml-2 font-semibold">请求配置</div>
+				<div className="ml-2 font-semibold">{t('app_setting.section_request')}</div>
 			</div>
 
 			<Form.Item
 				label="API Base"
 				name="apiBase"
-				rules={[{ required: true, message: 'API Base 不能为空' }]}
-				tooltip="Dify API 的域名+版本号前缀，如 https://api.dify.ai/v1"
+				rules={[{ required: true, message: t('app_setting.api_base_required') }]}
+				tooltip={t('app_setting.api_base_tooltip')}
 				required
 			>
 				<Input
 					autoComplete="new-password"
-					placeholder="请输入 API BASE"
+					placeholder={t('app_setting.api_base_placeholder')}
 				/>
 			</Form.Item>
 
 			<Form.Item
 				label="API Secret"
 				name="apiKey"
-				tooltip="Dify App 的 API Secret (以 app- 开头)"
-				rules={[{ required: true, message: 'API Secret 不能为空' }]}
+				tooltip={t('app_setting.api_secret_tooltip')}
+				rules={[{ required: true, message: t('app_setting.api_secret_required') }]}
 				required
 			>
 				<Input.Password
 					autoComplete="new-password"
-					placeholder="请输入 API Secret"
+					placeholder={t('app_setting.api_secret_placeholder')}
 				/>
 			</Form.Item>
 
 			<div className="mb-3 flex items-center text-base">
 				<div className="h-4 w-1 rounded bg-[#1669ee]"></div>
-				<div className="ml-2 font-semibold">基本信息</div>
+				<div className="ml-2 font-semibold">{t('app_setting.section_basic')}</div>
 			</div>
 			<Form.Item
 				name="info.name"
-				label="应用名称"
+				label={t('app_setting.name')}
 				hidden={mode === AppDetailDrawerModeEnum.create}
 			>
 				<Input
 					disabled
-					placeholder="请输入应用名称"
+					placeholder={t('app_setting.name_placeholder')}
 				/>
 			</Form.Item>
 			<Form.Item
 				name="info.mode"
-				label="应用类型"
-				tooltip="小于或等于 v1.3.1 的 Dify API 不会返回应用类型字段，需要用户自行选择"
+				label={t('app_setting.type')}
+				tooltip={t('app_setting.type_tooltip')}
 				required
-				rules={[{ required: true, message: '应用类型不能为空' }]}
+				rules={[{ required: true, message: t('app_setting.type_required') }]}
 			>
 				<Select
 					// TODO 等 Dify 支持返回 mode 字段后，这里可以做一个判断，大于支持返回 mode 的版本就禁用，直接取接口值
 					// disabled
-					placeholder="请选择应用类型"
-					options={AppModeOptions}
+					placeholder={t('app_setting.type_placeholder')}
+					options={AppModeOptions.map(item => ({ ...item, label: t(item.label) }))}
 				/>
 			</Form.Item>
 			<Form.Item
 				name="info.description"
-				label="应用描述"
+				label={t('app_setting.description')}
 				hidden={mode === AppDetailDrawerModeEnum.create}
 			>
 				<Input
 					disabled
-					placeholder="请输入应用描述"
+					placeholder={t('app_setting.description_placeholder')}
 				/>
 			</Form.Item>
 			<Form.Item
 				name="info.tags"
-				label="应用标签"
+				label={t('app_setting.tags')}
 				hidden={mode === AppDetailDrawerModeEnum.create}
 			>
 				{appItem?.info.tags?.length ? (
 					<div className="text-theme-text">{appItem.info.tags.join(', ')}</div>
 				) : (
-					<>无</>
+					<>{t('common.none')}</>
 				)}
 			</Form.Item>
 			<Form.Item
 				name="isEnabled"
-				label="应用状态"
-				tooltip="设置应用的启用状态"
-				rules={[{ required: true, message: '应用状态不能为空' }]}
+				label={t('app_setting.status')}
+				tooltip={t('app_setting.status_tooltip')}
+				rules={[{ required: true, message: t('app_setting.status_required') }]}
 				required
 			>
 				<Select
-					placeholder="请选择应用状态"
+					placeholder={t('app_setting.status_placeholder')}
 					options={[
 						{
-							label: '启用',
+							label: t('common.enabled'),
 							value: 1,
 						},
 						{
-							label: '禁用',
+							label: t('common.disabled'),
 							value: 2,
 						},
 					]}
@@ -136,25 +138,25 @@ export default function SettingForm(props: ISettingFormProps) {
 
 			<div className="mb-3 flex items-center text-base">
 				<div className="h-4 w-1 rounded bg-[#1669ee]"></div>
-				<div className="ml-2 font-semibold">对话配置</div>
+				<div className="ml-2 font-semibold">{t('app_setting.section_conversation')}</div>
 			</div>
 
 			<Form.Item
-				label="更新历史参数"
+				label={t('app_setting.update_inputs')}
 				name="enableUpdateInputAfterStarts"
-				tooltip="是否允许更新历史对话的输入参数"
+				tooltip={t('app_setting.update_inputs_tooltip')}
 				rules={[{ required: true }]}
 				required
 			>
 				<Select
-					placeholder="请选择"
+					placeholder={t('form.select_placeholder')}
 					options={[
 						{
-							label: '启用',
+							label: t('common.enabled'),
 							value: true,
 						},
 						{
-							label: '禁用',
+							label: t('common.disabled'),
 							value: false,
 						},
 					]}
@@ -162,39 +164,42 @@ export default function SettingForm(props: ISettingFormProps) {
 			</Form.Item>
 
 			<Form.Item
-				label="开场白展示场景"
+				label={t('app_setting.opening_display')}
 				name="openingStatementDisplayMode"
-				tooltip="配置开场白的展示逻辑"
+				tooltip={t('app_setting.opening_display_tooltip')}
 				rules={[{ required: true }]}
 				required
 			>
 				<Select
-					placeholder="请选择"
-					options={OpeningStatementDisplayModeOptions}
+					placeholder={t('form.select_placeholder')}
+					options={OpeningStatementDisplayModeOptions.map(item => ({
+						...item,
+						label: t(item.label),
+					}))}
 				/>
 			</Form.Item>
 
 			<div className="mb-3 flex items-center text-base">
 				<div className="h-4 w-1 rounded bg-[#1669ee]"></div>
-				<div className="ml-2 font-semibold">更多配置</div>
+				<div className="ml-2 font-semibold">{t('app_setting.section_more')}</div>
 			</div>
 
 			<Form.Item
-				label="允许标注"
+				label={t('app_setting.allow_annotation')}
 				name="enableAnnotation"
-				tooltip="是否允许在对话中进行标注"
+				tooltip={t('app_setting.allow_annotation_tooltip')}
 				rules={[{ required: true }]}
 				required
 			>
 				<Select
-					placeholder="请选择"
+					placeholder={t('form.select_placeholder')}
 					options={[
 						{
-							label: '启用',
+							label: t('common.enabled'),
 							value: true,
 						},
 						{
-							label: '禁用',
+							label: t('common.disabled'),
 							value: false,
 						},
 					]}
@@ -202,21 +207,21 @@ export default function SettingForm(props: ISettingFormProps) {
 			</Form.Item>
 
 			<Form.Item
-				label="表单回复"
+				label={t('app_setting.form_reply')}
 				name="enableAnswerForm"
-				tooltip="当工作流需要回复表单给用户填写时，建议开启此功能"
+				tooltip={t('app_setting.form_reply_tooltip')}
 				rules={[{ required: true }]}
 				required
 			>
 				<Select
-					placeholder="请选择"
+					placeholder={t('form.select_placeholder')}
 					options={[
 						{
-							label: '启用',
+							label: t('common.enabled'),
 							value: true,
 						},
 						{
-							label: '禁用',
+							label: t('common.disabled'),
 							value: false,
 						},
 					]}
@@ -224,11 +229,11 @@ export default function SettingForm(props: ISettingFormProps) {
 			</Form.Item>
 			{enableAnswerForm ? (
 				<Form.Item
-					label="提交消息文本"
+					label={t('app_setting.submit_text')}
 					name="answerForm.feedbackText"
-					tooltip="当启用表单回复时，用户填写表单并提交后，默认会以用户角色将填写的表单数据作为消息文本发送，如果配置了此字段，将会固定展示配置的字段值"
+					tooltip={t('app_setting.submit_text_tooltip')}
 				>
-					<Input placeholder="请输入提交消息文本" />
+					<Input placeholder={t('app_setting.submit_text_placeholder')} />
 				</Form.Item>
 			) : null}
 		</Form>

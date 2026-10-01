@@ -7,6 +7,7 @@ import { useMount, useRequest } from 'ahooks'
 import { Button, message, Popconfirm, Space, Spin, Table, Tag } from 'antd'
 import Title from 'antd/es/typography/Title'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { addApp } from '@/repository/app'
 
@@ -16,6 +17,7 @@ import { AppEditDrawer } from './components/app-edit-drawer'
 import { AppDetailDrawerModeEnum } from './enums'
 
 export default function AppManagementPage() {
+	const { t } = useTranslation()
 	const [appEditDrawerOpen, setAppEditDrawerOpen] = useState(false)
 	const [appEditDrawerMode, setAppEditDrawerMode] = useState<AppDetailDrawerModeEnum>()
 	const [appEditDrawerAppItem, setAppEditDrawerAppItem] = useState<IDifyAppItem>()
@@ -53,7 +55,7 @@ export default function AppManagementPage() {
 			<div className="h-full flex-1 overflow-auto px-6">
 				<div className="mb-3 flex items-center justify-between">
 					<div className="flex items-center">
-						<Title level={3}>应用配置</Title>
+						<Title level={3}>{t('admin_apps.title')}</Title>
 					</div>
 					<Button
 						type="primary"
@@ -63,7 +65,7 @@ export default function AppManagementPage() {
 							setAppEditDrawerAppItem(undefined)
 						}}
 					>
-						新增
+						{t('common.new')}
 					</Button>
 				</div>
 				<Table
@@ -73,7 +75,7 @@ export default function AppManagementPage() {
 					scroll={{ x: 1200 }}
 					columns={[
 						{
-							title: '名称',
+							title: t('admin_apps.column_name'),
 							dataIndex: 'info.name',
 							key: 'info.name',
 							width: 180,
@@ -84,28 +86,28 @@ export default function AppManagementPage() {
 							},
 						},
 						{
-							title: '类型',
+							title: t('admin_apps.column_type'),
 							dataIndex: 'info.mode',
 							key: 'info.mode',
 							width: 200,
 							render: (_mode: AppModeEnums, record) => {
 								return record.info.mode
-									? AppModeNames[(record.info.mode || AppModeEnums.CHATBOT) as AppModeEnums]
+									? t(AppModeNames[(record.info.mode || AppModeEnums.CHATBOT) as AppModeEnums])
 									: '--'
 							},
 						},
 						{
-							title: '描述',
+							title: t('admin_apps.column_description'),
 							dataIndex: 'info.description',
 							key: 'info.description',
 							width: 300,
 							ellipsis: true,
 							render: (_text, record) => {
-								return record.info.description || '暂无描述'
+								return record.info.description || t('app.no_description')
 							},
 						},
 						{
-							title: '标签',
+							title: t('admin_apps.column_tags'),
 							dataIndex: 'info.tags',
 							key: 'info.tags',
 							width: 200,
@@ -120,20 +122,20 @@ export default function AppManagementPage() {
 							},
 						},
 						{
-							title: '状态',
+							title: t('common.status'),
 							dataIndex: 'isEnabled',
 							key: 'isEnabled',
 							width: 140,
 							render: (_text, record) => {
 								return record.isEnabled === 1 ? (
-									<Tag color="success">已启用</Tag>
+									<Tag color="success">{t('admin_apps.status_enabled')}</Tag>
 								) : (
-									<Tag color="default">已禁用</Tag>
+									<Tag color="default">{t('admin_apps.status_disabled')}</Tag>
 								)
 							},
 						},
 						{
-							title: '操作',
+							title: t('common.actions'),
 							key: 'action',
 							width: 280,
 							fixed: 'right',
@@ -144,7 +146,7 @@ export default function AppManagementPage() {
 										type="link"
 										onClick={() => window.open(`/chat/${record.id}`, '_blank')}
 									>
-										用户端
+										{t('admin_apps.user_view')}
 									</Button>
 									<Button
 										className="!px-0"
@@ -155,7 +157,7 @@ export default function AppManagementPage() {
 											setAppEditDrawerAppItem(record)
 										}}
 									>
-										编辑
+										{t('common.edit')}
 									</Button>
 									<Button
 										className="!px-0"
@@ -163,7 +165,7 @@ export default function AppManagementPage() {
 										onClick={async () => {
 											const appItem = await getApp(record.id)
 											if (!appItem) {
-												message.error('应用不存在')
+												message.error(t('admin_apps.not_found'))
 												return
 											}
 											const { info: originalInfo, ...rest } = appItem!
@@ -182,15 +184,15 @@ export default function AppManagementPage() {
 														...appInfo,
 													},
 												})
-												message.success('同步应用成功')
+												message.success(t('admin_apps.sync_success'))
 												getAppList()
 											} catch (error) {
-												message.error('同步应用失败')
+												message.error(t('admin_apps.sync_failed'))
 												console.error(error)
 											}
 										}}
 									>
-										同步应用信息
+										{t('admin_apps.sync_info')}
 									</Button>
 									<Button
 										className="!px-0"
@@ -200,14 +202,14 @@ export default function AppManagementPage() {
 											setAnnotationDrawerOpen(true)
 										}}
 									>
-										标注管理
+										{t('admin_apps.annotations')}
 									</Button>
 									<Popconfirm
-										title="确定删除该应用吗？"
-										description="删除后将无法恢复"
+										title={t('admin_apps.delete_confirm_title')}
+										description={t('admin_apps.delete_confirm_description')}
 										onConfirm={async () => {
 											await deleteApp(record.id)
-											message.success('删除应用成功')
+											message.success(t('admin_apps.delete_success'))
 											getAppList()
 										}}
 									>
@@ -216,7 +218,7 @@ export default function AppManagementPage() {
 											type="link"
 											danger
 										>
-											删除
+											{t('common.delete')}
 										</Button>
 									</Popconfirm>
 								</Space>

@@ -35,16 +35,20 @@ export const AppModeLabels = {
 }
 
 export const AppModeNames = {
-	[AppModeEnums.TEXT_GENERATOR]: '文本生成',
-	[AppModeEnums.CHATBOT]: '聊天助手',
-	[AppModeEnums.WORKFLOW]: '工作流',
-	[AppModeEnums.CHATFLOW]: '支持工作流编排的聊天助手',
-	[AppModeEnums.AGENT]: '具备推理和自主调用能力的聊天助手',
-}
+	[AppModeEnums.TEXT_GENERATOR]: 'app_mode.name.text_generator',
+	[AppModeEnums.CHATBOT]: 'app_mode.name.chatbot',
+	[AppModeEnums.WORKFLOW]: 'app_mode.name.workflow',
+	[AppModeEnums.CHATFLOW]: 'app_mode.name.chatflow',
+	[AppModeEnums.AGENT]: 'app_mode.name.agent',
+} as const
 
-const getAppModelFullName = (mode: AppModeEnums) => {
-	return `${AppModeLabels[mode]}（${AppModeNames[mode]}）`
-}
+const AppModeOptionLabels = {
+	[AppModeEnums.TEXT_GENERATOR]: 'app_mode.option.text_generator',
+	[AppModeEnums.CHATBOT]: 'app_mode.option.chatbot',
+	[AppModeEnums.WORKFLOW]: 'app_mode.option.workflow',
+	[AppModeEnums.CHATFLOW]: 'app_mode.option.chatflow',
+	[AppModeEnums.AGENT]: 'app_mode.option.agent',
+} as const
 
 export const AppModeOptions = [
 	AppModeEnums.CHATBOT,
@@ -54,7 +58,7 @@ export const AppModeOptions = [
 	AppModeEnums.TEXT_GENERATOR,
 ].map(mode => {
 	return {
-		label: getAppModelFullName(mode),
+		label: AppModeOptionLabels[mode],
 		value: mode,
 	}
 })
@@ -65,9 +69,9 @@ export const OpeningStatementDisplayMode = {
 }
 
 export const OpeningStatementDisplayModeOptions = [
-	{ label: '默认（开始对话前展示）', value: OpeningStatementDisplayMode.Default },
-	{ label: '总是展示', value: OpeningStatementDisplayMode.Always },
-]
+	{ label: 'app_setting.opening_display_default', value: OpeningStatementDisplayMode.Default },
+	{ label: 'app_setting.opening_display_always', value: OpeningStatementDisplayMode.Always },
+] as const
 
 export const DEFAULT_APP_SITE_SETTING = {
 	title: '',

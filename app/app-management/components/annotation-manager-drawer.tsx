@@ -3,6 +3,7 @@ import { IDifyAppItem } from '@/lib/core'
 import { useRequest } from 'ahooks'
 import { Button, Drawer, Form, Input, message, Popconfirm, Popover, Space, Table } from 'antd'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface IAnnotationManagerDrawerProps {
 	open: boolean
@@ -13,6 +14,7 @@ interface IAnnotationManagerDrawerProps {
 const DEFAULT_PAGE_SIZE = 10
 
 export const AnnotationManagerDrawer = (props: IAnnotationManagerDrawerProps) => {
+	const { t } = useTranslation()
 	const { open, onClose, appItem } = props
 	const [difyApi, setDifyApi] = useState<DifyApi>()
 
@@ -78,10 +80,10 @@ export const AnnotationManagerDrawer = (props: IAnnotationManagerDrawerProps) =>
 		if (!difyApi) return
 		try {
 			await difyApi.deleteAnnotation(id)
-			message.success('删除成功')
+			message.success(t('common.delete_success'))
 			refresh()
 		} catch (e) {
-			message.error('删除失败')
+			message.error(t('common.delete_failed'))
 			console.error(e)
 		}
 	}
@@ -92,23 +94,23 @@ export const AnnotationManagerDrawer = (props: IAnnotationManagerDrawerProps) =>
 			const values = await form.validateFields()
 			if (modalMode === 'create') {
 				await difyApi.createAnnotation(values)
-				message.success('创建成功')
+				message.success(t('common.create_success'))
 			} else {
 				await difyApi.updateAnnotation(currentAnnotation!.id, values)
-				message.success('更新成功')
+				message.success(t('common.update_success'))
 			}
 			setModalOpen(false)
 			refresh()
 		} catch (e) {
 			console.error(e)
-			message.error('操作失败')
+			message.error(t('common.operation_failed'))
 		}
 	}
 
 	// Table Columns
 	const columns = [
 		{
-			title: '问题',
+			title: t('annotation.question'),
 			dataIndex: 'question',
 			key: 'question',
 			width: 200,
@@ -144,7 +146,7 @@ export const AnnotationManagerDrawer = (props: IAnnotationManagerDrawerProps) =>
 			),
 		},
 		{
-			title: '回答',
+			title: t('annotation.answer'),
 			dataIndex: 'answer',
 			key: 'answer',
 			width: 200,
@@ -180,20 +182,20 @@ export const AnnotationManagerDrawer = (props: IAnnotationManagerDrawerProps) =>
 			),
 		},
 		{
-			title: '命中次数',
+			title: t('annotation.hit_count'),
 			dataIndex: 'hit_count',
 			key: 'hit_count',
 			width: 100,
 		},
 		{
-			title: '创建时间',
+			title: t('common.created_at'),
 			dataIndex: 'created_at',
 			key: 'created_at',
 			render: (val: number) => new Date(val * 1000).toLocaleString(),
 			width: 180,
 		},
 		{
-			title: '操作',
+			title: t('common.actions'),
 			key: 'action',
 			width: 120,
 			render: (_: unknown, record: IAnnotationItem) => (
@@ -203,10 +205,10 @@ export const AnnotationManagerDrawer = (props: IAnnotationManagerDrawerProps) =>
 						type="link"
 						onClick={() => handleEdit(record)}
 					>
-						编辑
+						{t('common.edit')}
 					</Button>
 					<Popconfirm
-						title="确认删除?"
+						title={t('annotation.delete_confirm')}
 						onConfirm={() => handleDelete(record.id)}
 					>
 						<Button
@@ -214,7 +216,7 @@ export const AnnotationManagerDrawer = (props: IAnnotationManagerDrawerProps) =>
 							type="link"
 							danger
 						>
-							删除
+							{t('common.delete')}
 						</Button>
 					</Popconfirm>
 				</Space>
@@ -224,7 +226,7 @@ export const AnnotationManagerDrawer = (props: IAnnotationManagerDrawerProps) =>
 
 	return (
 		<Drawer
-			title="标注管理"
+			title={t('admin_apps.annotations')}
 			size={1000}
 			open={open}
 			onClose={onClose}
@@ -237,7 +239,7 @@ export const AnnotationManagerDrawer = (props: IAnnotationManagerDrawerProps) =>
 						setModalOpen(true)
 					}}
 				>
-					新增标注
+					{t('annotation.add')}
 				</Button>
 			}
 		>
@@ -253,24 +255,24 @@ export const AnnotationManagerDrawer = (props: IAnnotationManagerDrawerProps) =>
 					total: data?.total,
 					showSizeChanger: true,
 					pageSizeOptions: ['10', '20', '50', '100'],
-					showTotal: total => `共 ${total} 条`,
+					showTotal: total => t('common.total_items', { total }),
 					onChange: (page, pageSize) => fetchList({ page, limit: pageSize }),
 				}}
 			/>
 
 			<Drawer
-				title={modalMode === 'create' ? '新增标注' : '编辑标注'}
+				title={modalMode === 'create' ? t('annotation.add') : t('annotation.edit')}
 				open={modalOpen}
 				onClose={() => setModalOpen(false)}
 				size={600}
 				extra={
 					<Space>
-						<Button onClick={() => setModalOpen(false)}>取消</Button>
+						<Button onClick={() => setModalOpen(false)}>{t('common.cancel')}</Button>
 						<Button
 							type="primary"
 							onClick={handleModalOk}
 						>
-							确定
+							{t('common.ok')}
 						</Button>
 					</Space>
 				}
@@ -281,15 +283,15 @@ export const AnnotationManagerDrawer = (props: IAnnotationManagerDrawerProps) =>
 				>
 					<Form.Item
 						name="question"
-						label="问题"
-						rules={[{ required: true, message: '请输入问题' }]}
+						label={t('annotation.question')}
+						rules={[{ required: true, message: t('annotation.question_required') }]}
 					>
 						<Input.TextArea rows={3} />
 					</Form.Item>
 					<Form.Item
 						name="answer"
-						label="回答"
-						rules={[{ required: true, message: '请输入答案' }]}
+						label={t('annotation.answer')}
+						rules={[{ required: true, message: t('annotation.answer_required') }]}
 					>
 						<Input.TextArea autoSize={{ minRows: 3, maxRows: 15 }} />
 					</Form.Item>
