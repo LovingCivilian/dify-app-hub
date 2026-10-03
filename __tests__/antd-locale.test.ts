@@ -22,11 +22,16 @@ describe('applyDayjsLocale', () => {
 	it.each([
 		['en', 'en', 'January'],
 		['zh', 'zh-cn', '一月'],
-		['ar', 'ar-sa', 'يناير'],
+		['ar', 'ar', 'يناير'],
 	])('switches Day.js to %s so dates format in that language', (language, dayjsLocale, january) => {
 		applyDayjsLocale(language)
 		expect(dayjs.locale()).toBe(dayjsLocale)
 		expect(dayjs('2026-01-15').format('MMMM')).toBe(january)
+	})
+
+	it('formats Arabic dates with Arabic-Indic digits (preParsePostFormat plugin)', () => {
+		applyDayjsLocale('ar')
+		expect(dayjs('2026-01-15 09:05').format('YYYY-MM-DD HH:mm')).toBe('٢٠٢٦-٠١-١٥ ٠٩:٠٥')
 	})
 
 	it('falls back to English for an unknown language', () => {
