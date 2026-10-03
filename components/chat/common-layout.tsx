@@ -1,3 +1,4 @@
+import AccountMenu from '@/components/auth/account-menu'
 import { HeaderLayout } from '@/components/shared'
 import { IDifyAppItem, useDifyChatStore } from '@/lib/core'
 import { Empty, Spin } from 'antd'
@@ -19,7 +20,16 @@ export default function CommonLayout(props: ICommonLayoutProps) {
 	return (
 		<div className={`bg-theme-bg flex h-screen w-full flex-col overflow-hidden`}>
 			{/* 头部 */}
-			<HeaderLayout title={renderCenterTitle?.(currentApp?.config?.info)} />
+			<HeaderLayout
+				title={renderCenterTitle?.(currentApp?.config?.info)}
+				renderRightIcons={({ theme, github }) => (
+					<div className="flex items-center gap-4">
+						{theme}
+						{github}
+						<AccountMenu />
+					</div>
+				)}
+			/>
 
 			{/* Main */}
 			<div className="bg-theme-main-bg flex flex-1 overflow-hidden rounded-t-3xl">

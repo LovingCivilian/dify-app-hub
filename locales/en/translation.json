@@ -160,6 +160,7 @@
 	"auth": {
 		"login": "Log in",
 		"logout": "Log out",
+		"signed_in_as": "Signed in as {{email}}",
 		"login_subtitle": "Log in to your account",
 		"login_success": "Logged in",
 		"login_failed": "Login failed. Check your email and password.",
