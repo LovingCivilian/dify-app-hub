@@ -1,14 +1,18 @@
-import { LocalStorageKeys, LocalStorageStore } from '@/lib/helpers'
+import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 
+/**
+ * Chat-side identity: the signed-in account. `userId` is the account email,
+ * which the server also uses as the Dify end-user id.
+ */
 export const useAuth = () => {
 	const router = useRouter()
-	const userId =
-		typeof window !== 'undefined' ? LocalStorageStore.get(LocalStorageKeys.USER_ID) : null
+	const { data: session, status } = useSession()
 
 	return {
-		isAuthorized: !!userId,
-		goAuthorize: () => router.push('/auth'),
-		userId,
+		isAuthorized: status === 'authenticated',
+		isLoading: status === 'loading',
+		goAuthorize: () => router.push('/login'),
+		userId: session?.user?.email ?? undefined,
 	}
 }
