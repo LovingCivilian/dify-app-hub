@@ -1,11 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import {
-	createDifyApiResponse,
-	createFormDataProxy,
-	getUserIdFromRequest,
-	handleApiError,
-} from '@/lib/api-utils'
+import { createDifyApiResponse, createFormDataProxy, handleApiError } from '@/lib/api-utils'
+import { getSessionUserId, unauthorizedResponse } from '@/lib/session-user'
 import { getAppItem } from '@/repository/app'
 
 export const dynamic = 'force-dynamic'
@@ -27,11 +23,12 @@ export async function POST(
 		}
 
 		// 获取用户ID
-		const userId = getUserIdFromRequest(request)
+		const userId = await getSessionUserId()
+		if (!userId) return unauthorizedResponse()
 
 		// 构建代理 FormData
 		const proxyFormData = await createFormDataProxy(request)
-		proxyFormData.append('user', userId)
+		proxyFormData.set('user', userId)
 
 		// Dify's AUDIO_EXTENSIONS only allows: mp3, m4a, wav, amr, mpga
 		// Chrome records as audio/webm which is NOT in Dify's allowlist.

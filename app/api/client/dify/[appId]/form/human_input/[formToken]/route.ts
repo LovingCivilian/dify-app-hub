@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server'
 
 import { createDifyApiResponse, handleApiError, proxyDifyRequest } from '@/lib/api-utils'
 import { getAppItem } from '@/repository/app'
-import { getUserIdFromRequest } from '@/lib/api-utils'
+import { getSessionUserId, unauthorizedResponse } from '@/lib/session-user'
 
 export async function POST(
 	request: NextRequest,
@@ -19,7 +19,8 @@ export async function POST(
 		}
 
 		const body = await request.json()
-		const userId = getUserIdFromRequest(request)
+		const userId = await getSessionUserId()
+		if (!userId) return unauthorizedResponse()
 
 		const response = await proxyDifyRequest(
 			app.requestConfig.apiBase,
@@ -29,7 +30,7 @@ export async function POST(
 				method: 'POST',
 				body: JSON.stringify({
 					...body,
-					user: body.user || userId,
+					user: userId,
 				}),
 			},
 		)

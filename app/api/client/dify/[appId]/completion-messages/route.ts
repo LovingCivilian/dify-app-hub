@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
-import { createDifyResponseProxy, getUserIdFromRequest } from '@/lib/api-utils'
+import { createDifyResponseProxy } from '@/lib/api-utils'
+import { getSessionUserId, unauthorizedResponse } from '@/lib/session-user'
 import { getAppItem } from '@/repository/app'
 
 export const dynamic = 'force-dynamic'
@@ -28,7 +29,8 @@ export async function POST(
 		const { inputs } = await request.json()
 
 		// 获取用户ID
-		const userId = getUserIdFromRequest(request)
+		const userId = await getSessionUserId()
+		if (!userId) return unauthorizedResponse()
 
 		// 代理请求到 Dify API
 		const response = await fetch(`${app.requestConfig.apiBase}/completion-messages`, {
