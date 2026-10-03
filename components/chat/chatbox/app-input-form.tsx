@@ -14,6 +14,7 @@ import {
 } from 'antd'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { isChatLikeApp } from '@/components/chat/utils-index'
 
@@ -82,6 +83,7 @@ function normalizeFieldValue(type: IUserInputFormItemType, value: unknown): unkn
  * 应用输入表单
  */
 export default function AppInputForm(props: IAppInputFormProps) {
+	const { t } = useTranslation()
 	const { entryForm, disabled } = props
 	const currentApp = useDifyChatStore(s => s.currentApp)
 	const currentConversationId = useDifyChatStore(s => s.currentConversationId)
@@ -122,7 +124,7 @@ export default function AppInputForm(props: IAppInputFormProps) {
 					const { error, data } = unParseGzipString(searchValue || cachedValue)
 
 					if (error) {
-						message.error(`解压缩参数 ${originalProps.variable} 失败: ${error}`)
+						message.error(t('form.decompress_failed', { name: originalProps.variable, error }))
 					}
 
 					// 解析正常且是新对话 或者允许更新对话参数，则写入 URL 参数
@@ -167,7 +169,7 @@ export default function AppInputForm(props: IAppInputFormProps) {
 				}
 				if (originalProps.required) {
 					baseProps.required = true
-					baseProps.rules = [{ required: true, message: '请输入' }]
+					baseProps.rules = [{ required: true, message: t('form.input_placeholder') }]
 				}
 				return baseProps
 			}) || [],
@@ -221,7 +223,7 @@ export default function AppInputForm(props: IAppInputFormProps) {
 												? [
 														{
 															required: true,
-															message: `${item.label}不能为空`,
+															message: t('form.field_required', { label: item.label }),
 														},
 													]
 												: []
@@ -229,13 +231,13 @@ export default function AppInputForm(props: IAppInputFormProps) {
 									>
 										{item.type === 'text-input' ? (
 											<Input
-												placeholder="请输入"
+												placeholder={t('form.input_placeholder')}
 												maxLength={item.max_length}
 												disabled={disabled}
 											/>
 										) : item.type === 'select' ? (
 											<Select
-												placeholder="请选择"
+												placeholder={t('form.select_placeholder')}
 												disabled={disabled}
 												options={
 													item.options?.map(option => {
@@ -248,13 +250,13 @@ export default function AppInputForm(props: IAppInputFormProps) {
 											/>
 										) : item.type === 'paragraph' ? (
 											<Input.TextArea
-												placeholder="请输入"
+												placeholder={t('form.input_placeholder')}
 												disabled={disabled}
 												maxLength={item.max_length}
 											/>
 										) : item.type === 'number' ? (
 											<InputNumber
-												placeholder="请输入"
+												placeholder={t('form.input_placeholder')}
 												disabled={disabled}
 												className="w-full"
 											/>
@@ -271,7 +273,7 @@ export default function AppInputForm(props: IAppInputFormProps) {
 												allowed_file_types={item.allowed_file_types || []}
 											/>
 										) : (
-											`暂不支持的控件类型: ${item.type}`
+											t('form.unsupported_control', { type: item.type })
 										)}
 									</Form.Item>
 								)

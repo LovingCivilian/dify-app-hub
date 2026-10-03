@@ -90,7 +90,7 @@ export default function MessageFooter(props: IMessageFooterProps) {
 		{
 			manual: true,
 			onSuccess() {
-				message.success('标注成功')
+				message.success(t('annotation.create_success'))
 				setAnnotationDrawerVisible(false)
 				annotationForm.resetFields()
 			},
@@ -111,7 +111,7 @@ export default function MessageFooter(props: IMessageFooterProps) {
 		{
 			manual: true,
 			onSuccess() {
-				message.success('操作成功')
+				message.success(t('common.operation_success'))
 				callback?.()
 			},
 			onFinally() {
@@ -304,19 +304,19 @@ export default function MessageFooter(props: IMessageFooterProps) {
 				)}
 			</Space>
 			<Drawer
-				title="创建标注"
+				title={t('annotation.create_title')}
 				size={500}
 				open={annotationDrawerVisible}
 				onClose={() => setAnnotationDrawerVisible(false)}
 				extra={
 					<Space>
-						<Button onClick={() => setAnnotationDrawerVisible(false)}>取消</Button>
+						<Button onClick={() => setAnnotationDrawerVisible(false)}>{t('common.cancel')}</Button>
 						<Button
 							type="primary"
 							loading={annotationLoading}
 							onClick={runCreateAnnotation}
 						>
-							确认
+							{t('common.confirm')}
 						</Button>
 					</Space>
 				}
@@ -328,21 +328,21 @@ export default function MessageFooter(props: IMessageFooterProps) {
 					<Form.Item
 						name="question"
 						label="Question"
-						rules={[{ required: true, message: '请输入问题' }]}
+						rules={[{ required: true, message: t('annotation.question_required') }]}
 					>
 						<Input.TextArea
 							rows={4}
-							placeholder="请输入问题"
+							placeholder={t('annotation.question_required')}
 						/>
 					</Form.Item>
 					<Form.Item
 						name="answer"
 						label="Answer"
-						rules={[{ required: true, message: '请输入答案' }]}
+						rules={[{ required: true, message: t('annotation.answer_required') }]}
 					>
 						<Input.TextArea
 							rows={10}
-							placeholder="请输入答案"
+							placeholder={t('annotation.answer_required')}
 						/>
 					</Form.Item>
 				</Form>

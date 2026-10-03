@@ -7,6 +7,7 @@ import type { Element, Root, Text } from 'hast'
 import 'katex/dist/katex.min.css'
 import { flow } from 'lodash-es'
 import React, { AnchorHTMLAttributes, Component, memo, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import SyntaxHighlighter from 'react-syntax-highlighter'
 import { atomOneDark, atomOneLight } from 'react-syntax-highlighter/dist/esm/styles/hljs'
@@ -119,6 +120,7 @@ interface ICodeBlockProps {
 }
 
 const CodeBlock = memo(({ inline, className, children, ...props }: ICodeBlockProps) => {
+	const { t } = useTranslation()
 	const { isLight } = useThemeContext()
 	const [isSVG, setIsSVG] = useState(true)
 	const match = /language-(\w+)/.exec(className || '')
@@ -203,14 +205,14 @@ const CodeBlock = memo(({ inline, className, children, ...props }: ICodeBlockPro
 							setIsSVG={setIsSVG}
 						/>
 					)}
-					<Tooltip title="复制代码">
+					<Tooltip title={t('message.copy_code')}>
 						<div className="inline-flex items-center rounded p-1 hover:bg-gray-100">
 							<LucideIcon
 								className="cursor-pointer"
 								name="copy"
 								onClick={async () => {
 									await copyToClipboard(String(children).replace(/\n$/, ''))
-									message.success('复制成功')
+									message.success(t('message.copy_success'))
 								}}
 							/>
 						</div>

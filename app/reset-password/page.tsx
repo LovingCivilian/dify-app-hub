@@ -3,8 +3,10 @@
 import { Button, Card, Form, Input, message, Result } from 'antd'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Suspense, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 function ResetPasswordContent() {
+	const { t } = useTranslation()
 	const token = useSearchParams().get('token') || ''
 	const router = useRouter()
 	const [loading, setLoading] = useState(false)
@@ -18,11 +20,11 @@ function ResetPasswordContent() {
 				body: JSON.stringify({ token, ...values }),
 			})
 			const data = await response.json()
-			if (!response.ok) return message.error(data.message || '密码重置失败')
-			message.success('密码重置成功，请重新登录')
+			if (!response.ok) return message.error(data.message || t('auth.reset_failed'))
+			message.success(t('auth.reset_success'))
 			router.replace('/login')
 		} catch {
-			message.error('密码重置失败，请稍后重试')
+			message.error(t('auth.reset_failed_retry'))
 		} finally {
 			setLoading(false)
 		}
@@ -32,28 +34,28 @@ function ResetPasswordContent() {
 		return (
 			<Result
 				status="error"
-				title="重置链接无效"
+				title={t('auth.reset_link_invalid')}
 			/>
 		)
 
 	return (
 		<div className="bg-theme-bg flex min-h-screen items-center justify-center">
 			<Card className="w-full max-w-md dark:bg-gray-700">
-				<h1 className="mb-6 text-2xl font-bold">重置管理员密码</h1>
+				<h1 className="mb-6 text-2xl font-bold">{t('auth.reset_title')}</h1>
 				<Form
 					onFinish={onFinish}
 					layout="vertical"
 					size="large"
 				>
 					<Form.Item
-						label="新密码"
+						label={t('auth.new_password')}
 						name="password"
-						rules={[{ required: true }, { min: 8, message: '密码至少需要 8 位' }]}
+						rules={[{ required: true }, { min: 8, message: t('auth.password_min_8') }]}
 					>
 						<Input.Password />
 					</Form.Item>
 					<Form.Item
-						label="确认密码"
+						label={t('auth.confirm_password')}
 						name="confirmPassword"
 						rules={[
 							{ required: true },
@@ -61,7 +63,7 @@ function ResetPasswordContent() {
 								validator: (_, value) =>
 									value === getFieldValue('password')
 										? Promise.resolve()
-										: Promise.reject(new Error('两次密码不一致')),
+										: Promise.reject(new Error(t('auth.password_mismatch'))),
 							}),
 						]}
 					>
@@ -73,7 +75,7 @@ function ResetPasswordContent() {
 						loading={loading}
 						block
 					>
-						重置密码
+						{t('auth.reset_password')}
 					</Button>
 				</Form>
 			</Card>

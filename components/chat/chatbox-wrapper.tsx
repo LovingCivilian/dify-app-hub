@@ -4,13 +4,14 @@ import { useDifyChatStore } from '@/lib/core'
 import { Roles } from '@/lib/core'
 import { isTempId } from '@/lib/helpers'
 import { Button, Empty, Form, Spin } from 'antd'
-import dayjs from 'dayjs'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Chatbox } from '@/components/chat/chatbox'
 import { useLatest } from '@/hooks/use-latest'
 import { useX } from '@/hooks/useX'
 import workflowDataStorage from '@/hooks/useX/workflow-data-storage'
+import { formatDateTime } from '@/libs/format-date'
 import { IAgentMessage } from '@/lib/api'
 import type { IHumanInputRequiredEvent } from '@/lib/api'
 import HumanInterventionForm from './hitl-form'
@@ -30,6 +31,10 @@ interface IChatboxWrapperProps {
 	 */
 	onAddConversation: () => void
 	/**
+	 * Tells the layout the real id once a temporary conversation has been created on the server
+	 */
+	onCurrentConversationIdChange: (id: string) => void
+	/**
 	 * 触发配置应用事件
 	 */
 	handleStartConfig?: () => void
@@ -39,10 +44,12 @@ interface IChatboxWrapperProps {
  * 聊天容器 进入此组件时, 应保证应用信息和对话列表已经加载完成
  */
 export default function ChatboxWrapper(props: IChatboxWrapperProps) {
+	const { t, i18n } = useTranslation()
 	const { difyApi } = useDifyChatStore()
 	const {
 		conversationListLoading,
 		onAddConversation,
+		onCurrentConversationIdChange,
 		conversationItemsChangeCallback,
 		handleStartConfig,
 	} = props
@@ -145,7 +152,7 @@ export default function ChatboxWrapper(props: IChatboxWrapperProps) {
 			}
 
 			for (const item of result.data) {
-				const createdAt = dayjs(item.created_at * 1000).format('YYYY-MM-DD HH:mm:ss')
+				const createdAt = formatDateTime(item.created_at * 1000, i18n.resolvedLanguage)
 				newMessages.push(
 					{
 						id: item.id,
@@ -225,7 +232,7 @@ export default function ChatboxWrapper(props: IChatboxWrapperProps) {
 			const newMessages: IMessageItem4Render[] = []
 
 			for (const item of result.data) {
-				const createdAt = dayjs(item.created_at * 1000).format('YYYY-MM-DD HH:mm:ss')
+				const createdAt = formatDateTime(item.created_at * 1000, i18n.resolvedLanguage)
 				newMessages.push(
 					{
 						id: item.id,
@@ -276,6 +283,7 @@ export default function ChatboxWrapper(props: IChatboxWrapperProps) {
 		onConversationIdChange: id => {
 			setMessagesloadingEnabled(false)
 			setCurrentConversationId(id)
+			onCurrentConversationIdChange(id)
 			conversationItemsChangeCallback()
 		},
 		entryForm,
@@ -454,12 +462,12 @@ export default function ChatboxWrapper(props: IChatboxWrapperProps) {
 	if (!currentApp) {
 		return (
 			<div className="flex h-full w-full items-center justify-center">
-				<Empty description="请先配置 Dify 应用">
+				<Empty description={t('app.configure_first')}>
 					<Button
 						type="primary"
 						onClick={handleStartConfig}
 					>
-						开始配置
+						{t('app.start_configuring')}
 					</Button>
 				</Empty>
 			</div>

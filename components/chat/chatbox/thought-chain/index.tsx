@@ -40,13 +40,13 @@ export default function ThoughtChain(props: IThoughtChainProps) {
 		const collapseItems = [
 			{
 				key: `${uniqueKey}-tool_input`,
-				label: '请求',
+				label: t('message.tool.request'),
 				children: <CollapseItem text={item.tool_input} />,
 				visible: !!item.tool_input,
 			},
 			{
 				key: `${uniqueKey}-observation`,
-				label: '响应',
+				label: t('message.tool.response'),
 				children: <CollapseItem text={item.observation} />,
 				visible: !!item.observation,
 			},
@@ -102,20 +102,21 @@ export default function ThoughtChain(props: IThoughtChainProps) {
 									label: (
 										<div className="flex items-center">
 											<LucideIcon name="hammer" />
-											<span className="mx-1">已使用</span> <span>{item.tool}</span>
+											<span className="mx-1">{t('message.tool.title_prefix')}</span>{' '}
+											<span>{item.tool}</span>
 										</div>
 									),
 									children: (
 										<div className="bg-transparent">
 											<div className="">
 												<div className="flex items-center">
-													<span className="mr-2">请求</span>
+													<span className="mr-2">{t('message.tool.request')}</span>
 													<LucideIcon
 														name="copy"
 														className="cursor-pointer"
 														onClick={async () => {
 															await copyToClipboard(item.tool_input)
-															message.success('复制成功')
+															message.success(t('message.copy_success'))
 														}}
 													/>
 												</div>
@@ -125,13 +126,13 @@ export default function ThoughtChain(props: IThoughtChainProps) {
 											</div>
 											<div className="mt-2">
 												<div className="flex items-center">
-													<span className="mr-2">响应</span>
+													<span className="mr-2">{t('message.tool.response')}</span>
 													<LucideIcon
 														name="copy"
 														className="cursor-pointer"
 														onClick={async () => {
 															await copyToClipboard(item.observation)
-															message.success('复制成功')
+															message.success(t('message.copy_success'))
 														}}
 													/>
 												</div>

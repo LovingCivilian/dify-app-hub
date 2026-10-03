@@ -185,8 +185,8 @@ export const Chatbox = (props: ChatboxProps) => {
 								// 直接通过遍历找到当前消息的用户子消息，取其内容发送消息
 								const currentItem = messageItems.find(item => item.id === messageItem.id)
 								if (!currentItem) {
-									console.error('消息不存在:', messageItem.id)
-									message.error('消息不存在')
+									console.error('Message not found:', messageItem.id)
+									message.error(t('chat.message_not_found'))
 									return
 								}
 								const messageParams: {
@@ -224,6 +224,7 @@ export const Chatbox = (props: ChatboxProps) => {
 		onSubmit,
 		isRequesting,
 		entryForm,
+		t,
 	])
 
 	// 监听 items 更新，滚动到最底部
@@ -312,7 +313,7 @@ export const Chatbox = (props: ChatboxProps) => {
 							{/* 下一步问题建议 当存在消息列表，且非正在对话时才展示 */}
 							{nextSuggestions?.length && items.length && !isRequesting ? (
 								<div className="mt-3 py-3">
-									<div className="text-desc">🤔 你可能还想问:</div>
+									<div className="text-desc">{t('chat.suggested_questions')}</div>
 									<div>
 										{nextSuggestions?.map(item => {
 											return (
@@ -360,7 +361,7 @@ export const Chatbox = (props: ChatboxProps) => {
 									return onSubmit(...params)
 								} else {
 									message.error(res.errMsgs)
-									return Promise.reject(`表单校验失败: ${res.errMsgs}`)
+									return Promise.reject(t('form.validation_failed', { errors: res.errMsgs }))
 								}
 							})
 						}}

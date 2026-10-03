@@ -174,7 +174,7 @@ export default function FileUpload(props: IFileUploadProps) {
 				const ext = getFileExtByName(file.name)
 				// 校验文件类型
 				if (allowedFileTypes.length > 0 && !allowedFileTypes.includes(ext!)) {
-					message.error(`不支持的文件类型: ${ext}`)
+					message.error(t('common.unsupported_file_type', { ext }))
 					return false
 				}
 

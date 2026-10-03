@@ -1,5 +1,6 @@
 import { DIFY_INFO } from '@/lib/helpers'
 import { message } from 'antd'
+import i18next from 'i18next'
 
 /**
  * 未授权错误类
@@ -38,7 +39,7 @@ export class XRequest {
 			}
 		}
 		if (result.status === 401) {
-			message.error('未授权, 请检查你的配置')
+			message.error(i18next.t('common.unauthorized'))
 			throw new UnauthorizedError('Unauthorized')
 		}
 		return result

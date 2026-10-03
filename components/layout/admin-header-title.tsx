@@ -2,9 +2,13 @@
 
 import { AppstoreOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons'
 import { Button, Dropdown, message, Segmented, Space } from 'antd'
+import type { ParseKeys } from 'i18next'
 import { signOut, useSession } from 'next-auth/react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import I18nSwitcher from '@/components/chat/i18n-switcher'
 
 enum ETopMenuKeys {
 	AppManagement = 'app-management',
@@ -12,7 +16,7 @@ enum ETopMenuKeys {
 }
 
 interface ITopMenuOption {
-	label: string
+	label: ParseKeys
 	value: ETopMenuKeys
 	route: string
 	icon?: React.ReactNode
@@ -20,13 +24,13 @@ interface ITopMenuOption {
 
 const TopMenuOptions: ITopMenuOption[] = [
 	{
-		label: '应用管理',
+		label: 'admin.menu_apps',
 		icon: <AppstoreOutlined />,
 		value: ETopMenuKeys.AppManagement,
 		route: '/app-management',
 	},
 	{
-		label: '用户管理',
+		label: 'admin.menu_users',
 		icon: <UserOutlined />,
 		value: ETopMenuKeys.UserManagement,
 		route: '/user-management',
@@ -34,6 +38,7 @@ const TopMenuOptions: ITopMenuOption[] = [
 ]
 
 export default function AdminHeaderTitle() {
+	const { t } = useTranslation()
 	const [activeKey, setActiveKey] = useState<ETopMenuKeys>()
 	const { data: session } = useSession()
 	const navigate = useRouter()
@@ -55,7 +60,7 @@ export default function AdminHeaderTitle() {
 		{
 			key: 'logout',
 			icon: <LogoutOutlined />,
-			label: '退出登录',
+			label: t('auth.logout'),
 			onClick: handleLogout,
 		},
 	]
@@ -66,16 +71,17 @@ export default function AdminHeaderTitle() {
 				value={activeKey}
 				size="large"
 				shape="round"
-				options={TopMenuOptions}
+				options={TopMenuOptions.map(item => ({ ...item, label: t(item.label) }))}
 				onChange={key => {
 					const route = TopMenuOptions.find(item => item.value === key)?.route
 					if (route) {
 						navigate.push(route)
 					} else {
-						message.error('路径不存在')
+						message.error(t('admin.route_not_found'))
 					}
 				}}
 			/>
+			<I18nSwitcher />
 			{session?.user && (
 				<Dropdown
 					menu={{ items: menuItems }}

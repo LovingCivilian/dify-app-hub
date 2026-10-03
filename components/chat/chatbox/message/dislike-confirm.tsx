@@ -1,6 +1,7 @@
 import { IRating } from '@/lib/api'
 import { Input, Modal } from 'antd'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import LucideIcon from '@/components/shared/lucide-icon'
 
@@ -11,6 +12,7 @@ export default function DislikeConfirm(props: {
 	isDisLiked: boolean
 	runFeedback: (type: IRating, reason?: string) => void
 }) {
+	const { t } = useTranslation()
 	const { isDisLiked, runFeedback } = props
 	const [dislikeReason, setDislikeReason] = useState('')
 	const [modalOpen, setModalOpen] = useState(false)
@@ -33,7 +35,7 @@ export default function DislikeConfirm(props: {
 
 			<Modal
 				width={360}
-				title="感谢反馈"
+				title={t('message.feedback_thanks')}
 				open={modalOpen}
 				centered
 				onOk={async () => {
@@ -50,7 +52,7 @@ export default function DislikeConfirm(props: {
 				confirmLoading={confirmLoading}
 			>
 				<div>
-					<div className="text-desc mb-2">请告知我们此回复有何不妥之处。</div>
+					<div className="text-desc mb-2">{t('message.feedback_prompt')}</div>
 					<Input.TextArea
 						autoSize={{
 							minRows: 3,
@@ -60,7 +62,7 @@ export default function DislikeConfirm(props: {
 						onChange={e => {
 							setDislikeReason(e.target.value)
 						}}
-						placeholder="请输入"
+						placeholder={t('form.input_placeholder')}
 						className="box-border h-12 w-full rounded-md border border-solid border-[var(--theme-border-color)] px-3 py-2"
 					/>
 				</div>

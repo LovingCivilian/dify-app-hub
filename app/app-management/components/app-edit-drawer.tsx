@@ -6,6 +6,7 @@ import { generateUuidV4 } from '@/lib/helpers'
 import { useRequest } from 'ahooks'
 import { Button, Drawer, DrawerProps, Form, message, Space } from 'antd'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { IDifyAppItem } from '@/types'
 
@@ -26,6 +27,7 @@ interface IAppEditDrawerProps extends DrawerProps {
  * 应用配置编辑抽屉
  */
 export const AppEditDrawer = (props: IAppEditDrawerProps) => {
+	const { t } = useTranslation()
 	const { detailDrawerMode, appItem, open, onClose, confirmCallback, addApi, updateApi } = props
 	const [settingForm] = Form.useForm()
 	const [confirmLoading, setConfirmBtnLoading] = useState(false)
@@ -71,7 +73,7 @@ export const AppEditDrawer = (props: IAppEditDrawerProps) => {
 			manual: true,
 			onSuccess: () => {
 				onClose?.()
-				message.success('新增应用配置成功')
+				message.success(t('admin_apps.create_success'))
 			},
 		},
 	)
@@ -84,7 +86,7 @@ export const AppEditDrawer = (props: IAppEditDrawerProps) => {
 			manual: true,
 			onSuccess: () => {
 				onClose?.()
-				message.success('编辑应用配置成功')
+				message.success(t('admin_apps.edit_success'))
 			},
 		},
 	)
@@ -92,12 +94,16 @@ export const AppEditDrawer = (props: IAppEditDrawerProps) => {
 	return (
 		<Drawer
 			size={700}
-			title={`${detailDrawerMode === AppDetailDrawerModeEnum.create ? '新增应用配置' : `编辑应用配置 - ${appItem?.info.name}`}`}
+			title={
+				detailDrawerMode === AppDetailDrawerModeEnum.create
+					? t('admin_apps.create_title')
+					: t('admin_apps.edit_title', { name: appItem?.info.name })
+			}
 			open={open}
 			onClose={onClose}
 			extra={
 				<Space>
-					<Button onClick={onClose}>取消</Button>
+					<Button onClick={onClose}>{t('common.cancel')}</Button>
 					<Button
 						type="primary"
 						loading={confirmLoading}
@@ -158,14 +164,16 @@ export const AppEditDrawer = (props: IAppEditDrawerProps) => {
 								}
 								confirmCallback?.()
 							} catch (error) {
-								console.error('保存应用配置失败', error)
-								message.error(`保存应用配置失败: ${error}`)
+								console.error('Failed to save app config', error)
+								message.error(t('admin_apps.save_failed', { error }))
 							} finally {
 								setConfirmBtnLoading(false)
 							}
 						}}
 					>
-						{detailDrawerMode === AppDetailDrawerModeEnum.create ? '确定' : '更新'}
+						{detailDrawerMode === AppDetailDrawerModeEnum.create
+							? t('common.ok')
+							: t('common.update')}
 					</Button>
 				</Space>
 			}

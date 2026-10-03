@@ -6,6 +6,7 @@ import LucideIcon from '@/components/shared/lucide-icon'
 const lngs = {
 	en: { nativeName: 'English' },
 	zh: { nativeName: '中文' },
+	ar: { nativeName: 'العربية' },
 } as const
 
 /**
@@ -23,7 +24,7 @@ function I18nSwitcher() {
 					key: lng,
 					label: lngs[lng as keyof typeof lngs].nativeName,
 					onClick: () => i18n.changeLanguage(lng),
-					className: lng === i18n.language ? '!text-primary' : '',
+					className: lng === i18n.resolvedLanguage ? '!text-primary' : '',
 				})),
 			}}
 		>

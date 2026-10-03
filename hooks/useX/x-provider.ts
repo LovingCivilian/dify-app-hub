@@ -66,6 +66,7 @@ export class CustomProvider<
 	private onHumanInputRequired?: (data: IHumanInputRequiredEvent) => void
 	private currentTaskId?: string
 	private currentConversationId?: string
+	private notifiedConversationId?: string
 	private preInterventionWorkflows: NonNullable<IAgentMessage['workflows']> | null = null
 	private preInterventionTaskId: string | null = null
 
@@ -160,11 +161,13 @@ export class CustomProvider<
 		try {
 			parsedData = JSON.parse(chunk.data)
 		} catch (error) {
-			console.error('解析 JSON 失败', error)
+			console.error('Failed to parse JSON', error)
 			return originMessage as ChatMessage
 		}
 		if (parsedData.conversation_id && parsedData.conversation_id !== this.currentConversationId) {
 			this.currentConversationId = parsedData.conversation_id
+		}
+		if (this.currentConversationId && this.currentConversationId !== this.notifiedConversationId) {
 			const shouldTriggerConversationChange = [
 				EventEnum.MESSAGE,
 				EventEnum.AGENT_MESSAGE,
@@ -172,6 +175,7 @@ export class CustomProvider<
 				EventEnum.MESSAGE_REPLACE,
 			].includes(parsedData.event as EventEnum)
 			if (shouldTriggerConversationChange) {
+				this.notifiedConversationId = this.currentConversationId
 				this.onConversationIdChange?.(this.currentConversationId)
 			}
 		}
@@ -205,7 +209,7 @@ export class CustomProvider<
 				workflows,
 			} as unknown as ChatMessage
 		} else if (parsedData.event === EventEnum.WORKFLOW_FINISHED) {
-			console.log('工作流结束', parsedData)
+			console.log('Workflow finished', parsedData)
 			workflows.status = 'finished'
 			this.setWorkflowDataStorage({
 				conversationId: this.currentConversationId!,
@@ -217,7 +221,7 @@ export class CustomProvider<
 				workflows,
 			} as unknown as ChatMessage
 		} else if (parsedData.event === EventEnum.WORKFLOW_NODE_STARTED) {
-			console.log('节点开始', parsedData)
+			console.log('Node started', parsedData)
 			if (!(workflows.nodes || []).some(n => n.id === innerData.id)) {
 				workflows.nodes = [
 					...(workflows.nodes || []),

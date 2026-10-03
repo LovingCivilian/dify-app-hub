@@ -5,6 +5,7 @@ import { Roles } from '@/lib/core'
 import { isTempId } from '@/lib/helpers'
 import { FormInstance } from 'antd'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { RESPONSE_MODE } from '@/config'
 import { IAgentMessage } from '@/lib/api'
@@ -30,6 +31,7 @@ interface IUseXOptions {
 }
 
 export const useX = (options: IUseXOptions) => {
+	const { t } = useTranslation()
 	const {
 		latestProps,
 		filesRef,
@@ -114,11 +116,11 @@ export const useX = (options: IUseXOptions) => {
 		provider,
 		requestPlaceholder: {
 			role: Roles.AI,
-			content: '正在回复，请耐心等待...',
+			content: t('chat.replying'),
 		} as any,
 		requestFallback: {
 			role: Roles.AI,
-			content: '请求失败，请稍后重试',
+			content: t('common.request_failed_retry'),
 		} as any,
 	})
 

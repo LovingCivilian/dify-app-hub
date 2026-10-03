@@ -113,7 +113,7 @@ const MarkdownForm = ({ node, onSend }: any) => {
 								try {
 									value = dayjs(formValues[child.properties.name])
 								} catch (error) {
-									console.error('解析日期值失败', error)
+									console.error('Failed to parse date value', error)
 									// 如果解析报错，置空
 									value = null
 								}

@@ -33,7 +33,6 @@ import { LucideIcon } from '@/components/shared'
 import { ConversationList } from '@/components/chat/conversation-list'
 import { HeaderLayout } from '@/components/shared'
 import ChatboxWrapper from '@/components/chat/chatbox-wrapper'
-import { DEFAULT_CONVERSATION_NAME } from '@/components/chat/constants-index'
 import { useLatest } from '@/hooks/use-latest'
 import { useTranslation } from 'react-i18next'
 
@@ -118,7 +117,7 @@ export default function ChatLayout(props: IChatLayoutProps) {
 			}
 		} catch (error) {
 			console.error(error)
-			message.error(`获取会话列表失败: ${error}`)
+			message.error(t('chat.fetch_list_failed', { error }))
 		} finally {
 			setCoversationListLoading(false)
 		}
@@ -135,7 +134,7 @@ export default function ChatLayout(props: IChatLayoutProps) {
 			return [
 				{
 					id: newKey,
-					name: DEFAULT_CONVERSATION_NAME,
+					name: t('chat.default_conversation_name'),
 					created_at: dayjs().valueOf(),
 					inputs: {},
 					introduction: '',
@@ -272,20 +271,21 @@ export default function ChatLayout(props: IChatLayoutProps) {
 		const i18nLanguageMenus: GetProp<typeof Dropdown, 'menu'>['items'] = [
 			{
 				key: 'language',
-				label: '语言',
+				label: t('system.language'),
 				type: 'group',
 				children: [
 					{
 						key: 'zh-CN',
 						label: (
 							<Radio.Group
-								value={i18n.language}
+								value={i18n.resolvedLanguage}
 								onChange={e => {
 									i18n.changeLanguage(e.target.value)
 								}}
 							>
-								<Radio value="en">英文</Radio>
+								<Radio value="en">English</Radio>
 								<Radio value="zh">中文</Radio>
+								<Radio value="ar">العربية</Radio>
 							</Radio.Group>
 						),
 					},
@@ -309,9 +309,9 @@ export default function ChatLayout(props: IChatLayoutProps) {
 									setThemeMode(e.target.value as ThemeModeEnum)
 								}}
 							>
-								<Radio value={ThemeModeEnum.SYSTEM}>{ThemeModeLabelEnum.SYSTEM}</Radio>
-								<Radio value={ThemeModeEnum.LIGHT}>{ThemeModeLabelEnum.LIGHT}</Radio>
-								<Radio value={ThemeModeEnum.DARK}>{ThemeModeLabelEnum.DARK}</Radio>
+								<Radio value={ThemeModeEnum.SYSTEM}>{t(ThemeModeLabelEnum.SYSTEM)}</Radio>
+								<Radio value={ThemeModeEnum.LIGHT}>{t(ThemeModeLabelEnum.LIGHT)}</Radio>
+								<Radio value={ThemeModeEnum.DARK}>{t(ThemeModeLabelEnum.DARK)}</Radio>
 							</Radio.Group>
 						),
 					},
@@ -429,7 +429,7 @@ export default function ChatLayout(props: IChatLayoutProps) {
 										<div
 											className="flex cursor-pointer items-center"
 											onClick={() => setIsWideScreen(!isWideScreen)}
-											title={isWideScreen ? '切换窄屏' : '切换宽屏'}
+											title={isWideScreen ? t('chat.switch_narrow') : t('chat.switch_wide')}
 										>
 											<LucideIcon
 												name={isWideScreen ? 'shrink' : 'stretch-horizontal'}
@@ -486,7 +486,7 @@ export default function ChatLayout(props: IChatLayoutProps) {
 
 										{/* 新增对话 */}
 										<Tooltip
-											title="新增对话"
+											title={t('chat.new_chat')}
 											placement="right"
 										>
 											<div className="text-theme-text hover:text-primary my-1.5 flex items-center">
@@ -509,7 +509,7 @@ export default function ChatLayout(props: IChatLayoutProps) {
 													{conversationListWithEmpty}
 												</div>
 											}
-											title="对话列表"
+											title={t('chat.chat_list')}
 											placement="rightTop"
 										>
 											{/* 必须包裹一个 HTML 标签才能正常展示 Popover */}
@@ -550,6 +550,7 @@ export default function ChatLayout(props: IChatLayoutProps) {
 								<ChatboxWrapper
 									conversationListLoading={conversationListLoading}
 									onAddConversation={onAddConversation}
+									onCurrentConversationIdChange={setCurrentConversationId}
 									conversationItemsChangeCallback={() => getConversationItems(false)}
 								/>
 							</div>

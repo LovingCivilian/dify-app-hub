@@ -2,14 +2,13 @@
 
 import { ThemeContextProvider, useThemeContext } from '@/lib/theme'
 import { App, ConfigProvider, theme } from 'antd'
-import zhCN from 'antd/es/locale/zh_CN'
-import enUS from 'antd/es/locale/en_US'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAuth } from '@/hooks/use-auth'
 import { initResponsiveConfig } from '@/lib/helpers'
+import { getAntdLocale } from '@/libs/antd-locale'
 
 import '@/libs/i18n'
 
@@ -30,7 +29,7 @@ function UserLayoutInner({ children }: { children: React.ReactNode }) {
 
 	return (
 		<ConfigProvider
-			locale={i18n.language === 'en' ? enUS : zhCN}
+			locale={getAntdLocale(i18n.resolvedLanguage)}
 			theme={{
 				algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
 			}}

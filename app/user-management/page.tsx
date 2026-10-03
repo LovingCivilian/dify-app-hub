@@ -4,6 +4,9 @@ import { DeleteOutlined, EditOutlined, PlusOutlined, UserOutlined } from '@ant-d
 import { Button, message, Popconfirm, Space, Table, Tag } from 'antd'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { formatDateTime } from '@/libs/format-date'
 
 import UserEditDrawer from './components/user-edit-drawer'
 
@@ -16,6 +19,7 @@ interface User {
 }
 
 export default function UserManagementPage() {
+	const { t, i18n } = useTranslation()
 	const { data: session } = useSession()
 	const [users, setUsers] = useState<User[]>([])
 	const [loading, setLoading] = useState(false)
@@ -30,11 +34,11 @@ export default function UserManagementPage() {
 				const data = await response.json()
 				setUsers(data)
 			} else {
-				message.error('获取用户列表失败')
+				message.error(t('admin_users.fetch_failed'))
 			}
 		} catch (error) {
-			console.error('获取用户列表时发生错误', error)
-			message.error('获取用户列表时发生错误')
+			console.error('Error while fetching users', error)
+			message.error(t('admin_users.fetch_error'))
 		} finally {
 			setLoading(false)
 		}
@@ -46,14 +50,14 @@ export default function UserManagementPage() {
 				method: 'DELETE',
 			})
 			if (response.ok) {
-				message.success('删除用户成功')
+				message.success(t('admin_users.delete_success'))
 				fetchUsers()
 			} else {
-				message.error('删除用户失败')
+				message.error(t('admin_users.delete_failed'))
 			}
 		} catch (error) {
-			console.error('删除用户时发生错误', error)
-			message.error('删除用户时发生错误')
+			console.error('Error while deleting user', error)
+			message.error(t('admin_users.delete_error'))
 		}
 	}
 
@@ -84,38 +88,38 @@ export default function UserManagementPage() {
 
 	const columns = [
 		{
-			title: '用户',
+			title: t('admin_users.column_user'),
 			dataIndex: 'name',
 			key: 'name',
 			render: (name: string | null, record: User) => (
 				<Space>
 					<UserOutlined />
 					<div>
-						<div>{name || '未设置姓名'}</div>
+						<div>{name || t('admin_users.name_not_set')}</div>
 						<div className="text-sm text-gray-500">{record.email}</div>
 					</div>
 				</Space>
 			),
 		},
 		{
-			title: '状态',
+			title: t('common.status'),
 			key: 'status',
-			render: () => <Tag color="green">正常</Tag>,
+			render: () => <Tag color="green">{t('admin_users.status_active')}</Tag>,
 		},
 		{
-			title: '创建时间',
+			title: t('common.created_at'),
 			dataIndex: 'createdAt',
 			key: 'createdAt',
-			render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+			render: (date: string) => formatDateTime(date, i18n.resolvedLanguage),
 		},
 		{
-			title: '最后更新',
+			title: t('admin_users.column_updated_at'),
 			dataIndex: 'updatedAt',
 			key: 'updatedAt',
-			render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+			render: (date: string) => formatDateTime(date, i18n.resolvedLanguage),
 		},
 		{
-			title: '操作',
+			title: t('common.actions'),
 			key: 'actions',
 			render: (_: unknown, record: User) => (
 				<Space>
@@ -124,23 +128,23 @@ export default function UserManagementPage() {
 						icon={<EditOutlined />}
 						onClick={() => handleEdit(record)}
 					>
-						编辑
+						{t('common.edit')}
 					</Button>
 					{/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
 					{record.id !== (session?.user as any)?.id && (
 						<Popconfirm
-							title="确认删除"
-							description="确定要删除这个用户吗？此操作不可恢复。"
+							title={t('admin_users.delete_confirm_title')}
+							description={t('admin_users.delete_confirm_description')}
 							onConfirm={() => handleDelete(record.id)}
-							okText="确定"
-							cancelText="取消"
+							okText={t('common.ok')}
+							cancelText={t('common.cancel')}
 						>
 							<Button
 								type="text"
 								danger
 								icon={<DeleteOutlined />}
 							>
-								删除
+								{t('common.delete')}
 							</Button>
 						</Popconfirm>
 					)}
@@ -153,15 +157,15 @@ export default function UserManagementPage() {
 		<div className="h-full w-full px-6">
 			<div className="mb-6 flex items-center justify-between">
 				<div>
-					<h1 className="text-2xl font-bold">用户管理</h1>
-					<p className="mt-1 text-gray-600">管理系统用户账户</p>
+					<h1 className="text-2xl font-bold">{t('admin.menu_users')}</h1>
+					<p className="mt-1 text-gray-600">{t('admin_users.subtitle')}</p>
 				</div>
 				<Button
 					type="primary"
 					icon={<PlusOutlined />}
 					onClick={handleAdd}
 				>
-					添加用户
+					{t('admin_users.add_user')}
 				</Button>
 			</div>
 
@@ -173,7 +177,7 @@ export default function UserManagementPage() {
 				pagination={{
 					showSizeChanger: true,
 					showQuickJumper: true,
-					showTotal: total => `共 ${total} 个用户`,
+					showTotal: total => t('admin_users.total', { total }),
 				}}
 			/>
 

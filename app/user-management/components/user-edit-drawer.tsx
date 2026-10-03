@@ -2,6 +2,7 @@
 
 import { Button, Drawer, Form, Input, message, Space } from 'antd'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface User {
 	id: string
@@ -30,6 +31,7 @@ export default function UserEditDrawer({
 	onClose,
 	onSaveSuccess,
 }: UserEditDrawerProps) {
+	const { t } = useTranslation()
 	const [form] = Form.useForm()
 	const [loading, setLoading] = useState(false)
 	const isEditing = !!user
@@ -62,15 +64,15 @@ export default function UserEditDrawer({
 			})
 
 			if (response.ok) {
-				message.success(isEditing ? '更新用户成功' : '添加用户成功')
+				message.success(isEditing ? t('admin_users.update_success') : t('admin_users.add_success'))
 				onSaveSuccess()
 			} else {
 				const error = await response.json()
-				message.error(error.message || '操作失败')
+				message.error(error.message || t('common.operation_failed'))
 			}
 		} catch (error) {
-			console.error('操作时发生错误', error)
-			message.error('操作时发生错误')
+			console.error('Operation error', error)
+			message.error(t('common.operation_error'))
 		} finally {
 			setLoading(false)
 		}
@@ -78,20 +80,20 @@ export default function UserEditDrawer({
 
 	return (
 		<Drawer
-			title={isEditing ? '编辑用户' : '添加用户'}
+			title={isEditing ? t('admin_users.edit_user') : t('admin_users.add_user')}
 			size={400}
 			open={visible}
 			onClose={onClose}
 			extra={
 				<div className="flex justify-end">
 					<Space>
-						<Button onClick={onClose}>取消</Button>
+						<Button onClick={onClose}>{t('common.cancel')}</Button>
 						<Button
 							type="primary"
 							loading={loading}
 							onClick={() => form.submit()}
 						>
-							{isEditing ? '更新' : '添加'}
+							{isEditing ? t('common.update') : t('common.add')}
 						</Button>
 					</Space>
 				</div>
@@ -104,44 +106,44 @@ export default function UserEditDrawer({
 			>
 				<Form.Item
 					name="name"
-					label="姓名"
-					rules={[{ required: true, message: '请输入姓名' }]}
+					label={t('admin_users.name')}
+					rules={[{ required: true, message: t('admin_users.name_required') }]}
 				>
-					<Input placeholder="请输入用户姓名" />
+					<Input placeholder={t('admin_users.name_placeholder')} />
 				</Form.Item>
 
 				<Form.Item
 					name="email"
-					label="邮箱"
+					label={t('auth.email')}
 					rules={[
-						{ required: true, message: '请输入邮箱' },
-						{ type: 'email', message: '请输入有效的邮箱地址' },
+						{ required: true, message: t('admin_users.email_required') },
+						{ type: 'email', message: t('auth.email_invalid') },
 					]}
 				>
-					<Input placeholder="请输入邮箱地址" />
+					<Input placeholder={t('admin_users.email_placeholder')} />
 				</Form.Item>
 
 				{!isEditing && (
 					<Form.Item
 						name="password"
-						label="密码"
+						label={t('auth.password')}
 						rules={[
-							{ required: true, message: '请输入密码' },
-							{ min: 6, message: '密码至少6位' },
+							{ required: true, message: t('admin_users.password_required') },
+							{ min: 6, message: t('admin_users.password_min_6') },
 						]}
 					>
-						<Input.Password placeholder="请输入密码" />
+						<Input.Password placeholder={t('admin_users.password_required')} />
 					</Form.Item>
 				)}
 
 				{isEditing && (
 					<Form.Item
 						name="password"
-						label="新密码"
-						help="留空则不修改密码"
-						rules={[{ min: 6, message: '密码至少6位' }]}
+						label={t('auth.new_password')}
+						help={t('admin_users.password_keep_hint')}
+						rules={[{ min: 6, message: t('admin_users.password_min_6') }]}
 					>
-						<Input.Password placeholder="留空则不修改密码" />
+						<Input.Password placeholder={t('admin_users.password_keep_hint')} />
 					</Form.Item>
 				)}
 			</Form>

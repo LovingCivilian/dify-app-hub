@@ -1,5 +1,6 @@
 import { copyToClipboard } from '@toolkit-fe/clipboard'
 import { message } from 'antd'
+import { useTranslation } from 'react-i18next'
 
 import LucideIcon from '@/components/shared/lucide-icon'
 
@@ -8,6 +9,7 @@ interface IWorkflowNodeDetailProps {
 }
 
 export default function WorkflowNodeDetail(props: IWorkflowNodeDetailProps) {
+	const { t } = useTranslation()
 	const { originalContent } = props
 
 	return (
@@ -18,7 +20,7 @@ export default function WorkflowNodeDetail(props: IWorkflowNodeDetailProps) {
 						className="absolute right-2 top-2 hidden rounded px-1.5 py-0.5 text-xs text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100 group-hover:block"
 						onClick={async () => {
 							await copyToClipboard(JSON.stringify(originalContent, null, 2))
-							message.success('复制成功')
+							message.success(t('message.copy_success'))
 						}}
 					>
 						<LucideIcon
@@ -31,7 +33,7 @@ export default function WorkflowNodeDetail(props: IWorkflowNodeDetailProps) {
 					</pre>
 				</div>
 			) : (
-				<pre className="m-0 text-xs text-muted-foreground">空</pre>
+				<pre className="m-0 text-xs text-muted-foreground">{t('common.empty')}</pre>
 			)}
 		</div>
 	)

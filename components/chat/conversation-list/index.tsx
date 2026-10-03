@@ -46,7 +46,7 @@ export const ConversationList = (props: IConversationListProps) => {
 	 */
 	const deleteConversation = async (conversationId: string) => {
 		await deleteConversationPromise(conversationId)
-		message.success('删除成功')
+		message.success(t('chat.delete_success'))
 	}
 
 	/**
@@ -67,7 +67,7 @@ export const ConversationList = (props: IConversationListProps) => {
 					className="mt-3"
 				>
 					<Form.Item name="name">
-						<Input placeholder="请输入" />
+						<Input placeholder={t('form.input_placeholder')} />
 					</Form.Item>
 				</Form>
 			),
@@ -75,7 +75,7 @@ export const ConversationList = (props: IConversationListProps) => {
 				await renameForm.validateFields()
 				const values = await renameForm.validateFields()
 				await renameConversationPromise(conversation.key, values.name)
-				message.success('对话重命名成功')
+				message.success(t('chat.rename_conversation_success'))
 			},
 		})
 	}

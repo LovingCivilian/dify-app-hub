@@ -12,6 +12,7 @@ import { AppModeEnums, useDifyChatStore } from '@/lib/core'
 import { copyToClipboard } from '@toolkit-fe/clipboard'
 import { Button, Empty, Form, message, Tabs, Tooltip } from 'antd'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
 	AppInfo,
@@ -26,6 +27,7 @@ import { LucideIcon } from '@/components/shared'
  * 工作流应用详情布局
  */
 export default function WorkflowLayout() {
+	const { t } = useTranslation()
 	const { difyApi } = useDifyChatStore()
 	const [entryForm] = Form.useForm()
 	const currentApp = useDifyChatStore(s => s.currentApp)
@@ -51,7 +53,7 @@ export default function WorkflowLayout() {
 					inputs: values,
 				})
 			}
-			return Promise.reject(`不支持的应用类型: ${appMode}`)
+			return Promise.reject(t('common.unsupported_app_type_with_mode', { mode: appMode }))
 		}
 
 		runner()
@@ -105,7 +107,7 @@ export default function WorkflowLayout() {
 						try {
 							parsedData = JSON.parse(chunk.data)
 						} catch (error) {
-							console.error('解析 JSON 失败', error)
+							console.error('Failed to parse JSON', error)
 						}
 
 						const innerData = parsedData.data
@@ -205,7 +207,7 @@ export default function WorkflowLayout() {
 	const resultItems = [
 		{
 			key: 'result',
-			label: '结果',
+			label: t('workflow.result'),
 			children: (
 				<div className="h-full w-full overflow-x-hidden overflow-y-auto">
 					{text ? (
@@ -219,7 +221,7 @@ export default function WorkflowLayout() {
 		},
 		{
 			key: 'detail',
-			label: '详情',
+			label: t('workflow.detail'),
 			children: (
 				<div className="w-full">
 					<LucideIcon
@@ -227,7 +229,7 @@ export default function WorkflowLayout() {
 						name="copy"
 						onClick={async () => {
 							await copyToClipboard(JSON.stringify(resultDetail, null, 2))
-							message.success('已复制到剪贴板')
+							message.success(t('common.copied_to_clipboard'))
 						}}
 					/>
 					<pre className="bg-theme-code-block-bg box-border w-full overflow-auto rounded-lg p-3">
@@ -269,7 +271,7 @@ export default function WorkflowLayout() {
 						}}
 						loading={workflowStatus === 'running'}
 					>
-						运行
+						{t('workflow.run')}
 					</Button>
 				</div>
 			</div>
@@ -279,7 +281,7 @@ export default function WorkflowLayout() {
 				<div className="overflow-x-hidden overflow-y-auto px-4 pt-6 md:flex-1">
 					{!workflowItems?.length && workflowStatus !== 'running' ? (
 						<div className="flex h-full w-full items-center justify-center">
-							<Empty description={`点击 "运行" 试试看, AI 会给你带来意想不到的惊喜。 `} />
+							<Empty description={t('workflow.empty_hint')} />
 						</div>
 					) : (
 						<>
@@ -299,17 +301,17 @@ export default function WorkflowLayout() {
 				<div className="bg-theme-bg relative overflow-x-hidden overflow-y-auto px-4 pt-6 md:flex-1">
 					{textGenerateStatus === 'init' ? (
 						<div className="flex h-full w-full items-center justify-center">
-							<Empty description={`点击 "运行" 试试看, AI 会给你带来意想不到的惊喜。 `} />
+							<Empty description={t('workflow.empty_hint')} />
 						</div>
 					) : (
 						<>
 							<MarkdownRenderer markdownText={text} />
-							<Tooltip title="复制内容">
+							<Tooltip title={t('workflow.copy_content')}>
 								<CopyOutlined
 									className="absolute top-6 right-6 cursor-pointer"
 									onClick={async () => {
 										await copyToClipboard(text)
-										message.success('已复制到剪贴板')
+										message.success(t('common.copied_to_clipboard'))
 									}}
 								/>
 							</Tooltip>

@@ -6,6 +6,7 @@ import { getSession, signIn } from 'next-auth/react'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import LogoIcon from '@/assets/images/logo.png'
 
@@ -15,6 +16,7 @@ interface LoginForm {
 }
 
 export default function LoginPage() {
+	const { t } = useTranslation()
 	const [loading, setLoading] = useState(false)
 	const router = useRouter()
 	const searchParams = useSearchParams()
@@ -30,9 +32,9 @@ export default function LoginPage() {
 			})
 
 			if (result?.error) {
-				message.error('登录失败，请检查邮箱和密码')
+				message.error(t('auth.login_failed'))
 			} else {
-				message.success('登录成功')
+				message.success(t('auth.login_success'))
 				// 获取会话信息并跳转
 				const session = await getSession()
 				if (session) {
@@ -40,8 +42,8 @@ export default function LoginPage() {
 				}
 			}
 		} catch (error) {
-			console.error('登录过程中发生错误', error)
-			message.error('登录过程中发生错误')
+			console.error('Error during login', error)
+			message.error(t('auth.login_error'))
 		} finally {
 			setLoading(false)
 		}
@@ -60,7 +62,7 @@ export default function LoginPage() {
 						/>
 					</div>
 					<h1 className="text-2xl font-bold">Dify App Hub Platform</h1>
-					<p className="mt-2">请登录您的账户</p>
+					<p className="mt-2">{t('auth.login_subtitle')}</p>
 				</div>
 
 				<Form
@@ -73,23 +75,23 @@ export default function LoginPage() {
 					<Form.Item
 						name="email"
 						rules={[
-							{ required: true, message: '请输入邮箱地址' },
-							{ type: 'email', message: '请输入有效的邮箱地址' },
+							{ required: true, message: t('auth.email_required') },
+							{ type: 'email', message: t('auth.email_invalid') },
 						]}
 					>
 						<Input
 							prefix={<UserOutlined />}
-							placeholder="邮箱地址"
+							placeholder={t('auth.email_placeholder')}
 						/>
 					</Form.Item>
 
 					<Form.Item
 						name="password"
-						rules={[{ required: true, message: '请输入密码' }]}
+						rules={[{ required: true, message: t('auth.password_required') }]}
 					>
 						<Input.Password
 							prefix={<LockOutlined />}
-							placeholder="密码"
+							placeholder={t('auth.password')}
 						/>
 					</Form.Item>
 
@@ -100,11 +102,11 @@ export default function LoginPage() {
 							className="w-full"
 							loading={loading}
 						>
-							登录
+							{t('auth.login')}
 						</Button>
 					</Form.Item>
 					<div className="mb-2 text-right">
-						<a href="/forgot-password">忘记密码？</a>
+						<a href="/forgot-password">{t('auth.forgot_password_link')}</a>
 					</div>
 				</Form>
 			</Card>

@@ -2,6 +2,7 @@ import { FileCard } from '@ant-design/x'
 import { IMessageFileItem } from '@/lib/api'
 import { useDifyChatStore } from '@/lib/core'
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { PhotoProvider, PhotoView } from 'react-photo-view'
 import 'react-photo-view/dist/react-photo-view.css'
 
@@ -35,7 +36,7 @@ const parseFilenameFromCD = (contentDisposition: string | null, fallback: string
 		if (encoded) return decodeURIComponent(encoded)
 		if (plain) return plain
 	} catch (error) {
-		console.warn(`解析文件名失败: ${error}`, contentDisposition)
+		console.warn(`Failed to parse filename: ${error}`, contentDisposition)
 	}
 	return fallback
 }
@@ -51,6 +52,7 @@ interface IMessageFileListProps {
  * 消息附件列表展示组件
  */
 export default function MessageFileList(props: IMessageFileListProps) {
+	const { t } = useTranslation()
 	const { files: filesInProps } = props
 	const { difyApi } = useDifyChatStore()
 	const currentApp = useDifyChatStore(s => s.currentApp)
@@ -108,7 +110,7 @@ export default function MessageFileList(props: IMessageFileListProps) {
 			{files.map((item: IMessageFileItem) => {
 				return (
 					<a
-						title="点击下载文件"
+						title={t('message.download_file')}
 						target="_blank"
 						rel="noreferrer"
 						key={item.id}
@@ -135,9 +137,12 @@ export default function MessageFileList(props: IMessageFileListProps) {
 									triggerDownload(blob, filename)
 									return
 								}
-								console.warn('预览接口返回格式错误，无法下载', result)
+								console.warn(
+									'Preview endpoint returned an unexpected format; cannot download',
+									result,
+								)
 							} catch (err) {
-								console.error('下载失败', err)
+								console.error('Download failed', err)
 							}
 						}}
 					>

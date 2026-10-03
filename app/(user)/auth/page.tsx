@@ -5,11 +5,13 @@ import FingerPrintJS from '@fingerprintjs/fingerprintjs'
 import { useMount } from 'ahooks'
 import { Spin } from 'antd'
 import { useRouter } from 'next/navigation'
+import { useTranslation } from 'react-i18next'
 
 import { Logo } from '@/components/shared'
 import { useAuth } from '@/hooks/use-auth'
 
 export default function AuthPage() {
+	const { t } = useTranslation()
 	const { userId } = useAuth()
 	const router = useRouter()
 
@@ -41,7 +43,7 @@ export default function AuthPage() {
 		<div className="flex h-screen w-screen flex-col items-center justify-center">
 			<div className="absolute top-0 left-0 z-50 flex h-full w-full flex-col items-center justify-center">
 				<Logo hideGithubIcon />
-				<div>授权登录中...</div>
+				<div>{t('auth.authorizing')}</div>
 				<div className="mt-6">
 					<Spin spinning />
 				</div>

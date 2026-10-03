@@ -1,5 +1,6 @@
 import classNames from 'classnames'
 import { PhotoProvider, PhotoView } from 'react-photo-view'
+import { useTranslation } from 'react-i18next'
 
 interface IImageProps {
 	className?: string
@@ -11,6 +12,7 @@ interface IImageProps {
  * 图片渲染组件
  */
 export default function ImageBlock(props: IImageProps) {
+	const { t } = useTranslation()
 	const { className, src, alt } = props
 
 	const imgClassNames = classNames({
@@ -23,7 +25,7 @@ export default function ImageBlock(props: IImageProps) {
 			<PhotoView src={src}>
 				<img
 					className={imgClassNames}
-					alt={alt || '图片加载失败'}
+					alt={alt || t('message.image_load_failed')}
 					src={src}
 				/>
 			</PhotoView>

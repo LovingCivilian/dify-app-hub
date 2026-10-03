@@ -15,7 +15,9 @@
 		"db:seed": "tsx db/seed.ts",
 		"lint": "next lint",
 		"test": "vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"i18n:lint": "i18next-cli lint",
+		"i18n:status": "i18next-cli status"
 	},
 	"dependencies": {
 		"@ant-design/cssinjs": "^1.24.0",
@@ -92,6 +94,7 @@
 		"eslint-config-next": "^16.0.1",
 		"globals": "^17.6.0",
 		"husky": "^9.1.7",
+		"i18next-cli": "^1.74.2",
 		"lint-staged": "^15.5.1",
 		"oxfmt": "^0.23.0",
 		"oxlint": "^1.38.0",
