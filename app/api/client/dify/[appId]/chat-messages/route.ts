@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { getSessionUserId, unauthorizedResponse } from '@/lib/session-user'
 import { getAppItem } from '@/repository/app'
 
 export const dynamic = 'force-dynamic'
@@ -17,6 +18,8 @@ export async function POST(
 ) {
 	try {
 		const { appId } = await params
+		const userId = await getSessionUserId()
+		if (!userId) return unauthorizedResponse()
 
 		// 获取应用配置
 		const app = await getAppItem(appId)
@@ -25,7 +28,7 @@ export async function POST(
 		}
 
 		// 从请求中获取数据
-		const data = await request.json()
+		const data = { ...(await request.json()), user: userId }
 
 		// 转发请求到 Dify API
 		const response = await fetch(`${app.requestConfig.apiBase}/chat-messages`, {

@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest } from 'next/server'
 
 import { createDifyApiResponse, handleApiError, proxyDifyRequest } from '@/lib/api-utils'
+import { getSessionUserId, unauthorizedResponse } from '@/lib/session-user'
 import { getAppItem } from '@/repository/app'
 
 /**
@@ -14,6 +15,8 @@ export async function POST(
 ) {
 	try {
 		const { appId, messageId } = await params
+		const userId = await getSessionUserId()
+		if (!userId) return unauthorizedResponse()
 
 		// 获取应用配置
 		const app = await getAppItem(appId)
@@ -21,7 +24,7 @@ export async function POST(
 			return createDifyApiResponse({ error: 'App not found' }, 404)
 		}
 		// 获取请求体
-		const { rating, content, user } = await request.json()
+		const { rating, content } = await request.json()
 
 		// 代理请求到 Dify API
 		const response = await proxyDifyRequest(
@@ -31,7 +34,7 @@ export async function POST(
 			{
 				method: 'POST',
 				body: JSON.stringify({
-					user,
+					user: userId,
 					rating,
 					content,
 				}),

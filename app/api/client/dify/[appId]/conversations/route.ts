@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 
+import { getSessionUserId, unauthorizedResponse } from '@/lib/session-user'
 import { getAppItem } from '@/repository/app'
 
 /**
@@ -17,6 +18,8 @@ export async function GET(
 ) {
 	try {
 		const { appId } = await params
+		const userId = await getSessionUserId()
+		if (!userId) return unauthorizedResponse()
 
 		// 获取应用配置
 		const app = await getAppItem(appId)
@@ -29,7 +32,6 @@ export async function GET(
 		const limit = searchParams.get('limit') || '100'
 		const last_id = searchParams.get('last_id')
 		const sort_by = searchParams.get('sort_by')
-		const user = searchParams.get('user')
 
 		const fullSearchParams = new URLSearchParams()
 		if (limit) {
@@ -41,9 +43,7 @@ export async function GET(
 		if (sort_by) {
 			fullSearchParams.append('sort_by', sort_by)
 		}
-		if (user) {
-			fullSearchParams.append('user', user)
-		}
+		fullSearchParams.append('user', userId)
 
 		// 转发请求到 Dify API
 		const response = await fetch(

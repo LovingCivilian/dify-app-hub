@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { getSessionUserId, unauthorizedResponse } from '@/lib/session-user'
 import { getAppItem } from '@/repository/app'
 
 export const dynamic = 'force-dynamic'
@@ -19,8 +20,8 @@ export async function GET(
 ) {
 	try {
 		const { appId, taskId } = await params
-		const { searchParams } = new URL(request.url)
-		const user = searchParams.get('user')
+		const userId = await getSessionUserId()
+		if (!userId) return unauthorizedResponse()
 
 		// 获取应用配置
 		const app = await getAppItem(appId)
@@ -29,7 +30,7 @@ export async function GET(
 		}
 
 		// 转发请求到 Dify API
-		const url = `${app.requestConfig.apiBase}/workflow/${taskId}/events${user ? `?user=${encodeURIComponent(user)}` : ''}`
+		const url = `${app.requestConfig.apiBase}/workflow/${taskId}/events?user=${encodeURIComponent(userId)}`
 		const response = await fetch(url, {
 			method: 'GET',
 			headers: {
