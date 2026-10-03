@@ -17,7 +17,7 @@ interface User {
 }
 
 export default function UserManagementPage() {
-	const { t } = useTranslation()
+	const { t, i18n } = useTranslation()
 	const { data: session } = useSession()
 	const [users, setUsers] = useState<User[]>([])
 	const [loading, setLoading] = useState(false)
@@ -108,13 +108,13 @@ export default function UserManagementPage() {
 			title: t('common.created_at'),
 			dataIndex: 'createdAt',
 			key: 'createdAt',
-			render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+			render: (date: string) => new Date(date).toLocaleString(i18n.resolvedLanguage),
 		},
 		{
 			title: t('admin_users.column_updated_at'),
 			dataIndex: 'updatedAt',
 			key: 'updatedAt',
-			render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+			render: (date: string) => new Date(date).toLocaleString(i18n.resolvedLanguage),
 		},
 		{
 			title: t('common.actions'),
