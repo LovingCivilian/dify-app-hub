@@ -18,7 +18,8 @@ const antdLocales: Record<string, Locale> = {
 }
 
 // Ant Design's date components also need the matching Day.js locale, otherwise
-// month and weekday names stay in English. Saudi Arabic keeps Western digits.
+// month and weekday names stay in English. Day.js never localises digits; dates
+// shown as text go through libs/format-date.ts, which does.
 const dayjsLocales: Record<string, string> = {
 	en: 'en',
 	zh: 'zh-cn',

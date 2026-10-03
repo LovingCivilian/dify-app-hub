@@ -5,6 +5,8 @@ import { Button, Drawer, Form, Input, message, Popconfirm, Popover, Space, Table
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { formatDateTime } from '@/libs/format-date'
+
 interface IAnnotationManagerDrawerProps {
 	open: boolean
 	onClose: () => void
@@ -14,7 +16,7 @@ interface IAnnotationManagerDrawerProps {
 const DEFAULT_PAGE_SIZE = 10
 
 export const AnnotationManagerDrawer = (props: IAnnotationManagerDrawerProps) => {
-	const { t } = useTranslation()
+	const { t, i18n } = useTranslation()
 	const { open, onClose, appItem } = props
 	const [difyApi, setDifyApi] = useState<DifyApi>()
 
@@ -191,7 +193,7 @@ export const AnnotationManagerDrawer = (props: IAnnotationManagerDrawerProps) =>
 			title: t('common.created_at'),
 			dataIndex: 'created_at',
 			key: 'created_at',
-			render: (val: number) => new Date(val * 1000).toLocaleString(),
+			render: (val: number) => formatDateTime(val * 1000, i18n.resolvedLanguage),
 			width: 180,
 		},
 		{

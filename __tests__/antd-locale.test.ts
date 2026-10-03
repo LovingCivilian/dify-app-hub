@@ -29,11 +29,6 @@ describe('applyDayjsLocale', () => {
 		expect(dayjs('2026-01-15').format('MMMM')).toBe(january)
 	})
 
-	it('keeps Western digits for Arabic dates', () => {
-		applyDayjsLocale('ar')
-		expect(dayjs('2026-01-15 09:05').format('YYYY-MM-DD HH:mm')).toBe('2026-01-15 09:05')
-	})
-
 	it('falls back to English for an unknown language', () => {
 		applyDayjsLocale('zh')
 		applyDayjsLocale('fr')
