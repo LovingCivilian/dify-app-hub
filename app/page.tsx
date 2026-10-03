@@ -11,7 +11,7 @@ export default function Home() {
 
 	useEffect(() => {
 		if (status === 'authenticated' && session) {
-			router.replace('/app-management')
+			router.replace('/apps')
 		} else if (status === 'unauthenticated') {
 			router.replace('/apps')
 		}
