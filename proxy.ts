@@ -3,22 +3,30 @@ import { getToken } from 'next-auth/jwt'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
+import { isClientApiPath, isPublicPath } from '@/lib/access'
+
 export async function proxy(request: NextRequest) {
 	const { pathname, origin } = request.nextUrl
 
 	// 跳过 API 和静态资源
-	if (pathname.startsWith('/api')) return NextResponse.next()
+	if (pathname.startsWith('/api') && !isClientApiPath(pathname)) return NextResponse.next()
 	if (pathname.startsWith('/_next') || pathname === '/favicon.ico') return NextResponse.next()
 
 	// 允许访问初始化页面本身
 	if (pathname.startsWith('/init')) return NextResponse.next()
 
-	// 管理端路由鉴权
-	if (pathname.startsWith('/app-management') || pathname.startsWith('/user-management')) {
+	// 全站鉴权：公开页面以外都需要登录
+	if (!isPublicPath(pathname)) {
 		const token = await getToken({ req: request })
 		if (!token) {
-			return NextResponse.redirect(new URL('/login', request.url))
+			if (isClientApiPath(pathname)) {
+				return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			}
+			const loginUrl = new URL('/login', request.url)
+			loginUrl.searchParams.set('callbackUrl', pathname + request.nextUrl.search)
+			return NextResponse.redirect(loginUrl)
 		}
+		if (isClientApiPath(pathname)) return NextResponse.next()
 	}
 
 	try {
@@ -39,5 +47,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-	matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+	matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
