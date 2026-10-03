@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import ar from '@/locales/ar/translation.json'
 import en from '@/locales/en/translation.json'
 import zh from '@/locales/zh/translation.json'
 
@@ -16,26 +17,35 @@ const flatten = (tree: Tree, prefix = ''): Record<string, string> =>
 const placeholders = (text: string) => (text.match(/\{\{\w+\}\}/g) ?? []).sort()
 
 const enFlat = flatten(en)
-const zhFlat = flatten(zh)
+// Every locale other than English is checked against the English file.
+const translations: Record<string, Record<string, string>> = {
+	zh: flatten(zh),
+	ar: flatten(ar),
+}
 
 describe('locale files', () => {
-	it('define the same keys in en and zh', () => {
-		expect(Object.keys(zhFlat).sort()).toEqual(Object.keys(enFlat).sort())
+	it.each(Object.keys(translations))('define the same keys in en and %s', locale => {
+		expect(Object.keys(translations[locale]).sort()).toEqual(Object.keys(enFlat).sort())
 	})
 
 	it('have no empty values', () => {
-		const empty = [...Object.entries(enFlat), ...Object.entries(zhFlat)]
+		const empty = [enFlat, ...Object.values(translations)]
+			.flatMap(flat => Object.entries(flat))
 			.filter(([, value]) => value.trim() === '')
 			.map(([key]) => key)
 		expect(empty).toEqual([])
 	})
 
-	it('use the same interpolation placeholders in en and zh', () => {
-		const mismatched = Object.keys(enFlat).filter(
-			key => placeholders(enFlat[key]).join() !== placeholders(zhFlat[key] ?? '').join(),
-		)
-		expect(mismatched).toEqual([])
-	})
+	it.each(Object.keys(translations))(
+		'use the same interpolation placeholders in en and %s',
+		locale => {
+			const mismatched = Object.keys(enFlat).filter(
+				key =>
+					placeholders(enFlat[key]).join() !== placeholders(translations[locale][key] ?? '').join(),
+			)
+			expect(mismatched).toEqual([])
+		},
+	)
 
 	it('keep Chinese characters out of the English file', () => {
 		const leaked = Object.entries(enFlat)
@@ -44,8 +54,25 @@ describe('locale files', () => {
 		expect(leaked).toEqual([])
 	})
 
+	it('keep Chinese characters out of the Arabic file', () => {
+		const leaked = Object.entries(translations.ar)
+			.filter(([, value]) => /[一-鿿]/.test(value))
+			.map(([key]) => key)
+		expect(leaked).toEqual([])
+	})
+
+	it('write the Arabic file in Arabic script', () => {
+		// Keys that are legitimately Latin-only (product names, format strings) are listed here.
+		const latinOnly = new Set<string>()
+		const notArabic = Object.entries(translations.ar)
+			.filter(([key, value]) => !latinOnly.has(key) && !/[؀-ۿ]/.test(value))
+			.map(([key]) => key)
+		expect(notArabic).toEqual([])
+	})
+
 	it('never use "count" as an interpolation variable', () => {
-		const offenders = Object.entries({ ...enFlat, ...zhFlat })
+		const offenders = [enFlat, ...Object.values(translations)]
+			.flatMap(flat => Object.entries(flat))
 			.filter(([, value]) => value.includes('{{count}}'))
 			.map(([key]) => key)
 		expect(offenders).toEqual([])

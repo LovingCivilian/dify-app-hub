@@ -285,6 +285,7 @@ export default function ChatLayout(props: IChatLayoutProps) {
 							>
 								<Radio value="en">English</Radio>
 								<Radio value="zh">中文</Radio>
+								<Radio value="ar">العربية</Radio>
 							</Radio.Group>
 						),
 					},

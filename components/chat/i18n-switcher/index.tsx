@@ -6,6 +6,7 @@ import LucideIcon from '@/components/shared/lucide-icon'
 const lngs = {
 	en: { nativeName: 'English' },
 	zh: { nativeName: '中文' },
+	ar: { nativeName: 'العربية' },
 } as const
 
 /**

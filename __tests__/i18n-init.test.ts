@@ -13,6 +13,9 @@ describe('i18n setup', () => {
 		['zh', 'zh'],
 		['zh-CN', 'zh'],
 		['zh-TW', 'zh'],
+		['ar', 'ar'],
+		['ar-SA', 'ar'],
+		['ar-EG', 'ar'],
 		['fr', 'en'],
 		['ja', 'en'],
 	])('resolves %s to %s', async (language, expected) => {
@@ -20,11 +23,18 @@ describe('i18n setup', () => {
 		expect(i18n.resolvedLanguage).toBe(expected)
 	})
 
-	it('translates the same key in both languages', async () => {
+	it('translates the same key in every language', async () => {
 		await i18n.changeLanguage('en')
 		expect(i18n.t('common.cancel')).toBe('Cancel')
 		await i18n.changeLanguage('zh')
 		expect(i18n.t('common.cancel')).toBe('取消')
+		await i18n.changeLanguage('ar')
+		expect(i18n.t('common.cancel')).toBe('إلغاء')
+	})
+
+	it('reports Arabic as right-to-left', () => {
+		expect(i18n.dir('ar')).toBe('rtl')
+		expect(i18n.dir('en')).toBe('ltr')
 	})
 
 	it('falls back to English text, not the raw key, for an unsupported language', async () => {
