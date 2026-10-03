@@ -65,20 +65,20 @@ Consumers (`hooks/useX`, `chat-layout-wrapper.tsx`, `chatbox-wrapper.tsx`) keep 
 
 ## 4. Identity on the server
 
-`getUserIdFromRequest` in `lib/api-utils.ts` becomes:
+A fork-owned module `lib/session-user.ts` provides:
 
 ```ts
-export async function getUserIdFromRequest(): Promise<string | null> {
-	const session = await getServerSession(authOptions)
-	return session?.user?.email ?? null
-}
+export async function getSessionUserId(): Promise<string | null> // session.user.email, or null
+export function unauthorizedResponse(): NextResponse // 401 { "error": "Unauthorized" }
 ```
+
+`getSessionUserId` calls `getServerSession(authOptions)`, the same call upstream's `/api/users` routes use. Upstream's `getUserIdFromRequest` in `lib/api-utils.ts` (which trusts the `x-user-id` header) is left in place but no longer called by any route, so that file and its upstream unit test stay untouched.
 
 Every route under `app/api/client/dify/[appId]/` that forwards a `user` to Dify does, at the top of the handler:
 
 ```ts
-const userId = await getUserIdFromRequest()
-if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+const userId = await getSessionUserId()
+if (!userId) return unauthorizedResponse()
 ```
 
 and then sets the forwarded value from `userId`, replacing whatever the browser sent, in the place that route uses:
@@ -108,7 +108,7 @@ The implementation plan verifies this table against the code before editing; any
 
 ## 5. Logout on the chat side
 
-The chat header's settings menu (`components/chat/chat-layout.tsx`) and the app discovery page (`app/(user)/apps/page.tsx`) get an account section: a disabled line "Signed in as {{email}}" and a "Log out" item. Log out uses the same flow as the admin header (`signOut({ redirect: false })`, then `router.push('/login')`), extracted into a fork-owned `components/auth/logout-menu-items.ts` helper that returns the menu items, so both places share it.
+The chat header's settings menu (`components/chat/chat-layout.tsx`) and the app discovery page (`app/(user)/apps/page.tsx`) get an account section: a disabled line "Signed in as {{email}}" and a "Log out" item. Log out uses the same flow as the admin header (`signOut({ redirect: false })`, then `router.push('/login')`), provided by a fork-owned `components/auth/account-menu.tsx`: an `AccountMenu` dropdown for desktop headers and the app list, and a `getAccountMenuItems` function for the chat page's mobile menu, so every place shares one implementation. Workflow-type apps (`common-layout.tsx`) get the same dropdown.
 
 New translation key in `en`, `zh`, `ar`: `auth.signed_in_as` = "Signed in as {{email}}" / "当前登录：{{email}}" / "مسجّل الدخول باسم {{email}}".
 
@@ -125,8 +125,8 @@ New translation key in `en`, `zh`, `ar`: `auth.signed_in_as` = "Signed in as {{e
 Unit tests (Vitest, node environment):
 
 - `lib/access.ts`: public paths, client API paths, callback URL safety (relative path kept; absolute URL, `//evil`, empty and null fall back to `/`).
-- `getUserIdFromRequest`: returns the email when `getServerSession` resolves a session, `null` otherwise (`vi.mock('next-auth/next')`).
-- `logout-menu-items`: the items carry the signed-in email and a logout action.
+- `getSessionUserId`: returns the email when `getServerSession` resolves a session, `null` otherwise (`vi.mock('next-auth/next')`).
+- `getAccountMenuItems`: the items carry the signed-in email and a logout action.
 
 Static checks: `pnpm exec tsc --noEmit`, `pnpm exec oxlint`, `pnpm build`.
 
@@ -136,10 +136,10 @@ Manual, by the user (per `AGENTS.md`): opening `/apps` signed out redirects to `
 
 Documented in `docs/auth-gate.md`:
 
-- After merging upstream, any new route under `app/api/client/` that forwards a `user` must call `getUserIdFromRequest` and use its value; `git grep -n "user" app/api/client` after a merge lists candidates.
+- After merging upstream, any new route under `app/api/client/` that forwards a `user` must call `getSessionUserId` and use its value instead of `getUserIdFromRequest` or the browser's value; `git grep -n "user" app/api/client` after a merge lists candidates.
 - `/auth` and the `x-user-id` header are vestigial; leave them alone unless the fork stops tracking upstream's chat identity.
 - Expected conflicts: `proxy.ts` (keep the fork's rule and re-apply upstream's additions inside it), `hooks/use-auth.ts` (keep the fork's version).
 
 ## Out of scope
 
-Roles and permissions, LDAP, local/LDAP account tags, automatic deactivation, session lifetime changes, removing the fingerprint dependency, renaming `getUserIdFromRequest`.
+Roles and permissions, LDAP, local/LDAP account tags, automatic deactivation, session lifetime changes, removing the fingerprint dependency, removing the unused `getUserIdFromRequest`.
