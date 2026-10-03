@@ -1,0 +1,17 @@
+import { getServerSession } from 'next-auth/next'
+import { NextResponse } from 'next/server'
+
+import { authOptions } from '@/lib/auth'
+
+/**
+ * The signed-in account's email, used as the Dify end-user id. Null without a session.
+ * Route handlers must use this, never the browser-supplied `user` value.
+ */
+export async function getSessionUserId(): Promise<string | null> {
+	const session = await getServerSession(authOptions)
+	return session?.user?.email ?? null
+}
+
+export function unauthorizedResponse() {
+	return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+}
