@@ -23,9 +23,18 @@ export const isClientApiPath = (pathname: string): boolean =>
 
 /**
  * The callbackUrl the login page may navigate to: a same-site path, else "/".
+ * Browsers strip tab, LF and CR from anywhere in a URL before parsing it, so
+ * "/\t/evil.example" would become the protocol-relative "//evil.example".
+ * The prefix checks alone miss that, so the origin is checked after parsing.
  */
 export const getSafeCallbackUrl = (value: string | null | undefined): string => {
 	if (!value || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) {
+		return '/'
+	}
+	const base = 'http://localhost'
+	try {
+		if (new URL(value, base).origin !== base) return '/'
+	} catch {
 		return '/'
 	}
 	return value

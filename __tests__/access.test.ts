@@ -56,6 +56,10 @@ describe('getSafeCallbackUrl', () => {
 		'//evil.example',
 		'/\\evil.example',
 		'chat',
+		'/\t/evil.example',
+		'/\n/evil.example',
+		'/\r/evil.example',
+		'/\t\\evil.example',
 	])('falls back to / for %s', value => {
 		expect(getSafeCallbackUrl(value)).toBe('/')
 	})
