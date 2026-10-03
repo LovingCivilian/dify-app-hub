@@ -153,7 +153,7 @@ export const getSafeCallbackUrl = (value: string | null | undefined): string => 
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `pnpm vitest run __tests__/access.test.ts` Expected: PASS, 22 tests
+Run: `pnpm vitest run __tests__/access.test.ts` Expected: PASS, 28 tests
 
 - [ ] **Step 5: Edit `proxy.ts`**
 
@@ -377,7 +377,8 @@ git commit -m "feat(auth): chat side takes its identity from the signed-in sessi
 // __tests__/session-user.test.ts
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const getServerSession = vi.fn()
+// vi.mock factories are hoisted above imports, so the mock must be created with vi.hoisted.
+const { getServerSession } = vi.hoisted(() => ({ getServerSession: vi.fn() }))
 vi.mock('next-auth/next', () => ({ getServerSession }))
 vi.mock('@/lib/auth', () => ({ authOptions: { marker: true } }))
 
