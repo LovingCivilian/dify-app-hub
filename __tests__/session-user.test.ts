@@ -11,9 +11,16 @@ describe('getSessionUserId', () => {
 	beforeEach(() => getServerSession.mockReset())
 
 	it('returns the signed-in account email', async () => {
-		getServerSession.mockResolvedValue({ user: { email: 'jane@example.com' } })
+		getServerSession.mockResolvedValue({ user: { id: 'u1', email: 'jane@example.com' } })
 		await expect(getSessionUserId()).resolves.toBe('jane@example.com')
 		expect(getServerSession).toHaveBeenCalledWith({ marker: true })
+	})
+
+	// A revoked JWT (sessionVersion mismatch) still yields a session from
+	// getServerSession, but the session callback leaves out user.id.
+	it('returns null for a revoked session without user.id', async () => {
+		getServerSession.mockResolvedValue({ user: { email: 'jane@example.com' } })
+		await expect(getSessionUserId()).resolves.toBeNull()
 	})
 
 	it('returns null without a session', async () => {
@@ -22,7 +29,7 @@ describe('getSessionUserId', () => {
 	})
 
 	it('returns null when the session has no email', async () => {
-		getServerSession.mockResolvedValue({ user: {} })
+		getServerSession.mockResolvedValue({ user: { id: 'u1' } })
 		await expect(getSessionUserId()).resolves.toBeNull()
 	})
 })

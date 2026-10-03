@@ -68,7 +68,7 @@ Consumers (`hooks/useX`, `chat-layout-wrapper.tsx`, `chatbox-wrapper.tsx`) keep 
 A fork-owned module `lib/session-user.ts` provides:
 
 ```ts
-export async function getSessionUserId(): Promise<string | null> // session.user.email, or null
+export async function getSessionUserId(): Promise<string | null> // session.user.email if session.user.id is set, else null
 export function unauthorizedResponse(): NextResponse // 401 { "error": "Unauthorized" }
 ```
 
@@ -117,7 +117,7 @@ New translation key in `en`, `zh`, `ar`: `auth.signed_in_as` = "Signed in as {{e
 - Dify's "End User" column and Langfuse's `user_id` show the email from the first message after deployment. Conversations created under fingerprint ids are no longer listed for anyone. Fine for test instances; worth announcing before a production rollout.
 - Emails are sent to the Dify server and, through it, to Langfuse. Both are company-internal in this deployment.
 - Open redirect after login is prevented by `getSafeCallbackUrl`.
-- Password reset still signs the account out everywhere through upstream's `sessionVersion` check in the JWT callback; nothing here changes session lifetime (30 days by default).
+- Password reset bumps `sessionVersion`, and upstream's JWT callback then returns `null`. In next-auth 4.24.15 that does not end the session for `getServerSession`: the session route still builds the session from the decoded JWT, only without `user.id` (upstream's session callback sets it for a live token only). `getSessionUserId` therefore returns `null` unless `user.id` is present, so every Dify proxy route rejects a revoked JWT. The proxy's `getToken` still accepts it for pages until it expires (30 days by default); the browser's own cookie is cleared on its next session refresh. Nothing here changes session lifetime.
 - Every account can open the admin pages. That is the agreed step-1 behaviour; roles come later.
 
 ## 7. Verification
@@ -125,7 +125,7 @@ New translation key in `en`, `zh`, `ar`: `auth.signed_in_as` = "Signed in as {{e
 Unit tests (Vitest, node environment):
 
 - `lib/access.ts`: public paths, client API paths, callback URL safety (relative path kept; absolute URL, `//evil`, empty and null fall back to `/`).
-- `getSessionUserId`: returns the email when `getServerSession` resolves a session, `null` otherwise (`vi.mock('next-auth/next')`).
+- `getSessionUserId`: returns the email when `getServerSession` resolves a session with `user.id`, `null` otherwise, including a revoked session without `user.id` (`vi.mock('next-auth/next')`).
 - `getAccountMenuItems`: the items carry the signed-in email and a logout action.
 
 Static checks: `pnpm exec tsc --noEmit`, `pnpm exec oxlint`, `pnpm build`.

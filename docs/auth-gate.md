@@ -32,4 +32,5 @@ Every page and every `/api/client/*` route requires the account login. The Dify 
 
 - No roles: every account can open the admin pages.
 - Conversations created before the gate (fingerprint ids) are not listed.
-- Sessions last 30 days (next-auth default); password reset signs out everywhere.
+- Sessions last 30 days (next-auth default).
+- Password reset revokes existing JWTs only in part. Every Dify proxy route rejects a revoked JWT: next-auth still builds a session from it, but without `user.id`, so `getSessionUserId()` returns null. The proxy's `getToken` still accepts it for pages until it expires. The browser's own cookie is cleared on its next session refresh.
