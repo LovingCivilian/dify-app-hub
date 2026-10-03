@@ -20,6 +20,7 @@ export async function GET(
 ) {
 	try {
 		const { appId } = await params
+		if (!(await getSessionUserId())) return unauthorizedResponse()
 
 		// 获取应用配置
 		const app = await getAppItem(appId)

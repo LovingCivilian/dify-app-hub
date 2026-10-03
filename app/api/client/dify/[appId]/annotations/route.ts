@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { createDifyApiResponse, handleApiError, proxyDifyRequest } from '@/lib/api-utils'
+import { getSessionUserId, unauthorizedResponse } from '@/lib/session-user'
 import { getAppItem } from '@/repository/app'
 
 export const dynamic = 'force-dynamic'
@@ -14,6 +15,7 @@ export async function POST(
 ) {
 	try {
 		const { appId } = await params
+		if (!(await getSessionUserId())) return unauthorizedResponse()
 
 		// 获取应用配置
 		const app = await getAppItem(appId)

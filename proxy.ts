@@ -3,30 +3,34 @@ import { getToken } from 'next-auth/jwt'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
-import { isClientApiPath, isPublicPath } from '@/lib/access'
+import { isApiPath, isPublicPath, isUngatedPath } from '@/lib/access'
 
 export async function proxy(request: NextRequest) {
 	const { pathname, origin } = request.nextUrl
 
-	// 跳过 API 和静态资源
-	if (pathname.startsWith('/api') && !isClientApiPath(pathname)) return NextResponse.next()
-	if (pathname.startsWith('/_next') || pathname === '/favicon.ico') return NextResponse.next()
+	// 按解码后的路径判断（Next 也会按解码后的路径匹配路由）
+	let decoded: string
+	try {
+		decoded = decodeURIComponent(pathname)
+	} catch {
+		return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+	}
 
-	// 允许访问初始化页面本身
-	if (pathname.startsWith('/init')) return NextResponse.next()
+	// 跳过公开 API、静态资源和初始化页面本身
+	if (isUngatedPath(decoded)) return NextResponse.next()
 
-	// 全站鉴权：公开页面以外都需要登录
-	if (!isPublicPath(pathname)) {
+	// 全站鉴权：公开页面以外都需要登录，API 默认拒绝
+	if (!isPublicPath(decoded)) {
 		const token = await getToken({ req: request })
 		if (!token) {
-			if (isClientApiPath(pathname)) {
+			if (isApiPath(decoded)) {
 				return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 			}
 			const loginUrl = new URL('/login', request.url)
 			loginUrl.searchParams.set('callbackUrl', pathname + request.nextUrl.search)
 			return NextResponse.redirect(loginUrl)
 		}
-		if (isClientApiPath(pathname)) return NextResponse.next()
+		if (isApiPath(decoded)) return NextResponse.next()
 	}
 
 	try {

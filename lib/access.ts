@@ -1,9 +1,14 @@
-// Pages and APIs reachable without a session. Everything else needs one
-// (enforced in proxy.ts); /api/* routes outside /api/client check themselves.
-const PUBLIC_PREFIXES = [
-	'/login',
-	'/forgot-password',
-	'/reset-password',
+// Pages and APIs reachable without a session. Everything else needs one,
+// enforced in proxy.ts on the decoded pathname: pages redirect to /login and
+// every other /api path answers 401. The /api/client handlers also check the
+// session themselves.
+
+// Public pages still go through the init-status check in proxy.ts.
+const PUBLIC_PAGES = ['/login', '/forgot-password', '/reset-password']
+
+// Passed through by proxy.ts untouched, with no session or init-status check:
+// the init page and its API, auth, health and Next's own assets.
+const UNGATED_PREFIXES = [
 	'/init',
 	'/api/auth',
 	'/api/init',
@@ -15,11 +20,13 @@ const PUBLIC_PREFIXES = [
 const startsWithSegment = (pathname: string, prefix: string) =>
 	pathname === prefix || pathname.startsWith(`${prefix}/`)
 
-export const isPublicPath = (pathname: string): boolean =>
-	PUBLIC_PREFIXES.some(prefix => startsWithSegment(pathname, prefix))
+export const isUngatedPath = (pathname: string): boolean =>
+	UNGATED_PREFIXES.some(prefix => startsWithSegment(pathname, prefix))
 
-export const isClientApiPath = (pathname: string): boolean =>
-	startsWithSegment(pathname, '/api/client')
+export const isPublicPath = (pathname: string): boolean =>
+	isUngatedPath(pathname) || PUBLIC_PAGES.some(prefix => startsWithSegment(pathname, prefix))
+
+export const isApiPath = (pathname: string): boolean => startsWithSegment(pathname, '/api')
 
 /**
  * The callbackUrl the login page may navigate to: a same-site path, else "/".

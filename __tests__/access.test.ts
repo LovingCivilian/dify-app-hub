@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getSafeCallbackUrl, isClientApiPath, isPublicPath } from '@/lib/access'
+import { getSafeCallbackUrl, isApiPath, isPublicPath, isUngatedPath } from '@/lib/access'
 
 describe('isPublicPath', () => {
 	it.each([
@@ -33,13 +33,41 @@ describe('isPublicPath', () => {
 	})
 })
 
-describe('isClientApiPath', () => {
-	it('matches the chat-side proxy routes only', () => {
-		expect(isClientApiPath('/api/client/apps')).toBe(true)
-		expect(isClientApiPath('/api/client/dify/abc/chat-messages')).toBe(true)
-		expect(isClientApiPath('/api/users')).toBe(false)
-		expect(isClientApiPath('/api/clientele')).toBe(false)
-		expect(isClientApiPath('/apps')).toBe(false)
+describe('isUngatedPath', () => {
+	it.each([
+		'/init',
+		'/init/anything',
+		'/api/auth/session',
+		'/api/init/status',
+		'/api/health',
+		'/_next/data/build/page.json',
+		'/favicon.ico',
+	])('skips the session and init-status checks for %s', pathname => {
+		expect(isUngatedPath(pathname)).toBe(true)
+	})
+
+	it.each([
+		'/login',
+		'/forgot-password',
+		'/reset-password',
+		'/initx',
+		'/_nextx',
+		'/apps',
+		'/api/client/apps',
+		'/api/users',
+	])('keeps %s behind the session or init-status check', pathname => {
+		expect(isUngatedPath(pathname)).toBe(false)
+	})
+})
+
+describe('isApiPath', () => {
+	it('matches the /api segment only', () => {
+		expect(isApiPath('/api')).toBe(true)
+		expect(isApiPath('/api/users')).toBe(true)
+		expect(isApiPath('/api/client/apps')).toBe(true)
+		expect(isApiPath('/apis')).toBe(false)
+		expect(isApiPath('/apps')).toBe(false)
+		expect(isApiPath('/')).toBe(false)
 	})
 })
 

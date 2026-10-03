@@ -13,7 +13,7 @@ Every page and every `/api/client/*` route requires a signed-in account (the `us
 | Dify `user` value | The account email, set server-side; the browser's value is ignored. |
 | Landing page after login | `/apps`. The admin pages stay reachable by URL and from the existing links. |
 | Fingerprint page `/auth` and the `x-user-id` header | Left untouched (vestigial) to keep upstream files unchanged. Nothing routes to `/auth` any more. |
-| Enforcement | Middleware (`proxy.ts`) for pages and `/api/client/*`, plus a session check in each route that forwards a user to Dify. |
+| Enforcement | Middleware (`proxy.ts`) for pages and `/api/*` (deny by default), plus a session check in every `/api/client/*` route handler. |
 
 ## 1. Access rule
 
@@ -25,16 +25,19 @@ Implemented in `proxy.ts` (Next.js 16 proxy, formerly middleware) using next-aut
 | `/api/auth/*`, `/api/init/*`, `/api/health` | Allowed |
 | `/_next/*`, `/favicon.ico` | Allowed |
 | `/api/client/*` | `401` JSON `{ "error": "Unauthorized" }` |
-| Other `/api/*` (`/api/users`) | Not handled here; those routes keep their own `getServerSession` checks |
+| Other `/api/*` (`/api/users`) | `401` JSON as well (deny by default); those routes also keep their own `getServerSession` checks |
 | Any other page | Redirect to `/login?callbackUrl=<pathname + search>` |
+
+The rules apply to the decoded pathname (`decodeURIComponent`), because Next also matches routes on the decoded path, so `/api/%63lient/apps` is treated as `/api/client/apps`. A pathname that does not decode gets `400`.
 
 Upstream's "redirect to `/init` until the system is set up" logic stays as it is, after the session check.
 
 The classification lives in a fork-owned module `lib/access.ts`:
 
 ```ts
+export const isUngatedPath = (pathname: string): boolean // no session or init-status check
 export const isPublicPath = (pathname: string): boolean
-export const isClientApiPath = (pathname: string): boolean
+export const isApiPath = (pathname: string): boolean
 export const getSafeCallbackUrl = (value: string | null | undefined): string
 ```
 
@@ -102,7 +105,7 @@ and then sets the forwarded value from `userId`, replacing whatever the browser 
 | `workflow/[taskId]/events`               | query `user`                           |
 | `workflows/run`                          | JSON body `user`                       |
 
-Routes that forward no user (`apps`, `apps/[id]`, `annotations`, `info`, `meta`, `parameters`, `site`, `files/[fileId]/preview`) are protected by the middleware's 401 only.
+Routes that forward no user (`apps`, `apps/[id]`, `annotations`, `info`, `meta`, `parameters`, `site`, `files/[fileId]/preview`, and the `GET` of `workflows/run`) check the session too, on top of the middleware's 401: `if (!(await getSessionUserId())) return unauthorizedResponse()`.
 
 The implementation plan verifies this table against the code before editing; any route found to forward `user` in a way not listed here is handled the same way.
 
@@ -124,7 +127,8 @@ New translation key in `en`, `zh`, `ar`: `auth.signed_in_as` = "Signed in as {{e
 
 Unit tests (Vitest, node environment):
 
-- `lib/access.ts`: public paths, client API paths, callback URL safety (relative path kept; absolute URL, `//evil`, empty and null fall back to `/`).
+- `lib/access.ts`: public paths, ungated paths, API paths, callback URL safety (relative path kept; absolute URL, `//evil`, empty and null fall back to `/`).
+- `proxy.ts`: 401 for `/api/*` without a session (including an encoded `/api/%63lient`), login redirect with `callbackUrl`, public paths, the `/init` redirect (`next-auth/jwt` and `fetch` mocked).
 - `getSessionUserId`: returns the email when `getServerSession` resolves a session with `user.id`, `null` otherwise, including a revoked session without `user.id` (`vi.mock('next-auth/next')`).
 - `getAccountMenuItems`: the items carry the signed-in email and a logout action.
 
