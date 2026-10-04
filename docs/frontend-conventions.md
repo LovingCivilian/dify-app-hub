@@ -83,5 +83,8 @@ Sub-projects 2–4 drive this to zero. No task may increase the total (75) or th
 
 ## Status
 
-- Sub-project 0 (tooling): in progress.
-- Sub-project 1 (foundation and shells): not started.
+- Sub-project 0 (tooling): done. Skills, conventions, dependency bump, Playwright harness with throwaway MySQL and stub Dify API, lint baseline.
+- Sub-project 1 (foundation and shells): done. The single provider stack (`components/providers/app-providers.tsx`), `AppHeader` with language/theme/account dropdowns, admin/user/auth shells, the `(auth)`/`(admin)`/`(user)` route groups, the `--ant-*` alias block on `.ant-app`, and the e2e suite for all of it (setup, harness, smoke, providers, chat header, theme aliases, shell flows, screenshots; three projects).
+- Lint re-check (2026-10-04, `npx -y @ant-design/cli lint ./`): 210 files scanned, 74 findings (baseline 75), 1 error `✗` (baseline 1, still `app/(admin)/app-management/page.tsx:8`), 73 warnings `⚠` (baseline 74). Categories: 5 deprecated, 7 a11y, 61 usage, 1 performance.
+- Production first-paint check (2026-10-04; `pnpm build`, then `next start -p 5302` with the `.env.e2e` values so that `/login` renders instead of redirecting to `/init`; `curl -s /login`): the first run found **0** `<style` tags and **0** `--ant-color-primary` occurrences, so the server HTML carried no antd styles. Cause: `package.json` pinned `@ant-design/cssinjs` at `^1.24.0` (upstream's) while antd 6 and Ant Design X use 2.1.2, so `AntdRegistry` read a different cssinjs context and extracted nothing; the antd Next.js guide requires the same version as the one inside `antd`. After `pnpm add @ant-design/cssinjs@^2.1.2` (one copy left, `pnpm why @ant-design/cssinjs`): **1** `<style id="antd-cssinjs">` tag, **3** lines and **24** occurrences of `--ant-color-primary`, `--ant-color-text:rgba(0,0,0,0.88)` and `--ant-color-bg-layout:#f5f5f5` present in the first HTML. No fallback values were needed for the alias block. `next start` prints that it "does not work with `output: standalone`" but serves the page; the check only reads the HTML.
+- Next: sub-project 2 (chat) needs its own spec and plan (brainstorming first).

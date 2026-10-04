@@ -6,15 +6,16 @@ Every page and every `/api/client/*` route requires the account login. The Dify 
 
 - `proxy.ts` + `lib/access.ts`: classify the decoded pathname; public paths, redirect to `/login?callbackUrl=`, 401 for every other `/api/*` path (deny by default).
 - `lib/session-user.ts`: `getSessionUserId()` (email or null), `unauthorizedResponse()` and `redirectSignedInUser()`.
-- `app/login/layout.tsx`, `app/forgot-password/layout.tsx`: server layouts that call `redirectSignedInUser()`, so a signed-in visitor goes to `/apps` instead of seeing the form (next-auth's custom-sign-in-page pattern, done with `getServerSession` + `redirect()`). A revoked session has no `user.id` and is not redirected. `/reset-password` stays reachable while signed in on purpose: the emailed link is the only way a non-admin changes their password. Add a layout there once the account menu offers a password change. A layout cannot read `?callbackUrl=`, so a signed-in visitor always lands on `/apps`.
+- `app/(auth)/login/layout.tsx`, `app/(auth)/forgot-password/layout.tsx`: server layouts that call `redirectSignedInUser()`, so a signed-in visitor goes to `/apps` instead of seeing the form (next-auth's custom-sign-in-page pattern, done with `getServerSession` + `redirect()`). A revoked session has no `user.id` and is not redirected. `/reset-password` stays reachable while signed in on purpose: the emailed link is the only way a non-admin changes their password. Add a layout there once the account menu offers a password change. A layout cannot read `?callbackUrl=`, so a signed-in visitor always lands on `/apps`.
 - `hooks/use-auth.ts`: chat-side identity from `useSession`.
-- `components/auth/account-menu.tsx`: "signed in as" + log out.
+- `components/shell/account-dropdown.tsx`: "signed in as" + log out.
 
 ## Vestigial upstream pieces (left untouched on purpose)
 
-- `app/(user)/auth/page.tsx` was deleted in the frontend overhaul (sub-project 1).
 - `x-user-id` header in `lib/dify-client.ts`: ignored by the server.
 - `getUserIdFromRequest` in `lib/api-utils.ts`: trusts that header; no route calls it. Never reintroduce it.
+
+The fingerprint page `app/(user)/auth/page.tsx` used to be in this list; it was deleted in the frontend overhaul (sub-project 1).
 
 ## After merging upstream
 
