@@ -1,6 +1,9 @@
 # Local test stack: builds the app from this checkout and runs it with its own MySQL server.
 # Usage: docker compose -f docker-compose.local.yml up -d --build
 # Settings and passwords are read from .env (not committed).
+#
+# Quick dev loop (no image build): stop the app container, keep MySQL, run `pnpm dev`
+# on the host against 127.0.0.1:3306 (DATABASE_URL in .env.development.local). See CLAUDE.md.
 name: dify-app-hub-local
 
 services:
@@ -12,6 +15,9 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    ports:
+      # This machine only, for `pnpm dev` on the host; not reachable from the network
+      - '127.0.0.1:3306:3306'
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
