@@ -21,8 +21,8 @@ export default function AuthCard({
 				xs={24}
 				sm={16}
 				md={12}
-				lg={8}
-				xl={6}
+				lg={10}
+				xl={8}
 			>
 				<Card title={title}>{children}</Card>
 			</Col>
