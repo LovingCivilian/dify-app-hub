@@ -46,6 +46,19 @@ Conventions:
 - MADR: <https://adr.github.io/madr/>
 - Michael Nygard, "Documenting Architecture Decisions": <https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions>
 
+## Implementation Plan
+
+- **Affected paths**: `docs/decisions/` (records and `README.md` index), `.claude/skills/adr-skill/` (vendored skill: `scripts/new_adr.js`, `scripts/set_adr_status.js`, templates, review checklist), `CLAUDE.md` (one pointer line per decision).
+- **Dependencies**: none at runtime; the skill's scripts run on Node with no packages.
+- **Patterns to follow**: `node .claude/skills/adr-skill/scripts/new_adr.js --title "<verb phrase>" --status proposed --update-index`; MADR template for decisions with several options, the simple template otherwise; one decision per record; status changes through `set_adr_status.js`; supersede instead of rewriting; `// ADR-NNNN` at the code entry point.
+- **Patterns to avoid**: decision prose in `CLAUDE.md`; ADRs for routine implementation choices or bug fixes; editing an accepted record's decision text.
+
+### Verification
+
+- [x] `docs/decisions/README.md` lists every record with status and date.
+- [x] Each record has Context, Decision, Consequences, an Implementation Plan and Verification checkboxes.
+- [ ] New PRs that change a pattern or dependency add or update a record (reviewers check).
+
 ## More Information (project specifics, 2026-10-04)
 
 Written with `skillrecordings/adr-skill` (project copy in `.claude/skills/adr-skill`). Records 0002–0014 were reconstructed from `CLAUDE.md` "Decisions taken", the fork's merged PRs (#3–#11), the specs under `docs/superpowers/` and the 2026-10-04 foundation session; 0015 records this tooling choice. Upstream's own design records (May 2026, `docs/superpowers/specs/2026-05-*`) are inherited, not fork decisions, and are listed in the index for orientation only.

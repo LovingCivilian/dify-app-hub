@@ -42,6 +42,12 @@ Non-goals: tooltips as antd `Tooltip` components (native `title` suffices for ic
 - [x] Task 7 review: rc-trigger binds click handlers only with `click` in `trigger` (verified in `@rc-component/trigger`).
 - [ ] Sub-project 2: the chat's mobile menu test opens the menu and asserts an item.
 
+## Alternatives Considered
+
+- Keep antd's default hover trigger (the plan's first version): rejected; not keyboard-openable (rc-trigger binds click/focus only when listed) and antd's docs rule hover out on touchscreens.
+- Antd `Tooltip` components instead of native `title`: deferred; `title` on icon buttons is sufficient and adds no portal, which keeps the header simple until sub-project 3 revisits the admin pages.
+- Literal English `aria-label`s: rejected; `CLAUDE.md` routes all UI text through i18next keys (ADR-0005).
+
 ## More Information
 
 Sources: PR #12 Task 7 review and fix round (commit `5f723cfa`), Task 10 and the final review; antd `Dropdown` API ("hover can't be used on touchscreens"). Related: [ADR-0005](0005-internationalise-the-ui-with-typed-i18next-keys-and-msa-arabic.md), [ADR-0008](0008-rebuild-frontend-on-ant-design-6-and-x-2.md).
