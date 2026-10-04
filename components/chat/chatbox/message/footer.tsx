@@ -212,6 +212,7 @@ export default function MessageFooter(props: IMessageFooterProps) {
 				},
 				title: t('message.feedback_positive'),
 				active: isLiked,
+				activeColor: 'success' as const,
 				loading: loading.like,
 				hidden: !messageId,
 			},
@@ -234,6 +235,7 @@ export default function MessageFooter(props: IMessageFooterProps) {
 					}
 				},
 				active: isDisLiked,
+				activeColor: 'danger' as const,
 				loading: loading.dislike,
 				hidden: !messageId,
 			},
@@ -297,6 +299,7 @@ export default function MessageFooter(props: IMessageFooterProps) {
 								icon={buttonProps.icon}
 								onClick={buttonProps.onClick}
 								active={buttonProps.active}
+								activeColor={buttonProps.activeColor}
 								loading={buttonProps.loading}
 								disabled={isRequesting}
 								title={buttonProps.title}

@@ -16,6 +16,10 @@ interface IActionButtonProps {
 	 */
 	active?: boolean
 	/**
+	 * 激活时的颜色，默认主题色；点赞用 success，点踩用 danger
+	 */
+	activeColor?: 'primary' | 'success' | 'danger'
+	/**
 	 * 是否加载中
 	 */
 	loading?: boolean
@@ -29,16 +33,31 @@ interface IActionButtonProps {
 	icon: React.ReactElement
 }
 
+// Tailwind 需要能静态扫描到完整类名，所以用字面量映射
+const activeClassNames = {
+	primary: '!text-primary',
+	success: 'text-(color:--theme-success-color)!',
+	danger: 'text-(color:--theme-danger-color)!',
+}
+
 /**
  * 操作按钮
  */
 export default function ActionButton(props: IActionButtonProps) {
-	const { title, disabled, icon, loading = false, active = false, onClick } = props
+	const {
+		title,
+		disabled,
+		icon,
+		loading = false,
+		active = false,
+		activeColor = 'primary',
+		onClick,
+	} = props
 
 	const Icon = React.cloneElement(icon, {
 		// @ts-expect-error FIXME: React19 类型错误，待解决
 		className: classNames({
-			'!text-primary': active,
+			[activeClassNames[activeColor]]: active,
 			'text-theme-text': true,
 		}),
 	})
