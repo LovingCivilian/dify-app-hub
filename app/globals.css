@@ -49,6 +49,7 @@
 	outline-color: color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
+/* ADR-0012: legacy variables aliased to antd tokens on .ant-app — docs/decisions/0012-alias-legacy-theme-variables-to-antd-tokens.md */
 /* Fork theme aliases. Every --theme-* and shadcn-style variable the old page bodies still use now points at an
    antd token, so colours come from the single antd theme and flip with darkAlgorithm. Declared on .ant-app —
    antd's CSS-variable scope — because a var() alias only resolves where the --ant-* variables exist, not at :root.

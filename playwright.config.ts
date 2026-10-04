@@ -1,3 +1,4 @@
+// ADR-0010: Playwright against next dev, a throwaway MySQL and a stub Dify API — docs/decisions/0010-verify-the-frontend-with-playwright-and-a-stub-dify-api.md
 import { defineConfig, devices } from '@playwright/test'
 
 import { ADMIN_STATE } from './e2e/fixtures/constants'

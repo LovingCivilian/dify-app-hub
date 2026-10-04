@@ -29,6 +29,7 @@ export interface AppHeaderProps {
 
 const GITHUB_URL = 'https://github.com/lexmin0412/dify-app-hub'
 
+// ADR-0014: click-triggered, i18n-named header controls — docs/decisions/0014-header-controls-click-triggered-named-through-i18next.md
 export default function AppHeader({
 	nav,
 	navSelectedKey,

@@ -18,6 +18,7 @@ initResponsiveConfig()
  * antd / Ant Design X configuration for the whole app: the only XProvider (it supersedes ConfigProvider)
  * and the App context that backs App.useApp(). Theme algorithm from the theme-mode switch, locale from i18next.
  */
+// ADR-0008: the one XProvider + App stack for the whole app — docs/decisions/0008-rebuild-frontend-on-ant-design-6-and-x-2.md
 function AntdProviders({ children }: { children: React.ReactNode }) {
 	const { isDark } = useThemeContext()
 	const { i18n } = useTranslation()
