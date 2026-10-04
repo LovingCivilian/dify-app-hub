@@ -44,113 +44,49 @@
 	--min-width-chat-card: 28rem;
 }
 
-:root {
-	--radius: 0.625rem;
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.141 0.005 285.823);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.141 0.005 285.823);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.141 0.005 285.823);
-	--primary: oklch(0.21 0.006 285.885);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.967 0.001 286.375);
-	--secondary-foreground: oklch(0.21 0.006 285.885);
-	--muted: oklch(0.967 0.001 286.375);
-	--muted-foreground: oklch(0.552 0.016 285.938);
-	--accent: oklch(0.967 0.001 286.375);
-	--accent-foreground: oklch(0.21 0.006 285.885);
-	--destructive: oklch(0.577 0.245 27.325);
-	--border: oklch(0.92 0.004 286.32);
-	--input: oklch(0.92 0.004 286.32);
-	--ring: oklch(0.705 0.015 286.067);
-	--chart-1: oklch(0.646 0.222 41.116);
-	--chart-2: oklch(0.6 0.118 184.704);
-	--chart-3: oklch(0.398 0.07 227.392);
-	--chart-4: oklch(0.828 0.189 84.429);
-	--chart-5: oklch(0.769 0.188 70.08);
-	--sidebar: oklch(0.985 0 0);
-	--sidebar-foreground: oklch(0.141 0.005 285.823);
-	--sidebar-primary: oklch(0.21 0.006 285.885);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.967 0.001 286.375);
-	--sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-	--sidebar-border: oklch(0.92 0.004 286.32);
-	--sidebar-ring: oklch(0.705 0.015 286.067);
-}
-
-.dark {
-	--background: oklch(0.141 0.005 285.823);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.21 0.006 285.885);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.21 0.006 285.885);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.92 0.004 286.32);
-	--primary-foreground: oklch(0.21 0.006 285.885);
-	--secondary: oklch(0.274 0.006 286.033);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.274 0.006 286.033);
-	--muted-foreground: oklch(0.705 0.015 286.067);
-	--accent: oklch(0.274 0.006 286.033);
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(1 0 0 / 10%);
-	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.552 0.016 285.938);
-	--chart-1: oklch(0.488 0.243 264.376);
-	--chart-2: oklch(0.696 0.17 162.48);
-	--chart-3: oklch(0.769 0.188 70.08);
-	--chart-4: oklch(0.627 0.265 303.9);
-	--chart-5: oklch(0.645 0.246 16.439);
-	--sidebar: oklch(0.21 0.006 285.885);
-	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(0.488 0.243 264.376);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.274 0.006 286.033);
-	--sidebar-accent-foreground: oklch(0.985 0 0);
-	--sidebar-border: oklch(1 0 0 / 10%);
-	--sidebar-ring: oklch(0.552 0.016 285.938);
-}
-
 * {
 	border-color: var(--border);
 	outline-color: color-mix(in srgb, var(--ring) 50%, transparent);
 }
-body {
-	background-color: var(--background);
-	color: var(--foreground);
-}
 
-:root {
-	--theme-text-color: #333;
-	--theme-desc-color: #898989;
-	--theme-bg-color: #f2f4f7;
-	--theme-btn-bg-color: #fff;
-	--theme-main-bg-color: #fff;
-	--theme-border-color: #eff0f5;
-	--theme-splitter-color: #eff0f5;
-	--theme-button-border-color: #c9c9c9;
-	--theme-primary-color: #1669ee;
-	--theme-success-color: #52c41a;
-	--theme-warning-color: #faad14;
-	--theme-danger-color: #ff4d4f;
-	--theme-bubble-bg-color: #f2f4f7;
-	--theme-code-block-bg-color: #fff;
-}
-
-/* 夜间模式类名 */
-.dark {
-	--theme-text-color: #c9c9c9;
-	--theme-desc-color: #aaa;
-	--theme-bg-color: #000;
-	--theme-btn-bg-color: #333;
-	--theme-main-bg-color: #222;
-	--theme-border-color: #797979;
-	--theme-splitter-color: #55555555;
-	--theme-button-border-color: #c9c9c9;
-	--theme-bubble-bg-color: #424242;
-	--theme-code-block-bg-color: #222;
+/* Fork theme aliases. Every --theme-* and shadcn-style variable the old page bodies still use now points at an
+   antd token, so colours come from the single antd theme and flip with darkAlgorithm. Declared on .ant-app —
+   antd's CSS-variable scope — because a var() alias only resolves where the --ant-* variables exist, not at :root.
+   Removed in overhaul sub-project 4 together with their last consumers. */
+.ant-app {
+	--theme-text-color: var(--ant-color-text);
+	--theme-desc-color: var(--ant-color-text-secondary);
+	--theme-bg-color: var(--ant-color-bg-layout);
+	--theme-btn-bg-color: var(--ant-color-bg-container);
+	--theme-main-bg-color: var(--ant-color-bg-container);
+	--theme-border-color: var(--ant-color-border-secondary);
+	--theme-splitter-color: var(--ant-color-split);
+	--theme-button-border-color: var(--ant-color-border);
+	--theme-primary-color: var(--ant-color-primary);
+	--theme-success-color: var(--ant-color-success);
+	--theme-warning-color: var(--ant-color-warning);
+	--theme-danger-color: var(--ant-color-error);
+	--theme-bubble-bg-color: var(--ant-color-fill-secondary);
+	--theme-code-block-bg-color: var(--ant-color-bg-container);
+	--background: var(--ant-color-bg-container);
+	--foreground: var(--ant-color-text);
+	--card: var(--ant-color-bg-container);
+	--card-foreground: var(--ant-color-text);
+	--popover: var(--ant-color-bg-elevated);
+	--popover-foreground: var(--ant-color-text);
+	--primary: var(--ant-color-primary);
+	--primary-foreground: var(--ant-color-white);
+	--secondary: var(--ant-color-fill-secondary);
+	--secondary-foreground: var(--ant-color-text);
+	--muted: var(--ant-color-fill-tertiary);
+	--muted-foreground: var(--ant-color-text-secondary);
+	--accent: var(--ant-color-fill-secondary);
+	--accent-foreground: var(--ant-color-text);
+	--destructive: var(--ant-color-error);
+	--border: var(--ant-color-border);
+	--input: var(--ant-color-border);
+	--ring: var(--ant-color-primary);
+	--radius: var(--ant-border-radius-lg);
 }
 
 /* 主题 CSS 变量工具类 */
