@@ -2,7 +2,7 @@
 import type { TFunction } from 'i18next'
 import { describe, expect, it, vi } from 'vitest'
 
-import { getAccountMenuItems } from '@/components/auth/account-menu'
+import { getAccountMenuItems } from '@/components/shell/account-dropdown'
 
 // A stand-in for i18next's t that makes the key and options visible in the output.
 const t = ((key: string, options?: Record<string, string>) =>
