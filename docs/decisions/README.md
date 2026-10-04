@@ -35,6 +35,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0013](0013-pin-ant-design-cssinjs-to-antd-version.md) | Pin `@ant-design/cssinjs` to the version Ant Design depends on | accepted | 2026-10-04 |
 | [0014](0014-header-controls-click-triggered-named-through-i18next.md) | Make header controls click-triggered and named through i18next, and keep legacy classes out of overlays | accepted | 2026-10-04 |
 | [0015](0015-record-decisions-as-adrs-and-session-handoffs.md) | Record decisions as MADR ADRs and session state as handoff documents; keep CLAUDE.md to rules and pointers | accepted | 2026-10-04 |
+| [0016](0016-store-the-theme-preference-in-cookies.md) | Store the theme preference in cookies so the server renders the right scheme | proposed | 2026-10-04 |
 
 ## Inherited from upstream (not fork decisions)
 

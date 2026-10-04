@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { useHtmlLang } from '@/hooks/use-html-lang'
 import { initResponsiveConfig } from '@/lib/helpers'
 import { ThemeContextProvider, useThemeContext } from '@/lib/theme'
+import type { InitialTheme } from '@/lib/theme/theme-cookie'
 import { getAntdLocale } from '@/libs/antd-locale'
 
 import '@/libs/i18n'
@@ -34,10 +35,16 @@ function AntdProviders({ children }: { children: React.ReactNode }) {
 	)
 }
 
-export default function AppProviders({ children }: { children: React.ReactNode }) {
+export default function AppProviders({
+	initialTheme,
+	children,
+}: {
+	initialTheme: InitialTheme
+	children: React.ReactNode
+}) {
 	return (
 		<SessionProvider>
-			<ThemeContextProvider>
+			<ThemeContextProvider initialTheme={initialTheme}>
 				<AntdProviders>{children}</AntdProviders>
 			</ThemeContextProvider>
 		</SessionProvider>

@@ -1,117 +1,92 @@
 import React, { useCallback, useEffect, useState } from 'react'
+
+import { genLocalStorageKey, LocalStorageKeys, LocalStorageStore } from '@/lib/helpers'
+
 import { ThemeEnum, ThemeModeEnum } from './constants'
-import { LocalStorageKeys, LocalStorageStore } from '@/lib/helpers'
+import {
+	DEFAULT_INITIAL_THEME,
+	InitialTheme,
+	THEME_MODE_COOKIE,
+	themeCookieStrings,
+} from './theme-cookie'
 
-/**
- * 主题模式，用于用户手动切换， light-固定浅色 dark-固定深色，system-跟随系统
- */
 export type IThemeMode = 'light' | 'dark' | 'system'
-
-/**
- * 实际应用的主题
- */
 export type ICurrentTheme = 'light' | 'dark'
 
-/**
- * 主题上下文类型定义
- */
 export interface IThemeContext {
-	/**
-	 * 当前主题
-	 */
 	theme: ThemeEnum
-	/**
-	 * 当前主题模式
-	 */
 	themeMode: ThemeModeEnum
-	/**
-	 * 手动设置主题模式
-	 */
 	setThemeMode: (theme: ThemeModeEnum) => void
 }
 
-/**
- * 主题上下文
- */
 export const ThemeContext = React.createContext<IThemeContext>({
 	theme: ThemeEnum.LIGHT,
 	setThemeMode: () => {},
 	themeMode: ThemeModeEnum.SYSTEM,
 })
 
-/**
- * 暗黑模式的 body 类名
- */
+/** Class the dark scheme puts on <body>; app/layout.tsx renders it on the server from the cookie. */
 export const DARK_CLASS_NAME = 'dark'
 
+/** Deletes the pre-ADR-0016 localStorage entries; localStorage can throw (privacy modes, sandboxed frames). */
+const removeLegacyThemeEntries = () => {
+	try {
+		localStorage.removeItem(genLocalStorageKey(LocalStorageKeys.THEME_MODE))
+		localStorage.removeItem(genLocalStorageKey(LocalStorageKeys.THEME))
+	} catch {
+		// Nothing to clean up when storage is unavailable.
+	}
+}
+
 /**
- * 主题上下文提供者
+ * Theme mode (system / light / dark) and the resolved scheme. The initial value comes from the
+ * server (cookies read in app/layout.tsx), so the first render matches the first HTML on both sides;
+ * every change is written back to the two cookies (ADR-0016). System mode follows
+ * prefers-color-scheme live.
  */
-export const ThemeContextProvider = (props: { children: React.ReactNode }) => {
-	const { children } = props
-	const [themeMode, setThemeMode] = useState<ThemeModeEnum>(() => {
-		if (typeof window === 'undefined') {
-			return ThemeModeEnum.SYSTEM
-		}
-		return LocalStorageStore.get(LocalStorageKeys.THEME_MODE) || ThemeModeEnum.SYSTEM
-	})
-	const [themeState, setThemeState] = React.useState<ThemeEnum>(() => {
-		if (typeof window === 'undefined') {
-			return ThemeEnum.LIGHT
-		}
-		return (LocalStorageStore.get(LocalStorageKeys.THEME) as ThemeEnum) || ThemeEnum.LIGHT
-	})
+export const ThemeContextProvider = ({
+	initialTheme = DEFAULT_INITIAL_THEME,
+	children,
+}: {
+	initialTheme?: InitialTheme
+	children: React.ReactNode
+}) => {
+	const [themeMode, setThemeMode] = useState<ThemeModeEnum>(initialTheme.mode)
+	const [themeState, setThemeState] = useState<ThemeEnum>(initialTheme.resolved)
+
+	// One-time migration from the localStorage entries the fork used before ADR-0016: read, remove (so an expired
+	// cookie can never revive an old value), and apply only when no cookie exists yet (the cookie wins).
+	// Declared before the cookie-write effect below on purpose: that effect creates the cookie this one reads.
+	useEffect(() => {
+		const legacy = LocalStorageStore.get(LocalStorageKeys.THEME_MODE) as ThemeModeEnum | null
+		removeLegacyThemeEntries()
+		if (document.cookie.includes(`${THEME_MODE_COOKIE}=`)) return
+		if (legacy && Object.values(ThemeModeEnum).includes(legacy)) setThemeMode(legacy)
+	}, [])
+
+	const applyScheme = useCallback((dark: boolean) => {
+		setThemeState(dark ? ThemeEnum.DARK : ThemeEnum.LIGHT)
+		document.body.classList.toggle(DARK_CLASS_NAME, dark)
+	}, [])
 
 	useEffect(() => {
-		LocalStorageStore.set(LocalStorageKeys.THEME, themeState)
-	}, [themeState])
-
-	/**
-	 * 监听主题变化，更新状态并给 body 添加类名
-	 */
-	const handleColorSchemeChange = useCallback(
-		(event: MediaQueryList) => {
-			if (event.matches) {
-				setThemeState(ThemeEnum.DARK)
-				document.body.classList.add(DARK_CLASS_NAME)
-			} else {
-				setThemeState(ThemeEnum.LIGHT)
-				document.body.classList.remove(DARK_CLASS_NAME)
-			}
-		},
-		[setThemeState, themeMode],
-	)
-
-	useEffect(() => {
-		LocalStorageStore.set(LocalStorageKeys.THEME_MODE, themeMode)
 		const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-		if (themeMode === ThemeModeEnum.SYSTEM) {
-			// 从其他模式切换到系统主题时，先调用一次
-			handleColorSchemeChange(mediaQuery)
-			if (mediaQuery.addEventListener) {
-				// @ts-expect-error 监听媒体查询的变化, FIXME: 类型错误, 待优化
-				mediaQuery.addEventListener('change', handleColorSchemeChange)
-			} else if (mediaQuery.addListener) {
-				// @ts-expect-error 旧版本浏览器兼容
-				mediaQuery.addListener(handleColorSchemeChange)
-			}
-		} else {
-			if (mediaQuery.removeEventListener) {
-				// @ts-expect-error 移除监听媒体查询的变化, FIXME: 类型错误, 待优化
-				mediaQuery.removeEventListener('change', handleColorSchemeChange)
-			} else if (mediaQuery.removeListener) {
-				// @ts-expect-error 旧版本浏览器兼容
-				mediaQuery.removeListener(handleColorSchemeChange)
-			}
-			if (themeMode === ThemeModeEnum.DARK) {
-				setThemeState(ThemeEnum.DARK)
-				document.body.classList.add(DARK_CLASS_NAME)
-			} else if (themeMode === ThemeModeEnum.LIGHT) {
-				setThemeState(ThemeEnum.LIGHT)
-				document.body.classList.remove(DARK_CLASS_NAME)
-			}
+		if (themeMode !== ThemeModeEnum.SYSTEM) {
+			applyScheme(themeMode === ThemeModeEnum.DARK)
+			return
 		}
-	}, [themeMode])
+		const onChange = (event: MediaQueryList | MediaQueryListEvent) => applyScheme(event.matches)
+		onChange(mediaQuery)
+		mediaQuery.addEventListener('change', onChange)
+		return () => mediaQuery.removeEventListener('change', onChange)
+	}, [themeMode, applyScheme])
+
+	useEffect(() => {
+		const secure = window.location.protocol === 'https:'
+		for (const cookie of themeCookieStrings(themeMode, themeState, secure)) {
+			document.cookie = cookie
+		}
+	}, [themeMode, themeState])
 
 	return (
 		<ThemeContext.Provider value={{ theme: themeState, themeMode, setThemeMode }}>
@@ -120,9 +95,6 @@ export const ThemeContextProvider = (props: { children: React.ReactNode }) => {
 	)
 }
 
-/**
- * 获取主题上下文 hook
- */
 export const useThemeContext = () => {
 	const context = React.useContext(ThemeContext)
 	return {
