@@ -1,6 +1,14 @@
 import { expect, test } from '@playwright/test'
 
 import { APP_ID } from './fixtures/constants'
+import { stubApiBase } from './fixtures/env'
+
+// A fresh stub per test: the chat then opens a new conversation instead of reopening a stored one and
+// loading its history, which races with a message sent at once (a chat bug left to sub-project 2).
+test.beforeEach(async ({ request }) => {
+	const response = await request.post(`${stubApiBase}/__e2e/reset`)
+	await expect(response).toBeOK()
+})
 
 test('a signed-out visitor is sent to the login page with a callback', async ({ browser }) => {
 	const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
@@ -13,8 +21,7 @@ test('a signed-out visitor is sent to the login page with a callback', async ({ 
 test('the app list shows the seeded app and its chat answers from the stub', async ({
 	page,
 }, testInfo) => {
-	// The stub keeps its conversations for the whole run and the chat reopens the latest one, so each
-	// project sends its own text: the reply locator then matches exactly one message.
+	// Each project sends its own text, so the reply locator can only ever match this project's message.
 	const message = `hello from ${testInfo.project.name}`
 	await page.goto('/apps')
 	await page.getByText('Stub app').first().click()

@@ -64,6 +64,12 @@ createServer(async (req, res) => {
 	const p = url.pathname.replace(/^\/v1/, '')
 	const m = req.method
 
+	// e2e control endpoint, not a Dify API route: forget every stored conversation and message.
+	if (m === 'POST' && p === '/__e2e/reset') {
+		messages.length = 0
+		conversations.clear()
+		return json(res, 200, { result: 'success' })
+	}
 	if (m === 'GET' && p === '/parameters') return json(res, 200, parameters)
 	if (m === 'GET' && p === '/meta') return json(res, 200, { tool_icons: {} })
 	if (m === 'GET' && p === '/info')

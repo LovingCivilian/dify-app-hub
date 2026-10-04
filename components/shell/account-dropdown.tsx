@@ -37,7 +37,7 @@ export const getAccountMenuItems = ({
 ]
 
 /**
- * Same sign-out flow as the admin header.
+ * Sign out and return to the login page.
  */
 export const useLogout = () => {
 	const router = useRouter()

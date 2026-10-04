@@ -12,7 +12,7 @@ Every page and every `/api/client/*` route requires the account login. The Dify 
 
 ## Vestigial upstream pieces (left untouched on purpose)
 
-- `app/(user)/auth/page.tsx` (fingerprint page): nothing routes to it.
+- `app/(user)/auth/page.tsx` was deleted in the frontend overhaul (sub-project 1).
 - `x-user-id` header in `lib/dify-client.ts`: ignored by the server.
 - `getUserIdFromRequest` in `lib/api-utils.ts`: trusts that header; no route calls it. Never reintroduce it.
 
