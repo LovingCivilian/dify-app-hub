@@ -2,7 +2,7 @@
 
 import { XProvider } from '@ant-design/x'
 import { App, theme } from 'antd'
-import { SessionProvider } from 'next-auth/react'
+import { SessionProvider, type SessionProviderProps } from 'next-auth/react'
 import { useTranslation } from 'react-i18next'
 
 import { useHtmlLang } from '@/hooks/use-html-lang'
@@ -14,6 +14,10 @@ import { getAntdLocale } from '@/libs/antd-locale'
 import '@/libs/i18n'
 
 initResponsiveConfig()
+
+// The session as SessionProvider types it. `Session` imported from 'next-auth' resolves to the ambient
+// module declaration in types/next-auth.d.ts (no `expires`), which the provider's `session` prop rejects.
+type ServerSession = NonNullable<SessionProviderProps['session']> | null
 
 /**
  * antd / Ant Design X configuration for the whole app: the only XProvider (it supersedes ConfigProvider)
@@ -36,14 +40,17 @@ function AntdProviders({ children }: { children: React.ReactNode }) {
 }
 
 export default function AppProviders({
+	session,
 	initialTheme,
 	children,
 }: {
+	session: ServerSession
 	initialTheme: InitialTheme
 	children: React.ReactNode
 }) {
 	return (
-		<SessionProvider>
+		// next-auth: a session passed from the server avoids the loading state on first load.
+		<SessionProvider session={session}>
 			<ThemeContextProvider initialTheme={initialTheme}>
 				<AntdProviders>{children}</AntdProviders>
 			</ThemeContextProvider>

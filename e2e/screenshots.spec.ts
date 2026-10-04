@@ -6,9 +6,10 @@ import { APP_ID } from './fixtures/constants'
  * Readiness is asserted with web-first assertions: Playwright discourages `networkidle`
  * ("rely on web assertions to assess readiness instead",
  * https://playwright.dev/docs/api/class-page#page-goto, `waitUntil`).
- * The `(user)` layout renders a fullscreen Spin until the session is known and the admin tables
- * show their own Spin while they fetch, so every page first waits for no antd Spin to be active,
- * then for the header and for seeded data that only the finished page shows.
+ * The route group layouts gate on the server (ADR-0018), so no fullscreen Spin is rendered while a
+ * session loads; the admin tables show their own Spin while they fetch, so every page first waits
+ * for no antd Spin to be active, then for the header and for seeded data that only the finished
+ * page shows.
  */
 async function noSpinner(page: Page) {
 	await expect(page.locator('.ant-spin-fullscreen')).toHaveCount(0)

@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 
 import AppProviders from '@/components/providers/app-providers'
+import { getCachedServerSession } from '@/lib/session-user'
 import { ThemeEnum } from '@/lib/theme/constants'
 import { readThemeCookies } from '@/lib/theme/theme-cookie'
 
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-	const cookieStore = await cookies()
+	const [session, cookieStore] = await Promise.all([getCachedServerSession(), cookies()])
 	const initialTheme = readThemeCookies(name => cookieStore.get(name)?.value)
 	const bodyClass = initialTheme.resolved === ThemeEnum.DARK ? 'antialiased dark' : 'antialiased'
 	return (
@@ -24,7 +25,12 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 		>
 			<body className={bodyClass}>
 				<AntdRegistry>
-					<AppProviders initialTheme={initialTheme}>{children}</AppProviders>
+					<AppProviders
+						session={session}
+						initialTheme={initialTheme}
+					>
+						{children}
+					</AppProviders>
 				</AntdRegistry>
 			</body>
 		</html>

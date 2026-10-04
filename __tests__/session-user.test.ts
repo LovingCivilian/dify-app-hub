@@ -9,7 +9,13 @@ vi.mock('next-auth/next', () => ({ getServerSession }))
 vi.mock('next/navigation', () => ({ redirect }))
 vi.mock('@/lib/auth', () => ({ authOptions: { marker: true } }))
 
-import { getSessionUserId, redirectSignedInUser, unauthorizedResponse } from '@/lib/session-user'
+import {
+	getCachedServerSession,
+	getSessionUserId,
+	redirectSignedInUser,
+	requireSessionUser,
+	unauthorizedResponse,
+} from '@/lib/session-user'
 
 describe('getSessionUserId', () => {
 	beforeEach(() => getServerSession.mockReset())
@@ -76,5 +82,42 @@ describe('unauthorizedResponse', () => {
 		const response = unauthorizedResponse()
 		expect(response.status).toBe(401)
 		await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
+	})
+})
+
+describe('requireSessionUser', () => {
+	beforeEach(() => {
+		getServerSession.mockReset()
+		redirect.mockReset()
+	})
+
+	it('lets a live session through', async () => {
+		getServerSession.mockResolvedValue({ user: { id: 'u1', email: 'jane@example.com' } })
+		await requireSessionUser()
+		expect(redirect).not.toHaveBeenCalled()
+	})
+
+	it('sends a visitor without a session to the login page', async () => {
+		getServerSession.mockResolvedValue(null)
+		await requireSessionUser()
+		expect(redirect).toHaveBeenCalledWith('/login')
+	})
+
+	// A revoked JWT still yields a session object but no user.id (lib/auth.ts session callback).
+	it('sends a revoked session to the login page', async () => {
+		getServerSession.mockResolvedValue({ user: { email: 'jane@example.com' } })
+		await requireSessionUser()
+		expect(redirect).toHaveBeenCalledWith('/login')
+	})
+})
+
+describe('getCachedServerSession', () => {
+	it('delegates to getServerSession with the auth options', async () => {
+		getServerSession.mockReset()
+		getServerSession.mockResolvedValue({ user: { id: 'u1', email: 'jane@example.com' } })
+		await expect(getCachedServerSession()).resolves.toEqual({
+			user: { id: 'u1', email: 'jane@example.com' },
+		})
+		expect(getServerSession).toHaveBeenCalledWith({ marker: true })
 	})
 })

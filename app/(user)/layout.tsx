@@ -1,23 +1,8 @@
-'use client'
+import { requireSessionUser } from '@/lib/session-user'
 
-import { Spin } from 'antd'
-import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+export const dynamic = 'force-dynamic'
 
-import { useAuth } from '@/hooks/use-auth'
-
-export default function UserLayout({ children }: { children: React.ReactNode }) {
-	const { isAuthorized, isLoading } = useAuth()
-	const router = useRouter()
-
-	useEffect(() => {
-		if (!isLoading && !isAuthorized) {
-			router.replace('/login')
-		}
-	}, [isAuthorized, isLoading, router])
-
-	if (isLoading || !isAuthorized) {
-		return <Spin fullscreen />
-	}
+export default async function UserLayout({ children }: { children: React.ReactNode }) {
+	await requireSessionUser()
 	return children
 }

@@ -71,3 +71,23 @@ test.describe('legacy localStorage theme entries', () => {
 		await expect.poll(themeModeCookie).toBe('system')
 	})
 })
+
+test('the shell and the account button are in the server HTML for a signed-in visitor', async ({
+	page,
+}) => {
+	const html = await (await page.request.get('/app-management')).text()
+	expect(html).toContain('class="ant-layout-header')
+	expect(html).toContain('aria-label="Signed in as admin@e2e.local"')
+})
+
+test.describe('signed out', () => {
+	test.use({ storageState: { cookies: [], origins: [] } })
+
+	test('a signed-out request for a user page is redirected by the proxy with a callback', async ({
+		page,
+	}) => {
+		const response = await page.request.get('/apps', { maxRedirects: 0 })
+		expect(response.status()).toBe(307)
+		expect(response.headers()['location']).toMatch(/\/login\?callbackUrl=%2Fapps$/)
+	})
+})
