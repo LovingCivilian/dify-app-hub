@@ -45,12 +45,14 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 		},
 	},
 	chat: {
-		path: `/chat/${APP_ID}`,
+		// A new conversation: /chat/<id> alone reopens whichever conversation the run touched last.
+		path: `/chat/${APP_ID}?isNewCvst=1`,
 		ready: async page => {
 			await noSpinner(page)
 			await expect(header(page)).toBeVisible()
-			await expect(page.getByText('Hello from the stub')).toBeVisible()
-			await expect(page.getByRole('textbox').first()).toBeVisible()
+			// The site's disclaimer under the sender marks the loaded chat view.
+			await expect(page.getByText('Answers come from the stub.')).toBeVisible()
+			await expect(page.getByRole('textbox').first()).toBeEditable()
 		},
 	},
 }

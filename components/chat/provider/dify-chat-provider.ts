@@ -264,6 +264,11 @@ export interface DifyChatProviderOptions {
 	getDifyConversationId: () => string | undefined
 	/** Called after every workflow event so the hook can persist node data (GET /messages has none). */
 	onWorkflowUpdate?: (message: DifyChatMessage) => void
+	/**
+	 * Called once per reply, when the stream first names the server conversation: a new chat learns its
+	 * Dify id here (spec §4.4), whether or not its conversation is the one on screen.
+	 */
+	onConversationId?: (difyId: string) => void
 }
 
 // ADR-0017: the one Dify provider; only the three AbstractChatProvider transforms — docs/decisions/0017-build-the-chat-on-ant-design-x.md
@@ -275,11 +280,18 @@ export class DifyChatProvider extends AbstractChatProvider<
 	private resumeBase: DifyChatMessage | null = null
 	private readonly getDifyConversationId: () => string | undefined
 	private readonly onWorkflowUpdate?: (message: DifyChatMessage) => void
+	private readonly onConversationId?: (difyId: string) => void
 
-	constructor({ request, getDifyConversationId, onWorkflowUpdate }: DifyChatProviderOptions) {
+	constructor({
+		request,
+		getDifyConversationId,
+		onWorkflowUpdate,
+		onConversationId,
+	}: DifyChatProviderOptions) {
 		super({ request })
 		this.getDifyConversationId = getDifyConversationId
 		this.onWorkflowUpdate = onWorkflowUpdate
+		this.onConversationId = onConversationId
 	}
 
 	transformParams(
@@ -337,6 +349,14 @@ export class DifyChatProvider extends AbstractChatProvider<
 		const event = parseEvent(info.chunk?.data)
 		if (!event) return origin
 		const next = applyEvent(origin, event)
+		const difyId = next.ids.conversationId
+		if (difyId && !origin.ids.conversationId) {
+			try {
+				this.onConversationId?.(difyId)
+			} catch {
+				// Same rule as below: bookkeeping outside the message must not end the stream.
+			}
+		}
 		if (WORKFLOW_EVENTS.has(event.event)) {
 			try {
 				this.onWorkflowUpdate?.(next)

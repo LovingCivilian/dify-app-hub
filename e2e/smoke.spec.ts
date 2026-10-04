@@ -1,16 +1,6 @@
 import { expect, test } from '@playwright/test'
 
 import { APP_ID } from './fixtures/constants'
-import { stubApiBase } from './fixtures/env'
-
-// A fresh stub per test: the chat then opens a new conversation instead of reopening a stored one and
-// loading its history, which races with a message sent at once (a chat bug left to sub-project 2).
-// The reset wipes all stub state (conversations, and messages with their feedback), so it relies on
-// `workers: 1` in playwright.config.ts: no other test runs against the stub at the same time.
-test.beforeEach(async ({ request }) => {
-	const response = await request.post(`${stubApiBase}/__e2e/reset`)
-	await expect(response).toBeOK()
-})
 
 // Signed out: the project's admin storage state is reset (documented reset: https://playwright.dev/docs/auth).
 test.describe('signed out', () => {
@@ -42,8 +32,8 @@ test('the admin area renders inside the antd shell with its navigation', async (
 	await page.goto('/app-management')
 	await expect(page.locator('header.ant-layout-header')).toHaveCount(1)
 	await test.step('the header navigation offers the user management page', async step => {
-		// Below md the horizontal Menu is not rendered and the Drawer menu mounts only once opened;
-		// the mobile Drawer navigation is pinned by its own flow.
+		// Below md the horizontal Menu is in the DOM but hidden by CSS (spec §3.3) and the Drawer menu
+		// mounts only once opened; the mobile Drawer navigation is pinned by its own flow.
 		step.skip(isMobile, 'the horizontal navigation is not part of the mobile layout')
 		const nav = page.locator('header.ant-layout-header').getByRole('menu')
 		await expect(nav.getByRole('menuitem', { name: 'User management' })).toBeVisible()

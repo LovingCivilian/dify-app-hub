@@ -12,7 +12,7 @@ import {
 	type ConversationItem,
 } from '../provider/conversations'
 import type { DifyRequestError } from '../provider/dify-fetch'
-import { newTempConversationKey, parseConversationKey } from '../provider/keys'
+import { conversationKeyFor, newTempConversationKey, parseConversationKey } from '../provider/keys'
 import { envelopeError, toDifyError } from './dify-errors'
 
 /** The newest conversations the sidebar lists (Dify's maximum `limit` for GET /conversations). */
@@ -137,12 +137,20 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 		[getConversation],
 	)
 
-	/** A new chat's first reply brought its Dify id; the key stays (spec §4.4). */
+	/**
+	 * A new chat's first reply brought its Dify id; the key stays (spec §4.4). A refresh that ran before
+	 * the stream named the conversation listed it under its server key: that twin goes, because this key
+	 * holds the live message store.
+	 */
 	const markDifyId = useCallback(
 		(key: string, difyId: string) => {
-			setConversation(key, { key, difyId })
+			if (!setConversation(key, { key, difyId })) return
+			const twin = conversationKeyFor(appId, difyId)
+			if (twin === key || !getConversation(twin)) return
+			removeConversation(twin)
+			if (latest.current.activeKey === twin) setActiveConversationKey(key)
 		},
-		[setConversation],
+		[appId, getConversation, removeConversation, setActiveConversationKey, setConversation],
 	)
 
 	/** Renames on Dify, then locally; rejects with a DifyRequestError and keeps the label on failure. */

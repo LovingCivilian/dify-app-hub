@@ -33,3 +33,21 @@ export const prependOlder = <T extends { id: string | number }>(current: T[], ol
 	const shown = new Set(current.map(m => m.id))
 	return [...older.filter(m => !shown.has(m.id)), ...current]
 }
+
+/**
+ * A retried first page (after a failed load) goes above what was sent since the failure. Dify already
+ * stored those turns, so the page holds them too: a turn whose Dify message id is on screen is skipped,
+ * both its bubbles (the user bubble of a live turn has no id, its reply has the turn's id).
+ */
+export const prependLatestPage = <
+	T extends { id: string | number; message: { ids: { messageId?: string } } },
+>(
+	current: T[],
+	page: T[],
+): T[] => {
+	const shown = new Set(current.map(m => m.message.ids.messageId).filter(Boolean))
+	return prependOlder(
+		current,
+		page.filter(m => !m.message.ids.messageId || !shown.has(m.message.ids.messageId)),
+	)
+}

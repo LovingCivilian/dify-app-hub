@@ -41,6 +41,8 @@ export interface PendingForm {
 class UserStore {
 	conversations = new Map<string, StoredConversation>()
 	messages: StoredMessage[] = []
+	/** Conversations whose first history load already failed (the `brokenhistory` marker). */
+	failedHistory = new Set<string>()
 }
 
 const users = new Map<string, UserStore>()
@@ -59,10 +61,5 @@ export const forUser = (user: string, mode: StubMode): UserStore => {
 }
 
 export const pendingForms = new Map<string, PendingForm>()
-
-export const resetAll = () => {
-	users.clear()
-	pendingForms.clear()
-}
 
 export const now = () => Math.floor(Date.now() / 1000)

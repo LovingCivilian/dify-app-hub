@@ -25,7 +25,7 @@ import {
 } from '../provider/message'
 import { getProvider } from '../provider/provider-cache'
 import { envelopeError, toDifyError } from './dify-errors'
-import { nextPaging, prependOlder, type HistoryPaging } from './history-paging'
+import { nextPaging, prependLatestPage, prependOlder, type HistoryPaging } from './history-paging'
 
 export const HISTORY_PAGE = 20
 
@@ -37,8 +37,11 @@ export interface SendParams {
 
 interface Options {
 	appId: string
+	/** The client conversation key, or '' while there is none yet (the list is still loading). */
 	conversationKey: string
 	getDifyConversationId: () => string | undefined
+	/** A reply of `key` named its Dify conversation (DifyChatProviderOptions.onConversationId). */
+	onConversationId?: (key: string, difyId: string) => void
 	difyApi: DifyApi
 	t: TFunction
 }
@@ -51,17 +54,27 @@ interface MessagesAnswer {
 
 // Per conversation key and module-global, like the SDK's message store they serve (use-x-chat:
 // defaultMessages runs once per key per page session), so a remounted chat keeps them.
-/** "Load earlier" cursor per key, an external store for useSyncExternalStore (React reference). */
+/** "Load earlier" cursor per key; with `historyErrors`, an external store for useSyncExternalStore (React reference). */
 const paging = new Map<string, HistoryPaging>()
-const pagingListeners = new Set<() => void>()
+/** The failed first history load per key: `{ status, code?, message }`, `message` being Dify's text or ''. */
+const historyErrors = new Map<string, DifyRequestError>()
+const listeners = new Set<() => void>()
+const notify = () => {
+	for (const listener of listeners) listener()
+}
 const setPaging = (key: string, value: HistoryPaging) => {
 	paging.set(key, value)
-	for (const listener of pagingListeners) listener()
+	notify()
 }
-const subscribePaging = (listener: () => void) => {
-	pagingListeners.add(listener)
+const setHistoryError = (key: string, error: DifyRequestError | undefined) => {
+	if (error) historyErrors.set(key, error)
+	else historyErrors.delete(key)
+	notify()
+}
+const subscribe = (listener: () => void) => {
+	listeners.add(listener)
 	return () => {
-		pagingListeners.delete(listener)
+		listeners.delete(listener)
 	}
 }
 /** Keys with an earlier page on the way (a second click asks for nothing). */
@@ -70,6 +83,8 @@ const pagesInFlight = new Set<string>()
 const queuedKeys = new Set<string>()
 /** The latest `getDifyConversationId` given for each key; the key's cached provider reads it at send time. */
 const difyIdReaders = new Map<string, () => string | undefined>()
+/** The latest `onConversationId` given for each key; the key's cached provider calls it from its stream. */
+const conversationIdSinks = new Map<string, (key: string, difyId: string) => void>()
 
 /** A page without `data` is Dify's error body (DifyApi does not reject on an HTTP error). */
 const fetchPage = async (difyApi: DifyApi, difyId: string, firstId?: string) => {
@@ -118,6 +133,14 @@ const workflowLoader = (appId: string, conversationId: string) => async (message
 	return (await workflowDataStorage.get({ appId, conversationId, messageId, key: 'workflows' })) as
 		| WorkflowState
 		| undefined
+}
+
+/** The latest history page of a conversation (its first load, or a retry of it); sets the key's cursor. */
+const loadLatestPage = async (difyApi: DifyApi, appId: string, key: string, difyId: string) => {
+	const page = await fetchPage(difyApi, difyId)
+	setPaging(key, nextPaging(page))
+	// Oldest first, as Dify answers (ADR-0017 note): the mapper keeps the order.
+	return mapHistoryPage(page.data, { loadWorkflow: workflowLoader(appId, difyId) })
 }
 
 export type SendDecision = 'send' | 'queue' | 'ignore'
@@ -187,43 +210,58 @@ export const useDifyChat = ({
 	appId,
 	conversationKey,
 	getDifyConversationId,
+	onConversationId,
 	difyApi,
 	t,
 }: Options) => {
-	const provider = getProvider(
-		conversationKey,
-		() =>
-			new DifyChatProvider({
-				request: XRequest<DifyChatInput, SSEOutput, DifyChatMessage>(
-					`/api/client/dify/${appId}/chat-messages`,
-					{ manual: true, fetch: createDifyFetch(appId), params: { response_mode: 'streaming' } },
-				),
-				getDifyConversationId: () => difyIdReaders.get(conversationKey)?.(),
-				onWorkflowUpdate: message => {
-					const { conversationId, messageId } = message.ids
-					if (conversationId && messageId && message.workflow) {
-						void workflowDataStorage.set({
-							appId,
-							conversationId,
-							messageId,
-							key: 'workflows',
-							value: message.workflow,
-						})
-					}
-				},
-			}),
-	)
+	// No provider (useXChat's `provider` is optional) and no key until there is a conversation: nothing is
+	// cached for a placeholder key, and a send without one is ignored.
+	const provider = !conversationKey
+		? undefined
+		: getProvider(
+				conversationKey,
+				() =>
+					new DifyChatProvider({
+						request: XRequest<DifyChatInput, SSEOutput, DifyChatMessage>(
+							`/api/client/dify/${appId}/chat-messages`,
+							{
+								manual: true,
+								fetch: createDifyFetch(appId),
+								params: { response_mode: 'streaming' },
+							},
+						),
+						getDifyConversationId: () => difyIdReaders.get(conversationKey)?.(),
+						onConversationId: difyId =>
+							conversationIdSinks.get(conversationKey)?.(conversationKey, difyId),
+						onWorkflowUpdate: message => {
+							const { conversationId, messageId } = message.ids
+							if (conversationId && messageId && message.workflow) {
+								void workflowDataStorage.set({
+									appId,
+									conversationId,
+									messageId,
+									key: 'workflows',
+									value: message.workflow,
+								})
+							}
+						},
+					}),
+			)
 
 	const chat = useXChat<DifyChatMessage, DifyChatMessage, DifyChatInput, SSEOutput>({
 		provider,
-		conversationKey,
+		conversationKey: conversationKey || undefined,
 		defaultMessages: async ({ conversationKey: key = conversationKey }) => {
 			const { difyId, temp } = parseConversationKey(key)
 			if (temp || !difyId) return []
-			const page = await fetchPage(difyApi, difyId)
-			setPaging(key, nextPaging(page))
-			// Oldest first, as Dify answers (ADR-0017 note): the mapper keeps the order.
-			return mapHistoryPage(page.data, { loadWorkflow: workflowLoader(appId, difyId) })
+			try {
+				return await loadLatestPage(difyApi, appId, key, difyId)
+			} catch (error) {
+				// A failed load must not look like an empty conversation: the store starts empty (the SDK
+				// would do the same and only log), and the view shows this error with a retry.
+				setHistoryError(key, toDifyError(error))
+				return []
+			}
 		},
 		// A resume keeps the paused message visible while the continuation connects (spec §4.6).
 		requestPlaceholder: params => (params.resume ? params.resume.message : emptyAssistant()),
@@ -236,7 +274,9 @@ export const useDifyChat = ({
 	const latest = useRef({ chat, conversationKey, difyApi, appId })
 	useLayoutEffect(() => {
 		latest.current = { chat, conversationKey, difyApi, appId }
+		if (!conversationKey) return
 		difyIdReaders.set(conversationKey, getDifyConversationId)
+		if (onConversationId) conversationIdSinks.set(conversationKey, onConversationId)
 	})
 
 	// The SDK sends the queue when the history lands; a new send may wait again only after that.
@@ -247,6 +287,7 @@ export const useDifyChat = ({
 	/** Sends, or queues while the history loads (sendDecision); false when the send was ignored. */
 	const send = useCallback((params: SendParams) => {
 		const { chat, conversationKey: key } = latest.current
+		if (!key) return false
 		const decision = sendDecision({
 			isRequesting: chat.isRequesting,
 			isDefaultMessagesRequesting: chat.isDefaultMessagesRequesting,
@@ -311,10 +352,38 @@ export const useDifyChat = ({
 		}
 	}, [])
 
+	/**
+	 * Loads the latest page again after a failed first load (no rejection: a new failure is shown the
+	 * same way). The SDK runs `defaultMessages` once per key, so this goes through the same page loader
+	 * and the key's store setter; anything sent since the failure stays below the history (prependLatestPage).
+	 */
+	const retryHistory = useCallback(async () => {
+		const { chat, conversationKey: key, difyApi: api, appId: app } = latest.current
+		const { difyId } = parseConversationKey(key)
+		if (!difyId || pagesInFlight.has(key)) return
+		// Taken now: this key's store, even if the user switches conversation while the page loads.
+		const { setMessages } = chat
+		pagesInFlight.add(key)
+		setHistoryError(key, undefined)
+		try {
+			const loaded = (await loadLatestPage(api, app, key, difyId)).map(toMessageInfo)
+			setMessages(prev => prependLatestPage(prev, loaded))
+		} catch (error) {
+			setHistoryError(key, toDifyError(error))
+		} finally {
+			pagesInFlight.delete(key)
+		}
+	}, [])
+
 	const hasMore = useSyncExternalStore(
-		subscribePaging,
+		subscribe,
 		() => paging.get(conversationKey)?.hasMore ?? false,
 		() => false,
+	)
+	const historyError = useSyncExternalStore(
+		subscribe,
+		() => historyErrors.get(conversationKey),
+		() => undefined,
 	)
 
 	return {
@@ -329,5 +398,7 @@ export const useDifyChat = ({
 		resume,
 		loadEarlier,
 		hasMore,
+		historyError,
+		retryHistory,
 	}
 }

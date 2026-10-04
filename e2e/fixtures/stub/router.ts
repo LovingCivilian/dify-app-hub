@@ -19,7 +19,6 @@ import {
 	now,
 	type PendingForm,
 	pendingForms,
-	resetAll,
 	type StoredConversation,
 	type StoredMessage,
 } from './store'
@@ -152,12 +151,6 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 
 	const { mode, path } = modeFromPath(url.pathname)
 
-	// e2e control endpoint (removed with the race fix in the chat sub-project): forget every user's state.
-	// Reached through the configured API base (`/v1/__e2e/reset`), so it is matched after the `/v1` prefix is stripped.
-	if (method === 'POST' && path === '/__e2e/reset') {
-		resetAll()
-		return json(res, 200, { result: 'success' })
-	}
 	const app = appFor(mode)
 	const fileUrl = `http://127.0.0.1:${port}/files/stub-image.png`
 
@@ -208,6 +201,13 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 		const store = forUser(userOf(url, null), mode)
 		const cid = url.searchParams.get('conversation_id')
 		if (!cid) return difyError(res, 400, 'invalid_param', 'conversation_id is required.')
+		const name = store.conversations.get(cid)?.name.toLowerCase() ?? ''
+		// A conversation whose first query asked for a broken history fails its first load with Dify's
+		// documented 404 and answers the next one: the history-error spec retries.
+		if (name.includes('brokenhistory') && !store.failedHistory.has(cid)) {
+			store.failedHistory.add(cid)
+			return difyError(res, 404, 'not_found', 'Conversation Not Exists.')
+		}
 		const limit = limitOf(url)
 		const firstId = url.searchParams.get('first_id')
 		// Dify answers each page oldest first (MessageService.pagination_by_first_id, order "asc"): the first page
@@ -223,8 +223,7 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 		const page = older.slice(-limit)
 		const respond = () => json(res, 200, { data: page, has_more: older.length > limit, limit })
 		// Reopening a conversation whose first query asked for a slow history: the race test sends during this wait.
-		const slow = store.conversations.get(cid)?.name.toLowerCase().includes('slowhistory')
-		return slow ? void setTimeout(respond, 1500) : respond()
+		return name.includes('slowhistory') ? void setTimeout(respond, 1500) : respond()
 	}
 	if (method === 'GET' && /^\/messages\/[^/]+\/suggested$/.test(path)) {
 		if (!parametersFor(mode).suggested_questions_after_answer.enabled) {

@@ -1,13 +1,13 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { handle } from '@/e2e/fixtures/stub/router'
-import { resetAll } from '@/e2e/fixtures/stub/store'
+import type { handle as Handle } from '@/e2e/fixtures/stub/router'
 
 let server: Server
 let base: string
+let handle: typeof Handle
 
 beforeAll(async () => {
 	server = createServer((req, res) => {
@@ -17,7 +17,12 @@ beforeAll(async () => {
 	base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 })
 afterAll(() => new Promise<void>(resolve => server.close(() => resolve())))
-beforeEach(() => resetAll())
+// The stub keeps its state in module scope: a fresh import per test is a fresh stub (vitest
+// `vi.resetModules`: "useful to isolate modules where local state conflicts between tests").
+beforeEach(async () => {
+	vi.resetModules()
+	;({ handle } = await import('@/e2e/fixtures/stub/router'))
+})
 
 const post = (path: string, body: unknown) =>
 	fetch(`${base}${path}`, {
@@ -54,15 +59,6 @@ const conversations = async (prefix: string, user: string) =>
 	}
 
 describe('stub router', () => {
-	it('forgets all state on POST /v1/__e2e/reset, the URL the smoke spec calls', async () => {
-		await chat('', 'alice', 'hello')
-		expect((await conversations('', 'alice')).data).toHaveLength(1)
-		const reset = await post('/v1/__e2e/reset', {})
-		expect(reset.status).toBe(200)
-		expect(await reset.json()).toEqual({ result: 'success' })
-		expect((await conversations('', 'alice')).data).toHaveLength(0)
-	})
-
 	it('answers unparsable JSON and a missing user with Dify 400 invalid_param, unknown routes with a Dify 404', async () => {
 		const bad = await post('/v1/chat-messages', '{not json')
 		expect(bad.status).toBe(400)
@@ -169,6 +165,27 @@ describe('stub router', () => {
 		)
 		expect(Date.now() - asked).toBeGreaterThanOrEqual(1400)
 		expect((await history.json()).data[0].answer).toBe('Echo: slowhistory seed')
+	})
+
+	it("fails the first history load of a brokenhistory conversation with Dify's 404, then answers", async () => {
+		const run = await chat('', 'alice', 'brokenhistory seed')
+		expect(run.events.map(e => e.event)).toEqual(['message', 'message', 'message_end'])
+		const url = `${base}/v1/messages?conversation_id=${run.events[0].conversation_id}&user=alice`
+		const failed = await fetch(url)
+		expect(failed.status).toBe(404)
+		expect(await failed.json()).toEqual({
+			code: 'not_found',
+			message: 'Conversation Not Exists.',
+			status: 404,
+		})
+		const retried = await fetch(url)
+		expect(retried.status).toBe(200)
+		expect((await retried.json()).data[0].answer).toBe('Echo: brokenhistory seed')
+	})
+
+	it('answers the retired reset route like any unknown route (the late-history race is fixed)', async () => {
+		const reset = await post('/v1/__e2e/reset', {})
+		expect(reset.status).toBe(404)
 	})
 
 	it('stores agent thoughts, files and citations the way GET /messages returns them', async () => {

@@ -727,6 +727,24 @@ describe('DifyChatProvider', () => {
 		])
 		expect(onWorkflowUpdate).toHaveBeenCalledTimes(1)
 	})
+	it('reports the conversation id once, from the first event that names it, and never breaks the stream', () => {
+		const onConversationId = vi.fn(() => {
+			throw new Error('list store failed')
+		})
+		const provider = makeProvider({ onConversationId })
+		const message = feed(provider, [
+			ev('message', { answer: 'a' }),
+			ev('message', { answer: 'b' }),
+			ev('message_end'),
+		])
+		expect(message.content).toBe('ab')
+		expect(onConversationId).toHaveBeenCalledTimes(1)
+		expect(onConversationId).toHaveBeenCalledWith('conv-1')
+		// A message that already carries the id (a resumed or continued one) reports nothing.
+		onConversationId.mockClear()
+		feed(provider, [ev('message', { answer: 'c' })], message)
+		expect(onConversationId).not.toHaveBeenCalled()
+	})
 
 	// Additions beyond the brief's list.
 	const info = (originMessage: DifyChatMessage | undefined, chunk: unknown) =>

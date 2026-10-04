@@ -96,7 +96,17 @@
 		"switch_wide": "Switch to wide layout",
 		"suggested_questions": "🤔 You might also want to ask:",
 		"message_not_found": "Message not found",
-		"replying": "Replying, please wait..."
+		"replying": "Replying, please wait...",
+		"group_today": "Today",
+		"group_yesterday": "Yesterday",
+		"group_week": "Last 7 days",
+		"group_older": "Older",
+		"load_earlier": "Load earlier messages",
+		"stopped": "Stopped",
+		"send_placeholder": "Type a message",
+		"conversations_menu": "Conversations menu",
+		"history_load_failed": "Could not load this conversation's messages",
+		"retry": "Retry"
 	},
 	"message": {
 		"response_time": "Response time",

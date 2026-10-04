@@ -96,7 +96,17 @@
 		"switch_wide": "切换宽屏",
 		"suggested_questions": "🤔 你可能还想问:",
 		"message_not_found": "消息不存在",
-		"replying": "正在回复，请耐心等待..."
+		"replying": "正在回复，请耐心等待...",
+		"group_today": "今天",
+		"group_yesterday": "昨天",
+		"group_week": "最近 7 天",
+		"group_older": "更早",
+		"load_earlier": "加载更早的消息",
+		"stopped": "已停止",
+		"send_placeholder": "输入消息",
+		"conversations_menu": "会话菜单",
+		"history_load_failed": "无法加载此会话的消息",
+		"retry": "重试"
 	},
 	"message": {
 		"response_time": "回复时间",

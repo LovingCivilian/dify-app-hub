@@ -1,0 +1,72 @@
+/* The chat fills the shell's content region (ADR-0011) and splits into a sider and a column. */
+.fill {
+	height: 100%;
+}
+.layout {
+	height: 100%;
+}
+/* Mobile first: below md the sider makes way for the header's drawer trigger (spec §3.3). One query, so
+   the sider and the trigger are exact complements at any width, fractional ones included. */
+.sider {
+	display: none;
+	border-inline-end: var(--ant-line-width) var(--ant-line-type) var(--ant-color-border-secondary);
+}
+@media (min-width: 768px /* screenMD */) {
+	.sider {
+		display: block;
+	}
+}
+.siderInner {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+}
+.siderList {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding-inline: var(--ant-padding-xs);
+}
+.appInfo {
+	padding: var(--ant-padding-sm);
+}
+.appInfoText {
+	min-width: 0;
+}
+.column {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+	width: 100%;
+	margin-inline: auto;
+	padding-inline: var(--ant-padding);
+}
+/* Bubble.List scrolls inside its own box; the docs ask for a flex column parent with a bounded height
+   ("Bubble.List autoScroll Top Alignment"), and the list may shrink below its content. */
+.list {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+.bubbleList {
+	min-height: 0;
+}
+.composer {
+	padding-block: var(--ant-padding-sm);
+}
+.disclaimer {
+	display: block;
+	text-align: center;
+	padding-block-end: var(--ant-padding-xs);
+}
+.loadEarlier {
+	display: flex;
+	justify-content: center;
+	padding-block: var(--ant-padding-xs);
+}
+.historyAlert {
+	padding-block-start: var(--ant-padding-sm);
+}

@@ -96,7 +96,17 @@
 		"switch_wide": "التبديل إلى التخطيط العريض",
 		"suggested_questions": "🤔 قد ترغب أيضًا في السؤال عن:",
 		"message_not_found": "الرسالة غير موجودة",
-		"replying": "جارٍ الرد، يرجى الانتظار..."
+		"replying": "جارٍ الرد، يرجى الانتظار...",
+		"group_today": "اليوم",
+		"group_yesterday": "أمس",
+		"group_week": "آخر 7 أيام",
+		"group_older": "أقدم",
+		"load_earlier": "تحميل الرسائل السابقة",
+		"stopped": "تم الإيقاف",
+		"send_placeholder": "اكتب رسالة",
+		"conversations_menu": "قائمة المحادثات",
+		"history_load_failed": "تعذّر تحميل رسائل هذه المحادثة",
+		"retry": "إعادة المحاولة"
 	},
 	"message": {
 		"response_time": "زمن الاستجابة",
