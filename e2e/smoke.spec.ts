@@ -1,0 +1,25 @@
+import { expect, test } from '@playwright/test'
+
+import { APP_ID } from './fixtures/constants'
+
+test('a signed-out visitor is sent to the login page with a callback', async ({ browser }) => {
+	const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+	const page = await context.newPage()
+	await page.goto('/app-management')
+	await expect(page).toHaveURL(/\/login\?callbackUrl=%2Fapp-management$/)
+	await context.close()
+})
+
+test('the app list shows the seeded app and its chat answers from the stub', async ({
+	page,
+}, testInfo) => {
+	// The stub keeps its conversations for the whole run and the chat reopens the latest one, so each
+	// project sends its own text: the reply locator then matches exactly one message.
+	const message = `hello from ${testInfo.project.name}`
+	await page.goto('/apps')
+	await page.getByText('Stub app').first().click()
+	await expect(page).toHaveURL(new RegExp(`/chat/${APP_ID}`))
+	await page.getByRole('textbox').first().fill(message)
+	await page.keyboard.press('Enter')
+	await expect(page.getByText(`Echo: ${message}`)).toBeVisible()
+})

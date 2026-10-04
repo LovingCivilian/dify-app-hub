@@ -8,8 +8,11 @@ const signedIn = { storageState: ADMIN_STATE }
 export default defineConfig({
 	testDir: './e2e',
 	globalSetup: './e2e/global-setup.ts',
-	timeout: 60_000,
-	expect: { timeout: 10_000 },
+	// `next dev` compiles each route on first visit, so the first project to reach a page waits for it
+	// (a click that navigates to an uncompiled route took 10 s and more): test and assertion timeouts
+	// are raised above their defaults.
+	timeout: 120_000,
+	expect: { timeout: 30_000 },
 	fullyParallel: false,
 	workers: 1,
 	reporter: [['list'], ['html', { open: 'never', outputFolder: 'e2e/report' }]],
