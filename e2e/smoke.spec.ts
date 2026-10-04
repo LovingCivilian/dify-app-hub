@@ -34,7 +34,7 @@ test('the admin area renders inside the antd shell with its navigation', async (
 		// Below md the horizontal Menu is not rendered and the Drawer menu mounts only once opened;
 		// the mobile Drawer navigation is pinned by its own flow.
 		step.skip(isMobile, 'the horizontal navigation is not part of the mobile layout')
-		const nav = page.getByRole('menu').first()
+		const nav = page.locator('header.ant-layout-header').getByRole('menu')
 		await expect(nav.getByRole('menuitem', { name: 'User management' })).toBeVisible()
 	})
 	await expect(page.locator('.ant-table')).toBeVisible()

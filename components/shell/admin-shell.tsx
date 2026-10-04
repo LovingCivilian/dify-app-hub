@@ -26,10 +26,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 	const selected = ADMIN_NAV.find(item => pathname.startsWith(item.key))?.key
 
 	return (
-		<Layout
-			className={styles.root}
-			style={{ background: token.colorBgLayout }}
-		>
+		<Layout className={styles.root}>
 			<AppHeader
 				nav={nav}
 				navSelectedKey={selected}

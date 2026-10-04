@@ -89,7 +89,7 @@ export default function AppHeader({
 					<Image
 						src={LogoIcon}
 						width={28}
-						height={28}
+						loading="eager"
 						alt=""
 					/>
 					<Typography.Text
@@ -131,6 +131,7 @@ export default function AppHeader({
 						items={nav}
 						selectedKeys={selectedKeys}
 						onClick={() => setNavOpen(false)}
+						style={{ borderInlineEnd: 0 }}
 					/>
 				</Drawer>
 			)}

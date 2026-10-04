@@ -1,5 +1,3 @@
-'use client'
-
 import AuthGuard from '@/components/auth/auth-guard'
 import AdminShell from '@/components/shell/admin-shell'
 
