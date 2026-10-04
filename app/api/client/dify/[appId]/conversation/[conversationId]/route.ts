@@ -2,12 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest } from 'next/server'
 
-import {
-	createDifyApiResponse,
-	getUserIdFromRequest,
-	handleApiError,
-	proxyDifyRequest,
-} from '@/lib/api-utils'
+import { createDifyApiResponse, handleApiError, proxyDifyRequest } from '@/lib/api-utils'
+import { getSessionUserId, unauthorizedResponse } from '@/lib/session-user'
 import { getAppItem } from '@/repository/app'
 
 /**
@@ -27,7 +23,8 @@ export async function DELETE(
 		}
 
 		// 获取用户ID
-		const userId = getUserIdFromRequest(request)
+		const userId = await getSessionUserId()
+		if (!userId) return unauthorizedResponse()
 
 		// 代理请求到 Dify API
 		await proxyDifyRequest(

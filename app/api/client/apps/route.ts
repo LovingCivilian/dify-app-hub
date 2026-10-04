@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { createSafeApp, handleApiError } from '@/lib/api-utils'
+import { getSessionUserId, unauthorizedResponse } from '@/lib/session-user'
 import { getAppList } from '@/repository/app'
 
 export const dynamic = 'force-dynamic'
@@ -12,6 +13,7 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET() {
 	try {
+		if (!(await getSessionUserId())) return unauthorizedResponse()
 		const apps = await getAppList()
 
 		// 过滤敏感信息，不返回 API Key 到客户端

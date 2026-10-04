@@ -35,6 +35,8 @@ import { HeaderLayout } from '@/components/shared'
 import ChatboxWrapper from '@/components/chat/chatbox-wrapper'
 import { useLatest } from '@/hooks/use-latest'
 import { useTranslation } from 'react-i18next'
+import { useSession } from 'next-auth/react'
+import AccountMenu, { getAccountMenuItems, useLogout } from '@/components/auth/account-menu'
 
 interface IChatLayoutProps {
 	/**
@@ -57,6 +59,8 @@ interface IChatLayoutProps {
 
 export default function ChatLayout(props: IChatLayoutProps) {
 	const { t, i18n } = useTranslation()
+	const { data: session } = useSession()
+	const logout = useLogout()
 	const difyApi = useDifyChatStore(s => s.difyApi)
 	const { extComponents, renderCenterTitle, initLoading } = props
 	const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -344,11 +348,18 @@ export default function ChatLayout(props: IChatLayoutProps) {
 			},
 		]
 
+		const accountMenus: GetProp<typeof Dropdown, 'menu'>['items'] = session?.user?.email
+			? [
+					{ type: 'divider' },
+					...getAccountMenuItems({ email: session.user.email, t, onLogout: logout }),
+				]
+			: []
+
 		if (isTempId(currentConversationId)) {
-			return [...conversationListMenus]
+			return [...conversationListMenus, ...accountMenus]
 		}
 
-		return [...actionMenus, ...i18nLanguageMenus, ...conversationListMenus]
+		return [...actionMenus, ...i18nLanguageMenus, ...conversationListMenus, ...accountMenus]
 	})()
 
 	// 对话列表（包括加载和缺省状态）
@@ -438,6 +449,7 @@ export default function ChatLayout(props: IChatLayoutProps) {
 										</div>
 										{theme}
 										{github}
+										<AccountMenu />
 									</div>
 								)
 					}

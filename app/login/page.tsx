@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import LogoIcon from '@/assets/images/logo.png'
+import { getSafeCallbackUrl } from '@/lib/access'
 
 interface LoginForm {
 	email: string
@@ -38,7 +39,7 @@ export default function LoginPage() {
 				// 获取会话信息并跳转
 				const session = await getSession()
 				if (session) {
-					router.push('/')
+					router.push(getSafeCallbackUrl(searchParams.get('callbackUrl')))
 				}
 			}
 		} catch (error) {

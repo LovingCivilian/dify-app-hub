@@ -8,6 +8,7 @@ import { Col, Empty, message, Row } from 'antd'
 import { useRouter } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
 
+import AccountMenu from '@/components/auth/account-menu'
 import { LucideIcon } from '@/components/shared'
 import appService from '@/services/app'
 
@@ -32,6 +33,9 @@ export default function AppListPage() {
 					className="mr-1"
 				/>
 				{t('app.list')}
+				<div className="ml-auto">
+					<AccountMenu />
+				</div>
 			</div>
 			<div className="box-border flex-1 overflow-x-hidden overflow-y-auto rounded-t-3xl py-6">
 				{list?.length ? (

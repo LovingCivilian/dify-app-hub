@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { getSessionUserId, unauthorizedResponse } from '@/lib/session-user'
 import { getAppItem } from '@/repository/app'
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +21,8 @@ export async function GET(
 ) {
 	try {
 		const { appId, conversationId } = await params
+		const userId = await getSessionUserId()
+		if (!userId) return unauthorizedResponse()
 		const searchParams = request.nextUrl.searchParams
 		const first_id = searchParams.get('first_id')
 		const limit = searchParams.get('limit') || 100
@@ -30,14 +33,9 @@ export async function GET(
 			return NextResponse.json({ error: 'App not found' }, { status: 404 })
 		}
 
-		const user = request.nextUrl.searchParams.get('user')
-		if (!user) {
-			return NextResponse.json({ error: 'User not found' }, { status: 404 })
-		}
-
 		const fullSearchParams = new URLSearchParams()
 		fullSearchParams.append('conversation_id', conversationId)
-		fullSearchParams.append('user', user)
+		fullSearchParams.append('user', userId)
 		if (first_id) {
 			fullSearchParams.append('first_id', first_id)
 		}

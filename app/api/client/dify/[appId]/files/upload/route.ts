@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest } from 'next/server'
 
 import { createDifyApiResponse, createFormDataProxy, handleApiError } from '@/lib/api-utils'
+import { getSessionUserId, unauthorizedResponse } from '@/lib/session-user'
 import { getAppItem } from '@/repository/app'
 
 /**
@@ -14,6 +15,8 @@ export async function POST(
 ) {
 	try {
 		const { appId } = await params
+		const userId = await getSessionUserId()
+		if (!userId) return unauthorizedResponse()
 
 		// 获取应用配置
 		const app = await getAppItem(appId)
@@ -23,6 +26,7 @@ export async function POST(
 
 		// 构建代理 FormData
 		const proxyFormData = await createFormDataProxy(request)
+		proxyFormData.set('user', userId)
 
 		// 代理请求到 Dify API
 		const response = await fetch(`${app.requestConfig.apiBase}/files/upload`, {
