@@ -14,17 +14,17 @@ test('the theme dropdown switches to dark and the shell surface follows', async 
 	page,
 }, testInfo) => {
 	test.skip(testInfo.project.use.colorScheme === 'dark', 'starts dark already')
+	const shellBackground = () =>
+		page
+			.locator('.ant-layout')
+			.first()
+			.evaluate(el => getComputedStyle(el).backgroundColor)
 	await page.goto('/app-management')
+	// The starting surface is not black, so the final assertion proves a switch rather than a state.
+	await expect.poll(shellBackground).not.toBe('rgb(0, 0, 0)')
 	await page.getByRole('button', { name: 'Theme' }).click()
 	await page.getByRole('menuitem', { name: 'Dark' }).click()
-	await expect
-		.poll(() =>
-			page
-				.locator('.ant-layout')
-				.first()
-				.evaluate(el => getComputedStyle(el).backgroundColor),
-		)
-		.toBe('rgb(0, 0, 0)')
+	await expect.poll(shellBackground).toBe('rgb(0, 0, 0)')
 })
 
 test('the account dropdown shows the email and logs out', async ({ page }) => {
