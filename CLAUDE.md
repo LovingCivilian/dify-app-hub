@@ -21,6 +21,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 - Commits: conventional (`feat|fix|docs|chore(scope): …`), English, with the attribution trailers the session supplies (`Co-Authored-By` and `Claude-Session` — the user chose to keep the session link). Commit and push only when asked.
 - PR descriptions follow `.github/PULL_REQUEST_TEMPLATE.md` (Overview / Changes table / Testing / Related Issue), in English.
 - `.env` and `.env*.local` are git-ignored and never committed; never print their values. The user's email is not sent to any service other than this app.
+- Frontend work follows `docs/frontend-conventions.md` (charter: `docs/superpowers/specs/2026-10-04-frontend-overhaul-charter.md`). Before touching a component, read the matching skill in `.claude/skills/` (`antd`, `x-components`, `use-x-chat`, `x-chat-provider`, `x-request`, `x-markdown`).
 
 ## Decisions taken
 
@@ -99,3 +100,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+<!-- antd-cli setup start -->
+
+## Ant Design CLI Skill
+
+Use the installed Ant Design skill at `.claude/skills/antd/SKILL.md` before working on Ant Design code in this repository.
+
+The skill teaches agents when and how to call `@ant-design/cli` commands such as `antd info`, `antd doc`, `antd demo`, `antd token`, `antd semantic`, and `antd changelog`.
+
+<!-- antd-cli setup end -->
