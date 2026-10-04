@@ -23,7 +23,7 @@ import MarkdownForm from './blocks/form'
 import ImageBlock from './blocks/image'
 import Flowchart from './blocks/mermaid'
 import SVGBtn from './blocks/svg-button'
-import SVGRenderer from './blocks/svg-renderer'
+import SvgBlock from '@/components/chat/message/markdown/svg-block'
 import ThinkBlock from './blocks/think-block'
 import VideoBlock from './blocks/video'
 import './index.css'
@@ -161,7 +161,7 @@ const CodeBlock = memo(({ inline, className, children, ...props }: ICodeBlockPro
 		} else if (language === 'svg' && isSVG) {
 			return (
 				<ErrorBoundary>
-					<SVGRenderer content={content} />
+					<SvgBlock code={content} />
 				</ErrorBoundary>
 			)
 		} else {

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { getThinkTime, setThinkTime } from '@/hooks/useX/think-time-storage'
+import { getThinkTime, setThinkTime } from '@/components/chat/persistence/think-time-storage'
 
 import { useThinkBlockContext } from './think-block-context'
 

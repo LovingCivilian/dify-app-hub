@@ -114,6 +114,9 @@
 		"empty_content_hint": "可能是用户在生成内容的过程中点击了停止响应按钮",
 		"download_file": "点击下载文件",
 		"image_load_failed": "图片加载失败",
+		"echarts_invalid": "图表定义不是有效的 JSON。",
+		"echarts_failed": "无法绘制该图表。",
+		"svg_invalid": "无法绘制该 SVG 图像。",
 		"mermaid_classic": "经典",
 		"mermaid_hand_drawn": "手绘",
 		"tool": {

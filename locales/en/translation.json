@@ -114,6 +114,9 @@
 		"empty_content_hint": "The response may have been stopped while it was being generated",
 		"download_file": "Click to download the file",
 		"image_load_failed": "Image failed to load",
+		"echarts_invalid": "The chart definition is not valid JSON.",
+		"echarts_failed": "The chart could not be drawn.",
+		"svg_invalid": "The SVG image could not be drawn.",
 		"mermaid_classic": "Classic",
 		"mermaid_hand_drawn": "Hand-drawn",
 		"tool": {

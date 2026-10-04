@@ -1,20 +1,20 @@
+'use client'
+
 import { SVG } from '@svgdotjs/svg.js'
+import { Alert } from 'antd'
 import DOMPurify from 'dompurify'
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-export const SVGRenderer = ({ content }: { content: string }) => {
+/** ```svg fenced blocks: sanitised with DOMPurify, drawn with svg.js, never wider than the original. */
+export const SvgBlock = ({ code }: { code: string }) => {
+	const { t } = useTranslation()
 	const svgRef = useRef<HTMLDivElement>(null)
-	const [_imagePreview, setImagePreview] = useState('')
+	const [failed, setFailed] = useState(false)
 	const [windowSize, setWindowSize] = useState({
 		width: typeof window !== 'undefined' ? window.innerWidth : 0,
 		height: typeof window !== 'undefined' ? window.innerHeight : 0,
 	})
-
-	const svgToDataURL = (svgElement: Element): string => {
-		const svgString = new XMLSerializer().serializeToString(svgElement)
-		const base64String = Buffer.from(svgString).toString('base64')
-		return `data:image/svg+xml;base64,${base64String}`
-	}
 
 	useEffect(() => {
 		const handleResize = () => {
@@ -32,7 +32,7 @@ export const SVGRenderer = ({ content }: { content: string }) => {
 				const draw = SVG().addTo(svgRef.current)
 
 				const parser = new DOMParser()
-				const svgDoc = parser.parseFromString(content, 'image/svg+xml')
+				const svgDoc = parser.parseFromString(code, 'image/svg+xml')
 				const svgElement = svgDoc.documentElement
 
 				if (!(svgElement instanceof SVGElement)) throw new Error('Invalid SVG content')
@@ -43,30 +43,30 @@ export const SVGRenderer = ({ content }: { content: string }) => {
 
 				svgRef.current.style.width = `${Math.min(originalWidth, 298)}px`
 
-				const rootElement = draw.svg(DOMPurify.sanitize(content))
-
-				rootElement.click(() => {
-					setImagePreview(svgToDataURL(svgElement as Element))
-				})
+				draw.svg(DOMPurify.sanitize(code))
+				setFailed(false)
 			} catch (error) {
 				console.warn('Error rendering SVG:', error)
-				if (svgRef.current)
-					svgRef.current.innerHTML =
-						'<span style="padding: 1rem;">Error rendering SVG. Wait for the image content to complete.</span>'
+				setFailed(true)
 			}
 		}
-	}, [content, windowSize])
+	}, [code, windowSize])
 
 	return (
 		<>
+			{failed && (
+				<Alert
+					type="warning"
+					title={t('message.svg_invalid')}
+				/>
+			)}
 			<div
 				ref={svgRef}
 				style={{
 					maxHeight: '80vh',
-					display: 'flex',
+					display: failed ? 'none' : 'flex',
 					justifyContent: 'center',
 					alignItems: 'center',
-					cursor: 'pointer',
 					wordBreak: 'break-word',
 					whiteSpace: 'normal',
 					margin: '0 auto',
@@ -76,4 +76,4 @@ export const SVGRenderer = ({ content }: { content: string }) => {
 	)
 }
 
-export default SVGRenderer
+export default SvgBlock
