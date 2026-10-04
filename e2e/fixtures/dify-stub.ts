@@ -128,13 +128,13 @@ createServer(async (req, res) => {
 		msg.feedback = body.rating ? { rating: body.rating } : null
 		return json(res, 200, { result: 'success' })
 	}
-	if (m === 'POST' && /^\/conversation\/[^/]+\/name$/.test(p)) {
+	if (m === 'POST' && /^\/conversations\/[^/]+\/name$/.test(p)) {
 		const c = conversations.get(p.split('/')[2])
 		const body = JSON.parse((await readBody(req)) || '{}')
 		if (c && body.name) c.name = body.name
 		return json(res, 200, c ?? {})
 	}
-	if (m === 'DELETE' && /^\/conversation\/[^/]+$/.test(p)) {
+	if (m === 'DELETE' && /^\/conversations\/[^/]+$/.test(p)) {
 		conversations.delete(p.split('/')[2])
 		return json(res, 200, { result: 'success' })
 	}

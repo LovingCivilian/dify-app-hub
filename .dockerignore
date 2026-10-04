@@ -18,6 +18,12 @@ pnpm-debug.log*
 .env.test.local
 .env.production.local
 
+# Playwright e2e harness and its test-only env (not part of the image)
+.env.e2e
+e2e/
+playwright.config.ts
+test-results/
+
 # Python venv for the crawl4ai helper (per machine, not part of the image)
 .venv
 
