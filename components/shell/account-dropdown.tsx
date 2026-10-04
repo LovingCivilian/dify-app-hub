@@ -66,6 +66,7 @@ export default function AccountDropdown() {
 				type="text"
 				icon={<UserOutlined />}
 				aria-label={t('auth.signed_in_as', { email })}
+				title={t('auth.signed_in_as', { email })}
 			/>
 		</Dropdown>
 	)

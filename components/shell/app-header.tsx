@@ -54,6 +54,7 @@ export default function AppHeader({
 				target="_blank"
 				rel="noreferrer"
 				aria-label="GitHub"
+				title="GitHub"
 			/>
 			<AccountDropdown />
 		</Space>

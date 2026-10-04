@@ -5,17 +5,21 @@ import { stubApiBase } from './fixtures/env'
 
 // A fresh stub per test: the chat then opens a new conversation instead of reopening a stored one and
 // loading its history, which races with a message sent at once (a chat bug left to sub-project 2).
+// The reset wipes all stub state (conversations, and messages with their feedback), so it relies on
+// `workers: 1` in playwright.config.ts: no other test runs against the stub at the same time.
 test.beforeEach(async ({ request }) => {
 	const response = await request.post(`${stubApiBase}/__e2e/reset`)
 	await expect(response).toBeOK()
 })
 
-test('a signed-out visitor is sent to the login page with a callback', async ({ browser }) => {
-	const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
-	const page = await context.newPage()
-	await page.goto('/app-management')
-	await expect(page).toHaveURL(/\/login\?callbackUrl=%2Fapp-management$/)
-	await context.close()
+// Signed out: the project's admin storage state is reset (documented reset: https://playwright.dev/docs/auth).
+test.describe('signed out', () => {
+	test.use({ storageState: { cookies: [], origins: [] } })
+
+	test('a signed-out visitor is sent to the login page with a callback', async ({ page }) => {
+		await page.goto('/app-management')
+		await expect(page).toHaveURL(/\/login\?callbackUrl=%2Fapp-management$/)
+	})
 })
 
 test('the app list shows the seeded app and its chat answers from the stub', async ({

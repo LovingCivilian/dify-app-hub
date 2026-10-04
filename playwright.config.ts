@@ -21,15 +21,17 @@ export default defineConfig({
 		{
 			command: 'pnpm exec tsx e2e/fixtures/dify-stub.ts',
 			url: `http://127.0.0.1:${stubPort}/v1/parameters`,
-			reuseExistingServer: true,
+			reuseExistingServer: !process.env.CI,
 			env: e2eEnv,
 		},
 		{
-			command: 'pnpm exec next dev -p 5301',
+			// Bound to 127.0.0.1 like the stub and the e2e MySQL (next dev listens on 0.0.0.0 by default);
+			// NEXTAUTH_URL in .env.e2e, and so baseURL, uses the same host.
+			command: 'pnpm exec next dev -p 5301 -H 127.0.0.1',
 			// Playwright starts web servers before globalSetup, so MySQL is not up yet on a cold run:
 			// readiness must not depend on the database (/api/health answers 500 without it).
 			url: `${baseURL}/api/auth/providers`,
-			reuseExistingServer: true,
+			reuseExistingServer: !process.env.CI,
 			timeout: 120_000,
 			env: e2eEnv,
 		},
