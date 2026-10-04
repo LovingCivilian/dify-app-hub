@@ -10,6 +10,7 @@ export default function LanguageDropdown() {
 	const { t, i18n } = useTranslation()
 	return (
 		<Dropdown
+			trigger={['click']}
 			placement="bottomRight"
 			menu={{
 				selectedKeys: i18n.resolvedLanguage ? [i18n.resolvedLanguage] : [],

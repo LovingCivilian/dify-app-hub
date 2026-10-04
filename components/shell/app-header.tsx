@@ -6,6 +6,7 @@ import { Button, Drawer, Flex, Grid, Layout, Menu, Space, Typography, theme } fr
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import LogoIcon from '@/assets/images/logo.png'
 
@@ -18,7 +19,7 @@ export interface AppHeaderProps {
 	/** Area navigation (admin). A horizontal Menu on desktop, inside a Drawer on mobile. */
 	nav?: MenuProps['items']
 	navSelectedKey?: string
-	/** Centre content (chat: the app title). */
+	/** Centre content (chat: the app title); the centre region is rendered only when this is set. */
 	title?: React.ReactNode
 	/** Controls placed before the standard dropdowns (chat: the width toggle). */
 	extra?: React.ReactNode
@@ -35,6 +36,7 @@ export default function AppHeader({
 	extra,
 	mobileMenu,
 }: AppHeaderProps) {
+	const { t } = useTranslation()
 	const { token } = theme.useToken()
 	const screens = Grid.useBreakpoint()
 	const isMobile = !screens.md
@@ -75,13 +77,14 @@ export default function AppHeader({
 					<Button
 						type="text"
 						icon={<MenuOutlined />}
-						aria-label="Menu"
+						aria-label={t('system.menu')}
 						onClick={() => setNavOpen(true)}
 					/>
 				)}
 				<Link
 					href="/apps"
 					className={styles.logo}
+					aria-label="Dify App Hub"
 				>
 					<Image
 						src={LogoIcon}
@@ -102,10 +105,11 @@ export default function AppHeader({
 						items={nav}
 						selectedKeys={selectedKeys}
 						className={styles.nav}
+						style={{ borderBottom: 0 }}
 					/>
 				)}
 			</Flex>
-			<div className={styles.center}>{title}</div>
+			{title && <div className={styles.center}>{title}</div>}
 			<Flex
 				align="center"
 				justify="flex-end"
@@ -120,6 +124,7 @@ export default function AppHeader({
 					open={navOpen}
 					onClose={() => setNavOpen(false)}
 					placement="left"
+					title={t('system.menu')}
 				>
 					<Menu
 						mode="inline"

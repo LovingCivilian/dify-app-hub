@@ -138,6 +138,7 @@
 	"system": {
 		"theme": "Theme",
 		"language": "Language",
+		"menu": "Menu",
 		"theme_mode_system": "System",
 		"theme_mode_light": "Light",
 		"theme_mode_dark": "Dark",

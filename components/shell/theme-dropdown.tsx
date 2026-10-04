@@ -17,6 +17,7 @@ export default function ThemeDropdown() {
 	const { themeMode, setThemeMode } = useThemeContext()
 	return (
 		<Dropdown
+			trigger={['click']}
 			placement="bottomRight"
 			menu={{
 				selectedKeys: [themeMode],
@@ -43,7 +44,8 @@ export default function ThemeDropdown() {
 			<Button
 				type="text"
 				icon={icons[themeMode]}
-				aria-label={t('system.theme_mode_system')}
+				aria-label={t('system.theme')}
+				title={t('system.theme')}
 			/>
 		</Dropdown>
 	)

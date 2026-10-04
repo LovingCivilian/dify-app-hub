@@ -138,6 +138,7 @@
 	"system": {
 		"theme": "المظهر",
 		"language": "اللغة",
+		"menu": "القائمة",
 		"theme_mode_system": "حسب النظام",
 		"theme_mode_light": "فاتح",
 		"theme_mode_dark": "داكن",

@@ -58,6 +58,7 @@ export default function AccountDropdown() {
 	if (!email) return null
 	return (
 		<Dropdown
+			trigger={['click']}
 			menu={{ items: getAccountMenuItems({ email, t, onLogout: logout }) }}
 			placement="bottomRight"
 		>
