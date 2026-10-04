@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
 
 import AccountMenu from '@/components/auth/account-menu'
+import I18nSwitcher from '@/components/chat/i18n-switcher'
 import { LucideIcon } from '@/components/shared'
 import appService from '@/services/app'
 
@@ -33,7 +34,8 @@ export default function AppListPage() {
 					className="mr-1"
 				/>
 				{t('app.list')}
-				<div className="ml-auto">
+				<div className="ml-auto flex items-center gap-4">
+					<I18nSwitcher />
 					<AccountMenu />
 				</div>
 			</div>

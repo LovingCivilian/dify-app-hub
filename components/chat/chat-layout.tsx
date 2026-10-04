@@ -33,6 +33,7 @@ import { LucideIcon } from '@/components/shared'
 import { ConversationList } from '@/components/chat/conversation-list'
 import { HeaderLayout } from '@/components/shared'
 import ChatboxWrapper from '@/components/chat/chatbox-wrapper'
+import I18nSwitcher from '@/components/chat/i18n-switcher'
 import { useLatest } from '@/hooks/use-latest'
 import { useTranslation } from 'react-i18next'
 import { useSession } from 'next-auth/react'
@@ -447,6 +448,7 @@ export default function ChatLayout(props: IChatLayoutProps) {
 												size={20}
 											/>
 										</div>
+										<I18nSwitcher />
 										{theme}
 										{github}
 										<AccountMenu />

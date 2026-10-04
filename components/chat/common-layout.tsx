@@ -1,4 +1,5 @@
 import AccountMenu from '@/components/auth/account-menu'
+import I18nSwitcher from '@/components/chat/i18n-switcher'
 import { HeaderLayout } from '@/components/shared'
 import { IDifyAppItem, useDifyChatStore } from '@/lib/core'
 import { Empty, Spin } from 'antd'
@@ -24,6 +25,7 @@ export default function CommonLayout(props: ICommonLayoutProps) {
 				title={renderCenterTitle?.(currentApp?.config?.info)}
 				renderRightIcons={({ theme, github }) => (
 					<div className="flex items-center gap-4">
+						<I18nSwitcher />
 						{theme}
 						{github}
 						<AccountMenu />
