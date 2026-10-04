@@ -29,7 +29,6 @@
 		"@ant-design/x-markdown": "^2.9.0",
 		"@ant-design/x-sdk": "^2.9.0",
 		"@emoji-mart/data": "^1.2.1",
-		"@fingerprintjs/fingerprintjs": "^4.6.2",
 		"@heroicons/react": "^2.2.0",
 		"@radix-ui/react-accordion": "^1.2.12",
 		"@radix-ui/react-collapsible": "^1.1.12",
