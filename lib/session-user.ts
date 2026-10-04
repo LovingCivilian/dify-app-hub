@@ -1,4 +1,5 @@
 import { getServerSession } from 'next-auth/next'
+import { redirect } from 'next/navigation'
 import { NextResponse } from 'next/server'
 
 import { authOptions } from '@/lib/auth'
@@ -19,4 +20,14 @@ export async function getSessionUserId(): Promise<string | null> {
 
 export function unauthorizedResponse() {
 	return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+}
+
+/**
+ * For the login-adjacent pages: a visitor with a live session is sent on to
+ * the app instead of seeing the form. Call it from the page's server layout,
+ * outside any try/catch, since redirect() works by throwing.
+ */
+export async function redirectSignedInUser(to = '/apps'): Promise<void> {
+	const session = await getServerSession(authOptions)
+	if (session?.user?.id) redirect(to)
 }
