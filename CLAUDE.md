@@ -71,6 +71,14 @@ MySQL is published on `127.0.0.1:3306` only, and the git-ignored `.env.developme
 
 Without Chrome MCP tools, browser evidence can be produced with the headless Chromium in `~/.cache/ms-playwright/` against a throwaway stack (own MySQL, admin created through `POST /api/init`, fake Dify API) — never against the user's instance or real Dify server.
 
+## Frontend overhaul (in progress — start here in a new session)
+
+The frontend is being rebuilt on antd 6 / Ant Design X 2 per their docs and Next 16's App Router conventions. Decisions, conventions and the delivery plan: `docs/superpowers/specs/2026-10-04-frontend-overhaul-charter.md` (approved). Sub-projects 0 (tooling) and 1 (foundation and shells): spec `docs/superpowers/specs/2026-10-04-frontend-foundation-design.md` (approved), plan `docs/superpowers/plans/2026-10-04-frontend-foundation.md`.
+
+Next action: once the plan's PR is merged, create a worktree branch `feat/frontend-foundation` from `fork/main` and execute the plan with `superpowers:subagent-driven-development` (the user chose subagent-driven; implementers on the cheap/mid tier per the plan's execution notes, reviewers mid tier, final review on the most capable model). Expect two rulings (login-form locators, the mobile card click) — record them in the ledger. Sub-projects 2 (chat), 3 (admin/app list/auth pages) and 4 (Tailwind/Lucide/Radix removal) each get their own spec and plan afterwards.
+
+Research already done and recorded in the charter (do not redo): antd 6 exposes its tokens as `--ant-*` CSS variables on `<App>`'s root (aliases must be declared on `.ant-app`, not `:root`); the X site has no `llms.txt` but ships `@ant-design/x-skill`; antd serves every docs page as Markdown (`https://ant.design/components/<name>.md`, `design.md`, `llms.txt`); ProComponents does not support antd 6; `antd-style` is not used (App Router SSR caveat, second provider).
+
 ## Open follow-ups
 
 - Switch the GitHub default branch to `fork/main`; delete merged branches (`i18n/app-ui`, `i18n/arabic`, `auth/login-for-all`, `fix/language-switcher-placement`).
