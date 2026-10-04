@@ -9,8 +9,8 @@ vi.mock('next-auth/next', () => ({ getServerSession }))
 vi.mock('next/navigation', () => ({ redirect }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 
-import ForgotPasswordLayout from '@/app/forgot-password/layout'
-import LoginLayout from '@/app/login/layout'
+import ForgotPasswordLayout from '@/app/(auth)/forgot-password/layout'
+import LoginLayout from '@/app/(auth)/login/layout'
 
 // Server layouts are plain async functions, so they can be called directly.
 const layouts = [

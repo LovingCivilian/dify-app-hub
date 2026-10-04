@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, Card, Form, Input, message, Result } from 'antd'
+import { Button, Form, Input, message, Result } from 'antd'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,47 +39,45 @@ function ResetPasswordContent() {
 		)
 
 	return (
-		<div className="bg-theme-bg flex min-h-screen items-center justify-center">
-			<Card className="w-full max-w-md dark:bg-gray-700">
-				<h1 className="mb-6 text-2xl font-bold">{t('auth.reset_title')}</h1>
-				<Form
-					onFinish={onFinish}
-					layout="vertical"
-					size="large"
+		<>
+			<h1 className="mb-6 text-2xl font-bold">{t('auth.reset_title')}</h1>
+			<Form
+				onFinish={onFinish}
+				layout="vertical"
+				size="large"
+			>
+				<Form.Item
+					label={t('auth.new_password')}
+					name="password"
+					rules={[{ required: true }, { min: 8, message: t('auth.password_min_8') }]}
 				>
-					<Form.Item
-						label={t('auth.new_password')}
-						name="password"
-						rules={[{ required: true }, { min: 8, message: t('auth.password_min_8') }]}
-					>
-						<Input.Password />
-					</Form.Item>
-					<Form.Item
-						label={t('auth.confirm_password')}
-						name="confirmPassword"
-						rules={[
-							{ required: true },
-							({ getFieldValue }) => ({
-								validator: (_, value) =>
-									value === getFieldValue('password')
-										? Promise.resolve()
-										: Promise.reject(new Error(t('auth.password_mismatch'))),
-							}),
-						]}
-					>
-						<Input.Password />
-					</Form.Item>
-					<Button
-						type="primary"
-						htmlType="submit"
-						loading={loading}
-						block
-					>
-						{t('auth.reset_password')}
-					</Button>
-				</Form>
-			</Card>
-		</div>
+					<Input.Password />
+				</Form.Item>
+				<Form.Item
+					label={t('auth.confirm_password')}
+					name="confirmPassword"
+					rules={[
+						{ required: true },
+						({ getFieldValue }) => ({
+							validator: (_, value) =>
+								value === getFieldValue('password')
+									? Promise.resolve()
+									: Promise.reject(new Error(t('auth.password_mismatch'))),
+						}),
+					]}
+				>
+					<Input.Password />
+				</Form.Item>
+				<Button
+					type="primary"
+					htmlType="submit"
+					loading={loading}
+					block
+				>
+					{t('auth.reset_password')}
+				</Button>
+			</Form>
+		</>
 	)
 }
 
