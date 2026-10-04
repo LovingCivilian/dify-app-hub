@@ -23,3 +23,19 @@ test('the app list shows the seeded app and its chat answers from the stub', asy
 	await page.keyboard.press('Enter')
 	await expect(page.getByText(`Echo: ${message}`)).toBeVisible()
 })
+
+test('the admin area renders inside the antd shell with its navigation', async ({
+	page,
+	isMobile,
+}) => {
+	await page.goto('/app-management')
+	await expect(page.locator('header.ant-layout-header')).toHaveCount(1)
+	await test.step('the header navigation offers the user management page', async step => {
+		// Below md the horizontal Menu is not rendered and the Drawer menu mounts only once opened;
+		// the mobile Drawer navigation is pinned by its own flow.
+		step.skip(isMobile, 'the horizontal navigation is not part of the mobile layout')
+		const nav = page.getByRole('menu').first()
+		await expect(nav.getByRole('menuitem', { name: 'User management' })).toBeVisible()
+	})
+	await expect(page.locator('.ant-table')).toBeVisible()
+})
