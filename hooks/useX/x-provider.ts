@@ -18,7 +18,9 @@ import { isTempId } from '@/lib/helpers'
 
 import { IAgentMessage } from '@/lib/api'
 
-import workflowDataStorage, { IWorkflowDataSetOptions } from './workflow-data-storage'
+import workflowDataStorage, {
+	IWorkflowDataSetOptions,
+} from '@/components/chat/persistence/workflow-data-storage'
 
 // 类型定义
 export type CustomInput = {

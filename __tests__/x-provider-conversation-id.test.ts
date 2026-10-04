@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CustomProvider } from '@/hooks/useX/x-provider'
 
 // The provider persists workflow progress to IndexedDB, which does not exist in the node test environment.
-vi.mock('@/hooks/useX/workflow-data-storage', () => ({
+vi.mock('@/components/chat/persistence/workflow-data-storage', () => ({
 	default: { set: vi.fn(), get: vi.fn() },
 }))
 
