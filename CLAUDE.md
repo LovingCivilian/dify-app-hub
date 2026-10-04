@@ -48,7 +48,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 - MySQL stays (the app is MySQL-only through Drizzle; Postgres was considered and rejected).
 - The Ant Design / Ant Design X look was left as upstream had it at first (adopting the X components was sized and dropped); the frontend overhaul below supersedes that.
 
-### Frontend overhaul (sub-projects 0 and 1 done on `feat/frontend-foundation`, pending its PR to `fork/main`)
+### Frontend overhaul (sub-projects 0 and 1 done)
 
 The frontend is being rebuilt on antd 6 / Ant Design X 2 per their docs and Next 16's App Router conventions. Structure after sub-project 1: `components/providers/app-providers.tsx` is the single client provider stack (`SessionProvider` → `ThemeContextProvider` → `XProvider` → `App`, inside `AntdRegistry` in `app/layout.tsx`); `components/shell/` holds `app-header` (language, theme and account dropdowns plus the GitHub link), `admin-shell`, `user-shell`, `auth-card` and their token-only CSS Modules; routes live in the route groups `app/(auth)` (login, forgot-password, reset-password), `app/(admin)` (app-management, user-management) and `app/(user)` (apps, chat), each with its own layout; `app/globals.css` declares the legacy theme variables as aliases of the `--ant-*` tokens on `.ant-app`. Keep `@ant-design/cssinjs` at one version, the one inside `antd` (`pnpm why @ant-design/cssinjs` must show a single copy): the antd Next.js guide's Pages Router note says the version must be consistent with the one in antd's `node_modules`, and `@ant-design/nextjs-registry` declares `@ant-design/cssinjs >=1.0.0` as a peer, which pnpm resolved to the root's 1.x copy while antd used 2.1.2; with two copies `AntdRegistry` extracts no first-screen styles and every page paints unstyled until hydration (found and fixed in the foundation work).
 
@@ -58,7 +58,7 @@ Where things are written down: charter `docs/superpowers/specs/2026-10-04-fronte
 
 Research already done and recorded in the charter (do not redo): antd 6 exposes its tokens as `--ant-*` CSS variables on `<App>`'s root (aliases must be declared on `.ant-app`, not `:root`); the X site has no `llms.txt` but ships `@ant-design/x-skill`; antd serves every docs page as Markdown (`https://ant.design/components/<name>.md`, `design.md`, `llms.txt`); ProComponents does not support antd 6; `antd-style` is not used (App Router SSR caveat, second provider).
 
-Next: sub-project 2 (chat) gets its own spec and plan, brainstorming first; it branches from `fork/main` only after the `feat/frontend-foundation` PR has merged. Sub-projects 3 (admin, app list, auth pages) and 4 (Tailwind/Lucide/Radix removal) follow.
+Next: sub-project 2 (chat) branches from `fork/main` once this work (`feat/frontend-foundation`) is on it, and gets its own spec and plan via brainstorming first. Sub-projects 3 (admin, app list, auth pages) and 4 (Tailwind/Lucide/Radix removal) follow.
 
 ## Local testing
 
@@ -86,7 +86,7 @@ Without Chrome MCP tools, browser evidence can be produced with the headless Chr
 
 ### e2e suite
 
-`pnpm test:e2e` runs the Playwright suite (three projects: `desktop-light`, `desktop-dark`, `mobile-light`). It has its own environment, `.env.e2e` (test-only values, committed), and never touches the `.env` database or port 5300: a throwaway MySQL from `docker-compose.e2e.yml` on 127.0.0.1:3307 (`docker compose -f docker-compose.e2e.yml down` resets it), a stub Dify API (`e2e/fixtures/dify-stub.ts`, port 5399, with a test-only `POST /__e2e/reset`) and the app under `next dev` on 5301. Screenshots go to the git-ignored `e2e/screenshots/`; the HTML report opens with `pnpm test:e2e:report`.
+`pnpm test:e2e` runs the Playwright suite (three projects: `desktop-light`, `desktop-dark`, `mobile-light`). It has its own environment, `.env.e2e` (test-only values, committed), and never touches the `.env` database or port 5300: a throwaway MySQL from `docker-compose.e2e.yml` on 127.0.0.1:3307 (`docker compose -f docker-compose.e2e.yml down` resets it), a stub Dify API (`e2e/fixtures/dify-stub.ts`, port 5399, with a test-only `POST /__e2e/reset`) and the app under `next dev` on 127.0.0.1:5301 (bound to that address, `NEXTAUTH_URL` and `baseURL` match). Screenshots go to the git-ignored `e2e/screenshots/`; the HTML report opens with `pnpm test:e2e:report`.
 
 ## Open follow-ups
 
