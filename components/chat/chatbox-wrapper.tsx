@@ -8,6 +8,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import { useTranslation } from 'react-i18next'
 
 import { Chatbox } from '@/components/chat/chatbox'
+import { toLiveRenderItem } from '@/components/chat/live-message'
 import { useLatest } from '@/hooks/use-latest'
 import { useX } from '@/hooks/useX'
 import workflowDataStorage from '@/hooks/useX/workflow-data-storage'
@@ -167,6 +168,7 @@ export default function ChatboxWrapper(props: IChatboxWrapperProps) {
 					},
 					{
 						id: item.id,
+						messageId: item.id,
 						content: item.answer,
 						status: item.status === 'error' ? item.status : 'success',
 						error: item.error || '',
@@ -247,6 +249,7 @@ export default function ChatboxWrapper(props: IChatboxWrapperProps) {
 					},
 					{
 						id: item.id,
+						messageId: item.id,
 						content: item.answer,
 						status: item.status === 'error' ? item.status : 'success',
 						error: item.error || '',
@@ -383,21 +386,8 @@ export default function ChatboxWrapper(props: IChatboxWrapperProps) {
 	}
 
 	const unStoredMessages4Render = useMemo(() => {
-		return messages.map(item => {
-			return {
-				id: item.id,
-				status: item.status,
-
-				error: item.message?.error || '',
-				workflows: item.message?.workflows,
-				agentThoughts: item.message?.agentThoughts,
-				retrieverResources: item.message?.retrieverResources,
-				files: item.message?.files,
-				content: item.message?.content,
-				role: item.status === Roles.LOCAL ? Roles.USER : Roles.AI,
-			} as IMessageItem4Render
-		})
-	}, [messages])
+		return messages.map(item => toLiveRenderItem(item, i18n.resolvedLanguage))
+	}, [messages, i18n.resolvedLanguage])
 
 	const messageItems = useMemo(() => {
 		const map = hitl.continuationMap

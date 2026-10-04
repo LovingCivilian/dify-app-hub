@@ -122,7 +122,7 @@ export class CustomProvider<
 		const workflows = (originMessage?.workflows as NonNullable<IAgentMessage['workflows']>) || {}
 		const agentThoughts: IAgentThought[] = []
 		const files: IMessageFileItem[] = []
-		let messageId = (originMessage as any)?.id || ''
+		let messageId = originMessage?.id || ''
 
 		if (!chunk || !chunk?.data || (chunk?.data && chunk?.data?.includes('[DONE]'))) {
 			return originMessage as ChatMessage
@@ -140,6 +140,8 @@ export class CustomProvider<
 			answer: string
 			conversation_id: string
 			message_id: string
+			// 消息创建时间戳（秒），每个流事件都带
+			created_at: number
 
 			// 类型
 			type: 'image'
@@ -183,6 +185,8 @@ export class CustomProvider<
 		if (parsedData.message_id && parsedData.message_id !== messageId) {
 			messageId = parsedData.message_id
 		}
+		// 与历史消息的 created_at 一致，供消息底部展示时间
+		const createdAt = originMessage?.createdAt ?? parsedData.created_at
 		if (parsedData.task_id && parsedData.task_id !== this.currentTaskId) {
 			this.currentTaskId = parsedData.task_id
 			this.onTaskIdChange?.(this.currentTaskId)
@@ -280,6 +284,7 @@ export class CustomProvider<
 				taskId: this.currentTaskId,
 				content: (originMessage?.content || '') + parsedData.answer,
 				id: messageId,
+				createdAt,
 			} as unknown as ChatMessage
 		}
 		// if (parsedData.event === EventEnum.ERROR) {
@@ -303,6 +308,7 @@ export class CustomProvider<
 				taskId: this.currentTaskId,
 				agentThoughts,
 				id: messageId,
+				createdAt,
 			} as unknown as ChatMessage
 		}
 		if (parsedData.event === EventEnum.AGENT_THOUGHT) {
@@ -335,6 +341,7 @@ export class CustomProvider<
 				taskId: this.currentTaskId,
 				agentThoughts,
 				id: messageId,
+				createdAt,
 			} as unknown as ChatMessage
 		}
 		if (parsedData.event === EventEnum.HUMAN_INPUT_REQUIRED) {
@@ -359,6 +366,7 @@ export class CustomProvider<
 			workflows,
 			agentThoughts,
 			id: messageId,
+			createdAt,
 		} as unknown as ChatMessage
 	}
 }
