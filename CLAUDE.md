@@ -48,6 +48,8 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 
 ## Local testing
 
+**Default for trying out a change: the dev loop below, not an image rebuild.** When the user wants to test a fix, start `pnpm dev` (in the background, with the fix branch checked out) and tell them it is up. Rebuild the Docker image only on request or as the final check before a merge — the user has corrected this once already.
+
 ### Docker stack (the real check before merging)
 
 `docker-compose.local.yml` (project `dify-app-hub-local`) builds the image from the checkout and runs it with MySQL on `http://localhost:5300`, settings from `.env`. Rebuild from the branch under test:
@@ -63,8 +65,10 @@ Take the old app container down first: this WSL machine has ~5 GB RAM and builds
 
 ```bash
 docker compose -f docker-compose.local.yml stop app   # frees port 5300; MySQL keeps running
-pnpm dev                                              # http://localhost:5300, hot reload
+pnpm dev                                              # http://localhost:5300, ready in well under a second, hot reload
 ```
+
+A dev server started from a Claude Code session stops when that session (or its background-task timeout) ends; for longer testing the user runs `pnpm dev` in their own terminal. Switching branches while it runs is fine — it recompiles on the fly.
 
 MySQL is published on `127.0.0.1:3306` only, and the git-ignored `.env.development.local` overrides `DATABASE_URL` to point there for `next dev` (Next's load order: `.env.development.local` over `.env`; Docker builds never read it). Port 5300 is kept so `NEXTAUTH_URL` and the session cookie keep working. Schema changes need `env $(grep DATABASE_URL .env.development.local) pnpm db:migrate` by hand; only the container's entrypoint runs migrations automatically. Dev mode skips `next build`, the standalone server and the entrypoint, so still do one Docker rebuild before merging.
 
