@@ -138,6 +138,7 @@
 	"system": {
 		"theme": "Theme",
 		"language": "Language",
+		"menu": "Menu",
 		"theme_mode_system": "System",
 		"theme_mode_light": "Light",
 		"theme_mode_dark": "Dark",
@@ -165,7 +166,6 @@
 		"login_success": "Logged in",
 		"login_failed": "Login failed. Check your email and password.",
 		"login_error": "Something went wrong while logging in",
-		"authorizing": "Logging you in...",
 		"email": "Email",
 		"email_placeholder": "Email address",
 		"email_required": "Enter your email address",

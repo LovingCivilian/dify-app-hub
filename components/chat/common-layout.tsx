@@ -1,6 +1,4 @@
-import AccountMenu from '@/components/auth/account-menu'
-import I18nSwitcher from '@/components/chat/i18n-switcher'
-import { HeaderLayout } from '@/components/shared'
+import UserShell from '@/components/shell/user-shell'
 import { IDifyAppItem, useDifyChatStore } from '@/lib/core'
 import { Empty, Spin } from 'antd'
 import { useTranslation } from 'react-i18next'
@@ -19,22 +17,9 @@ export default function CommonLayout(props: ICommonLayoutProps) {
 	const { t } = useTranslation()
 
 	return (
-		<div className={`bg-theme-bg flex h-screen w-full flex-col overflow-hidden`}>
-			{/* 头部 */}
-			<HeaderLayout
-				title={renderCenterTitle?.(currentApp?.config?.info)}
-				renderRightIcons={({ theme, github }) => (
-					<div className="flex items-center gap-4">
-						<I18nSwitcher />
-						{theme}
-						{github}
-						<AccountMenu />
-					</div>
-				)}
-			/>
-
+		<UserShell title={renderCenterTitle?.(currentApp?.config?.info)}>
 			{/* Main */}
-			<div className="bg-theme-main-bg flex flex-1 overflow-hidden rounded-t-3xl">
+			<div className="bg-theme-main-bg flex h-full overflow-hidden rounded-t-3xl">
 				{appLoading || initLoading ? (
 					<div className="absolute top-0 left-0 z-50 flex h-full w-full items-center justify-center">
 						<Spin spinning />
@@ -51,6 +36,6 @@ export default function CommonLayout(props: ICommonLayoutProps) {
 				)}
 			</div>
 			{extComponents}
-		</div>
+		</UserShell>
 	)
 }

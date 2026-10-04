@@ -16,9 +16,9 @@ Do not name an interpolation variable `count`, and do not run `i18next-cli extra
 2. Register it in `libs/i18n.ts` (`resources`) and `i18next.config.ts` (`locales`).
 3. Add it to `translations` in `__tests__/i18n-locales.test.ts` and to the resolution cases in `__tests__/i18n-init.test.ts`.
 4. Add the Ant Design pack and the Day.js locale to `libs/antd-locale.ts`, and a case to `__tests__/antd-locale.test.ts`.
-5. Add the language's own name to the two pickers: `components/chat/i18n-switcher/index.tsx` and the language radio in `components/chat/chat-layout.tsx`.
+5. Add the language's own name to the two pickers: the `languages` map in `components/shell/language-dropdown.tsx` and the language radio in `components/chat/chat-layout.tsx`.
 
-Right-to-left languages also need `dir` set on `<html>` (`hooks/use-html-lang.ts`, from `i18n.dir()`) and `direction="rtl"` on both `ConfigProvider`s; this is not done yet for Arabic.
+Right-to-left languages also need `dir` set on `<html>` (`hooks/use-html-lang.ts`, from `i18n.dir()`) and `direction="rtl"` on the single `XProvider` in `components/providers/app-providers.tsx`; this is not done yet for Arabic.
 
 ## After merging upstream
 
@@ -39,16 +39,16 @@ The `git grep` lists every non-comment line containing Chinese. `pnpm i18n:lint`
 
 Lines the `git grep` is expected to print:
 
-- `components/chat/i18n-switcher/index.tsx` and `components/chat/chat-layout.tsx`: `中文`, the language's own name.
+- `components/shell/language-dropdown.tsx` and `components/chat/chat-layout.tsx`: `中文`, the language's own name.
 - `locales/zh/translation.json` is excluded by the path list; `locales/ar/translation.json` contains no Chinese.
 - `components/chat/markdown-renderer/blocks/think-block.tsx`: `text.includes('思考')`, matching model output.
 - `components/chat/chatbox/message/referrence.tsx`: text inside a commented-out block.
-- Trailing code comments (for example in `components/chat/theme-config.ts`).
-- Server-side files not yet translated: `app/app-management/actions.ts`, `lib/mail.ts`, `lib/auth.ts`.
+- Trailing code comments (for example in `components/chat/chatbox-wrapper.tsx`).
+- Server-side files not yet translated: `app/(admin)/app-management/actions.ts`, `lib/mail.ts`, `lib/auth.ts`.
 
 ## Typical merge conflicts
 
 - `libs/i18n.ts`: upstream added or changed inline strings. Keep this fork's version of the file and move upstream's new strings into the locale files.
-- `components/layout/page-layout-wrapper.tsx` / `app/(user)/layout.tsx`: upstream changed the Ant Design locale line. Keep `getAntdLocale(...)` and add any new locale to `libs/antd-locale.ts`.
+- `components/providers/app-providers.tsx`: upstream changed the Ant Design locale line (upstream had it in `components/layout/page-layout-wrapper.tsx`, which no longer exists here, and in `app/(user)/layout.tsx`, which no longer has it). Keep `getAntdLocale(i18n.resolvedLanguage)` and add any new locale to `libs/antd-locale.ts`.
 - A line where upstream edited a string this fork replaced with `t()`: keep the `t()` call and update the JSON value.
 - `package.json` / `pnpm-lock.yaml`: keep both sides in `package.json`, then run `pnpm install`.

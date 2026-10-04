@@ -138,6 +138,7 @@
 	"system": {
 		"theme": "المظهر",
 		"language": "اللغة",
+		"menu": "القائمة",
 		"theme_mode_system": "حسب النظام",
 		"theme_mode_light": "فاتح",
 		"theme_mode_dark": "داكن",
@@ -165,7 +166,6 @@
 		"login_success": "تم تسجيل الدخول",
 		"login_failed": "فشل تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور.",
 		"login_error": "حدث خطأ أثناء تسجيل الدخول",
-		"authorizing": "جارٍ تسجيل دخولك...",
 		"email": "البريد الإلكتروني",
 		"email_placeholder": "عنوان البريد الإلكتروني",
 		"email_required": "أدخل عنوان بريدك الإلكتروني",

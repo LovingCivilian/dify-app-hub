@@ -1,4 +1,5 @@
 import {
+	ColumnWidthOutlined,
 	EditOutlined,
 	MenuOutlined,
 	MinusCircleOutlined,
@@ -31,13 +32,12 @@ import AppIcon from '@/components/chat/chatbox/app-icon'
 import { AppInfo } from '@/components/chat/chatbox/app-info'
 import { LucideIcon } from '@/components/shared'
 import { ConversationList } from '@/components/chat/conversation-list'
-import { HeaderLayout } from '@/components/shared'
 import ChatboxWrapper from '@/components/chat/chatbox-wrapper'
-import I18nSwitcher from '@/components/chat/i18n-switcher'
 import { useLatest } from '@/hooks/use-latest'
 import { useTranslation } from 'react-i18next'
 import { useSession } from 'next-auth/react'
-import AccountMenu, { getAccountMenuItems, useLogout } from '@/components/auth/account-menu'
+import { getAccountMenuItems, useLogout } from '@/components/shell/account-dropdown'
+import UserShell from '@/components/shell/user-shell'
 
 interface IChatLayoutProps {
 	/**
@@ -416,49 +416,40 @@ export default function ChatLayout(props: IChatLayoutProps) {
 
 	return (
 		<>
-			<div className={`bg-theme-bg flex h-screen w-full flex-col overflow-hidden`}>
-				{/* 头部 */}
-				<HeaderLayout
-					title={renderCenterTitle?.(currentApp?.config?.info)}
-					rightIcon={
-						isMobile ? (
-							<Dropdown
-								menu={{
-									className: '!pb-3 w-[80vw]',
-									activeKey: currentConversationId,
-									items: mobileMenuItems,
-								}}
-							>
-								<MenuOutlined className="text-xl" />
-							</Dropdown>
-						) : null
-					}
-					renderRightIcons={
-						isMobile
-							? undefined
-							: ({ theme, github }) => (
-									<div className="flex items-center gap-4">
-										<div
-											className="flex cursor-pointer items-center"
-											onClick={() => setIsWideScreen(!isWideScreen)}
-											title={isWideScreen ? t('chat.switch_narrow') : t('chat.switch_wide')}
-										>
-											<LucideIcon
-												name={isWideScreen ? 'shrink' : 'stretch-horizontal'}
-												size={20}
-											/>
-										</div>
-										<I18nSwitcher />
-										{theme}
-										{github}
-										<AccountMenu />
-									</div>
-								)
-					}
-				/>
-
+			<UserShell
+				title={renderCenterTitle?.(currentApp?.config?.info)}
+				extra={
+					isMobile ? undefined : (
+						<Button
+							type="text"
+							icon={<ColumnWidthOutlined />}
+							aria-label={isWideScreen ? t('chat.switch_narrow') : t('chat.switch_wide')}
+							title={isWideScreen ? t('chat.switch_narrow') : t('chat.switch_wide')}
+							onClick={() => setIsWideScreen(!isWideScreen)}
+						/>
+					)
+				}
+				mobileMenu={
+					isMobile ? (
+						<Dropdown
+							trigger={['click']}
+							menu={{
+								className: '!pb-3 w-[80vw]',
+								activeKey: currentConversationId,
+								items: mobileMenuItems,
+							}}
+						>
+							<Button
+								type="text"
+								icon={<MenuOutlined />}
+								aria-label={t('system.menu')}
+							/>
+						</Dropdown>
+					) : undefined
+				}
+			>
 				{/* Main */}
-				<div className="bg-theme-main-bg flex flex-1 overflow-hidden rounded-t-3xl">
+				<div className="bg-theme-main-bg flex h-full overflow-hidden rounded-t-3xl">
 					{appLoading || initLoading ? (
 						<div className="absolute top-0 left-0 z-50 flex h-full w-full items-center justify-center">
 							<Spin spinning />
@@ -578,7 +569,7 @@ export default function ChatLayout(props: IChatLayoutProps) {
 						</div>
 					)}
 				</div>
-			</div>
+			</UserShell>
 
 			{extComponents}
 		</>

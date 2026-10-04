@@ -1,8 +1,7 @@
 import { AntdRegistry } from '@ant-design/nextjs-registry'
 import type { Metadata } from 'next'
 
-import AuthSessionProvider from '@/components/auth/session-provider'
-import PageLayoutWrapper from '@/components/layout/page-layout-wrapper'
+import AppProviders from '@/components/providers/app-providers'
 
 import './globals.css'
 
@@ -11,22 +10,16 @@ export const metadata: Metadata = {
 	description: 'A Dify web app that fits your business',
 }
 
-export default function RootLayout({
-	children,
-}: Readonly<{
-	children: React.ReactNode
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
 	return (
 		<html
 			lang="en"
 			suppressHydrationWarning
 		>
 			<body className="antialiased">
-				<AuthSessionProvider>
-					<AntdRegistry>
-						<PageLayoutWrapper>{children}</PageLayoutWrapper>
-					</AntdRegistry>
-				</AuthSessionProvider>
+				<AntdRegistry>
+					<AppProviders>{children}</AppProviders>
+				</AntdRegistry>
 			</body>
 		</html>
 	)

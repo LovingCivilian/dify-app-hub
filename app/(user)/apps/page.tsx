@@ -4,13 +4,12 @@ import { TagOutlined } from '@ant-design/icons'
 import { AppModeLabels } from '@/lib/core'
 import { useIsMobile } from '@/lib/helpers'
 import { useRequest } from 'ahooks'
-import { Col, Empty, message, Row } from 'antd'
+import { Col, Empty, message, Row, Typography } from 'antd'
 import { useRouter } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
 
-import AccountMenu from '@/components/auth/account-menu'
-import I18nSwitcher from '@/components/chat/i18n-switcher'
 import { LucideIcon } from '@/components/shared'
+import UserShell from '@/components/shell/user-shell'
 import appService from '@/services/app'
 
 export default function AppListPage() {
@@ -26,25 +25,11 @@ export default function AppListPage() {
 	})
 
 	return (
-		<div className="relative flex h-screen w-full flex-col overflow-hidden">
-			<div className="flex items-center px-3 py-2">
-				<LucideIcon
-					name="layout-grid"
-					size={16}
-					className="mr-1"
-				/>
-				{t('app.list')}
-				<div className="ml-auto flex items-center gap-4">
-					<I18nSwitcher />
-					<AccountMenu />
-				</div>
-			</div>
-			<div className="box-border flex-1 overflow-x-hidden overflow-y-auto rounded-t-3xl py-6">
+		<UserShell>
+			<div className="box-border flex min-h-full flex-col px-3 py-6 md:px-6">
+				<Typography.Title level={4}>{t('app.list')}</Typography.Title>
 				{list?.length ? (
-					<Row
-						gutter={[16, 16]}
-						className="px-3 md:px-6"
-					>
+					<Row gutter={[16, 16]}>
 						{list.map(item => {
 							if (!item.info) {
 								return (
@@ -101,11 +86,11 @@ export default function AppListPage() {
 						})}
 					</Row>
 				) : (
-					<div className="flex h-full items-center justify-center">
+					<div className="flex flex-1 items-center justify-center">
 						<Empty description={t('app.empty_contact_admin')} />
 					</div>
 				)}
 			</div>
-		</div>
+		</UserShell>
 	)
 }

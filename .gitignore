@@ -46,3 +46,9 @@ next-env.d.ts
 .env*.local
 .omo/
 logs/
+
+# playwright
+e2e/.auth/
+e2e/report/
+e2e/screenshots/
+test-results/

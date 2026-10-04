@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import AuthCard from '@/components/shell/auth-card'
+
 export default function InitPage() {
 	const { t } = useTranslation()
 	const router = useRouter()
@@ -63,70 +65,68 @@ export default function InitPage() {
 	}
 
 	return (
-		<div className="flex min-h-screen items-center justify-center p-6">
-			<div className="w-full max-w-md rounded bg-white p-6 shadow">
-				<Typography.Title level={3}>{t('init.title')}</Typography.Title>
-				<Typography.Paragraph>{t('init.description')}</Typography.Paragraph>
+		<AuthCard>
+			<Typography.Title level={3}>{t('init.title')}</Typography.Title>
+			<Typography.Paragraph>{t('init.description')}</Typography.Paragraph>
 
-				{initialized === false && (
-					<Alert
-						type="info"
-						showIcon
-						message={t('init.not_initialized')}
-						className="mb-4"
-					/>
-				)}
+			{initialized === false && (
+				<Alert
+					type="info"
+					showIcon
+					message={t('init.not_initialized')}
+					className="mb-4"
+				/>
+			)}
 
-				<Form
-					layout="vertical"
-					onFinish={onFinish}
+			<Form
+				layout="vertical"
+				onFinish={onFinish}
+			>
+				<Form.Item
+					label={t('init.admin_name')}
+					name="name"
+					rules={[{ required: true, message: t('init.admin_name_required') }]}
 				>
-					<Form.Item
-						label={t('init.admin_name')}
-						name="name"
-						rules={[{ required: true, message: t('init.admin_name_required') }]}
+					<Input placeholder={t('init.admin_name_placeholder')} />
+				</Form.Item>
+				<Form.Item
+					label={t('init.admin_email')}
+					name="email"
+					rules={[
+						{ required: true, message: t('init.admin_email_required') },
+						{ type: 'email', message: t('init.email_invalid') },
+					]}
+				>
+					<Input placeholder={t('init.admin_email_placeholder')} />
+				</Form.Item>
+				<Form.Item
+					label={t('init.admin_password')}
+					name="password"
+					rules={[
+						{ required: true, message: t('auth.password_required') },
+						{ min: 8, message: t('init.password_min_8') },
+					]}
+				>
+					<Input.Password placeholder={t('init.password_placeholder')} />
+				</Form.Item>
+				<Form.Item
+					label={t('auth.confirm_password')}
+					name="confirmPassword"
+					rules={[{ required: true, message: t('init.confirm_password_required') }]}
+				>
+					<Input.Password placeholder={t('init.confirm_password_placeholder')} />
+				</Form.Item>
+				<Form.Item>
+					<Button
+						type="primary"
+						htmlType="submit"
+						block
+						loading={loading}
 					>
-						<Input placeholder={t('init.admin_name_placeholder')} />
-					</Form.Item>
-					<Form.Item
-						label={t('init.admin_email')}
-						name="email"
-						rules={[
-							{ required: true, message: t('init.admin_email_required') },
-							{ type: 'email', message: t('init.email_invalid') },
-						]}
-					>
-						<Input placeholder={t('init.admin_email_placeholder')} />
-					</Form.Item>
-					<Form.Item
-						label={t('init.admin_password')}
-						name="password"
-						rules={[
-							{ required: true, message: t('auth.password_required') },
-							{ min: 8, message: t('init.password_min_8') },
-						]}
-					>
-						<Input.Password placeholder={t('init.password_placeholder')} />
-					</Form.Item>
-					<Form.Item
-						label={t('auth.confirm_password')}
-						name="confirmPassword"
-						rules={[{ required: true, message: t('init.confirm_password_required') }]}
-					>
-						<Input.Password placeholder={t('init.confirm_password_placeholder')} />
-					</Form.Item>
-					<Form.Item>
-						<Button
-							type="primary"
-							htmlType="submit"
-							block
-							loading={loading}
-						>
-							{t('init.submit')}
-						</Button>
-					</Form.Item>
-				</Form>
-			</div>
-		</div>
+						{t('init.submit')}
+					</Button>
+				</Form.Item>
+			</Form>
+		</AuthCard>
 	)
 }
