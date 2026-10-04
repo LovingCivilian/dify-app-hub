@@ -59,7 +59,21 @@ Data layer: the Dify provider stays an `AbstractChatProvider` with the three tra
 
 ## Lint baseline
 
-Recorded by sub-project 0 (see the plan's Task 5).
+**Date:** 2026-10-04
+
+**Command:** `npx -y @ant-design/cli lint ./`
+
+**Summary:** 75 issues: 5 deprecated, 7 a11y, 62 usage, 1 performance
+
+**Top 5 rules by frequency:**
+
+1. Static antd feedback API `message.error` cannot consume ConfigProvider context. Use App.useApp() instead. (35)
+2. Static antd feedback API `message.success` cannot consume ConfigProvider context. Use App.useApp() instead. (20)
+3. Clickable icon should have `aria-label` for screen readers (7)
+4. Static antd feedback API `Modal.confirm` cannot consume ConfigProvider context. Use App.useApp() instead. (3)
+5. Static antd feedback API `message.warning` cannot consume ConfigProvider context. Use App.useApp() instead. (2)
+
+Sub-projects 2–4 drive this to zero; no task may increase the error count.
 
 ## Status
 
