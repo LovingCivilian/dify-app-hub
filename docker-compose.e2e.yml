@@ -1,0 +1,23 @@
+# Throwaway MySQL for the Playwright suite: tmpfs storage, published on 127.0.0.1:3307 only.
+# Started by e2e/global-setup.ts; stop it with: docker compose -f docker-compose.e2e.yml down
+name: dify-app-hub-e2e
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: dify-app-hub-e2e-mysql
+    environment:
+      MYSQL_DATABASE: e2e
+      MYSQL_USER: e2e
+      MYSQL_PASSWORD: e2e
+      MYSQL_ROOT_PASSWORD: e2e
+    ports:
+      - '127.0.0.1:3307:3306'
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -u root -pe2e --silent']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
