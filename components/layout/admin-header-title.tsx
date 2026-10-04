@@ -8,8 +8,6 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import I18nSwitcher from '@/components/chat/i18n-switcher'
-
 enum ETopMenuKeys {
 	AppManagement = 'app-management',
 	UserManagement = 'user-management',
@@ -81,7 +79,6 @@ export default function AdminHeaderTitle() {
 					}
 				}}
 			/>
-			<I18nSwitcher />
 			{session?.user && (
 				<Dropdown
 					menu={{ items: menuItems }}

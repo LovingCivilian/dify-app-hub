@@ -2,6 +2,7 @@ import Image from 'next/image'
 import { ReactNode } from 'react'
 
 import LogoIcon from '@/assets/images/logo.png'
+import I18nSwitcher from '@/components/chat/i18n-switcher'
 
 import AdminHeaderTitle from './admin-header-title'
 import PageLayout from './page-layout'
@@ -30,6 +31,13 @@ export default function AdminPageLayout(props: IAdminPageLayoutProps) {
 				),
 				isTitleWrapped: true,
 				title: <AdminHeaderTitle />,
+				renderRightIcons: ({ theme, github }) => (
+					<div className="flex items-center gap-4">
+						<I18nSwitcher />
+						{theme}
+						{github}
+					</div>
+				),
 			}}
 		>
 			{children}

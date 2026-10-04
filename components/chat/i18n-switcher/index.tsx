@@ -13,7 +13,7 @@ const lngs = {
  * 国际化切换器
  */
 function I18nSwitcher() {
-	const { i18n } = useTranslation()
+	const { t, i18n } = useTranslation()
 
 	return (
 		<Dropdown
@@ -28,7 +28,10 @@ function I18nSwitcher() {
 				})),
 			}}
 		>
-			<div className="flex cursor-pointer items-center">
+			<div
+				className="flex cursor-pointer items-center"
+				title={t('system.language')}
+			>
 				<LucideIcon
 					name="languages"
 					size={20}
