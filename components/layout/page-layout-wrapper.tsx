@@ -1,62 +1,28 @@
 'use client'
 
-import { initResponsiveConfig } from '@/lib/helpers'
-import { ThemeContextProvider, useThemeContext } from '@/lib/theme'
-import { App, ConfigProvider, theme } from 'antd'
 import { usePathname } from 'next/navigation'
 import React from 'react'
-import { useTranslation } from 'react-i18next'
-
-import { useHtmlLang } from '@/hooks/use-html-lang'
-import { getAntdLocale } from '@/libs/antd-locale'
 
 import AuthGuard from '../auth/auth-guard'
 import AdminPageLayout from './admin-page-layout'
 
-import '@/libs/i18n'
-
-initResponsiveConfig()
-
-const ThemeContextWrapper = ({ children }: { children: React.ReactNode }) => {
-	const { isDark } = useThemeContext()
-	const { i18n } = useTranslation()
-	useHtmlLang()
-
-	return (
-		<ConfigProvider
-			locale={getAntdLocale(i18n.resolvedLanguage)}
-			theme={{
-				algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
-			}}
-		>
-			<App>{children}</App>
-		</ConfigProvider>
-	)
-}
-
-/**
- * 主要的作用是为 AntD 的 ConfigProvider 提供主题获取功能
- */
+/** Temporary (until the route groups land): admin pages get the admin layout, everything else renders as is. */
 export default function PageLayoutWrapper({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname()
-	const isLoginPage = pathname === '/login'
-	const isPasswordResetPage = pathname === '/forgot-password' || pathname === '/reset-password'
-	const isInitPage = pathname?.startsWith('/init')
-	const isUserRoute =
-		pathname?.startsWith('/chat') || pathname?.startsWith('/apps') || pathname?.startsWith('/auth')
-	const isPublicPage = isLoginPage || isPasswordResetPage || isInitPage || isUserRoute
+	const isPublicPage =
+		pathname === '/login' ||
+		pathname === '/forgot-password' ||
+		pathname === '/reset-password' ||
+		pathname?.startsWith('/init') ||
+		pathname?.startsWith('/chat') ||
+		pathname?.startsWith('/apps') ||
+		pathname?.startsWith('/auth')
 
-	return (
-		<ThemeContextProvider>
-			<ThemeContextWrapper>
-				{isPublicPage ? (
-					children
-				) : (
-					<AuthGuard>
-						<AdminPageLayout>{children}</AdminPageLayout>
-					</AuthGuard>
-				)}
-			</ThemeContextWrapper>
-		</ThemeContextProvider>
+	return isPublicPage ? (
+		children
+	) : (
+		<AuthGuard>
+			<AdminPageLayout>{children}</AdminPageLayout>
+		</AuthGuard>
 	)
 }

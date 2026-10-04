@@ -1,10 +1,8 @@
 import { useDifyChatStore } from '@/lib/core'
-import { XProvider } from '@ant-design/x'
 import { AppModeEnums, IDifyAppItem } from '@/lib/core'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { colors } from '@/components/chat/theme-config'
 import { isChatLikeApp, isWorkflowLikeApp } from '@/components/chat/utils-index'
 
 import ChatLayout from './chat-layout'
@@ -40,24 +38,20 @@ const MainLayout = (props: IMainLayoutProps) => {
 	// FIXME: 去掉这里的默认值
 	const appMode = currentApp?.config?.info?.mode || AppModeEnums.CHATBOT
 
-	return (
-		<XProvider theme={{ token: { colorPrimary: colors.primary, colorText: colors['theme-text'] } }}>
-			{isChatLikeApp(appMode) ? (
-				<ChatLayout {...props} />
+	return isChatLikeApp(appMode) ? (
+		<ChatLayout {...props} />
+	) : (
+		<CommonLayout
+			initLoading={props.initLoading}
+			renderCenterTitle={props.renderCenterTitle}
+			extComponents={props.extComponents}
+		>
+			{isWorkflowLikeApp(appMode) ? (
+				<WorkflowLayout />
 			) : (
-				<CommonLayout
-					initLoading={props.initLoading}
-					renderCenterTitle={props.renderCenterTitle}
-					extComponents={props.extComponents}
-				>
-					{isWorkflowLikeApp(appMode) ? (
-						<WorkflowLayout />
-					) : (
-						<div>{t('common.unsupported_app_type')}</div>
-					)}
-				</CommonLayout>
+				<div>{t('common.unsupported_app_type')}</div>
 			)}
-		</XProvider>
+		</CommonLayout>
 	)
 }
 
