@@ -35,7 +35,7 @@ Non-goals: sticky table headers or `Affix` relative to the window (none used tod
 
 - [x] Task 8 browser probe (PR #12 report): header at 0–64 px, `window.scrollY` stays 0 while the content scrolls.
 - [x] e2e `chat-header.spec.ts` and screenshots: chat sidebar + messages inside the viewport on desktop and mobile.
-- [ ] Sub-project 2: decide `100dvh` for the chat view.
+- [x] Sub-project 2: decide `100dvh` for the chat view.
 
 ## Alternatives Considered
 
@@ -45,3 +45,5 @@ Non-goals: sticky table headers or `Affix` relative to the window (none used tod
 ## More Information
 
 Source: PR #12 Task 8 review and fix round (commit `7c6c197e`); `docs/frontend-conventions.md`. Related: [ADR-0006](0006-require-login-everywhere-and-use-the-email-as-dify-end-user-id.md) (the client gates render a spinner before the shell paints; the gate design is a sub-project 2/3 question).
+
+2026-10-04 (sub-project 2): `100dvh` adopted with `100vh` as the cascade fallback (`components/shell/shell.module.css`); see the chat design spec §3.4. The "Sub-project 2: decide `100dvh`" verification item is done.

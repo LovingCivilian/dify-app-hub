@@ -2,7 +2,7 @@
 
 import { GithubOutlined, MenuOutlined } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
-import { Button, Drawer, Flex, Grid, Layout, Menu, Space, Typography, theme } from 'antd'
+import { Button, Drawer, Flex, Layout, Menu, Space, Typography, theme } from 'antd'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
@@ -16,20 +16,22 @@ import LanguageDropdown from './language-dropdown'
 import ThemeDropdown from './theme-dropdown'
 
 export interface AppHeaderProps {
-	/** Area navigation (admin). A horizontal Menu on desktop, inside a Drawer on mobile. */
+	/** Area navigation (admin). A horizontal Menu from md up, inside a Drawer below. */
 	nav?: MenuProps['items']
 	navSelectedKey?: string
 	/** Centre content (chat: the app title); the centre region is rendered only when this is set. */
 	title?: React.ReactNode
 	/** Controls placed before the standard dropdowns (chat: the width toggle). */
 	extra?: React.ReactNode
-	/** Mobile-only trigger that replaces the standard dropdowns (chat: the conversation menu). */
+	/** Below md this replaces the standard dropdowns (chat: the conversation drawer trigger). */
 	mobileMenu?: React.ReactNode
 }
 
 const GITHUB_URL = 'https://github.com/lexmin0412/dify-app-hub'
 
 // ADR-0014: click-triggered, i18n-named header controls — docs/decisions/0014-header-controls-click-triggered-named-through-i18next.md
+// Breakpoint variants are both rendered and switched by CSS (spec 2026-10-04 chat §3.3): Grid.useBreakpoint()
+// returns {} on the server, so a hook-chosen branch would paint the mobile header on desktop first.
 export default function AppHeader({
 	nav,
 	navSelectedKey,
@@ -39,8 +41,6 @@ export default function AppHeader({
 }: AppHeaderProps) {
 	const { t } = useTranslation()
 	const { token } = theme.useToken()
-	const screens = Grid.useBreakpoint()
-	const isMobile = !screens.md
 	const [navOpen, setNavOpen] = useState(false)
 	const selectedKeys = navSelectedKey ? [navSelectedKey] : []
 
@@ -75,13 +75,16 @@ export default function AppHeader({
 				gap={token.marginSM}
 				className={styles.side}
 			>
-				{isMobile && nav && (
-					<Button
-						type="text"
-						icon={<MenuOutlined />}
-						aria-label={t('system.menu')}
-						onClick={() => setNavOpen(true)}
-					/>
+				{nav && (
+					<span className={styles.mobileOnly}>
+						<Button
+							type="text"
+							icon={<MenuOutlined />}
+							aria-label={t('system.menu')}
+							title={t('system.menu')}
+							onClick={() => setNavOpen(true)}
+						/>
+					</span>
 				)}
 				<Link
 					href="/apps"
@@ -101,14 +104,16 @@ export default function AppHeader({
 						Dify App Hub
 					</Typography.Text>
 				</Link>
-				{!isMobile && nav && (
-					<Menu
-						mode="horizontal"
-						items={nav}
-						selectedKeys={selectedKeys}
-						className={styles.nav}
-						style={{ borderBottom: 0 }}
-					/>
+				{nav && (
+					<span className={styles.desktopOnly}>
+						<Menu
+							mode="horizontal"
+							items={nav}
+							selectedKeys={selectedKeys}
+							className={styles.nav}
+							style={{ borderBottom: 0 }}
+						/>
+					</span>
 				)}
 			</Flex>
 			{title && <div className={styles.center}>{title}</div>}
@@ -119,7 +124,14 @@ export default function AppHeader({
 				className={styles.side}
 			>
 				{extra}
-				{isMobile && mobileMenu ? mobileMenu : dropdowns}
+				{mobileMenu ? (
+					<>
+						<span className={styles.desktopOnly}>{dropdowns}</span>
+						<span className={styles.mobileOnly}>{mobileMenu}</span>
+					</>
+				) : (
+					dropdowns
+				)}
 			</Flex>
 			{nav && (
 				<Drawer

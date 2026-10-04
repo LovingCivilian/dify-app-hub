@@ -33,3 +33,20 @@
 		display: none;
 	}
 }
+
+/* Both breakpoint variants are in the DOM; these two classes pick one. display: contents keeps the
+   visible variant a direct flex child of the header region. screenSMMax = 767, screenMD = 768 (antd). */
+.desktopOnly,
+.mobileOnly {
+	display: contents;
+}
+@media (max-width: 767px /* screenSMMax */) {
+	.desktopOnly {
+		display: none;
+	}
+}
+@media (min-width: 768px /* screenMD */) {
+	.mobileOnly {
+		display: none;
+	}
+}
