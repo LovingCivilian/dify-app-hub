@@ -63,7 +63,13 @@ Data layer: the Dify provider stays an `AbstractChatProvider` with the three tra
 
 **Command:** `npx -y @ant-design/cli lint ./`
 
-**Summary:** 75 issues: 5 deprecated, 7 a11y, 62 usage, 1 performance
+**Scanned:** 208 files. Found 75 issues.
+
+**Summary by category:** 5 deprecated, 7 a11y, 62 usage, 1 performance
+
+**Severity breakdown:** The CLI marks each finding `✗` (error) or `⚠` (warning). Baseline: **1 error** (✗, performance, `app/app-management/page.tsx:8`, "Avoid default import from antd/es/typography/Title") and **74 warnings** (⚠).
+
+**How to re-check:** `grep -c '✗'` and `grep -c '⚠'` on the saved output.
 
 **Top 5 rules by frequency:**
 
@@ -71,9 +77,9 @@ Data layer: the Dify provider stays an `AbstractChatProvider` with the three tra
 2. Static antd feedback API `message.success` cannot consume ConfigProvider context. Use App.useApp() instead. (20)
 3. Clickable icon should have `aria-label` for screen readers (7)
 4. Static antd feedback API `Modal.confirm` cannot consume ConfigProvider context. Use App.useApp() instead. (3)
-5. Static antd feedback API `message.warning` cannot consume ConfigProvider context. Use App.useApp() instead. (2)
+5. Static antd feedback API `message.warning` cannot consume ConfigProvider context. Use App.useApp() instead. (2, ties with "Alert `message` is deprecated" at 2)
 
-Sub-projects 2–4 drive this to zero; no task may increase the error count.
+Sub-projects 2–4 drive this to zero. No task may increase the total (75) or the `✗` error count (1).
 
 ## Status
 
