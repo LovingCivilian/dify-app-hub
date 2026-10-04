@@ -23,7 +23,8 @@ interface WorkflowStore {
 	getAllData: () => { id: string; value: unknown }[]
 }
 
-const useWorkflowStore = create<WorkflowStore>()(
+// Exported for its persist API (hydration state, read by the chat history loader).
+export const useWorkflowStore = create<WorkflowStore>()(
 	persist(
 		(set, get) => ({
 			data: {},

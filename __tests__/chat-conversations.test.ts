@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+	DIFY_PLACEHOLDER_NAME,
 	groupFor,
 	mergeServerList,
+	regroup,
 	toConversationItem,
 	type ConversationItem,
 } from '@/components/chat/provider/conversations'
@@ -144,5 +146,60 @@ describe('mergeServerList', () => {
 		expect(
 			mergeServerList([server('gone', 'Gone')], [server('c1', 'One')]).map(c => c.difyId),
 		).toEqual(['c1'])
+	})
+	it('keeps the active conversation in place when the server page lacks it', () => {
+		// A deep-linked conversation older than the newest 100, or a new chat the list does not show yet.
+		const older = server('old', 'Old one')
+		const current = [temp, server('c2', 'Two'), older, server('c1', 'One')]
+		expect(
+			mergeServerList(current, [server('c2', 'Two'), server('c1', 'One')], {
+				activeKey: older.key,
+			}).map(c => c.key),
+		).toEqual([temp.key, `${APP}:c2`, `${APP}:old`, `${APP}:c1`])
+		expect(mergeServerList([sentTemp], [server('c1', 'One')], { activeKey: sentTemp.key })).toEqual(
+			[sentTemp, server('c1', 'One')],
+		)
+	})
+	it('still drops an inactive conversation the server page lacks', () => {
+		expect(
+			mergeServerList([server('gone', 'Gone'), server('c1', 'One')], [server('c1', 'One')], {
+				activeKey: `${APP}:c1`,
+			}).map(c => c.difyId),
+		).toEqual(['c1'])
+	})
+	it("keeps the client's label while the server still has Dify's placeholder name", () => {
+		const localized: ConversationItem = { ...sentTemp, label: 'محادثة جديدة' }
+		expect(mergeServerList([localized], [server('c9', DIFY_PLACEHOLDER_NAME)])[0].label).toBe(
+			'محادثة جديدة',
+		)
+		expect(mergeServerList([localized], [server('c9', 'Tea time')])[0].label).toBe('Tea time')
+	})
+	it("shows the localized default label for Dify's placeholder name, also on a conversation the client never named", () => {
+		const options = { defaultLabel: '新对话' }
+		expect(mergeServerList([], [server('c9', DIFY_PLACEHOLDER_NAME)], options)[0].label).toBe(
+			'新对话',
+		)
+		// A temp labelled before a language switch takes the current language's label.
+		const localized: ConversationItem = { ...sentTemp, label: 'محادثة جديدة' }
+		expect(
+			mergeServerList([localized], [server('c9', DIFY_PLACEHOLDER_NAME)], options)[0],
+		).toMatchObject({ key: sentTemp.key, label: '新对话' })
+		expect(mergeServerList([], [server('c9', 'Tea time')], options)[0].label).toBe('Tea time')
+	})
+})
+
+describe('regroup', () => {
+	it('recomputes each group against now, so a list left open past midnight relabels', () => {
+		const morning: ConversationItem = {
+			key: `${APP}:c1`,
+			label: 'One',
+			difyId: 'c1',
+			updatedAt: seconds(daysAgo(0, 9)),
+			inputs: {},
+			group: 'today',
+		}
+		const justAfterMidnight = local(2026, 9, 5, 0, 5)
+		expect(regroup([morning], justAfterMidnight)).toEqual([{ ...morning, group: 'yesterday' }])
+		expect(regroup([morning], NOW)).toEqual([morning])
 	})
 })
