@@ -153,6 +153,20 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 		[appId, getConversation, removeConversation, setActiveConversationKey, setConversation],
 	)
 
+	/** The stored parameter values of `key`, read from the store itself (the rendered list lags a write). */
+	const getInputs = useCallback(
+		(key: string) => (getConversation(key) as ConversationItem | undefined)?.inputs ?? {},
+		[getConversation],
+	)
+
+	/** The conversation's parameter values, as the form holds them (spec §5.2); the server's take over after a refresh. */
+	const setInputs = useCallback(
+		(key: string, inputs: Record<string, unknown>) => {
+			setConversation(key, { key, inputs })
+		},
+		[setConversation],
+	)
+
 	/** Renames on Dify, then locally; rejects with a DifyRequestError and keeps the label on failure. */
 	const rename = useCallback(
 		async (key: string, name: string) => {
@@ -206,6 +220,8 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 		error,
 		createTemp,
 		markDifyId,
+		getInputs,
+		setInputs,
 		rename,
 		remove,
 		refresh,

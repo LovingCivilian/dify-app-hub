@@ -6,34 +6,46 @@ export interface StubApp {
 	name: string
 	mode: StubMode
 	prefix: StubPrefix
+	/** Seeded into `dify_apps.opening_statement_display_mode`: 'always' keeps the welcome panel after the first reply. */
+	openingStatementDisplayMode: 'default' | 'always'
 }
 
 /** The five seeded apps. The first keeps the foundation's id and name so older specs keep their locators. */
 export const STUB_APPS: StubApp[] = [
-	{ id: 'e2e00000-0000-4000-8000-000000000001', name: 'Stub app', mode: 'chat', prefix: '' },
+	{
+		id: 'e2e00000-0000-4000-8000-000000000001',
+		name: 'Stub app',
+		mode: 'chat',
+		prefix: '',
+		openingStatementDisplayMode: 'default',
+	},
 	{
 		id: 'e2e00000-0000-4000-8000-000000000002',
 		name: 'Stub agent',
 		mode: 'agent-chat',
 		prefix: '/agent',
+		openingStatementDisplayMode: 'default',
 	},
 	{
 		id: 'e2e00000-0000-4000-8000-000000000003',
 		name: 'Stub chatflow',
 		mode: 'advanced-chat',
 		prefix: '/chatflow',
+		openingStatementDisplayMode: 'always',
 	},
 	{
 		id: 'e2e00000-0000-4000-8000-000000000004',
 		name: 'Stub workflow',
 		mode: 'workflow',
 		prefix: '/workflow',
+		openingStatementDisplayMode: 'default',
 	},
 	{
 		id: 'e2e00000-0000-4000-8000-000000000005',
 		name: 'Stub completion',
 		mode: 'completion',
 		prefix: '/completion',
+		openingStatementDisplayMode: 'default',
 	},
 ]
 

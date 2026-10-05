@@ -106,7 +106,8 @@
 		"send_placeholder": "اكتب رسالة",
 		"conversations_menu": "قائمة المحادثات",
 		"history_load_failed": "تعذّر تحميل رسائل هذه المحادثة",
-		"retry": "إعادة المحاولة"
+		"retry": "إعادة المحاولة",
+		"inputs_required": "يرجى تعبئة معاملات المحادثة أولاً."
 	},
 	"message": {
 		"response_time": "زمن الاستجابة",

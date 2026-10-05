@@ -1,6 +1,5 @@
 import { UploadOutlined } from '@ant-design/icons'
 import { IGetAppParametersResponse } from '@/lib/api'
-import { useDifyChatStore } from '@/lib/core'
 import { Button, GetProp, message, Upload } from 'antd'
 import { RcFile, UploadFile } from 'antd/es/upload'
 import { useEffect, useMemo, useState } from 'react'
@@ -10,6 +9,7 @@ import {
 	getDifyFileType,
 	getFileExtByName,
 } from '@/components/chat/message-sender/utils'
+import { useAppContext } from '@/components/chat/app-context'
 import { completeFileUrl } from '@/components/chat/utils-index'
 import { useTranslation } from 'react-i18next'
 
@@ -44,9 +44,8 @@ type IFileUploadProps = IFileUploadSingleProps | IFileUploadMultipleProps
 
 export default function FileUpload(props: IFileUploadProps) {
 	const { mode = 'multiple', maxCount, disabled, allowed_file_types, value, onChange } = props
-	const { difyApi } = useDifyChatStore()
+	const { difyApi, app } = useAppContext()
 	const [files, setFiles] = useState<GetProp<typeof Upload, 'fileList'>>([])
-	const currentApp = useDifyChatStore(s => s.currentApp)
 	const { t } = useTranslation()
 
 	useEffect(() => {
@@ -137,7 +136,7 @@ export default function FileUpload(props: IFileUploadProps) {
 		}
 		const { clear } = mockLoadingProgress()
 
-		const result = await difyApi!.uploadFile(file)
+		const result = await difyApi.uploadFile(file)
 		clear()
 		const fileType = getDifyFileType(file.name, allowed_file_types)
 		updateFiles([
@@ -158,10 +157,10 @@ export default function FileUpload(props: IFileUploadProps) {
 		return files.map(item => {
 			return {
 				...item,
-				url: completeFileUrl(item.url || '', currentApp?.config.requestConfig.apiBase || ''),
+				url: completeFileUrl(item.url || '', app.requestConfig.apiBase || ''),
 			}
 		})
-	}, [files, currentApp?.config.requestConfig.apiBase])
+	}, [files, app.requestConfig.apiBase])
 
 	return (
 		<Upload

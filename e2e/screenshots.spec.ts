@@ -50,7 +50,8 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 		ready: async page => {
 			await noSpinner(page)
 			await expect(header(page)).toBeVisible()
-			// The site's disclaimer under the sender marks the loaded chat view.
+			// The welcome panel's opening statement and the site's disclaimer under the sender mark the loaded chat view.
+			await expect(page.getByText('Hello from the stub')).toBeVisible()
 			await expect(page.getByText('Answers come from the stub.')).toBeVisible()
 			await expect(page.getByRole('textbox').first()).toBeEditable()
 		},

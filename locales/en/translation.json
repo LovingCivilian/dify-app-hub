@@ -106,7 +106,8 @@
 		"send_placeholder": "Type a message",
 		"conversations_menu": "Conversations menu",
 		"history_load_failed": "Could not load this conversation's messages",
-		"retry": "Retry"
+		"retry": "Retry",
+		"inputs_required": "Fill in the conversation parameters first."
 	},
 	"message": {
 		"response_time": "Response time",

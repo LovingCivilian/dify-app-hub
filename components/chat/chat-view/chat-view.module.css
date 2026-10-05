@@ -70,3 +70,20 @@
 .historyAlert {
 	padding-block-start: var(--ant-padding-sm);
 }
+/* Welcome and the conversation parameters sit above the messages; they take at most half the column and
+   scroll beyond that, so the messages always keep room. */
+.top {
+	flex: 0 1 auto;
+	min-height: 0;
+	max-height: 50%;
+	overflow: auto;
+}
+.welcome {
+	padding-block: var(--ant-padding);
+}
+.inputs {
+	padding-block-end: var(--ant-padding-sm);
+}
+.suggestions {
+	padding-block-start: var(--ant-padding-sm);
+}

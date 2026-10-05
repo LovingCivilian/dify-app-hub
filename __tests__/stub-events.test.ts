@@ -53,6 +53,17 @@ describe('modeFromPath', () => {
 		expect(STUB_APPS[0]).toMatchObject({ id: APP_ID, name: 'Stub app', mode: 'chat', prefix: '' })
 		expect(STUB_APPS).toHaveLength(5)
 	})
+	it('seeds the chatflow app with the always-on opening statement and the others with the default', () => {
+		expect(
+			Object.fromEntries(STUB_APPS.map(app => [app.mode, app.openingStatementDisplayMode])),
+		).toEqual({
+			chat: 'default',
+			'agent-chat': 'default',
+			'advanced-chat': 'always',
+			workflow: 'default',
+			completion: 'default',
+		})
+	})
 	it('exposes the app id of every mode', () => {
 		expect(APP_IDS.chat).toBe(APP_ID)
 		expect(Object.keys(APP_IDS).sort()).toEqual(
@@ -562,8 +573,8 @@ describe('parametersFor', () => {
 			expect(p.file_upload.enabled).toBe(false)
 		}
 	})
-	it('asks for a topic in the workflow and completion apps', () => {
-		for (const mode of ['workflow', 'completion'] as const) {
+	it('asks for a required topic in the workflow, completion and agent apps', () => {
+		for (const mode of ['workflow', 'completion', 'agent-chat'] as const) {
 			expect(parametersFor(mode).user_input_form).toEqual([
 				{
 					'text-input': {
@@ -576,6 +587,8 @@ describe('parametersFor', () => {
 				},
 			])
 		}
-		expect(parametersFor('chat').user_input_form).toEqual([])
+		for (const mode of ['chat', 'advanced-chat'] as const) {
+			expect(parametersFor(mode).user_input_form).toEqual([])
+		}
 	})
 })

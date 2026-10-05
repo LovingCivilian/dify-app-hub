@@ -224,7 +224,7 @@ export const parametersFor = (mode: StubMode) => {
 		retriever_resource: { enabled: rich },
 		annotation_reply: { enabled: false },
 		user_input_form:
-			mode === 'workflow' || mode === 'completion'
+			mode === 'workflow' || mode === 'completion' || mode === 'agent-chat'
 				? [
 						{
 							'text-input': {

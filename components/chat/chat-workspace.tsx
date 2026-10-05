@@ -113,11 +113,11 @@ export default function ChatWorkspace({ appId }: { appId: string }) {
 		)
 	}
 	const mode = state.value.app.info.mode ?? AppModeEnums.CHATBOT
-	// Workflow and completion apps keep the old page until their views land (Task 17).
-	if (!isChatLikeApp(mode)) return <ChatLayoutWrapper />
 	return (
 		<AppContext.Provider value={state.value}>
-			<ChatView />
+			{/* Workflow and completion apps keep the old page until their views land (Task 17); its file
+			    controls read the app from this context. */}
+			{isChatLikeApp(mode) ? <ChatView /> : <ChatLayoutWrapper />}
 		</AppContext.Provider>
 	)
 }

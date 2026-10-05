@@ -106,7 +106,8 @@
 		"send_placeholder": "输入消息",
 		"conversations_menu": "会话菜单",
 		"history_load_failed": "无法加载此会话的消息",
-		"retry": "重试"
+		"retry": "重试",
+		"inputs_required": "请先填写对话参数。"
 	},
 	"message": {
 		"response_time": "回复时间",
