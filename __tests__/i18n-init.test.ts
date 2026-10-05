@@ -61,12 +61,6 @@ describe('i18n setup', () => {
 		)
 	})
 
-	it('reads naturally when the human-input countdown has expired', async () => {
-		await i18n.changeLanguage('en')
-		expect(i18n.t('hitl.remaining', { time: i18n.t('hitl.expired') })).toBe('⏱ Time left: Expired')
-		expect(i18n.t('hitl.remaining', { time: '5m 3s' })).toBe('⏱ Time left: 5m 3s')
-	})
-
 	it('defines the key the rename dialog already uses', async () => {
 		await i18n.changeLanguage('en')
 		expect(i18n.t('chat.rename_placeholder')).toBe('Enter a conversation name')

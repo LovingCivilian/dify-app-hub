@@ -78,3 +78,13 @@ URLs do not change. `app/(user)/auth/page.tsx` (fingerprint, vestigial) is delet
 ## 4. Out of scope here
 
 Page internals (chat bubbles, tables, forms), Tailwind removal, Lucide removal, XMarkdown — sub-projects 2–4.
+
+## Spec drift (resolved 2026-10-05)
+
+The foundation handoff (`docs/superpowers/handoffs/2026-10-04-frontend-foundation.md`, "Spec drift to reconcile") listed five places where the branch differs from §2–§3 above; the approved plan decided each, and this spec now defers to what was built. Where each landed:
+
+1. **Theme provider location.** §3.1 moves `ThemeContextProvider` to `components/providers/` as `ThemeModeProvider`; it stays `ThemeContextProvider` in `lib/theme/theme-context.tsx`, used by `components/providers/app-providers.tsx`. Since sub-project 2 it starts from the theme cookies the root layout reads ([ADR-0016](../../decisions/0016-store-the-theme-preference-in-cookies.md)).
+2. **i18n provider.** §3.1 names an `I18nProvider` component running `useHtmlLang`; sub-project 1 used the module i18n instance with `useHtmlLang()` inside `AppProviders`. Since sub-project 2 (Task 18b) the stack is `I18nextProvider` (a per-request clone with the cookie's language on the server) → `InitialLanguage` (react-i18next `useSSR`) → `SessionProvider` → `ThemeContextProvider` → `XProvider` → `App`, with `useHtmlLang()` kept for changes after hydration (ADR-0005 note of 2026-10-05, `docs/i18n-maintenance.md`).
+3. **Where `UserShell` renders.** §3.2 has the `(user)` layout render `UserShell`; the apps page and the chat views render it (the chat passes header slots: the wide-screen toggle and the mobile menu). Since sub-project 2 the `(user)` layout is the server gate (`requireSessionUser()`, [ADR-0018](../../decisions/0018-gate-route-groups-on-the-server.md)) and renders only its children.
+4. **shadcn blocks.** §3.4 says they "stay for now"; they are aliased to antd tokens through the `--theme-*` variables on `.ant-app` ([ADR-0012](../../decisions/0012-alias-legacy-theme-variables-to-antd-tokens.md)) and go in sub-project 4.
+5. **Stub catalogue.** §2.3 describes the full stream catalogue; sub-project 1 shipped the plain chat stream only. Sub-project 2 completed it in `e2e/fixtures/stub/` (five apps by path prefix, agent, chatflow, HITL, error, file, citation and Markdown streams, per-user storage) and removed the test-only reset ([ADR-0010](../../decisions/0010-verify-the-frontend-with-playwright-and-a-stub-dify-api.md) note of 2026-10-05).

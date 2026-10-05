@@ -67,21 +67,25 @@ antd's `Grid.useBreakpoint()` returns its default (`{}`) on the server and on th
 ```ts
 // components/chat/provider/message.ts
 export interface DifyChatMessage {
-  role: 'user' | 'assistant'
-  content: string                       // answer text (message / agent_message / message_replace) or the user's query
-  reasoning?: string                    // reasoning_chunk deltas joined
-  reasoningDone?: boolean               // reasoning_chunk.is_final
-  thoughts?: AgentThought[]             // agent_thought upserted by position
-  workflow?: { runId?: string; status: 'running' | 'paused' | 'finished' | 'failed'; nodes: WorkflowNode[] }
-  files?: MessageFile[]                 // message_file events, or message_files from history
-  citations?: RetrieverResource[]       // message_end.metadata.retriever_resources, or history
-  humanInput?: HumanInputState          // human_input_required (+ filled / timeout)
-  error?: { code?: string; message: string; status?: number }
-  ids: { messageId?: string; conversationId?: string; taskId?: string }
-  createdAt?: number                    // StreamEventBase.created_at (seconds)
-  feedback?: 'like' | 'dislike' | null
-  inputs?: Record<string, unknown>      // user message: the inputs sent with it (from history)
-  aborted?: boolean                     // set by requestFallback on AbortError
+	role: 'user' | 'assistant'
+	content: string // answer text (message / agent_message / message_replace) or the user's query
+	reasoning?: string // reasoning_chunk deltas joined
+	reasoningDone?: boolean // reasoning_chunk.is_final
+	thoughts?: AgentThought[] // agent_thought upserted by position
+	workflow?: {
+		runId?: string
+		status: 'running' | 'paused' | 'finished' | 'failed'
+		nodes: WorkflowNode[]
+	}
+	files?: MessageFile[] // message_file events, or message_files from history
+	citations?: RetrieverResource[] // message_end.metadata.retriever_resources, or history
+	humanInput?: HumanInputState // human_input_required (+ filled / timeout)
+	error?: { code?: string; message: string; status?: number }
+	ids: { messageId?: string; conversationId?: string; taskId?: string }
+	createdAt?: number // StreamEventBase.created_at (seconds)
+	feedback?: 'like' | 'dislike' | null
+	inputs?: Record<string, unknown> // user message: the inputs sent with it (from history)
+	aborted?: boolean // set by requestFallback on AbortError
 }
 ```
 
@@ -242,7 +246,7 @@ Verdict rule: all nine pass → adopt `XMarkdown`, remove the `react-markdown` p
 
 ## 7. i18n and the X locale
 
-- `libs/x-locale.ts`: `import enUS from '@ant-design/x/locale/en_US'`, `zhCN` likewise, `ar` as a fork object typed `xLocale` with all 20 strings in Modern Standard Arabic (Conversations.create, Sender.stopLoading/speechRecording, Actions.*, Bubble.editableOk/Cancel, Mermaid.*, Folder.*); `getXLocale(language)` with English fallback; `app-providers.tsx` passes `locale={{ ...getAntdLocale(lang), ...getXLocale(lang) }}` (XProvider docs). `__tests__/x-locale.test.ts` checks the three objects have identical key sets.
+- `libs/x-locale.ts`: `import enUS from '@ant-design/x/locale/en_US'`, `zhCN` likewise, `ar` as a fork object typed `xLocale` with all 20 strings in Modern Standard Arabic (Conversations.create, Sender.stopLoading/speechRecording, `Actions.*`, Bubble.editableOk/Cancel, `Mermaid.*`, `Folder.*`); `getXLocale(language)` with English fallback; `app-providers.tsx` passes `locale={{ ...getAntdLocale(lang), ...getXLocale(lang) }}` (XProvider docs). `__tests__/x-locale.test.ts` checks the three objects have identical key sets.
 - New i18next keys (all three files, typed): conversation group labels, load earlier, stopped caption, HITL field and state labels, workflow run and result labels, sender hints, error texts; existing `chat.*`, `message.*`, `sender.*`, `hitl.*`, `workflow.*`, `annotation.*` keys are reused where the text is unchanged and deleted when their component goes. Accessible names of icon-only buttons come from keys (ADR-0014) and are e2e locator contracts.
 - `docs/i18n-maintenance.md`: add the X locale file to "Adding a language" and remove the mention of the chat's language radio (gone with the mobile mega-menu).
 
@@ -331,3 +335,19 @@ docs/decisions/0016 0017 0018
 ## 16. Sources consulted (per API decision)
 
 `.claude/skills/use-x-chat/SKILL.md` and `reference/API.md`, `CORE.md` (conversationKey, defaultMessages, queueRequest, onReload, requestFallback, isDefaultMessagesRequesting; useXConversations); `.claude/skills/x-chat-provider/SKILL.md` (three transforms, manual request, provider per conversation, `fetch` and `callbacks` options); `.claude/skills/x-request/SKILL.md`; `.claude/skills/x-components/SKILL.md`, `reference/COMPONENTS.md`, `PATTERNS.md` (Patterns 1–5, 7), `API.md` (Bubble, Conversations, Sender, Attachments, Actions, Sources, ThoughtChain, Think, Welcome, Prompts, FileCard); `.claude/skills/x-markdown/*` (CORE, STREAMING, EXTENSIONS, API); installed types in `node_modules/@ant-design/x/es/{bubble,actions,locale,sender,attachments}`, `node_modules/@ant-design/x-sdk/es/{x-chat,x-conversations,chat-providers,x-request}`, `node_modules/@ant-design/x-markdown/es/XMarkdown/interface.d.ts`; antd: `Layout`/`Sider`, `Grid.useBreakpoint` (`antd/es/grid/hooks/useBreakpoint.js`), `Upload.customRequest`, `Image.PreviewGroup`, `App.useApp`, `Statistic.Countdown`; Next bundled docs: `02-guides/authentication.md` (layouts and auth checks), `03-api-reference/03-file-conventions/layout.md`, `03-api-reference/04-functions/cookies.md`, `02-guides/preventing-flash-before-hydration.md`; next-auth v4: `configuration/nextjs` (getServerSession in server components), `getting-started/client` (SessionProvider `session` prop); Dify: `openapi_service.json` as cited inline.
+
+## Deviations during execution (2026-10-05)
+
+The plan's execution changed this spec in the places below; where they disagree, the code and the cited record win. ADR-0017 carries the detail for the data layer and the components; the other items are recorded in the commit bodies named (`git log 11c3fb3d..` on this branch).
+
+- **History page order (§4.1).** Dify's `GET /messages` returns each page oldest first (the OpenAPI "newest first" describes the paging direction), so the history mapper keeps a page's order and does not reverse it; `first_id` is the oldest loaded message. [ADR-0017](../../decisions/0017-build-the-chat-on-ant-design-x.md) note of 2026-10-05 (Task 7), commit `025bff8f`.
+- **`100dvh` (§3.4).** As specified (`100vh` then `100dvh`); the production CSS minifier keeps the `100vh` fallback only for browser targets without `dvh`, which is harmless (found in the Task 3 review; the Docker check of Task 20 confirms the build). Commit `5e2febcd`, ADR-0011 note of 2026-10-04.
+- **Breakpoint switch (§3.3).** Mobile first with a single query: the mobile variant shows by default and `@media (min-width: 768px /* screenMD */)` shows the desktop one and hides the mobile one, so the two are exact complements at fractional widths; the max-width 767 / min-width 768 pair in §3.3 left a sub-pixel gap where both showed. Recorded in `docs/frontend-conventions.md` §4.3.4 and commit `eff79d6f`; the header's own CSS still uses the pair (sub-project 3).
+- **Dependencies (§11).** `react-syntax-highlighter` (and its types) stays: the dark code style passes Prism `oneDark` through `CodeHighlighter`'s `highlightProps`, and X has no dark style of its own. The ECharts block hardens every fence option before drawing it (`hardenEChartsOption`, ECharts Security Guidelines). ADR-0017 (Markdown verdict, Implementation Plan), commit `23cc5daf`.
+- **Mobile drawer (§5.1).** The header's mobile button is named `system.menu`; the Drawer it opens is titled `chat.conversations_menu` ("Conversations menu") instead of `system.menu`. ADR-0014 note of 2026-10-05, commit `b20835ff`.
+- **antd 6 names (§5.2, §5.3).** The HITL countdown is `Statistic.Timer` (`Statistic.Countdown` is deprecated in antd 6) and every `Alert` takes `title` (its `message` prop is deprecated). Commits `2df4d7e6`, `77bb00ba`.
+- **Feedback (§5.2, §10).** X 2.9.0 colours neither feedback choice by default, and `Actions.Feedback`'s choices are unnamed `span`s the keyboard cannot reach; like and dislike are antd `Button`s rendered through `Actions`' documented `actionRender`, named through i18next keys, with `aria-pressed` and the selected colour (`colorSuccess`, `colorError`) through `style` ([ADR-0014](../../decisions/0014-header-controls-click-triggered-named-through-i18next.md)). ADR-0017 note of 2026-10-05 (Task 14), commit `31e36872`.
+- **Assistant content (§5.2).** `AssistantContent` takes an `extra` slot (the human input form is passed in by the view) instead of an `onResume` callback. Commit `77bb00ba`.
+- **Workflow output (§4.8).** When a workflow run's `outputs` holds a single string, it replaces the text streamed by `text_chunk` (the OpenAPI example streams partial chunks before the full output; the old layout did the same). Commit `03cf5ec3`.
+- **Language cookie (new §3.2 item).** The UI language is the `i18next` cookie read in the root layout, like the theme (`<html lang>` and `initialLanguage` on the server, a per-request i18next clone, react-i18next `useSSR` on the client), so the server renders the visitor's language and the shells hydrate without a mismatch. ADR-0005 and ADR-0016 notes of 2026-10-05, `docs/i18n-maintenance.md`, commit `1ce5f90d` (Task 18b).
+- **Stub apps (§8.1).** The stub's agent app has a required `Topic` text input (the "required inputs block sending" case of §8.2), so every spec that sends on it fills the field first; the chatflow app is seeded with the always-on welcome (`openingStatementDisplayMode: 'always'`) so that case is covered. Commit `92dc5d9f`.

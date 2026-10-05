@@ -14,49 +14,39 @@
 		"created_at": "创建时间",
 		"enabled": "启用",
 		"disabled": "禁用",
-		"empty": "空",
 		"none": "无",
 		"total_items": "共 {{total}} 条",
 		"delete_success": "删除成功",
 		"delete_failed": "删除失败",
 		"create_success": "创建成功",
 		"update_success": "更新成功",
-		"operation_success": "操作成功",
 		"operation_failed": "操作失败",
 		"operation_error": "操作时发生错误",
 		"request_failed_retry": "请求失败，请稍后重试",
 		"network_error_retry": "网络错误，请稍后重试",
-		"copied_to_clipboard": "已复制到剪贴板",
 		"unauthorized": "未授权, 请检查你的配置",
 		"unsupported_file_type": "不支持的文件类型: {{ext}}",
-		"unsupported_app_type": "不支持的应用类型",
-		"unsupported_app_type_with_mode": "不支持的应用类型: {{mode}}"
+		"unsupported_app_type": "不支持的应用类型"
 	},
 	"form": {
 		"select_placeholder": "请选择",
 		"input_placeholder": "请输入",
 		"upload_placeholder": "点击上传",
 		"field_required": "{{label}}不能为空",
-		"unsupported_control": "暂不支持的控件类型: {{type}}",
-		"decompress_failed": "解压缩参数 {{name}} 失败: {{error}}",
-		"validation_failed": "表单校验失败: {{errors}}"
+		"decompress_failed": "解压缩参数 {{name}} 失败: {{error}}"
 	},
 	"app": {
 		"list": "应用列表",
 		"no_data_default": "暂无应用",
-		"no_title_default": "暂无标题",
 		"no_description": "暂无描述",
 		"no_config_default_text": "暂无 Dify 应用配置，请联系管理员",
 		"fetch_list_failed": "获取应用列表失败: {{error}}",
 		"info_missing": "应用信息缺失，请检查",
 		"no_description_user": "该应用暂无描述",
 		"empty_contact_admin": "暂无应用数据，请联系管理员配置",
-		"fetch_params_failed": "获取应用参数失败: {{error}}",
 		"load_failed": "加载失败",
 		"reload_page": "刷新页面",
-		"loading": "应用加载中...",
-		"configure_first": "请先配置 Dify 应用",
-		"start_configuring": "开始配置"
+		"loading": "应用加载中..."
 	},
 	"app_mode": {
 		"name": {
@@ -76,12 +66,10 @@
 	},
 	"chat": {
 		"chat_list": "对话列表",
-		"no_data_default": "暂无对话",
 		"new_chat": "新增对话",
 		"rename": "重命名",
 		"rename_placeholder": "请输入对话名称",
 		"rename_success": "重命名成功",
-		"rename_conversation_success": "对话重命名成功",
 		"delete": "删除",
 		"delete_confirm_title": "确定删除当前对话吗？",
 		"delete_confirm_content": "删除后，聊天记录将不可恢复。",
@@ -95,8 +83,6 @@
 		"switch_narrow": "切换窄屏",
 		"switch_wide": "切换宽屏",
 		"suggested_questions": "🤔 你可能还想问:",
-		"message_not_found": "消息不存在",
-		"replying": "正在回复，请耐心等待...",
 		"group_today": "今天",
 		"group_yesterday": "昨天",
 		"group_week": "最近 7 天",
@@ -111,17 +97,9 @@
 		"inputs_required": "请先填写对话参数。"
 	},
 	"message": {
-		"response_time": "回复时间",
 		"action_regenerate": "重新生成回复",
-		"action_copy": "复制",
-		"copy_success": "复制成功",
-		"copy_code": "复制代码",
 		"annotation": "标注",
 		"tts": "语音朗读",
-		"feedback_positive": "点赞",
-		"feedback_negative": "点踩",
-		"feedback_thanks": "感谢反馈",
-		"feedback_prompt": "请告知我们此回复有何不妥之处。",
 		"dislike_reason": "哪里不对？（可选）",
 		"send_feedback": "发送反馈",
 		"like": "点赞",
@@ -138,11 +116,8 @@
 		"echarts_invalid": "图表定义不是有效的 JSON。",
 		"echarts_failed": "无法绘制该图表。",
 		"svg_invalid": "无法绘制该 SVG 图像。",
-		"mermaid_classic": "经典",
-		"mermaid_hand_drawn": "手绘",
 		"tool": {
 			"title_prefix": "已使用",
-			"title_default": "暂无标题",
 			"request": "请求",
 			"response": "响应"
 		},
@@ -155,7 +130,6 @@
 			"title": "引用",
 			"word_count": "字符: {{value}}",
 			"hit_count": "召回次数: {{value}}",
-			"vector_hash": "向量哈希: {{value}}",
 			"score": "召回得分: {{value}}"
 		}
 	},
@@ -354,7 +328,6 @@
 		"failed": "运行失败",
 		"stopped": "已停止",
 		"empty_hint": "点击 \"运行\" 试试看, AI 会给你带来意想不到的惊喜。",
-		"copy_content": "复制内容",
 		"summary": "节点：{{nodes}} · 耗时：{{seconds}} 秒 · Tokens：{{tokens}}",
 		"tokens": "Tokens：{{value}}",
 		"retries": "已重试 {{times}} 次",
@@ -373,8 +346,6 @@
 		"supported_types": "支持的文件类型：{{types}}",
 		"recognizing": "正在识别...",
 		"speech_to_text_error": "语音转文本错误: {{error}}",
-		"single_file_only": "暂不支持一次性上传多个文件，请逐个上传",
-		"content_required": "内容不能为空",
 		"wait_for_uploads": "请等待所有文件上传完成",
 		"attach": "添加附件",
 		"too_many_files": "最多 {{limit}} 个文件",
@@ -386,19 +357,9 @@
 		"remote_only_unsupported": "此输入项仅接受文件链接，本页面暂不支持发送。",
 		"remote_only_required": "此必填项仅接受文件链接，本页面暂不支持发送，因此无法在此使用该应用。"
 	},
-	"params": {
-		"name": "参数名",
-		"label": "标签",
-		"required": "必填",
-		"hidden": "隐藏"
-	},
 	"hitl": {
 		"title": "人工介入",
-		"remaining": "⏱ 剩余 {{time}}",
 		"expired": "已过期",
-		"time_days_hours": "{{d}}天{{h}}小时",
-		"time_hours_minutes": "{{h}}小时{{m}}分",
-		"time_minutes_seconds": "{{m}}分{{s}}秒",
 		"submit_failed": "提交失败，请重试",
 		"submitted": "已提交：{{action}}",
 		"expired_hint": "此表单已无法提交。",

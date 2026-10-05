@@ -53,10 +53,10 @@ Lines the `git grep` is expected to print:
 
 - `components/shell/language-dropdown.tsx`: `中文`, the language's own name.
 - `locales/zh/translation.json` is excluded by the path list; `locales/ar/translation.json` contains no Chinese.
-- `components/chat/markdown-renderer/blocks/think-block.tsx`: `text.includes('思考')`, matching model output.
-- `components/chat/chatbox/message/referrence.tsx`: text inside a commented-out block.
-- Trailing code comments (for example in `components/chat/chatbox-wrapper.tsx`).
+- Trailing code comments: `lib/api-utils.ts`, `lib/helpers/id.ts`.
 - Server-side files not yet translated: `app/(admin)/app-management/actions.ts`, `lib/mail.ts`, `lib/auth.ts`.
+
+That is the complete list after the chat rebuild (2026-10-05); anything else is new text to translate.
 
 ## Typical merge conflicts
 

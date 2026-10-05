@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-04
 decision-makers: LovingCivilian (fork owner)
 consulted: Claude Code session (chat sub-project, Task 4)
@@ -80,8 +80,8 @@ Conclusion: **XMarkdown adopted; the react-markdown pipeline and its packages ar
 - [x] Markdown spike: nine criteria on three projects, 27/27 passed, no console output (table above).
 - [x] `__tests__/markdown-dompurify.test.ts`, `__tests__/markdown-samples.test.ts` and `__tests__/echarts-option.test.ts` pass.
 - [ ] A production build draws the first Mermaid diagram on a page (X Mermaid's render effect blanks it under development Strict Mode); Task 20's Docker check ticks this.
-- [ ] Tasks 6–17: provider, keys, `defaultMessages` + `queueRequest`, `onReload` resume and regenerate land with their unit and e2e tests; the chat specs re-verify the Markdown criteria in place.
-- [ ] Task 19: the old renderer and the removable packages are gone (`git grep` and `pnpm why` empty).
+- [x] Tasks 6–17: provider, keys, `defaultMessages` + `queueRequest`, `onReload` resume and regenerate land with their unit and e2e tests; the chat specs re-verify the Markdown criteria in place.
+- [x] Task 19: the old renderer and the removable packages are gone (`git grep` and `pnpm why` empty).
 
 ## More Information
 
@@ -94,3 +94,5 @@ Note, 2026-10-05 (Task 13, human input): a message holds one human input form (`
 Note, 2026-10-05 (Task 13 review, human input fields): the form reads `option_source.value` (select options), `allowed_file_types` and `number_limits` from the inputs of the stream's `human_input_required` and of the history's `extra_contents`. The OpenAPI documents those fields only on `GET /form/human_input/{form_token}`; `StreamEventHumanInputRequired.data.inputs[]` and `HumanInputFormDefinition.inputs` (`FormInput`) document only `type`, `default` and `output_variable_name`. langgenius/dify `main` as read on 2026-10-05 does send them in the stream (`HumanInputRequiredResponse.Data.inputs: Sequence[FormInputConfig]` in `api/core/app/entities/task_entities.py`, whose select and file configs carry them), but the document does not promise it. If a real Dify sends only the documented fields, a required `Select` has no options and the form cannot be submitted. The documented way is to read the form with GET /form/human_input; the app has no GET proxy route (only POST), and adding one is a backend follow-up, listed in the backend rework brief. A failed resume after Dify accepted a submission (`onReload` throwing for a message the store no longer holds, or the resumed stream failing) shows `hitl.resume_failed` and has no in-app retry yet; reopening the conversation shows the filled summary from the history.
 
 Note, 2026-10-05 (Task 14, message footer): the rating controls are two antd `Button`s (`type="text"`, `LikeOutlined`/`LikeFilled`, `DislikeOutlined`/`DislikeFilled`) rendered through X `Actions`' documented `actionRender`, not X's `Actions.Feedback`. This is a deviation from spec §5.2. `Actions.Feedback` renders its two choices as `span`s with an `onClick`, no role, no `tabIndex` and no name of their own; its HTML attributes go to the root `div` only (installed `@ant-design/x` 2.9.0 `es/actions/ActionsFeedback.js`). Screen readers get only the icons' English `aria-label`s ("like", "dislike"), and the keyboard cannot reach the choices, which [ADR-0014](0014-header-controls-click-triggered-named-through-i18next.md) rules out. The buttons are named through `message.like` and `message.dislike`, carry `aria-pressed`, take the chosen colour through `style` (`colorSuccess`, `colorError`) and are `disabled` while a reply runs. Spec erratum: §5.2 says "dislike red is X's own `colorError`", but X 2.9.0 colours neither choice by default; its feedback style sets only the RTL direction (`es/actions/style/feedback.js`), and the list colour is `colorText`.
+
+Note, 2026-10-05 (Task 19, dependencies): the old renderer's packages listed above are removed (`react-markdown`, `remark-gfm`, `remark-math`, `remark-breaks`, `rehype-katex`, `rehype-raw`, `katex`, `hast`, `@types/hast`, `mermaid`), with spec §11's `react-infinite-scroll-component`, `react-photo-view`, `pure-react-router` and `@radix-ui/react-collapsible`; each had no importer left (`git grep`) and no direct edge from the app in `pnpm why`. Also removed with the page because their last importer was deleted: `@emoji-mart/data`, `emoji-mart`, `@heroicons/react`, `@toolkit-fe/clipboard`, `classnames`, `lodash-es`, `@types/lodash-es`.

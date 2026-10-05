@@ -14,49 +14,39 @@
 		"created_at": "Created",
 		"enabled": "Enabled",
 		"disabled": "Disabled",
-		"empty": "Empty",
 		"none": "None",
 		"total_items": "Total: {{total}}",
 		"delete_success": "Deleted",
 		"delete_failed": "Failed to delete",
 		"create_success": "Created",
 		"update_success": "Updated",
-		"operation_success": "Done",
 		"operation_failed": "Operation failed",
 		"operation_error": "Something went wrong",
 		"request_failed_retry": "Request failed. Please try again later.",
 		"network_error_retry": "Network error. Please try again later.",
-		"copied_to_clipboard": "Copied to clipboard",
 		"unauthorized": "Unauthorized. Check your configuration.",
 		"unsupported_file_type": "Unsupported file type: {{ext}}",
-		"unsupported_app_type": "Unsupported app type",
-		"unsupported_app_type_with_mode": "Unsupported app type: {{mode}}"
+		"unsupported_app_type": "Unsupported app type"
 	},
 	"form": {
 		"select_placeholder": "Please select",
 		"input_placeholder": "Please enter",
 		"upload_placeholder": "Click to upload",
 		"field_required": "{{label}} is required",
-		"unsupported_control": "Unsupported control type: {{type}}",
-		"decompress_failed": "Failed to decompress parameter {{name}}: {{error}}",
-		"validation_failed": "Form validation failed: {{errors}}"
+		"decompress_failed": "Failed to decompress parameter {{name}}: {{error}}"
 	},
 	"app": {
 		"list": "Apps",
 		"no_data_default": "No apps",
-		"no_title_default": "Untitled",
 		"no_description": "No description",
 		"no_config_default_text": "No Dify app configuration found. Contact your administrator.",
 		"fetch_list_failed": "Failed to load apps: {{error}}",
 		"info_missing": "App information is missing. Check the configuration.",
 		"no_description_user": "This app has no description",
 		"empty_contact_admin": "No apps yet. Ask your administrator to set one up.",
-		"fetch_params_failed": "Failed to load app parameters: {{error}}",
 		"load_failed": "Failed to load",
 		"reload_page": "Reload page",
-		"loading": "Loading app...",
-		"configure_first": "Configure a Dify app first",
-		"start_configuring": "Start setup"
+		"loading": "Loading app..."
 	},
 	"app_mode": {
 		"name": {
@@ -76,12 +66,10 @@
 	},
 	"chat": {
 		"chat_list": "Conversations",
-		"no_data_default": "No conversations",
 		"new_chat": "New conversation",
 		"rename": "Rename",
 		"rename_placeholder": "Enter a conversation name",
 		"rename_success": "Renamed",
-		"rename_conversation_success": "Conversation renamed",
 		"delete": "Delete",
 		"delete_confirm_title": "Delete this conversation?",
 		"delete_confirm_content": "The conversation history cannot be restored after deletion.",
@@ -95,8 +83,6 @@
 		"switch_narrow": "Switch to narrow layout",
 		"switch_wide": "Switch to wide layout",
 		"suggested_questions": "🤔 You might also want to ask:",
-		"message_not_found": "Message not found",
-		"replying": "Replying, please wait...",
 		"group_today": "Today",
 		"group_yesterday": "Yesterday",
 		"group_week": "Last 7 days",
@@ -111,17 +97,9 @@
 		"inputs_required": "Fill in the conversation parameters first."
 	},
 	"message": {
-		"response_time": "Response time",
 		"action_regenerate": "Regenerate response",
-		"action_copy": "Copy",
-		"copy_success": "Copied",
-		"copy_code": "Copy code",
 		"annotation": "Annotation",
 		"tts": "Read aloud",
-		"feedback_positive": "Like",
-		"feedback_negative": "Dislike",
-		"feedback_thanks": "Thanks for your feedback",
-		"feedback_prompt": "Tell us what was wrong with this reply.",
 		"dislike_reason": "What was wrong? (optional)",
 		"send_feedback": "Send feedback",
 		"like": "Like",
@@ -138,11 +116,8 @@
 		"echarts_invalid": "The chart definition is not valid JSON.",
 		"echarts_failed": "The chart could not be drawn.",
 		"svg_invalid": "The SVG image could not be drawn.",
-		"mermaid_classic": "Classic",
-		"mermaid_hand_drawn": "Hand-drawn",
 		"tool": {
 			"title_prefix": "Used",
-			"title_default": "Untitled",
 			"request": "Request",
 			"response": "Response"
 		},
@@ -155,7 +130,6 @@
 			"title": "Citations",
 			"word_count": "Characters: {{value}}",
 			"hit_count": "Retrieval count: {{value}}",
-			"vector_hash": "Vector hash: {{value}}",
 			"score": "Retrieval score: {{value}}"
 		}
 	},
@@ -354,7 +328,6 @@
 		"failed": "The run failed",
 		"stopped": "Stopped",
 		"empty_hint": "Click \"Run\" to try it out.",
-		"copy_content": "Copy content",
 		"summary": "Nodes: {{nodes}} · Time: {{seconds}} s · Tokens: {{tokens}}",
 		"tokens": "Tokens: {{value}}",
 		"retries": "Retried {{times}}×",
@@ -373,8 +346,6 @@
 		"supported_types": "Supported file types: {{types}}",
 		"recognizing": "Transcribing...",
 		"speech_to_text_error": "Speech-to-text error: {{error}}",
-		"single_file_only": "Uploading several files at once is not supported. Upload them one at a time.",
-		"content_required": "The message cannot be empty",
 		"wait_for_uploads": "Wait for all files to finish uploading",
 		"attach": "Attach files",
 		"too_many_files": "At most {{limit}} files",
@@ -386,19 +357,9 @@
 		"remote_only_unsupported": "This input takes files by URL only, which this page cannot send yet.",
 		"remote_only_required": "This required input takes files by URL only, which this page cannot send yet, so the app cannot be used from here."
 	},
-	"params": {
-		"name": "Parameter",
-		"label": "Label",
-		"required": "Required",
-		"hidden": "Hidden"
-	},
 	"hitl": {
 		"title": "Human input required",
-		"remaining": "⏱ Time left: {{time}}",
 		"expired": "Expired",
-		"time_days_hours": "{{d}}d {{h}}h",
-		"time_hours_minutes": "{{h}}h {{m}}m",
-		"time_minutes_seconds": "{{m}}m {{s}}s",
 		"submit_failed": "Submission failed. Please try again.",
 		"submitted": "Submitted: {{action}}",
 		"expired_hint": "This form can no longer be submitted.",

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-04
 decision-makers: LovingCivilian (fork owner)
 consulted: Claude Code session (chat sub-project, Task 1)
