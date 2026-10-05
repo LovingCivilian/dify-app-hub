@@ -8,6 +8,8 @@ export interface StubApp {
 	prefix: StubPrefix
 	/** Seeded into `dify_apps.opening_statement_display_mode`: 'always' keeps the welcome panel after the first reply. */
 	openingStatementDisplayMode: 'default' | 'always'
+	/** Seeded into `dify_apps.enable_annotation` (the app's `extConfig.annotation.enabled`): the footer offers "Annotation". */
+	enableAnnotation: boolean
 }
 
 /** The five seeded apps. The first keeps the foundation's id and name so older specs keep their locators. */
@@ -18,6 +20,7 @@ export const STUB_APPS: StubApp[] = [
 		mode: 'chat',
 		prefix: '',
 		openingStatementDisplayMode: 'default',
+		enableAnnotation: false,
 	},
 	{
 		id: 'e2e00000-0000-4000-8000-000000000002',
@@ -25,6 +28,7 @@ export const STUB_APPS: StubApp[] = [
 		mode: 'agent-chat',
 		prefix: '/agent',
 		openingStatementDisplayMode: 'default',
+		enableAnnotation: false,
 	},
 	{
 		id: 'e2e00000-0000-4000-8000-000000000003',
@@ -32,6 +36,7 @@ export const STUB_APPS: StubApp[] = [
 		mode: 'advanced-chat',
 		prefix: '/chatflow',
 		openingStatementDisplayMode: 'always',
+		enableAnnotation: true,
 	},
 	{
 		id: 'e2e00000-0000-4000-8000-000000000004',
@@ -39,6 +44,7 @@ export const STUB_APPS: StubApp[] = [
 		mode: 'workflow',
 		prefix: '/workflow',
 		openingStatementDisplayMode: 'default',
+		enableAnnotation: false,
 	},
 	{
 		id: 'e2e00000-0000-4000-8000-000000000005',
@@ -46,6 +52,7 @@ export const STUB_APPS: StubApp[] = [
 		mode: 'completion',
 		prefix: '/completion',
 		openingStatementDisplayMode: 'default',
+		enableAnnotation: false,
 	},
 ]
 

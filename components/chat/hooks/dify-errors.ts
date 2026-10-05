@@ -62,3 +62,55 @@ export const humanInputFailureText = (error: unknown, accepted: boolean, t: TFun
 	const { message } = toDifyError(error)
 	return message ? t('hitl.submit_failed_reason', { error: message }) : t('hitl.submit_failed')
 }
+
+const recordOf = (value: unknown) =>
+	(value && typeof value === 'object' ? value : {}) as Record<string, unknown>
+
+const parseJsonText = (text: unknown): unknown => {
+	if (typeof text !== 'string') return null
+	try {
+		return JSON.parse(text)
+	} catch {
+		return null
+	}
+}
+
+/**
+ * The answer of POST /api/client/dify/<app>/messages/<id>/feedbacks (DifyApi.createMessageFeedback
+ * resolves it whatever the status): `{ code: <HTTP status>, data }` (createDifyApiResponse) with Dify's
+ * `{ result: 'success' }`; on a Dify error `data` is `{ error, detail }`, `detail` being Dify's error body
+ * as text (cut at 200 characters); the proxy's own failures answer `{ error }`. Undefined when Dify took
+ * the rating, else the error with Dify's message or ''.
+ */
+export const feedbackError = (answer: unknown): DifyRequestError | undefined => {
+	const body = recordOf(answer)
+	const status = typeof body.code === 'number' ? body.code : 0
+	const data = recordOf(body.data)
+	if (status >= 200 && status < 300 && data.result === 'success') return
+	return envelopeError(parseJsonText(data.detail), status)
+}
+
+/**
+ * The answer of POST /api/client/dify/<app>/annotations (DifyApi.createAnnotation resolves it whatever the
+ * status): `{ code: <HTTP status>, data }` with Dify's body as `data`, the new annotation (its `id`) or
+ * Dify's error body; the proxy's own failures answer `{ error }`.
+ */
+export const annotationError = (answer: unknown): DifyRequestError | undefined => {
+	const body = recordOf(answer)
+	const status = typeof body.code === 'number' ? body.code : 0
+	const data = recordOf(body.data)
+	if (status >= 200 && status < 300 && typeof data.id === 'string') return
+	return envelopeError(data, status)
+}
+
+/**
+ * The answer of POST /api/client/dify/<app>/text2audio (DifyApi.text2Audio resolves the Response): the
+ * proxy passes Dify's answer through (createDifyResponseProxy), audio when it worked, Dify's JSON error
+ * body otherwise; its own failures answer `{ error }`. A JSON answer is never audio, whatever its status.
+ */
+export const audioAnswerError = async (
+	response: Response,
+): Promise<DifyRequestError | undefined> => {
+	if (response.ok && !(response.headers.get('content-type') ?? '').includes('json')) return
+	return envelopeError(await response.json().catch(() => null), response.status)
+}

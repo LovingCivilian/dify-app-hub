@@ -28,6 +28,7 @@ export interface MessageListProps {
 	conversationKey: string
 	/** An assistant bubble's content; keep it stable (useCallback): the role map, and so every bubble, follows it. */
 	renderAssistant: (message: DifyChatMessage, info: BubbleInfo) => React.ReactNode
+	/** An assistant bubble's footer (Bubble's `footer` slot); keep it stable for the same reason. */
 	renderFooter?: (message: DifyChatMessage, info: BubbleInfo) => React.ReactNode
 }
 

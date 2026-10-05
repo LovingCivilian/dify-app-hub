@@ -13,9 +13,10 @@ setup('initialise the admin, seed the stub apps, sign in', async ({ page, reques
 
 	const db = await mysql.createConnection(e2eEnv.DATABASE_URL)
 	for (const app of STUB_APPS) {
-		// A database that survives between runs keeps its rows: the display mode is refreshed on them.
+		// A database that survives between runs keeps its rows: the display mode and the annotation switch
+		// are refreshed on them.
 		await db.execute(
-			'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key, opening_statement_display_mode) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE opening_statement_display_mode = ?',
+			'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key, opening_statement_display_mode, enable_annotation) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE opening_statement_display_mode = ?, enable_annotation = ?',
 			[
 				app.id,
 				app.name,
@@ -24,7 +25,9 @@ setup('initialise the admin, seed the stub apps, sign in', async ({ page, reques
 				`${stubApiBase}${app.prefix}`,
 				'app-e2e',
 				app.openingStatementDisplayMode,
+				app.enableAnnotation,
 				app.openingStatementDisplayMode,
+				app.enableAnnotation,
 			],
 		)
 	}

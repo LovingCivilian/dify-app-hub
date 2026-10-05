@@ -65,6 +65,11 @@ describe('modeFromPath', () => {
 			completion: 'default',
 		})
 	})
+	it('seeds annotation on the chatflow app only (no stub parameters enable annotation_reply)', () => {
+		expect(STUB_APPS.filter(app => app.enableAnnotation).map(app => app.mode)).toEqual([
+			'advanced-chat',
+		])
+	})
 	it('exposes the app id of every mode', () => {
 		expect(APP_IDS.chat).toBe(APP_ID)
 		expect(Object.keys(APP_IDS).sort()).toEqual(

@@ -300,6 +300,52 @@ test.describe('chat', () => {
 		await expect(page.getByText('Steep for three minutes.')).toHaveCount(0)
 	})
 
+	// Spec §4.7: regenerate is a new turn with the question (not onReload), so live and history views match.
+	test('regenerate re-sends the question as a new turn and copy puts the answer on the clipboard', async ({
+		page,
+		context,
+	}, testInfo) => {
+		await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+		const text = `again please ${testInfo.project.name} ${testInfo.repeatEachIndex}.${testInfo.retry}`
+		const answers = page.getByText(`Echo: ${text}`, { exact: true })
+		await senderBox(page).fill(text)
+		await page.keyboard.press('Enter')
+		await expect(answers).toHaveCount(1)
+		await page
+			.locator('.ant-bubble-start')
+			.last()
+			.getByRole('button', { name: 'Regenerate response' })
+			.click()
+		await expect(answers).toHaveCount(2)
+		await expect(page.locator('.ant-bubble-end').filter({ hasText: text })).toHaveCount(2)
+		// antd's Typography copy button inside X's Actions.Copy, named by antd's locale.
+		await page.locator('.ant-bubble-start').last().getByRole('button', { name: 'Copy' }).click()
+		await expect
+			.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+			.toBe(`Echo: ${text}`)
+	})
+
+	// PRs #7/#8 (spec §10): the answer's creation time from the stream, in the active language.
+	test('an answer shows when it was created, in the active language', async ({
+		page,
+	}, testInfo) => {
+		const text = `what time ${testInfo.project.name} ${testInfo.repeatEachIndex}.${testInfo.retry}`
+		await senderBox(page).fill(text)
+		await page.keyboard.press('Enter')
+		await expect(page.getByText(`Echo: ${text}`, { exact: true })).toBeVisible()
+		// The time alone, titled "Sent at" (message.sent_at); en-US: "1/15/2026, 9:05:00 AM".
+		await expect(page.locator('.ant-bubble-start').last().getByTitle('Sent at')).toHaveText(
+			/^\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}:\d{2}\s[AP]M$/,
+		)
+		// Reopened in Arabic (i18next's `lng` query; workers: 1, so the latest conversation is this one):
+		// Arabic-Indic digits (ADR-0005).
+		await page.goto(`/chat/${APP_ID}?lng=ar`)
+		await expect(page.getByText(`Echo: ${text}`, { exact: true })).toBeVisible()
+		await expect(page.locator('.ant-bubble-start').last().getByTitle('وقت الإرسال')).toHaveText(
+			/[٠-٩]{4}/,
+		)
+	})
+
 	test('a failed history load shows an error with a retry, not an empty conversation', async ({
 		page,
 	}, testInfo) => {

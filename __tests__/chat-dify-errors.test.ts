@@ -2,7 +2,10 @@ import type { TFunction } from 'i18next'
 import { describe, expect, it } from 'vitest'
 
 import {
+	annotationError,
+	audioAnswerError,
 	envelopeError,
+	feedbackError,
 	humanInputFailureText,
 	humanInputSubmitError,
 	toDifyError,
@@ -107,5 +110,99 @@ describe('humanInputFailureText', () => {
 		expect(humanInputFailureText(new Error('message [m1:a] is not found'), true, t)).toBe(
 			'hitl.resume_failed',
 		)
+	})
+})
+
+// The feedback route answers { code: <HTTP status>, data } (createDifyApiResponse): Dify's
+// `{ result: 'success' }`, or `{ error, detail }` with Dify's error body as text in `detail`.
+describe('feedbackError', () => {
+	it('is undefined when Dify took the rating', () => {
+		expect(feedbackError({ code: 200, data: { result: 'success' } })).toBeUndefined()
+	})
+	it("reads Dify's error body out of the route's `detail`", () => {
+		const error = feedbackError({
+			code: 404,
+			data: {
+				error: 'Upstream error: 404',
+				detail: JSON.stringify({ code: 'not_found', message: 'Message Not Exists.', status: 404 }),
+			},
+		})
+		expect(error).toBeInstanceOf(DifyRequestError)
+		expect(error).toMatchObject({ status: 404, code: 'not_found', message: 'Message Not Exists.' })
+	})
+	it("leaves the message empty for a cut or non-JSON detail and the proxy's own answers", () => {
+		expect(
+			feedbackError({ code: 502, data: { error: 'Upstream error: 502', detail: '<html>' } }),
+		).toMatchObject({ status: 502, message: '' })
+		expect(feedbackError({ error: 'Unauthorized' })).toMatchObject({ message: '' })
+		expect(feedbackError({ code: 404, data: { error: 'App not found' } })).toMatchObject({
+			status: 404,
+			message: '',
+		})
+		expect(feedbackError(undefined)).toMatchObject({ message: '' })
+	})
+})
+
+// The annotations route answers { code: <HTTP status>, data } with Dify's body as `data`: the new
+// annotation (`id`, `question`, `answer`, …) or Dify's error body.
+describe('annotationError', () => {
+	it('is undefined when Dify created the annotation', () => {
+		expect(
+			annotationError({
+				code: 200,
+				data: { id: 'an-1', question: 'q', answer: 'a', hit_count: 0 },
+			}),
+		).toBeUndefined()
+	})
+	it("reads Dify's error body", () => {
+		expect(
+			annotationError({
+				code: 400,
+				data: { code: 'invalid_param', message: 'question is required', status: 400 },
+			}),
+		).toMatchObject({ status: 400, code: 'invalid_param', message: 'question is required' })
+	})
+	it("leaves the message empty for the proxy's own answers", () => {
+		expect(annotationError({ error: 'Unauthorized' })).toMatchObject({ message: '' })
+		expect(annotationError({ code: 404, data: { error: 'App not found' } })).toMatchObject({
+			status: 404,
+			message: '',
+		})
+	})
+})
+
+// The text-to-speech route passes Dify's answer through (createDifyResponseProxy): audio when it worked,
+// Dify's JSON error body (or the proxy's `{ error }`) otherwise.
+describe('audioAnswerError', () => {
+	it('is undefined for audio', async () => {
+		const response = new Response(new Uint8Array([82, 73, 70, 70]), {
+			status: 200,
+			headers: { 'content-type': 'audio/wav' },
+		})
+		await expect(audioAnswerError(response)).resolves.toBeUndefined()
+	})
+	it("reads Dify's error body", async () => {
+		const response = Response.json(
+			{ code: 'provider_not_initialize', message: 'No valid model provider.', status: 400 },
+			{ status: 400 },
+		)
+		await expect(audioAnswerError(response)).resolves.toMatchObject({
+			status: 400,
+			code: 'provider_not_initialize',
+			message: 'No valid model provider.',
+		})
+	})
+	it("leaves the message empty for the proxy's own answers and unreadable bodies", async () => {
+		await expect(
+			audioAnswerError(Response.json({ error: 'Unauthorized' }, { status: 401 })),
+		).resolves.toMatchObject({ status: 401, message: '' })
+		await expect(audioAnswerError(new Response('<html>', { status: 502 }))).resolves.toMatchObject({
+			status: 502,
+			message: '',
+		})
+		// A JSON answer is never audio, whatever its status.
+		await expect(audioAnswerError(Response.json({}, { status: 200 }))).resolves.toMatchObject({
+			message: '',
+		})
 	})
 })

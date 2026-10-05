@@ -5,7 +5,15 @@ import { Prompts } from '@ant-design/x'
 import { useLocalStorageState } from 'ahooks'
 import { Alert, App, Button, Form, Layout, Typography, theme } from 'antd'
 import { useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import {
+	useCallback,
+	useEffect,
+	useEffectEvent,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import UserShell from '@/components/shell/user-shell'
@@ -13,13 +21,19 @@ import type { IFile } from '@/lib/api'
 import { unParseGzipString } from '@/lib/helpers'
 
 import { useAppContext } from '../app-context'
-import { humanInputFailureText, humanInputSubmitError } from '../hooks/dify-errors'
+import {
+	feedbackError,
+	humanInputFailureText,
+	humanInputSubmitError,
+	toDifyError,
+} from '../hooks/dify-errors'
 import { useConversations } from '../hooks/use-conversations'
 import { useDifyChat, type SendParams } from '../hooks/use-dify-chat'
 import { useSuggestions } from '../hooks/use-suggestions'
 import HumanInputForm from '../message/human-input-form'
 import { parseConversationKey } from '../provider/keys'
 import type { DifyChatMessage } from '../provider/message'
+import AnnotationDrawer from './annotation-drawer'
 import AssistantContent from './assistant-content'
 import ChatSender, { type SenderRef } from './chat-sender'
 import styles from './chat-view.module.css'
@@ -28,6 +42,8 @@ import ConversationSidebar from './conversation-sidebar'
 import InputsCollapse from './inputs-collapse'
 import { useInputsValid } from './inputs-form'
 import { decodeSenderText, inputFields, resolveInitialInputs } from './inputs-values'
+import { questionOf, regenerateRequest, unansweredKeys } from './message-actions'
+import MessageFooter, { type FeedbackRating } from './message-footer'
 import MessageList, { type BubbleInfo } from './message-list'
 import WelcomePanel from './welcome-panel'
 import WidthToggle from './width-toggle'
@@ -288,6 +304,100 @@ export default function ChatView() {
 		[answerSend, hitlSubmitting, submitHumanInput],
 	)
 
+	// The footer's callbacks stay stable while a reply streams (a new one would rebuild Bubble.List's role
+	// map, and so every bubble, per chunk): they read the messages and the store's setter of the committed
+	// render here (React: refs are written in effects, read in event handlers).
+	const latest = useRef({ messages: chat.messages, setMessage: chat.setMessage })
+	useLayoutEffect(() => {
+		latest.current = { messages: chat.messages, setMessage: chat.setMessage }
+	})
+
+	/** A new turn with the question's text and files and the current inputs (spec §4.7), not onReload. */
+	const regenerate = useCallback(
+		(key: string | number) => {
+			const request = regenerateRequest(latest.current.messages, key)
+			if (request) void send(request.query, { files: request.files })
+		},
+		[send],
+	)
+
+	/**
+	 * Rates an answer by its Dify message id (spec §4.7): shown at once, taken back if Dify refuses
+	 * (DifyApi resolves the refusal; feedbackError reads it) with Dify's text or the generic one.
+	 */
+	const feedback = useCallback(
+		async (
+			key: string | number,
+			message: DifyChatMessage,
+			rating: FeedbackRating,
+			reason?: string,
+		) => {
+			const messageId = message.ids.messageId
+			if (!messageId) return
+			// Taken now: this conversation's store, even if the user switches while the request runs.
+			const { setMessage } = latest.current
+			const previous = message.feedback ?? null
+			setMessage(key, info => ({ message: { ...info.message, feedback: rating } }))
+			try {
+				const answer: unknown = await difyApi.createMessageFeedback({
+					messageId,
+					rating,
+					content: reason ?? '',
+				})
+				// The button's state is the confirmation (spec §4.7): no toast on success.
+				const refused = feedbackError(answer)
+				if (refused) throw refused
+			} catch (error) {
+				// Unless another rating replaced this one meanwhile.
+				setMessage(key, info => ({
+					message: {
+						...info.message,
+						feedback: info.message.feedback === rating ? previous : info.message.feedback,
+					},
+				}))
+				toast.error(toDifyError(error).message || t('common.request_failed_retry'))
+			}
+		},
+		[difyApi, t, toast],
+	)
+
+	// One annotation drawer for the page, opened with the answer and the question it replies to.
+	const [annotation, setAnnotation] = useState({ open: false, question: '', answer: '' })
+	const annotate = useCallback((key: string | number) => {
+		const { messages } = latest.current
+		setAnnotation({
+			open: true,
+			question: questionOf(messages, key)?.content ?? '',
+			answer: messages.find(m => m.id === key)?.message.content ?? '',
+		})
+	}, [])
+
+	// Answers no user turn precedes cannot be regenerated. Joined into a string, the list changes the
+	// callback below only when it changes itself, not with every streamed chunk.
+	const unanswered = unansweredKeys(chat.messages).join('\n')
+	const unansweredSet = useMemo(
+		() => new Set(unanswered ? unanswered.split('\n') : []),
+		[unanswered],
+	)
+	// Stable while a reply streams; it changes when one starts or ends (the actions wait meanwhile).
+	const isRequesting = chat.isRequesting
+	const renderFooter = useCallback(
+		(message: DifyChatMessage, info: BubbleInfo) =>
+			info.key === undefined ? null : (
+				<MessageFooter
+					message={message}
+					messageKey={info.key}
+					status={info.status}
+					hasQuestion={!unansweredSet.has(String(info.key))}
+					disabled={isRequesting}
+					onRegenerate={regenerate}
+					onFeedback={feedback}
+					onAnnotate={annotate}
+				/>
+			),
+		[annotate, feedback, isRequesting, regenerate, unansweredSet],
+	)
+
 	// Welcome while the conversation has no messages, or always when the app asks for it (spec §5.2); never
 	// in place of a history that is loading or failed to load.
 	const historyPending = chat.isDefaultMessagesRequesting && chat.messages.length === 0
@@ -394,6 +504,7 @@ export default function ChatView() {
 							chat={chat}
 							conversationKey={activeKey}
 							renderAssistant={renderAssistant}
+							renderFooter={renderFooter}
 						/>
 						{suggestions.suggestions.length > 0 && !chat.isRequesting && (
 							<div className={styles.suggestions}>
@@ -434,6 +545,14 @@ export default function ChatView() {
 			>
 				{sidebar}
 			</ConversationDrawer>
+			{app.extConfig?.annotation?.enabled && (
+				<AnnotationDrawer
+					open={annotation.open}
+					question={annotation.question}
+					answer={annotation.answer}
+					onClose={() => setAnnotation(current => ({ ...current, open: false }))}
+				/>
+			)}
 		</UserShell>
 	)
 }
