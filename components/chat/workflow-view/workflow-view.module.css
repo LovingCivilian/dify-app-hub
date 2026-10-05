@@ -1,0 +1,23 @@
+/* The run view sits in the shell's content region, which scrolls (ADR-0011). */
+.fill {
+	padding: var(--ant-padding);
+}
+.pane {
+	padding: var(--ant-padding);
+	background: var(--ant-color-bg-container);
+	border-radius: var(--ant-border-radius-lg);
+}
+/* The outputs JSON: left-to-right text, also on a right-to-left page. */
+.code {
+	margin: 0;
+	overflow: auto;
+	font-family: var(--ant-font-family-code);
+	font-size: var(--ant-font-size-sm);
+	background: var(--ant-color-fill-quaternary);
+	padding: var(--ant-padding-xs);
+	border-radius: var(--ant-border-radius);
+	white-space: pre-wrap;
+	word-break: break-word;
+	direction: ltr;
+	text-align: start;
+}

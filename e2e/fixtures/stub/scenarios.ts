@@ -213,20 +213,54 @@ const shapeFor = (mode: StubMode, events: StreamEvent[]): StreamEvent[] => {
 	return events
 }
 
-/** Workflow and completion apps: the stream for POST /workflows/run and POST /completion-messages. */
+const topicOf = (inputs: Record<string, unknown>) =>
+	String(inputs.topic ?? Object.values(inputs)[0] ?? 'nothing')
+
+/** Milliseconds between the events of a run: a `slow` topic (the stop tests) is paced at 100 ms, the rest at 20 ms. */
+export const runDelay = (inputs: Record<string, unknown>) =>
+	hasWord(topicOf(inputs), 'slow') ? 100 : 20
+
+/**
+ * Workflow and completion apps: the stream for POST /workflows/run and POST /completion-messages, chosen
+ * by the topic. `slow` streams 40 numbered chunks (paced by runDelay); `error` fails the run as Dify does
+ * (OpenAPI "Stream lifecycle": a workflow stream closes after `workflow_finished`, here with status
+ * `failed`; a completion stream ends early with an `error` event). The router refuses an `invalid` topic.
+ */
 export const runScenario = (
 	mode: StubMode,
 	inputs: Record<string, unknown>,
 	ctx: ScenarioContext,
 ): StreamEvent[] => {
 	const { base, runId, fileUrl } = ctx
-	const topic = String(inputs.topic ?? Object.values(inputs)[0] ?? 'nothing')
+	const topic = topicOf(inputs)
 	const text = `A short note about ${topic}.`
+	const slow = hasWord(topic, 'slow')
+	const failure = hasWord(topic, 'error') ? 'The model is unavailable.' : undefined
+	const numbered = Array.from({ length: 40 }, (_, i) => `${i} `)
 	if (mode === 'completion') {
+		if (failure) {
+			return shapeFor(mode, [
+				ev.message(base, 'A short note '),
+				ev.errorEvent(base, 'completion_request_error', failure, 500),
+			])
+		}
+		if (slow) {
+			return shapeFor(mode, [...numbered.map(c => ev.message(base, c)), ev.messageEnd(base)])
+		}
 		return shapeFor(mode, [
 			ev.message(base, 'A short note '),
 			ev.message(base, `about ${topic}.`),
 			ev.messageEnd(base),
+		])
+	}
+	if (failure) {
+		return shapeFor(mode, [
+			ev.workflowStarted(base, runId),
+			ev.nodeStarted(base, runId, NODES[0]),
+			ev.nodeFinished(base, runId, NODES[0], inputs),
+			ev.nodeStarted(base, runId, NODES[1]),
+			ev.nodeFinished(base, runId, NODES[1], {}, 'failed', failure),
+			ev.workflowFinished(base, runId, null, null, failure),
 		])
 	}
 	// WorkflowFinishedData.files items are free-form objects; this one follows the documented message_end `files` item.
@@ -246,7 +280,7 @@ export const runScenario = (
 		ev.nodeStarted(base, runId, NODES[0]),
 		ev.nodeFinished(base, runId, NODES[0], inputs),
 		ev.nodeStarted(base, runId, NODES[1]),
-		...chunks(text, 10).map(c => ev.textChunk(base, runId, c)),
+		...(slow ? numbered : chunks(text, 10)).map(c => ev.textChunk(base, runId, c)),
 		ev.nodeFinished(base, runId, NODES[1], { text }),
 		ev.workflowFinished(base, runId, { text }, [file]),
 	])

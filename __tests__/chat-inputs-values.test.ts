@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { gzipSync } from 'node:zlib'
+
+import { describe, expect, it, vi } from 'vitest'
 
 import {
 	apiInputs,
+	decodeLinkInputs,
 	decodeSenderText,
 	inputFields,
 	pendingFileInputs,
@@ -168,6 +171,43 @@ describe('inputFields', () => {
 	it('takes the type from the field, or from the control key when the field has none', () => {
 		const field = { label: 'Topic', variable: 'topic', required: false, default: '' }
 		expect(inputFields([{ select: field } as never])[0].type).toBe('select')
+	})
+})
+
+describe('decodeLinkInputs', () => {
+	/** A link's input value as `unParseGzipString` reads it (the URL decoding has happened already). */
+	const gzip = (text: string) => gzipSync(text).toString('base64')
+
+	it("decodes the form's variables the link carries and reports one that does not decode", () => {
+		// unParseGzipString logs the failure it returns.
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+		const link: Record<string, string> = {
+			topic: gzip('green tea'),
+			tone: 'not-gzip',
+			other: gzip('not an input'),
+		}
+		const failed: string[] = []
+		expect(
+			decodeLinkInputs(
+				form,
+				variable => link[variable],
+				variable => failed.push(variable),
+			),
+		).toStrictEqual({ topic: 'green tea' })
+		expect(failed).toStrictEqual(['tone'])
+		log.mockRestore()
+	})
+
+	it('reads nothing for the variables the link lacks', () => {
+		const failed: string[] = []
+		expect(
+			decodeLinkInputs(
+				form,
+				() => null,
+				variable => failed.push(variable),
+			),
+		).toStrictEqual({})
+		expect(failed).toStrictEqual([])
 	})
 })
 

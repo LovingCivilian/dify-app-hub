@@ -9,6 +9,7 @@ import {
 	parametersFor,
 	resumeScenario,
 	REVIEW_NODE,
+	runDelay,
 	runScenario,
 	streamDelay,
 } from '@/e2e/fixtures/stub/scenarios'
@@ -618,6 +619,45 @@ describe('runScenario', () => {
 			expect(event).not.toHaveProperty('conversation_id')
 		}
 		expect(runScenario('completion', { topic: 'tea' }, ctx).at(-1)).toHaveProperty('id', 'm1')
+	})
+	it('streams 40 numbered chunks for a `slow` topic, paced at 100 ms (the stop tests), others at 20 ms', () => {
+		const workflow = runScenario('workflow', { topic: 'slow tea' }, ctx)
+		const chunks = workflow.filter(e => e.event === 'text_chunk') as unknown as {
+			data: { text: string }
+		}[]
+		expect(chunks.map(c => c.data.text)).toStrictEqual(
+			Array.from({ length: 40 }, (_, i) => `${i} `),
+		)
+		expect(workflow.at(-1)?.event).toBe('workflow_finished')
+		const completion = runScenario('completion', { topic: 'slow tea' }, ctx)
+		expect(completion.filter(e => e.event === 'message')).toHaveLength(40)
+		expect(completion.at(-1)?.event).toBe('message_end')
+		expect(runDelay({ topic: 'slow tea' })).toBe(100)
+		expect(runDelay({ topic: 'tea' })).toBe(20)
+		expect(runDelay({ topic: 'slowly' })).toBe(20)
+		expect(runDelay({})).toBe(20)
+	})
+	it('fails an `error` topic as Dify does: workflow_finished failed (the stream ends there) or an error event', () => {
+		const workflow = runScenario('workflow', { topic: 'error' }, ctx)
+		expect(workflow.map(e => e.event)).toStrictEqual([
+			'workflow_started',
+			'node_started',
+			'node_finished',
+			'node_started',
+			'node_finished',
+			'workflow_finished',
+		])
+		expect(workflow.at(-1)).toMatchObject({
+			data: { status: 'failed', error: 'The model is unavailable.', outputs: null },
+		})
+		expect(workflow.at(-2)).toMatchObject({ data: { status: 'failed' } })
+		const completion = runScenario('completion', { topic: 'error' }, ctx)
+		expect(completion.map(e => e.event)).toStrictEqual(['message', 'error'])
+		expect(completion.at(-1)).toMatchObject({
+			code: 'completion_request_error',
+			message: 'The model is unavailable.',
+			status: 500,
+		})
 	})
 })
 

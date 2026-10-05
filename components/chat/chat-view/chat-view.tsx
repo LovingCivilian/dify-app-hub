@@ -17,7 +17,6 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import UserShell from '@/components/shell/user-shell'
-import { unParseGzipString } from '@/lib/helpers'
 
 import { useAppContext } from '../app-context'
 import {
@@ -44,6 +43,7 @@ import { useInputsValid } from './inputs-form'
 import { allowsLocalUpload } from './file-types'
 import {
 	apiInputs,
+	decodeLinkInputs,
 	decodeSenderText,
 	inputFields,
 	pendingFileInputs,
@@ -129,29 +129,25 @@ export default function ChatView() {
 	const setInputs = list.setInputs
 	const openInputs = useEffectEvent((key: string) => {
 		const seeded = seededKeys.has(key)
-		const urlValues: Record<string, unknown> = {}
-		const globalParams: Record<string, unknown> = {}
+		let urlValues: Record<string, unknown> = {}
+		let globalParams: Record<string, unknown> = {}
 		if (!seeded) {
 			seededKeys.add(key)
-			const decode = (variable: string, raw: string | null | undefined) => {
-				if (!raw) return undefined
-				const { error, data } = unParseGzipString(raw)
-				if (error) {
-					toast.error(
-						t('form.decompress_failed', {
-							name: variable,
-							error: error instanceof Error ? error.message : String(error),
-						}),
-					)
-					return undefined
-				}
-				return data
-			}
-			for (const { variable } of inputFields(parameters.user_input_form)) {
-				const fromUrl = searchParams.get(variable)
-				if (fromUrl) urlValues[variable] = decode(variable, fromUrl)
-				else globalParams[variable] = decode(variable, keptParams[variable])
-			}
+			const report = (variable: string, error: unknown) =>
+				toast.error(
+					t('form.decompress_failed', {
+						name: variable,
+						error: error instanceof Error ? error.message : String(error),
+					}),
+				)
+			const form = parameters.user_input_form
+			urlValues = decodeLinkInputs(form, variable => searchParams.get(variable), report)
+			// The kept values fill the inputs the URL itself does not carry.
+			globalParams = decodeLinkInputs(
+				form,
+				variable => (searchParams.get(variable) ? undefined : keptParams[variable]),
+				report,
+			)
 		}
 		const values = resolveInitialInputs({
 			form: parameters.user_input_form,

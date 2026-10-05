@@ -4,7 +4,6 @@ import { Button, Empty, Flex, Result, Spin } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ChatLayoutWrapper from '@/components/chat/chat-layout-wrapper'
 import UserShell from '@/components/shell/user-shell'
 import { useAuth } from '@/hooks/use-auth'
 import { AppModeEnums } from '@/lib/core'
@@ -16,7 +15,8 @@ import { AppContext, type AppContextValue } from './app-context'
 import { toDifyError } from './hooks/dify-errors'
 import ChatView from './chat-view/chat-view'
 import styles from './chat-view/chat-view.module.css'
-import { isChatLikeApp } from './utils-index'
+import { isChatLikeApp, isWorkflowLikeApp } from './utils-index'
+import WorkflowView from './workflow-view/workflow-view'
 
 type State =
 	| { status: 'loading' }
@@ -115,9 +115,18 @@ export default function ChatWorkspace({ appId }: { appId: string }) {
 	const mode = state.value.app.info.mode ?? AppModeEnums.CHATBOT
 	return (
 		<AppContext.Provider value={state.value}>
-			{/* Workflow and completion apps keep the old page until their views land (Task 17); its file
-			    controls read the app from this context. */}
-			{isChatLikeApp(mode) ? <ChatView /> : <ChatLayoutWrapper />}
+			{isChatLikeApp(mode) ? (
+				<ChatView />
+			) : isWorkflowLikeApp(mode) ? (
+				<WorkflowView />
+			) : (
+				<UserShell>
+					<Result
+						status="warning"
+						title={t('common.unsupported_app_type')}
+					/>
+				</UserShell>
+			)}
 		</AppContext.Provider>
 	)
 }

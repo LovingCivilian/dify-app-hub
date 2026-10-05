@@ -290,6 +290,18 @@ describe('stub router', () => {
 		expect(completion.events.map(e => e.event)).toEqual(['message', 'message', 'message_end'])
 	})
 
+	it('refuses a run whose topic is `invalid` with Dify 400 invalid_param before any stream', async () => {
+		for (const path of ['/v1/workflow/workflows/run', '/v1/completion/completion-messages']) {
+			const refused = await post(path, { inputs: { topic: 'invalid tea' }, user: 'alice' })
+			expect(refused.status).toBe(400)
+			expect(await refused.json()).toEqual({
+				code: 'invalid_param',
+				message: 'topic is not valid.',
+				status: 400,
+			})
+		}
+	})
+
 	it('runs the human-input flow: pause, form, one submission, resumed stream, answer in history', async () => {
 		const run = await chat('/chatflow', 'alice', 'please hitl')
 		const required = run.events.find(e => e.event === 'human_input_required') as unknown as {

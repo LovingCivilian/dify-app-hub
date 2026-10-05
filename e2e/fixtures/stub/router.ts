@@ -11,6 +11,7 @@ import {
 	parametersFor,
 	resumeScenario,
 	REVIEW_NODE,
+	runDelay,
 	runScenario,
 	streamDelay,
 } from './scenarios'
@@ -574,19 +575,24 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 			)
 		}
 		if (!requireUser(res, body)) return
+		const inputs = (body.inputs as Record<string, unknown>) ?? {}
+		// A refused request answers Dify's error body before any stream (OpenAPI: 400 invalid_param).
+		if (has(String(inputs.topic ?? ''), 'invalid')) {
+			return difyError(res, 400, 'invalid_param', 'topic is not valid.')
+		}
 		const base = {
 			task_id: randomUUID(),
 			message_id: randomUUID(),
 			conversation_id: '',
 			created_at: now(),
 		}
-		const events = runScenario(mode, (body.inputs as Record<string, unknown>) ?? {}, {
+		const events = runScenario(mode, inputs, {
 			base,
 			runId: randomUUID(),
 			formToken: '',
 			fileUrl,
 		})
-		return sse(res, events, 20, { ping: mode === 'workflow' })
+		return sse(res, events, runDelay(inputs), { ping: mode === 'workflow' })
 	}
 
 	difyError(res, 404, 'not_found', `stub has no route for ${method} ${url.pathname}`)

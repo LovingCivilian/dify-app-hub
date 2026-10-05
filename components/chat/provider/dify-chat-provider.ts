@@ -245,8 +245,11 @@ export const applyEvent = (origin: DifyChatMessage, event: DifyStreamEvent): Dif
 	}
 }
 
-/** A `data:` payload that parses to a Dify event; `[DONE]`, keep-alives without data and junk give null. */
-const parseEvent = (data: unknown): DifyStreamEvent | null => {
+/**
+ * A `data:` payload that parses to a Dify event; `[DONE]`, keep-alives without data and junk give null. The
+ * workflow and completion runner (useWorkflowRun) reads its stream through it as well.
+ */
+export const parseEvent = (data: unknown): DifyStreamEvent | null => {
 	if (typeof data !== 'string' || !data.trim() || data.trim() === '[DONE]') return null
 	let parsed: unknown
 	try {

@@ -3,6 +3,7 @@ import type {
 	IUserInputFormItemType,
 	IUserInputFormItemValueBase,
 } from '@/lib/core'
+import { unParseGzipString } from '@/lib/helpers'
 
 import { toControlFile, toFileMapping, type UploadedFile } from './file-types'
 
@@ -71,6 +72,27 @@ const controlValueOf = (type: IUserInputFormItemType | undefined, value: unknown
 		return value.map((file, index) => (isRecord(file) ? toControlFile(file, index) : file))
 	}
 	return value
+}
+
+/**
+ * The link's input values (`?<variable>=<gzip>`, spec §4.7) for the form's variables, decoded with
+ * unParseGzipString. `raw` reads a variable's value from the link; a value that does not decode is left
+ * out and reported through `onError` (the chat and the run view show it as a toast).
+ */
+export const decodeLinkInputs = (
+	form: InputDefinition[],
+	raw: (variable: string) => string | null | undefined,
+	onError: (variable: string, error: unknown) => void,
+): Record<string, unknown> => {
+	const values: Record<string, unknown> = {}
+	for (const { variable } of inputFields(form)) {
+		const encoded = raw(variable)
+		if (!encoded) continue
+		const { error, data } = unParseGzipString(encoded)
+		if (error) onError(variable, error)
+		else values[variable] = data
+	}
+	return values
 }
 
 /**
