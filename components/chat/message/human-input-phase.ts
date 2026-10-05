@@ -1,3 +1,4 @@
+import { toFileMapping, type UploadedFile } from '../chat-view/file-types'
 import type { HumanInputField, HumanInputState } from '../provider/message'
 
 /** The form's effective state: the stream's word wins; otherwise the clock decides (spec §4.6 step 5). */
@@ -30,26 +31,8 @@ export const humanInputInitialValues = (humanInput: HumanInputState): Record<str
 	return values
 }
 
-/** What the FileUpload control holds for an uploaded file (the fields read here). */
-interface UploadedFile {
-	type?: string
-	transfer_method?: string
-	upload_file_id?: string
-	remote_url?: string
-	url?: string
-}
-
-/** OpenAPI, POST /form/human_input: `{transfer_method: local_file, upload_file_id, type}` or `{transfer_method: remote_url, url, type}`. */
-const toFileMapping = (file: UploadedFile) => {
-	if (file.transfer_method === 'remote_url') {
-		const url = file.remote_url ?? file.url
-		return url ? { transfer_method: 'remote_url', url, type: file.type } : undefined
-	}
-	return file.upload_file_id
-		? { transfer_method: 'local_file', upload_file_id: file.upload_file_id, type: file.type }
-		: undefined
-}
-
+// A file mapping (OpenAPI, POST /form/human_input): `{transfer_method: local_file, upload_file_id, type}` or
+// `{transfer_method: remote_url, url, type}`, the same object as a chat input's file (toFileMapping).
 const isFile = (value: unknown): value is UploadedFile =>
 	Boolean(value) && typeof value === 'object'
 

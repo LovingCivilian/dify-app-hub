@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+	apiInputs,
 	decodeSenderText,
 	inputFields,
+	pendingFileInputs,
 	resolveInitialInputs,
 	type InputDefinition,
 	type ResolveArgs,
@@ -176,5 +178,98 @@ describe('decodeSenderText', () => {
 	})
 	it('keeps a text that is not valid percent-encoding as it is', () => {
 		expect(decodeSenderText('100% sure')).toBe('100% sure')
+	})
+})
+
+// Task 10 ruling, ported from the old form's normalizeFieldValue: a conversation's stored file inputs (GET
+// /conversations `inputs`: `filename`, `remote_url`, `related_id` …) open in the file control's shape.
+describe('stored file inputs', () => {
+	const fileForm: InputDefinition[] = [
+		form[0],
+		{ file: { label: 'Brief', variable: 'brief', required: false, default: '', type: 'file' } },
+		{
+			'file-list': {
+				label: 'Sources',
+				variable: 'sources',
+				required: false,
+				default: '',
+				type: 'file-list',
+			},
+		},
+	]
+	const storedFile = (id: string, filename: string) => ({
+		dify_model_identity: '__dify__file__',
+		id: null,
+		tenant_id: 't1',
+		type: 'document',
+		transfer_method: 'local_file',
+		remote_url: '',
+		related_id: id,
+		filename,
+		extension: '.pdf',
+		mime_type: 'application/pdf',
+		size: 3,
+	})
+	const opened = resolveInitialInputs({
+		...base,
+		form: fileForm,
+		conversationInputs: {
+			topic: 'mate',
+			brief: storedFile('up-1', 'brief.pdf'),
+			sources: [storedFile('up-2', 'a.pdf'), storedFile('up-3', 'b.pdf')],
+		},
+		isTemp: false,
+	})
+
+	it('maps a file and a file list to the control shape (name, link, upload id, done)', () => {
+		expect(opened.topic).toBe('mate')
+		expect(opened.brief).toMatchObject({
+			uid: 'up-1',
+			name: 'brief.pdf',
+			status: 'done',
+			upload_file_id: 'up-1',
+		})
+		expect(opened.sources).toMatchObject([
+			{ name: 'a.pdf', upload_file_id: 'up-2' },
+			{ name: 'b.pdf', upload_file_id: 'up-3' },
+		])
+	})
+	it('sends them back in the API shape (OpenAPI InputFileObject) when the inputs go out again', () => {
+		expect(apiInputs(fileForm, opened)).toStrictEqual({
+			topic: 'mate',
+			brief: { type: 'document', transfer_method: 'local_file', upload_file_id: 'up-1' },
+			sources: [
+				{ type: 'document', transfer_method: 'local_file', upload_file_id: 'up-2' },
+				{ type: 'document', transfer_method: 'local_file', upload_file_id: 'up-3' },
+			],
+		})
+	})
+	it('names the files a send must wait for or have removed: uploading or failed, in either input', () => {
+		const uploading = { uid: 'rc-1', name: 'x.pdf', status: 'uploading', type: 'document' }
+		const failed = { uid: 'rc-2', name: 'y.pdf', status: 'error', type: 'document' }
+		const done = opened.brief
+		expect(
+			pendingFileInputs(fileForm, {
+				topic: 'tea',
+				brief: uploading,
+				sources: [done, failed, 'not a file'],
+			}),
+		).toStrictEqual({ uploading: [uploading], failed: [failed] })
+		expect(pendingFileInputs(fileForm, opened)).toStrictEqual({ uploading: [], failed: [] })
+		// A text input whose value happens to look like a file is not a file input.
+		expect(pendingFileInputs(fileForm, { topic: uploading })).toStrictEqual({
+			uploading: [],
+			failed: [],
+		})
+	})
+	it('leaves out files still uploading and keeps every other value as it is', () => {
+		expect(
+			apiInputs(fileForm, {
+				topic: 'tea',
+				brief: { uid: 'rc-1', name: 'x.pdf', status: 'uploading', type: 'document' },
+				sources: undefined,
+				extra: 3,
+			}),
+		).toStrictEqual({ topic: 'tea', brief: undefined, sources: undefined, extra: 3 })
 	})
 })

@@ -109,7 +109,14 @@ describe('regenerateRequest', () => {
 				'u1',
 				user('look', {
 					files: [
-						{ id: 'f1', type: 'image', url: '', belongsTo: 'user', uploadFileId: 'up-1' },
+						{
+							id: 'f1',
+							type: 'image',
+							url: '',
+							belongsTo: 'user',
+							uploadFileId: 'up-1',
+							filename: 'look.png',
+						},
 						{ id: 'f2', type: 'document', url: 'https://example.com/a.pdf', belongsTo: 'user' },
 						// Nothing to send it again with.
 						{ id: 'f3', type: 'image', url: '', belongsTo: 'user' },
@@ -121,7 +128,13 @@ describe('regenerateRequest', () => {
 		expect(regenerateRequest(messages, 'a1')).toStrictEqual({
 			query: 'look',
 			files: [
-				{ type: 'image', transfer_method: 'local_file', upload_file_id: 'up-1' },
+				// The name goes along for the new user bubble (the request leaves it out).
+				{
+					type: 'image',
+					transfer_method: 'local_file',
+					upload_file_id: 'up-1',
+					filename: 'look.png',
+				},
 				{ type: 'document', transfer_method: 'remote_url', url: 'https://example.com/a.pdf' },
 			],
 		})

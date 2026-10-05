@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
-import { FileTypeMap, getDifyFileType, getFileExtByName } from './utils'
+import { FileTypeMap, getDifyFileType, getFileExtByName } from '../chat-view/file-types'
 
 interface IMessageSenderProps {
 	/**

@@ -5,8 +5,7 @@ import type { FormRule } from 'antd'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import FileUpload from '@/components/chat/chatbox/form-controls/file-upload'
-
+import FileUpload from '../chat-view/file-upload'
 import type { HumanInputField, HumanInputState } from '../provider/message'
 import styles from './human-input-form.module.css'
 import { humanInputInitialValues, humanInputPhase, humanInputSubmission } from './human-input-phase'
@@ -141,12 +140,20 @@ export default function HumanInputForm({ humanInput, submitting, onSubmit }: Hum
 									mode="single"
 									disabled={disabled}
 									allowed_file_types={field.allowed_file_types ?? []}
+									allowed_file_extensions={field.allowed_file_extensions}
+									allowed_file_upload_methods={field.allowed_file_upload_methods}
+									// Every human input field is required (fieldRules).
+									required
 								/>
 							) : field.type === 'file-list' ? (
 								<FileUpload
 									disabled={disabled}
 									maxCount={field.number_limits}
 									allowed_file_types={field.allowed_file_types ?? []}
+									allowed_file_extensions={field.allowed_file_extensions}
+									allowed_file_upload_methods={field.allowed_file_upload_methods}
+									// Every human input field is required (fieldRules).
+									required
 								/>
 							) : (
 								<Input.TextArea rows={3} />

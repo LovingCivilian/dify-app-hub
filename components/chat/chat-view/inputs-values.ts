@@ -1,4 +1,10 @@
-import type { IUserInputForm, IUserInputFormItemType } from '@/lib/core'
+import type {
+	IUserInputForm,
+	IUserInputFormItemType,
+	IUserInputFormItemValueBase,
+} from '@/lib/core'
+
+import { toControlFile, toFileMapping, type UploadedFile } from './file-types'
 
 /**
  * Dify lists each input as `{ [controlType]: field }` with only the one key present, which the
@@ -33,8 +39,16 @@ export const SUPPORTED_CONTROL_TYPES: readonly IUserInputFormItemType[] = [
 	'file-list',
 ]
 
+/**
+ * One input's definition. Dify's file inputs also name the upload methods they take
+ * (`allowed_file_upload_methods`), which the generated item type lacks.
+ */
+export type InputField = IUserInputFormItemValueBase & {
+	allowed_file_upload_methods?: Array<'local_file' | 'remote_url'>
+}
+
 /** Field definitions flattened from Dify's `{ [controlType]: field }` list, the supported controls only. */
-export const inputFields = (form: InputDefinition[]) =>
+export const inputFields = (form: InputDefinition[]): InputField[] =>
 	form.flatMap(item => {
 		const entry = Object.entries(item)[0]
 		if (!entry) return []
@@ -43,10 +57,26 @@ export const inputFields = (form: InputDefinition[]) =>
 		return [{ ...field, type: field.type ?? (type as typeof field.type) }]
 	})
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+/**
+ * A stored value in the shape its control holds: a conversation's file inputs come back from Dify with
+ * `filename`, `remote_url` and `related_id`, which the file control reads as `name`, `url` and
+ * `upload_file_id` (toControlFile, ported from the old form's normalizeFieldValue).
+ */
+const controlValueOf = (type: IUserInputFormItemType | undefined, value: unknown) => {
+	if (type === 'file' && isRecord(value)) return toControlFile(value, 0)
+	if (type === 'file-list' && Array.isArray(value)) {
+		return value.map((file, index) => (isRecord(file) ? toControlFile(file, index) : file))
+	}
+	return value
+}
+
 /**
  * Which value each input starts with (today's rules, spec §4.9): the link's value on a new chat or when
  * updates are allowed (once per conversation, see `seeded`), else the conversation's stored inputs (for a
- * new chat those are the values typed so far), else the default.
+ * new chat those are the values typed so far) in the control's shape, else the default.
  */
 export const resolveInitialInputs = ({
 	form,
@@ -64,11 +94,59 @@ export const resolveInitialInputs = ({
 				: (urlValues[field.variable] ?? globalParams[field.variable])
 			if (external !== undefined && (isTemp || allowUpdate)) return [field.variable, external]
 			if (conversationInputs[field.variable] !== undefined) {
-				return [field.variable, conversationInputs[field.variable]]
+				return [field.variable, controlValueOf(field.type, conversationInputs[field.variable])]
 			}
 			return [field.variable, field.default || undefined]
 		}),
 	)
+
+/**
+ * The inputs as POST /chat-messages takes them: a `file` input as one Dify file object and a `file-list`
+ * input as an array of them (OpenAPI InputFileObject; ChatRequest.inputs follow the app's
+ * `user_input_form`), stored files included; files still uploading are left out. Other values go as they are.
+ */
+export const apiInputs = (
+	form: InputDefinition[],
+	values: Record<string, unknown>,
+): Record<string, unknown> => {
+	const types = new Map(inputFields(form).map(field => [field.variable, field.type]))
+	return Object.fromEntries(
+		Object.entries(values).map(([name, value]) => {
+			const type = types.get(name)
+			if (type === 'file')
+				return [name, isRecord(value) ? toFileMapping(value as UploadedFile) : undefined]
+			if (type === 'file-list') {
+				return [
+					name,
+					Array.isArray(value)
+						? value.filter(isRecord).flatMap(file => toFileMapping(file as UploadedFile) ?? [])
+						: undefined,
+				]
+			}
+			return [name, value]
+		}),
+	)
+}
+
+/**
+ * The files of the form's file inputs that cannot go yet (antd Upload's item status): still `uploading`, or
+ * failed (`error`). apiInputs leaves them out, and a required input holding one still passes validation,
+ * so a send waits for them, or for their removal, instead of going without them.
+ */
+export const pendingFileInputs = (form: InputDefinition[], values: Record<string, unknown>) => {
+	const uploading: Record<string, unknown>[] = []
+	const failed: Record<string, unknown>[] = []
+	for (const field of inputFields(form)) {
+		if (field.type !== 'file' && field.type !== 'file-list') continue
+		const value = values[field.variable]
+		for (const file of Array.isArray(value) ? value : [value]) {
+			if (!isRecord(file)) continue
+			if (file.status === 'uploading') uploading.push(file)
+			else if (file.status === 'error') failed.push(file)
+		}
+	}
+	return { uploading, failed }
+}
 
 /** `?sender_text=`: the URL decoding has happened already, the link's text is encoded once more (today's rule); text that is not valid percent-encoding stays as it is. */
 export const decodeSenderText = (raw: string | null): string => {

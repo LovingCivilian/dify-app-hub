@@ -668,6 +668,29 @@ describe('DifyChatProvider', () => {
 			conversation_id: 'conv-1',
 		})
 	})
+	it("sends the attachments as Dify's file objects, without the names kept for the bubble", () => {
+		const provider = makeProvider()
+		const params = provider.transformParams(
+			{
+				query: 'hi',
+				files: [
+					{
+						type: 'document',
+						transfer_method: 'local_file',
+						upload_file_id: 'up-1',
+						filename: 'note.txt',
+					},
+					{ type: 'image', transfer_method: 'remote_url', url: 'https://example.com/a.png' },
+				],
+			},
+			{ params: {} } as never,
+		)
+		// OpenAPI ChatRequest.files: `type`, `transfer_method`, and `upload_file_id` or `url`.
+		expect(params.files).toStrictEqual([
+			{ type: 'document', transfer_method: 'local_file', upload_file_id: 'up-1' },
+			{ type: 'image', transfer_method: 'remote_url', url: 'https://example.com/a.png' },
+		])
+	})
 	it('omits the conversation id for a new chat', () => {
 		const provider = makeProvider({ getDifyConversationId: () => undefined })
 		expect(provider.transformParams({ query: 'hi' }, { params: {} } as never).conversation_id).toBe(
@@ -679,6 +702,22 @@ describe('DifyChatProvider', () => {
 		expect(
 			provider.transformLocalMessage({ query: 'hi', files: [], inputs: { a: 1 } }),
 		).toMatchObject({ role: 'user', content: 'hi', inputs: { a: 1 } })
+		// An attachment keeps the name it was picked with (Dify's file object carries none).
+		expect(
+			provider.transformLocalMessage({
+				query: 'with a file',
+				files: [
+					{
+						type: 'document',
+						transfer_method: 'local_file',
+						upload_file_id: 'up-1',
+						filename: 'note.txt',
+					},
+				],
+			}),
+		).toMatchObject({
+			files: [{ id: 'up-1', type: 'document', filename: 'note.txt', uploadFileId: 'up-1' }],
+		})
 		expect(
 			provider.transformLocalMessage({
 				resume: { workflowRunId: 'run-1', message: emptyAssistant() },

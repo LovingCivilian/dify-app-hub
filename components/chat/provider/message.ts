@@ -49,6 +49,10 @@ export interface HumanInputField {
 	option_source?: { type: string; value?: string[]; selector?: string[] }
 	/** `file` and `file-list` inputs: `image`, `document`, `audio`, `video`, `custom`. */
 	allowed_file_types?: IFileType[]
+	/** `file` and `file-list` inputs: the extensions of `custom` files, with the leading `.`. */
+	allowed_file_extensions?: string[]
+	/** `file` and `file-list` inputs: `local_file`, `remote_url`. */
+	allowed_file_upload_methods?: Array<'local_file' | 'remote_url'>
 	/** `file-list` inputs: the most files the recipient may upload. */
 	number_limits?: number
 }
@@ -108,11 +112,17 @@ export interface DifyChatMessage {
 	agentAnswer?: boolean
 }
 
+/**
+ * A file sent with a message: Dify's file object (OpenAPI ChatRequest.files) and, for an attachment, the
+ * name it was picked with, which only the local user bubble shows (the request leaves it out).
+ */
+export type DifyChatFile = IFile & { filename?: string }
+
 /** onRequest params. `resume` turns the request into a HITL continuation (spec §4.6). */
 export interface DifyChatInput {
 	query: string
 	inputs: Record<string, unknown>
-	files: IFile[]
+	files: DifyChatFile[]
 	conversation_id?: string
 	user?: string
 	response_mode: 'streaming'

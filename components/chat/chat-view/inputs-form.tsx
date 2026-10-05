@@ -4,7 +4,7 @@ import { Form, Input, InputNumber, Select, type FormInstance } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import FileUpload from '@/components/chat/chatbox/form-controls/file-upload'
+import FileUpload from './file-upload'
 
 import styles from './inputs-form.module.css'
 import { inputFields, type InputDefinition } from './inputs-values'
@@ -68,12 +68,18 @@ export default function InputsForm({
 							mode="single"
 							disabled={disabled}
 							allowed_file_types={field.allowed_file_types ?? []}
+							allowed_file_extensions={field.allowed_file_extensions}
+							allowed_file_upload_methods={field.allowed_file_upload_methods}
+							required={field.required}
 						/>
 					) : field.type === 'file-list' ? (
 						<FileUpload
 							disabled={disabled}
 							maxCount={field.max_length}
 							allowed_file_types={field.allowed_file_types ?? []}
+							allowed_file_extensions={field.allowed_file_extensions}
+							allowed_file_upload_methods={field.allowed_file_upload_methods}
+							required={field.required}
 						/>
 					) : (
 						<Input

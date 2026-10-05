@@ -371,7 +371,16 @@
 		"speech_to_text_error": "语音转文本错误: {{error}}",
 		"single_file_only": "暂不支持一次性上传多个文件，请逐个上传",
 		"content_required": "内容不能为空",
-		"wait_for_uploads": "请等待所有文件上传完成"
+		"wait_for_uploads": "请等待所有文件上传完成",
+		"attach": "添加附件",
+		"too_many_files": "最多 {{limit}} 个文件",
+		"uploading": "上传中...",
+		"drop_hint": "将文件拖放到此处",
+		"remove_failed_uploads": "请移除上传失败的文件",
+		"voice_input": "语音输入",
+		"microphone_unavailable": "无法使用麦克风",
+		"remote_only_unsupported": "此输入项仅接受文件链接，本页面暂不支持发送。",
+		"remote_only_required": "此必填项仅接受文件链接，本页面暂不支持发送，因此无法在此使用该应用。"
 	},
 	"params": {
 		"name": "参数名",

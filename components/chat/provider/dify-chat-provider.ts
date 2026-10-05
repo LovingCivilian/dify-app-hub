@@ -319,7 +319,8 @@ export class DifyChatProvider extends AbstractChatProvider<
 			user,
 			query: requestParams.query ?? '',
 			inputs: requestParams.inputs ?? {},
-			files: requestParams.files ?? [],
+			// Dify's file objects only: the names are for the local bubble.
+			files: (requestParams.files ?? []).map(({ filename: _name, ...file }) => file),
 			response_mode: 'streaming',
 			conversation_id: this.getDifyConversationId() ?? '',
 		} as DifyChatInput
@@ -337,6 +338,7 @@ export class DifyChatProvider extends AbstractChatProvider<
 				type: file.type,
 				url: ('url' in file && file.url) || '',
 				belongsTo: 'user' as const,
+				filename: file.filename,
 				uploadFileId: 'upload_file_id' in file ? file.upload_file_id : undefined,
 			})),
 			inputs: requestParams.inputs,

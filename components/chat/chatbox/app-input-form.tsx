@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next'
 
 import { isChatLikeApp } from '@/components/chat/utils-index'
 
-import FileUpload from './form-controls/file-upload'
+import FileUpload from '../chat-view/file-upload'
 import { IDifyConversationInputFile } from './types'
 
 export type IConversationEntryFormItem = FormItemProps &

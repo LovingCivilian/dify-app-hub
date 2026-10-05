@@ -9,6 +9,8 @@ import {
 	humanInputFailureText,
 	humanInputSubmitError,
 	toDifyError,
+	transcriptionError,
+	uploadAnswerError,
 } from '@/components/chat/hooks/dify-errors'
 import { DifyRequestError } from '@/components/chat/provider/dify-fetch'
 
@@ -204,5 +206,44 @@ describe('audioAnswerError', () => {
 		await expect(audioAnswerError(Response.json({}, { status: 200 }))).resolves.toMatchObject({
 			message: '',
 		})
+	})
+})
+
+// DifyApi.uploadFile and audio2Text resolve the proxy's `data` (createDifyApiResponse wraps Dify's answer as
+// `{ code, data }`): Dify's file or transcript, Dify's error body on an HTTP error, and nothing for the
+// proxy's own failures (`{ error }`).
+describe('uploadAnswerError', () => {
+	it('accepts the uploaded file (OpenAPI FileUploadResponse: its id)', () => {
+		expect(uploadAnswerError({ id: 'f1', name: 'a.txt', size: 3 })).toBeUndefined()
+	})
+	it("reports Dify's refusal with its text, and the proxy's own failure without any", () => {
+		const refused = uploadAnswerError({
+			code: 'unsupported_file_type',
+			message: 'File type not allowed.',
+			status: 415,
+		})
+		expect(refused).toMatchObject({
+			status: 415,
+			code: 'unsupported_file_type',
+			message: 'File type not allowed.',
+		})
+		expect(uploadAnswerError(undefined)).toMatchObject({ status: 0, message: '' })
+	})
+})
+
+describe('transcriptionError', () => {
+	it('accepts a transcript (OpenAPI AudioToTextResponse: text)', () => {
+		expect(transcriptionError({ text: 'hello' })).toBeUndefined()
+		expect(transcriptionError({ text: '' })).toBeUndefined()
+	})
+	it("reports Dify's refusal with its text, and the proxy's own failure without any", () => {
+		expect(
+			transcriptionError({
+				code: 'unsupported_audio_type',
+				message: 'Audio type not allowed.',
+				status: 415,
+			}),
+		).toMatchObject({ status: 415, code: 'unsupported_audio_type' })
+		expect(transcriptionError(undefined)).toMatchObject({ status: 0, message: '' })
 	})
 })

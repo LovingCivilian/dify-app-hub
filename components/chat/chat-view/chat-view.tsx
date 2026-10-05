@@ -17,7 +17,6 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import UserShell from '@/components/shell/user-shell'
-import type { IFile } from '@/lib/api'
 import { unParseGzipString } from '@/lib/helpers'
 
 import { useAppContext } from '../app-context'
@@ -29,6 +28,7 @@ import {
 } from '../hooks/dify-errors'
 import { useConversations } from '../hooks/use-conversations'
 import { useDifyChat, type SendParams } from '../hooks/use-dify-chat'
+import { useSpeechToText } from '../hooks/use-speech-to-text'
 import { useSuggestions } from '../hooks/use-suggestions'
 import HumanInputForm from '../message/human-input-form'
 import { parseConversationKey } from '../provider/keys'
@@ -41,10 +41,18 @@ import ConversationDrawer from './conversation-drawer'
 import ConversationSidebar from './conversation-sidebar'
 import InputsCollapse from './inputs-collapse'
 import { useInputsValid } from './inputs-form'
-import { decodeSenderText, inputFields, resolveInitialInputs } from './inputs-values'
+import { allowsLocalUpload } from './file-types'
+import {
+	apiInputs,
+	decodeSenderText,
+	inputFields,
+	pendingFileInputs,
+	resolveInitialInputs,
+} from './inputs-values'
 import { questionOf, regenerateRequest, unansweredKeys } from './message-actions'
 import MessageFooter, { type FeedbackRating } from './message-footer'
 import MessageList, { type BubbleInfo } from './message-list'
+import { useSenderAttachments } from './sender-attachments'
 import WelcomePanel from './welcome-panel'
 import WidthToggle from './width-toggle'
 
@@ -187,14 +195,52 @@ export default function ChatView() {
 		isRequesting: chat.isRequesting,
 	})
 
+	// The Sender's attachments and speech input, each when the app turns it on (spec §4.7, §5.2): files only
+	// as local uploads, the one way the attachments offer.
+	const fileUpload = parameters.file_upload
+	const attachments = useSenderAttachments({
+		enabled:
+			Boolean(fileUpload?.enabled) && allowsLocalUpload(fileUpload?.allowed_file_upload_methods),
+		senderRef,
+	})
+	// X Sender's ref inserts text at the cursor (Sender Ref `insert`) and reports it through onChange.
+	const insertText = useCallback((text: string) => senderRef.current?.insert(text), [])
+	const speech = useSpeechToText({
+		enabled: Boolean(parameters.speech_to_text?.enabled),
+		onText: insertText,
+	})
+
 	const sendToChat = chat.send
 	const clearSuggestions = suggestions.clear
+	const {
+		files: attachedFiles,
+		ready: attachmentsReady,
+		uploading: attachmentsUploading,
+		reset: resetAttachments,
+	} = attachments
+	const userInputForm = parameters.user_input_form
 	/**
-	 * False when nothing was sent: the required parameters are missing (the form shows which), or the chat
-	 * ignored the send (a reply is running, or one is already queued).
+	 * False when nothing was sent: a file (attached, or in a file input) is still uploading or failed, the
+	 * required parameters are missing (the form shows which), or the chat ignored the send (a reply is
+	 * running, or one is already queued); the Sender then keeps its text. A send without its own files takes
+	 * the attached ones, which go once it was taken.
 	 */
 	const send = useCallback(
 		async (text: string, extra: Partial<SendParams> = {}) => {
+			const withAttachments = extra.files === undefined
+			const values = hasInputs ? inputsForm.getFieldsValue(true) : {}
+			// apiInputs would drop a file input's unfinished files, and `required` accepts them.
+			const pending =
+				extra.inputs === undefined
+					? pendingFileInputs(userInputForm, values)
+					: { uploading: [], failed: [] }
+			const waiting = (withAttachments && attachmentsUploading) || pending.uploading.length > 0
+			const failed =
+				(withAttachments && !attachmentsReady && !attachmentsUploading) || pending.failed.length > 0
+			if (waiting || failed) {
+				toast.error(t(waiting ? 'sender.wait_for_uploads' : 'sender.remove_failed_uploads'))
+				return false
+			}
 			if (hasInputs && !inputsLocked) {
 				try {
 					await inputsForm.validateFields()
@@ -203,29 +249,35 @@ export default function ChatView() {
 					return false
 				}
 			}
-			const inputs = hasInputs ? inputsForm.getFieldsValue(true) : {}
 			const sent = sendToChat({
 				query: text,
-				inputs: extra.inputs ?? inputs,
-				files: (extra.files ?? []) as IFile[],
+				// File inputs go as Dify's file objects (OpenAPI InputFileObject), stored ones included.
+				inputs: extra.inputs ?? apiInputs(userInputForm, values),
+				files: extra.files ?? attachedFiles,
 			})
 			if (sent) {
 				clearSuggestions()
+				if (withAttachments) resetAttachments()
 				// The conversation keeps what was sent, which the form may only hold from a link or a default.
-				if (hasInputs) setInputs(activeKey, inputs)
+				if (hasInputs) setInputs(activeKey, values)
 			}
 			return sent
 		},
 		[
 			activeKey,
+			attachedFiles,
+			attachmentsReady,
+			attachmentsUploading,
 			clearSuggestions,
 			hasInputs,
 			inputsForm,
 			inputsLocked,
+			resetAttachments,
 			sendToChat,
 			setInputs,
 			t,
 			toast,
+			userInputForm,
 		],
 	)
 	const postBack = useCallback((text: string) => void send(text), [send])
@@ -528,6 +580,11 @@ export default function ChatView() {
 								senderRef={senderRef}
 								onSend={send}
 								onStop={() => void chat.stop()}
+								header={attachments.header}
+								prefix={attachments.prefix}
+								onPasteFile={attachments.onPasteFile}
+								allowSpeech={speech.allowSpeech}
+								transcribing={speech.transcribing}
 							/>
 						</div>
 						<Typography.Text

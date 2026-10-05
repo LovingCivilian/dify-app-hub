@@ -114,3 +114,19 @@ export const audioAnswerError = async (
 	if (response.ok && !(response.headers.get('content-type') ?? '').includes('json')) return
 	return envelopeError(await response.json().catch(() => null), response.status)
 }
+
+/**
+ * The answer of POST /api/client/dify/<app>/files/upload as DifyApi.uploadFile resolves it: the proxy's
+ * `data` (createDifyApiResponse wraps Dify's answer as `{ code, data }`), so Dify's file (OpenAPI
+ * FileUploadResponse, with its `id`), Dify's error body, or nothing for the proxy's own failures (`{ error }`).
+ * Undefined when the file was taken, else the error with Dify's message or ''.
+ */
+export const uploadAnswerError = (answer: unknown): DifyRequestError | undefined =>
+	typeof recordOf(answer).id === 'string' ? undefined : envelopeError(answer)
+
+/**
+ * The answer of POST /api/client/dify/<app>/audio2text as DifyApi.audio2Text resolves it, the same way:
+ * Dify's transcript (OpenAPI AudioToTextResponse, `text`), Dify's error body, or nothing.
+ */
+export const transcriptionError = (answer: unknown): DifyRequestError | undefined =>
+	typeof recordOf(answer).text === 'string' ? undefined : envelopeError(answer)

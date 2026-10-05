@@ -8,7 +8,6 @@ import {
 import type { TFunction } from 'i18next'
 import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 
-import type { IFile } from '@/lib/api'
 import type { DifyApi } from '@/lib/dify-client'
 
 import workflowDataStorage, { useWorkflowStore } from '../persistence/workflow-data-storage'
@@ -18,6 +17,7 @@ import { mapHistoryPage, type HistoryMessage } from '../provider/history'
 import { parseConversationKey } from '../provider/keys'
 import {
 	emptyAssistant,
+	type DifyChatFile,
 	type DifyChatInput,
 	type DifyChatMessage,
 	type MessageError,
@@ -32,7 +32,7 @@ export const HISTORY_PAGE = 20
 export interface SendParams {
 	query: string
 	inputs: Record<string, unknown>
-	files: IFile[]
+	files: DifyChatFile[]
 }
 
 interface Options {

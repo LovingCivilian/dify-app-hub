@@ -371,7 +371,16 @@
 		"speech_to_text_error": "Speech-to-text error: {{error}}",
 		"single_file_only": "Uploading several files at once is not supported. Upload them one at a time.",
 		"content_required": "The message cannot be empty",
-		"wait_for_uploads": "Wait for all files to finish uploading"
+		"wait_for_uploads": "Wait for all files to finish uploading",
+		"attach": "Attach files",
+		"too_many_files": "At most {{limit}} files",
+		"uploading": "Uploading...",
+		"drop_hint": "Drop files here",
+		"remove_failed_uploads": "Remove the files that could not be uploaded",
+		"voice_input": "Voice input",
+		"microphone_unavailable": "The microphone is not available",
+		"remote_only_unsupported": "This input takes files by URL only, which this page cannot send yet.",
+		"remote_only_required": "This required input takes files by URL only, which this page cannot send yet, so the app cannot be used from here."
 	},
 	"params": {
 		"name": "Parameter",

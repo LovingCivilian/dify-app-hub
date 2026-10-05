@@ -1,8 +1,8 @@
 import type { MessageInfo } from '@ant-design/x-sdk'
 
-import type { IFile, IFileType } from '@/lib/api'
+import type { IFileType } from '@/lib/api'
 
-import type { DifyChatMessage } from '../provider/message'
+import type { DifyChatFile, DifyChatMessage } from '../provider/message'
 
 /** What an assistant bubble's footer offers (spec §5.2). */
 export interface FooterActions {
@@ -47,14 +47,18 @@ export const footerActions = (
 	}
 }
 
-/** A user message's files as the request carries them again: by upload id, else by URL. */
-const resendFiles = (message: DifyChatMessage): IFile[] =>
-	(message.files ?? []).flatMap((file): IFile[] => {
+/**
+ * A user message's files as the request carries them again: by upload id, else by URL, with the name the
+ * new user bubble shows (the request leaves it out).
+ */
+const resendFiles = (message: DifyChatMessage): DifyChatFile[] =>
+	(message.files ?? []).flatMap((file): DifyChatFile[] => {
 		const type = file.type as IFileType
+		const name = file.filename ? { filename: file.filename } : {}
 		if (file.uploadFileId) {
-			return [{ type, transfer_method: 'local_file', upload_file_id: file.uploadFileId }]
+			return [{ type, transfer_method: 'local_file', upload_file_id: file.uploadFileId, ...name }]
 		}
-		return file.url ? [{ type, transfer_method: 'remote_url', url: file.url }] : []
+		return file.url ? [{ type, transfer_method: 'remote_url', url: file.url, ...name }] : []
 	})
 
 /**
@@ -86,7 +90,7 @@ export const questionOf = (
 export const regenerateRequest = (
 	messages: MessageInfo<DifyChatMessage>[],
 	key: string | number,
-): { query: string; files: IFile[] } | undefined => {
+): { query: string; files: DifyChatFile[] } | undefined => {
 	const question = questionOf(messages, key)
 	return question && { query: question.content, files: resendFiles(question) }
 }
