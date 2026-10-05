@@ -52,6 +52,26 @@ describe('fallbackMessage (useXChat requestFallback)', () => {
 			message: 't:common.request_failed_retry',
 		})
 	})
+	// A failed HITL continuation: Dify already accepted the form, so the text must not invite a resubmit.
+	it('names a failed continuation of a submitted form instead of the generic text', () => {
+		expect(fallbackMessage(new TypeError('network error'), streamed, t, true).error).toEqual({
+			message: 't:hitl.resume_failed',
+		})
+		expect(
+			fallbackMessage(new DifyRequestError(502, undefined, ''), streamed, t, true).error,
+		).toEqual({ code: undefined, message: 't:hitl.resume_failed', status: 502 })
+		// Dify's own reason still wins, and a stop is still a stop.
+		expect(
+			fallbackMessage(
+				new DifyRequestError(404, 'not_found', 'Workflow run not found'),
+				streamed,
+				t,
+				true,
+			).error?.message,
+		).toBe('Workflow run not found')
+		expect(fallbackMessage(abortError(), streamed, t, true)).toMatchObject({ aborted: true })
+		expect(fallbackMessage(abortError(), streamed, t, true).error).toBeUndefined()
+	})
 	it('keeps what the reply already showed (a streamed part, a paused HITL message) next to the error', () => {
 		const message = fallbackMessage(new TypeError('network error'), streamed, t)
 		expect(message).toMatchObject({ content: 'Half an ans', ids: streamed.ids })

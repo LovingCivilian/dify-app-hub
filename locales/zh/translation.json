@@ -380,6 +380,13 @@
 		"time_days_hours": "{{d}}天{{h}}小时",
 		"time_hours_minutes": "{{h}}小时{{m}}分",
 		"time_minutes_seconds": "{{m}}分{{s}}秒",
-		"submit_failed": "提交失败，请重试"
+		"submit_failed": "提交失败，请重试",
+		"submitted": "已提交：{{action}}",
+		"expired_hint": "此表单已无法提交。",
+		"field_required": "必填",
+		"time_left": "剩余时间",
+		"no_token": "此表单已通过邮件或 Dify 控制台发送，只能在那里填写。",
+		"submit_failed_reason": "提交失败：{{error}}",
+		"resume_failed": "您的回答已提交，但未能加载后续回复。请重新打开对话查看。"
 	}
 }

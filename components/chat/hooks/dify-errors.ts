@@ -1,3 +1,5 @@
+import type { TFunction } from 'i18next'
+
 import { DifyRequestError } from '../provider/dify-fetch'
 
 /**
@@ -21,4 +23,42 @@ export const toDifyError = (error: unknown): DifyRequestError => {
 	const wrapped = new DifyRequestError(0, undefined, '')
 	wrapped.cause = error
 	return wrapped
+}
+
+/**
+ * The answer of POST /api/client/dify/<app>/form/human_input/<token> (DifyApi.submitHumanInput resolves
+ * it whatever the status): the proxy route wraps Dify's answer as `{ code: <HTTP status>, data }`
+ * (createDifyApiResponse), with Dify's `{}` on success (OpenAPI: "The response body is an empty object")
+ * and `{ error: <Dify's error body as text> }` otherwise; its own failures (session, server) answer
+ * `{ error }`. Undefined when the form was accepted, else the error with Dify's message or ''.
+ */
+export const humanInputSubmitError = (answer: unknown): DifyRequestError | undefined => {
+	const body = (answer && typeof answer === 'object' ? answer : {}) as Record<string, unknown>
+	const status = typeof body.code === 'number' ? body.code : 0
+	const data = (body.data && typeof body.data === 'object' ? body.data : {}) as Record<
+		string,
+		unknown
+	>
+	if (status >= 200 && status < 300 && data.error === undefined && body.error === undefined) return
+	let difyBody: unknown = null
+	if (typeof data.error === 'string') {
+		try {
+			difyBody = JSON.parse(data.error)
+		} catch {
+			difyBody = null
+		}
+	}
+	return envelopeError(difyBody, status)
+}
+
+/**
+ * The toast for a human input form that could not go on (spec §4.6). Once Dify has accepted the form
+ * only the continuation failed (x-sdk's onReload throws for a message the store does not hold) and a
+ * second submission would be refused (412), so the text says the answer was sent; otherwise Dify's
+ * reason, or the generic text.
+ */
+export const humanInputFailureText = (error: unknown, accepted: boolean, t: TFunction): string => {
+	if (accepted) return t('hitl.resume_failed')
+	const { message } = toDifyError(error)
+	return message ? t('hitl.submit_failed_reason', { error: message }) : t('hitl.submit_failed')
 }

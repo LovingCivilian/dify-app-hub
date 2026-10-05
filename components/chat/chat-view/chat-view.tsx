@@ -13,9 +13,11 @@ import type { IFile } from '@/lib/api'
 import { unParseGzipString } from '@/lib/helpers'
 
 import { useAppContext } from '../app-context'
+import { humanInputFailureText, humanInputSubmitError } from '../hooks/dify-errors'
 import { useConversations } from '../hooks/use-conversations'
 import { useDifyChat, type SendParams } from '../hooks/use-dify-chat'
 import { useSuggestions } from '../hooks/use-suggestions'
+import HumanInputForm from '../message/human-input-form'
 import { parseConversationKey } from '../provider/keys'
 import type { DifyChatMessage } from '../provider/message'
 import AssistantContent from './assistant-content'
@@ -44,7 +46,7 @@ export default function ChatView() {
 	const { t } = useTranslation()
 	const { token } = theme.useToken()
 	const { message: toast } = App.useApp()
-	const { app, site, parameters, difyApi } = useAppContext()
+	const { app, site, parameters, difyApi, userId } = useAppContext()
 	const searchParams = useSearchParams()
 	const [keptParams] = useState(() => keptParamsOf(searchParams))
 	const [inputsForm] = Form.useForm<Record<string, unknown>>()
@@ -213,16 +215,77 @@ export default function ChatView() {
 	const postBack = useCallback((text: string) => void send(text), [send])
 	// Answer buttons and forms post back only between replies (AnswerButton is disabled without it).
 	const answerSend = chat.isRequesting ? undefined : postBack
+
+	// The bubble whose human input form is being submitted, until its continuation has started (spec §4.6).
+	const [hitlSubmitting, setHitlSubmitting] = useState<string | number>()
+	const resume = chat.resume
+	/**
+	 * Submits a paused run's form, then resumes the run into the same message (spec §4.6 steps 2–3). A
+	 * refused form (Dify's message, or the generic text) and a resume that cannot start (x-sdk's
+	 * `onReload` throws for a message the store does not hold) are reported here, each in its own words
+	 * (humanInputFailureText); the form stays submittable. A resumed stream that fails keeps the paused
+	 * message with its error (requestFallback, `hitl.resume_failed` without Dify's text).
+	 */
+	const submitHumanInput = useCallback(
+		async (
+			key: string | number,
+			message: DifyChatMessage,
+			inputs: Record<string, unknown>,
+			actionId: string,
+		) => {
+			const form = message.humanInput
+			if (!form?.formToken) return
+			setHitlSubmitting(key)
+			let accepted = false
+			try {
+				// DifyApi resolves an HTTP error with the proxy's answer instead of rejecting. Its body type
+				// predates file inputs, which take file mappings (OpenAPI, POST /form/human_input).
+				const answer: unknown = await difyApi.submitHumanInput(form.formToken, {
+					inputs: inputs as Record<string, string>,
+					action: actionId,
+					user: userId,
+				})
+				const refused = humanInputSubmitError(answer)
+				if (refused) throw refused
+				accepted = true
+				resume(key, form.workflowRunId, message)
+			} catch (error) {
+				toast.error(humanInputFailureText(error, accepted, t))
+			} finally {
+				setHitlSubmitting(undefined)
+			}
+		},
+		[difyApi, resume, t, toast, userId],
+	)
+
 	// Stable between renders: Bubble.List's role map follows it, and a new map re-renders every bubble.
 	const renderAssistant = useCallback(
-		(message: DifyChatMessage, info: BubbleInfo) => (
-			<AssistantContent
-				message={message}
-				info={info}
-				onSend={answerSend}
-			/>
-		),
-		[answerSend],
+		(message: DifyChatMessage, info: BubbleInfo) => {
+			const form = message.humanInput
+			const key = info.key
+			return (
+				<AssistantContent
+					message={message}
+					info={info}
+					onSend={answerSend}
+					extra={
+						form && key !== undefined ? (
+							<HumanInputForm
+								// One antd Form per form: a later form in the same message starts afresh.
+								key={`${form.workflowRunId}:${form.nodeId ?? ''}:${form.formToken}`}
+								humanInput={form}
+								// Also while the resumed run connects and streams, until the form is filled.
+								submitting={
+									hitlSubmitting === key || info.status === 'loading' || info.status === 'updating'
+								}
+								onSubmit={(inputs, actionId) => submitHumanInput(key, message, inputs, actionId)}
+							/>
+						) : undefined
+					}
+				/>
+			)
+		},
+		[answerSend, hitlSubmitting, submitHumanInput],
 	)
 
 	// Welcome while the conversation has no messages, or always when the app asks for it (spec §5.2); never

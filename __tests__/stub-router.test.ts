@@ -297,6 +297,24 @@ describe('stub router', () => {
 			data: { form_token: string }
 		}
 		const token = required.data.form_token
+		const messages = async () =>
+			(
+				await (
+					await fetch(
+						`${base}/v1/chatflow/messages?conversation_id=${run.events[0].conversation_id}&user=alice`,
+					)
+				).json()
+			).data as { answer: string; extra_contents: Record<string, unknown>[] }[]
+		// Paused: the history carries the form's definition (HumanInputContent, not submitted yet).
+		expect((await messages())[0].extra_contents).toEqual([
+			{
+				type: 'human_input',
+				workflow_run_id: required.workflow_run_id,
+				submitted: false,
+				form_definition: required.data,
+				form_submission_data: null,
+			},
+		])
 		const form = await (await fetch(`${base}/v1/chatflow/form/human_input/${token}`)).json()
 		expect(form).toMatchObject({
 			form_content: expect.any(String),
@@ -317,6 +335,22 @@ describe('stub router', () => {
 			user: 'alice',
 		})
 		expect(await submitted.json()).toEqual({})
+		// Submitted: the history carries the submission instead (`form_definition` null, per the document).
+		expect((await messages())[0].extra_contents).toEqual([
+			{
+				type: 'human_input',
+				workflow_run_id: required.workflow_run_id,
+				submitted: true,
+				form_definition: null,
+				form_submission_data: {
+					node_id: 'review',
+					node_title: 'Review',
+					action_id: 'approve',
+					action_text: 'Approve',
+					rendered_content: 'Review: ship it (high)',
+				},
+			},
+		])
 		const again = await post(`/v1/chatflow/form/human_input/${token}`, {
 			action: 'approve',
 			inputs: {},
@@ -344,12 +378,7 @@ describe('stub router', () => {
 			'message_end',
 			'workflow_finished',
 		])
-		const history = await (
-			await fetch(
-				`${base}/v1/chatflow/messages?conversation_id=${run.events[0].conversation_id}&user=alice`,
-			)
-		).json()
-		expect(history.data[0].answer).toBe('Approved: ship it')
+		expect((await messages())[0].answer).toBe('Approved: ship it')
 		// Forms are one-shot: after the resume the form stays and answers 412 as submitted.
 		const submittedAgain = await fetch(`${base}/v1/chatflow/form/human_input/${token}`)
 		expect(submittedAgain.status).toBe(412)

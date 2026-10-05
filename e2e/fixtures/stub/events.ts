@@ -215,21 +215,23 @@ export const workflowPaused = (
 		},
 	})
 /**
- * StreamEventHumanInputRequired. The stream schema lists `default`, `output_variable_name` and `type` per input;
- * `option_source` of the select input comes from the GET /form/human_input response schema, where `default` is
- * documented for paragraph inputs only.
+ * StreamEventHumanInputRequired. The stream schema documents only `default`, `output_variable_name` and `type` per
+ * input. The select input also carries `option_source`, which the document lists only on GET
+ * /form/human_input. langgenius/dify sends it in the stream as well (`HumanInputRequiredResponse.Data.inputs` is
+ * the node's full `FormInputConfig`), and the chat form reads it from here (ADR-0017 note, 2026-10-05).
+ * `form_token` is null "when the Human Input node uses Email or Console delivery".
  */
 export const humanInputRequired = (
 	base: StreamBase,
 	runId: string,
-	formToken: string,
+	formToken: string | null,
 	nodeId: string,
 	expiresAt: number,
 ) =>
 	withBase(base, 'human_input_required', {
 		workflow_run_id: runId,
 		data: {
-			form_id: `form-${formToken}`,
+			form_id: `form-${formToken ?? runId}`,
 			form_token: formToken,
 			form_content: 'Please review the draft and approve it or request changes.',
 			inputs: [
@@ -279,6 +281,44 @@ export const humanInputFormFilled = (
 			submitted_data: inputs,
 		},
 	})
+/**
+ * An `extra_contents` item of GET /messages (HumanInputContent) for a form still waiting: the definition is the
+ * human_input_required payload (HumanInputFormDefinition has the same fields), and nothing is submitted yet.
+ */
+export const pendingHumanInputContent = (required: StreamEvent) => ({
+	type: 'human_input',
+	workflow_run_id: required.workflow_run_id,
+	submitted: false,
+	form_definition: required.data,
+	form_submission_data: null,
+})
+/**
+ * The same item once the form is submitted. HumanInputContent: `form_definition` is "`null` when the content
+ * represents a submission response"; HumanInputFormSubmissionData holds what human_input_form_filled carries,
+ * without `submitted_data`.
+ */
+export const submittedHumanInputContent = (
+	runId: string,
+	nodeId: string,
+	action: string,
+	inputs: Record<string, string>,
+) => {
+	const filled = humanInputFormFilled(
+		{ task_id: '', message_id: '', conversation_id: '', created_at: 0 },
+		runId,
+		nodeId,
+		action,
+		inputs,
+	)
+	const { submitted_data: _submittedData, ...submission } = filled.data as Record<string, unknown>
+	return {
+		type: 'human_input',
+		workflow_run_id: runId,
+		submitted: true,
+		form_definition: null,
+		form_submission_data: submission,
+	}
+}
 /** StreamEventHumanInputFormTimeout. */
 export const humanInputFormTimeout = (
 	base: StreamBase,

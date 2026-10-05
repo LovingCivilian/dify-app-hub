@@ -174,31 +174,34 @@ const toMessageInfo = (
 	status: info.status ?? 'success',
 })
 
-const toMessageError = (error: Error, t: TFunction): MessageError =>
+const toMessageError = (error: Error, fallback: string): MessageError =>
 	error instanceof DifyRequestError
 		? {
 				code: error.code,
 				// HTTP/2 has no statusText, so an error without a body can arrive with an empty message.
-				message: error.message || t('common.request_failed_retry'),
+				message: error.message || fallback,
 				status: error.status,
 			}
-		: { message: t('common.request_failed_retry') }
+		: { message: fallback }
 
 /**
  * useXChat's requestFallback (spec §4.5). A stopped reply keeps what it showed and is marked
  * `aborted` (use-x-chat skill, "Abort Request"); a failed one keeps it too (a streamed part, or the
  * paused HITL message of a resume, spec §4.6) and carries the error: Dify's text, or the generic one.
- * `agentAnswer` is stream bookkeeping and never stays on a finished message.
+ * A failed resume (`resumed`) follows a form Dify already accepted, so its generic text says the
+ * answer was sent rather than inviting a retry. `agentAnswer` is stream bookkeeping and never stays
+ * on a finished message.
  */
 export const fallbackMessage = (
 	error: Error,
 	current: DifyChatMessage | undefined,
 	t: TFunction,
+	resumed = false,
 ): DifyChatMessage => {
 	const { agentAnswer: _agentAnswer, ...base } = current ?? emptyAssistant()
-	return error.name === 'AbortError'
-		? { ...base, aborted: true }
-		: { ...base, error: toMessageError(error, t) }
+	if (error.name === 'AbortError') return { ...base, aborted: true }
+	const fallback = resumed ? t('hitl.resume_failed') : t('common.request_failed_retry')
+	return { ...base, error: toMessageError(error, fallback) }
 }
 
 /**
@@ -265,8 +268,9 @@ export const useDifyChat = ({
 		},
 		// A resume keeps the paused message visible while the continuation connects (spec §4.6).
 		requestPlaceholder: params => (params.resume ? params.resume.message : emptyAssistant()),
-		requestFallback: (_params, { error, messageInfo }) =>
-			fallbackMessage(error, messageInfo?.message, t),
+		// The SDK passes the request's params (use-x-chat API: requestFallback), so a resume is known here.
+		requestFallback: (params, { error, messageInfo }) =>
+			fallbackMessage(error, messageInfo?.message, t, Boolean(params.resume)),
 	})
 
 	// The callbacks below stay stable and read the committed render's values here (React: refs are

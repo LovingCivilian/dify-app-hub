@@ -4,6 +4,7 @@ import {
 	historyIds,
 	mapHistoryPage,
 	type HistoryFile,
+	type HistoryHumanInputContent,
 	type HistoryMessage,
 	type HistoryThought,
 } from '@/components/chat/provider/history'
@@ -253,6 +254,161 @@ describe('mapHistoryPage', () => {
 		const page = await mapHistoryPage([item()], { loadWorkflow })
 		expect(page.map(m => m.id)).toEqual(['m1:q', 'm1:a'])
 		expect(page[1].message.workflow).toBeUndefined()
+	})
+
+	// extra_contents (OpenAPI HumanInputContent): a pending form carries its definition (token, expiry); a
+	// submitted one its submission data, with `form_definition` null per the document.
+	describe('human input forms (extra_contents)', () => {
+		const definition = {
+			form_id: 'form-1',
+			node_id: 'review',
+			node_title: 'Review',
+			form_content: 'Please review the draft.',
+			inputs: [
+				{
+					type: 'paragraph',
+					output_variable_name: 'feedback',
+					default: { type: 'constant', value: '', selector: [] },
+				},
+			],
+			actions: [{ id: 'approve', title: 'Approve', button_style: 'primary' }],
+			display_in_ui: true,
+			form_token: 'ft-1',
+			resolved_default_values: { feedback: '' },
+			expiration_time: 1_700_003_600,
+		}
+		const pending: HistoryHumanInputContent = {
+			type: 'human_input',
+			workflow_run_id: 'run-1',
+			submitted: false,
+			form_definition: definition,
+			form_submission_data: null,
+		}
+		const submitted: HistoryHumanInputContent = {
+			type: 'human_input',
+			workflow_run_id: 'run-1',
+			submitted: true,
+			form_definition: null,
+			form_submission_data: {
+				node_id: 'review',
+				node_title: 'Review',
+				rendered_content: 'Review: Looks good',
+				action_id: 'approve',
+				action_text: 'Approve',
+			},
+		}
+		const at = (seconds: number) => ({ ...ctx, now: () => seconds })
+
+		it('maps a pending form to the form, with its token and expiry', async () => {
+			const [user, assistant] = await mapHistoryPage(
+				[item({ answer: '', extra_contents: [pending] })],
+				at(1_700_000_000),
+			)
+			expect(user.message.humanInput).toBeUndefined()
+			expect(assistant.message.humanInput).toStrictEqual({
+				state: 'pending',
+				formToken: 'ft-1',
+				formContent: 'Please review the draft.',
+				inputs: definition.inputs,
+				actions: definition.actions,
+				defaults: { feedback: '' },
+				expiresAt: 1_700_003_600,
+				workflowRunId: 'run-1',
+				nodeId: 'review',
+			})
+		})
+
+		it('maps a pending form past its expiration_time to the expired state', async () => {
+			const [, assistant] = await mapHistoryPage(
+				[item({ extra_contents: [pending] })],
+				at(1_700_003_601),
+			)
+			expect(assistant.message.humanInput?.state).toBe('expired')
+		})
+
+		it('maps a pending form without a token (absent or null) to an empty token', async () => {
+			const { form_token: _token, ...withoutToken } = definition
+			const page = await mapHistoryPage(
+				[
+					item({ extra_contents: [{ ...pending, form_definition: withoutToken }] }),
+					item({
+						id: 'm2',
+						extra_contents: [{ ...pending, form_definition: { ...definition, form_token: null } }],
+					}),
+				],
+				at(1_700_000_000),
+			)
+			expect(page[1].message.humanInput).toMatchObject({ state: 'pending', formToken: '' })
+			expect(page[3].message.humanInput).toMatchObject({ state: 'pending', formToken: '' })
+		})
+
+		it('maps a submitted form to its filled summary', async () => {
+			const [, assistant] = await mapHistoryPage(
+				[item({ answer: 'Approved: Looks good', extra_contents: [submitted] })],
+				at(1_700_000_000),
+			)
+			expect(assistant.message.humanInput).toStrictEqual({
+				state: 'filled',
+				formToken: '',
+				formContent: '',
+				inputs: [],
+				actions: [],
+				defaults: {},
+				expiresAt: 0,
+				workflowRunId: 'run-1',
+				nodeId: 'review',
+				renderedContent: 'Review: Looks good',
+				actionText: 'Approve',
+			})
+		})
+
+		it('also reads a submitted form that keeps its definition, and never calls it expired', async () => {
+			// langgenius/dify (2026-10-01) sends the definition of a submitted form with `form_token` null.
+			const [, assistant] = await mapHistoryPage(
+				[
+					item({
+						extra_contents: [
+							{ ...submitted, form_definition: { ...definition, form_token: null } },
+						],
+					}),
+				],
+				at(1_800_000_000),
+			)
+			expect(assistant.message.humanInput).toMatchObject({
+				state: 'filled',
+				formContent: 'Please review the draft.',
+				renderedContent: 'Review: Looks good',
+				actionText: 'Approve',
+			})
+		})
+
+		it('keeps the last form of a message: one form slot per message, as in the live stream', async () => {
+			const second = {
+				...pending,
+				form_definition: { ...definition, node_id: 'sign-off', form_token: 'ft-2' },
+			}
+			const [, assistant] = await mapHistoryPage(
+				[item({ extra_contents: [submitted, second] })],
+				at(1_700_000_000),
+			)
+			expect(assistant.message.humanInput).toMatchObject({
+				state: 'pending',
+				formToken: 'ft-2',
+				nodeId: 'sign-off',
+			})
+		})
+
+		it('leaves humanInput out without human input contents', async () => {
+			const page = await mapHistoryPage(
+				[
+					item(),
+					item({ id: 'm2', extra_contents: [] }),
+					item({ id: 'm3', extra_contents: [{ ...pending, type: 'other' }] }),
+				],
+				ctx,
+			)
+			expect(page.map(m => m.message.humanInput)).toEqual(Array(6).fill(undefined))
+		})
 	})
 
 	it('derives stable ids', () => {

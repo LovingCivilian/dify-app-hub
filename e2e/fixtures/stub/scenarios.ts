@@ -107,12 +107,14 @@ export const chatScenario = (
 	}
 	if (mode === 'advanced-chat') {
 		if (has(query, 'hitl')) {
+			// `expired`: the form arrives already past its expiration_time (Review Focus 5). `email`: the node
+			// delivers the form elsewhere, so the stream carries no token (OpenAPI: `form_token` null).
 			const required = ev.humanInputRequired(
 				base,
 				runId,
-				formToken,
+				hasWord(query, 'email') ? null : formToken,
 				REVIEW_NODE.nodeId,
-				base.created_at + 3600,
+				base.created_at + (hasWord(query, 'expired') ? -60 : 3600),
 			)
 			return [
 				ev.workflowStarted(base, runId),

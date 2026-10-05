@@ -141,6 +141,20 @@ describe('chatScenario', () => {
 		const types = chatScenario('advanced-chat', 'please hitl this', ctx).map(e => e.event)
 		expect(types.slice(-2)).toEqual(['human_input_required', 'workflow_paused'])
 	})
+	it('sends a form already past its expiry on `expired` and one without a token on `email`', () => {
+		const formOf = (query: string) =>
+			(
+				chatScenario('advanced-chat', query, ctx).find(
+					e => e.event === 'human_input_required',
+				) as unknown as { data: { form_token: string | null; expiration_time: number } }
+			).data
+		expect(formOf('please hitl')).toMatchObject({
+			form_token: 'ft-1',
+			expiration_time: ctx.base.created_at + 3600,
+		})
+		expect(formOf('please hitl expired').expiration_time).toBe(ctx.base.created_at - 60)
+		expect(formOf('please hitl by email').form_token).toBeNull()
+	})
 	it('emits an error event on the error query and a message_file on the files query', () => {
 		expect(chatScenario('chat', 'cause an error', ctx).map(e => e.event)).toEqual([
 			'message',

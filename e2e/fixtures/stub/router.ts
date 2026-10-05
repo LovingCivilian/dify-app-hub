@@ -375,6 +375,18 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 			)
 		}
 		form.submitted = { inputs: body.inputs as Record<string, string>, action }
+		// The form is submitted from now on: the history lists its submission instead of its definition.
+		const message = forUser(form.user, mode).messages.find(m => m.id === form.messageId)
+		if (message) {
+			message.extra_contents = [
+				ev.submittedHumanInputContent(
+					form.workflowRunId,
+					REVIEW_NODE.nodeId,
+					action,
+					form.submitted.inputs,
+				),
+			]
+		}
 		return json(res, 200, {})
 	}
 	if (method === 'GET' && /^\/workflow\/[^/]+\/events$/.test(path)) {
@@ -478,6 +490,7 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 		const events = chatScenario(mode, query, { base, runId, formToken, fileUrl })
 		const errorEvent = events.find(e => e.event === 'error')
 		const messageEnd = events.find(e => e.event === 'message_end')
+		const required = events.find(e => e.event === 'human_input_required')
 		const answer = events
 			.filter(e => e.event === 'message' || e.event === 'agent_message')
 			.map(e => String((e as { answer?: string }).answer ?? ''))
@@ -501,7 +514,8 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 						| undefined
 				)?.retriever_resources ?? []
 			).map(ev.toHistoryResource),
-			extra_contents: [],
+			// A paused run's form stays in the history until it is submitted (HumanInputContent).
+			extra_contents: required ? [ev.pendingHumanInputContent(required)] : [],
 			status: errorEvent ? 'error' : 'normal',
 			error: errorEvent ? String(errorEvent.message) : null,
 		}
@@ -522,9 +536,11 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 			}
 		}
 		store.messages.push(stored)
-		const required = events.find(e => e.event === 'human_input_required')
-		if (required) {
-			const form = required.data as { form_token: string; expiration_time: number }
+		const form = required?.data as
+			| { form_token: string | null; expiration_time: number }
+			| undefined
+		// A form without a token cannot be reached through the Service API at all.
+		if (form?.form_token) {
 			pendingForms.set(form.form_token, {
 				formToken: form.form_token,
 				workflowRunId: runId,
