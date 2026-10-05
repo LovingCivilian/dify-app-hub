@@ -8,6 +8,11 @@ describe('markdown samples', () => {
 			['code', 'html', 'imageFirst', 'links', 'long', 'math', 'streaming', 'theme', 'think'].sort(),
 		)
 	})
+	it('stream the think sample reasoning over several 40-character chunks', () => {
+		const block = /<think>[\s\S]*<\/think>/.exec(MARKDOWN_SAMPLES.think)?.[0] ?? ''
+		expect(block.length).toBeGreaterThan(4 * 40)
+		expect(MARKDOWN_SAMPLES.think).toContain('The user asks for a summary')
+	})
 	it('carry a video given by <source> children as well as one with a src', () => {
 		expect(MARKDOWN_SAMPLES.html).toMatch(/<video src="[^"]+"><\/video>/)
 		expect(MARKDOWN_SAMPLES.html).toMatch(/<video><source src="[^"]+"[^>]*\/><\/video>/)

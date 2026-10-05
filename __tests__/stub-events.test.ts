@@ -10,6 +10,7 @@ import {
 	resumeScenario,
 	REVIEW_NODE,
 	runScenario,
+	streamDelay,
 } from '@/e2e/fixtures/stub/scenarios'
 
 const ctx = {
@@ -115,7 +116,26 @@ describe('chatScenario', () => {
 		const finals = events
 			.filter(e => e.event === 'reasoning_chunk')
 			.map(e => (e as unknown as { data: { is_final: boolean } }).data.is_final)
+		// Several chunks, so the reasoning streams across several events (the e2e sees it open).
+		expect(finals.length).toBeGreaterThanOrEqual(4)
 		expect(finals.at(-1)).toBe(true)
+		expect(finals.slice(0, -1).every(final => !final)).toBe(true)
+	})
+	it('fails a chatflow run on the nodefail query: workflow_finished failed, then error, no message_end', () => {
+		const events = chatScenario('advanced-chat', 'nodefail please', ctx)
+		const types = events.map(e => e.event)
+		expect(types[0]).toBe('workflow_started')
+		expect(types.slice(-3)).toEqual(['node_finished', 'workflow_finished', 'error'])
+		expect(types).not.toContain('message_end')
+		const [node, run] = events.slice(-3) as unknown as { data: { status: string; error: string } }[]
+		expect(node.data).toMatchObject({ status: 'failed', error: 'The model is unavailable.' })
+		expect(run.data).toMatchObject({ status: 'failed', error: 'The model is unavailable.' })
+		// Elsewhere the marker is plain text: the echo.
+		expect(chatScenario('chat', 'nodefail please', ctx).map(e => e.event)).toEqual([
+			'message',
+			'message',
+			'message_end',
+		])
 	})
 	it('pauses for human input on the hitl query and ends the stream', () => {
 		const types = chatScenario('advanced-chat', 'please hitl this', ctx).map(e => e.event)
@@ -156,6 +176,21 @@ describe('chatScenario', () => {
 		}
 		expect(end.event).toBe('message_end')
 		expect(end.metadata.retriever_resources.map(r => r.position)).toEqual([1, 2])
+	})
+})
+
+describe('streamDelay', () => {
+	const delayOf = (mode: Parameters<typeof chatScenario>[0], query: string) =>
+		streamDelay(query, chatScenario(mode, query, ctx))
+
+	it('paces the slow stream and the streams that carry reasoning at 100 ms, the rest at 20 ms', () => {
+		expect(delayOf('chat', 'go slow')).toBe(100)
+		// reasoning_chunk events (chatflow) and a <think> block in the answer (md:think).
+		expect(delayOf('advanced-chat', 'hello')).toBe(100)
+		expect(delayOf('chat', 'md:think')).toBe(100)
+		expect(delayOf('chat', 'hello')).toBe(20)
+		expect(delayOf('chat', 'md:code')).toBe(20)
+		expect(delayOf('advanced-chat', 'nodefail')).toBe(20)
 	})
 })
 
@@ -210,8 +245,9 @@ describe('event builders follow the OpenAPI schemas', () => {
 			currency: 'USD',
 			latency: expect.any(Number),
 		})
+		// The streamed item has no `id` (OpenAPI POST /chat-messages streaming example); the stored one has.
+		expect(metadata.retriever_resources[0]).not.toHaveProperty('id')
 		expect(metadata.retriever_resources[0]).toMatchObject({
-			id: expect.any(String),
 			message_id: 'm1',
 			position: 1,
 			dataset_id: expect.any(String),
@@ -452,6 +488,13 @@ describe('event builders follow the OpenAPI schemas', () => {
 			files: [],
 			chain_id: null,
 			created_at: base.created_at,
+		})
+		expect(ev.toHistoryResource(ev.retrieverResource(base, 1, 'Tea.'))).toMatchObject({
+			id: expect.any(String),
+			message_id: 'm1',
+			position: 1,
+			segment_id: expect.any(String),
+			content: 'Tea.',
 		})
 		expect(ev.toHistoryFile(ev.messageFile(base, 'http://x/y.png'))).toMatchObject({
 			type: 'image',

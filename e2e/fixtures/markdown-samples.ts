@@ -48,6 +48,8 @@ export const MARKDOWN_SAMPLES = {
 	think: [
 		'<think>',
 		'The user asks for a summary. I should keep it short.',
+		'First the quarter figures, then the two changes that stand out.',
+		'Last, every number has to match the table above.',
 		'</think>',
 		'',
 		'Here is the short summary you asked for.',

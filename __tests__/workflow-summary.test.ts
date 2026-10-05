@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatCount, formatSeconds, runSummary } from '@/components/chat/message/workflow-summary'
+import {
+	formatCount,
+	formatDecimal,
+	formatSeconds,
+	runSummary,
+} from '@/components/chat/message/workflow-summary'
 import i18n from '@/libs/i18n'
 
 const LATIN_DIGIT = /[0-9]/
@@ -95,6 +100,13 @@ describe('formatCount', () => {
 		const text = formatCount(12345, 'ar')
 		expect(text).toBe('١٢٬٣٤٥')
 		expect(text).not.toMatch(LATIN_DIGIT)
+	})
+})
+
+describe('formatDecimal', () => {
+	it('keeps the given decimals in the UI language digits', () => {
+		expect(formatDecimal(0.8, 'en', 2)).toBe('0.80')
+		expect(formatDecimal(0.756, 'ar', 2)).toBe('٠٫٧٦')
 	})
 })
 

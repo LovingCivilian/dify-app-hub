@@ -23,6 +23,14 @@ export const REVIEW_NODE: StubNode = {
 	index: 2,
 }
 
+/** The chatflow's reasoning, one `reasoning_chunk` each (the last is final). */
+export const REASONING = [
+	'The user greets me. ',
+	'A greeting needs no lookup, ',
+	'and nothing in the inputs asks for more, ',
+	'so a short reply is enough.',
+]
+
 export const answerFor = (query: string) => `Echo: ${query}`
 export const has = (query: string, word: string) => query.toLowerCase().includes(word)
 /** Whole-word match, so the `slowhistory` marker of the race spec does not trigger the `slow` stream. */
@@ -115,6 +123,20 @@ export const chatScenario = (
 				ev.workflowPaused(base, runId, [REVIEW_NODE.nodeId], [ev.pauseReason(required)]),
 			]
 		}
+		if (has(query, 'nodefail')) {
+			// OpenAPI, POST /chat-messages, Chatflow failure: workflow_finished with status failed, then
+			// error; no message_end.
+			const failure = 'The model is unavailable.'
+			return [
+				ev.workflowStarted(base, runId),
+				ev.nodeStarted(base, runId, NODES[0]),
+				ev.nodeFinished(base, runId, NODES[0], { query }),
+				ev.nodeStarted(base, runId, NODES[1]),
+				ev.nodeFinished(base, runId, NODES[1], {}, 'failed', failure),
+				ev.workflowFinished(base, runId, null, null, failure),
+				ev.errorEvent(base, 'completion_request_error', failure, 500),
+			]
+		}
 		const retry = has(query, 'retry') ? [ev.nodeRetry(base, runId, NODES[1], 1)] : []
 		return [
 			ev.workflowStarted(base, runId),
@@ -122,8 +144,7 @@ export const chatScenario = (
 			ev.nodeFinished(base, runId, NODES[0], { query }),
 			ev.nodeStarted(base, runId, NODES[1]),
 			...retry,
-			ev.reasoningChunk(base, 'The user greets me. '),
-			ev.reasoningChunk(base, 'A short reply is enough.', true),
+			...REASONING.map((text, i) => ev.reasoningChunk(base, text, i === REASONING.length - 1)),
 			ev.message(base, 'Echo: '),
 			ev.message(base, query),
 			ev.nodeFinished(base, runId, NODES[1], { text: answer }),
@@ -133,6 +154,23 @@ export const chatScenario = (
 	}
 	return [ev.message(base, 'Echo: '), ev.message(base, query), ev.messageEnd(base)]
 }
+
+/**
+ * Milliseconds between the events of a chat stream. The slow stream (stop tests) and the streams that
+ * carry reasoning (`reasoning_chunk` events, or a `<think>` block in the answer) are paced at 100 ms, so
+ * the browser renders the reasoning while it is still open: events that arrive together on a busy page
+ * are rendered at once. Everything else streams at 20 ms.
+ */
+export const streamDelay = (query: string, events: StreamEvent[]) =>
+	hasWord(query, 'slow') ||
+	events.some(
+		e =>
+			e.event === 'reasoning_chunk' ||
+			(e.event === 'message' &&
+				String((e as { answer?: string }).answer ?? '').includes('<think>')),
+	)
+		? 100
+		: 20
 
 /** The resumed stream for GET /workflow/{run_id}/events after a HITL submission. */
 export const resumeScenario = (

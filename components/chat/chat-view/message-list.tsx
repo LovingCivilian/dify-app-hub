@@ -9,9 +9,9 @@ import { useTranslation } from 'react-i18next'
 import { useAppContext } from '../app-context'
 import { toBubbleItems } from '../hooks/bubble-items'
 import type { useDifyChat } from '../hooks/use-dify-chat'
-import MessageMarkdown from '../message/message-markdown'
 import type { DifyChatMessage } from '../provider/message'
 import styles from './chat-view.module.css'
+import UserContent from './user-content'
 
 /** Bubble.List's ref: the package root exports no ref type, so it is derived from the component. */
 type BubbleListRef = React.ComponentRef<typeof Bubble.List>
@@ -26,10 +26,9 @@ export interface MessageListProps {
 	chat: ReturnType<typeof useDifyChat>
 	/** The conversation shown, '' while there is none yet; each one opens at its latest message. */
 	conversationKey: string
-	renderAssistant?: (message: DifyChatMessage, info: BubbleInfo) => React.ReactNode
+	/** An assistant bubble's content; keep it stable (useCallback): the role map, and so every bubble, follows it. */
+	renderAssistant: (message: DifyChatMessage, info: BubbleInfo) => React.ReactNode
 	renderFooter?: (message: DifyChatMessage, info: BubbleInfo) => React.ReactNode
-	/** Posts a message back from an answer (Dify's buttons and forms); left out while a reply streams. */
-	onSend?: (text: string) => void
 }
 
 /** X Bubble.List over the conversation's messages, with "load earlier" above it (spec §5.2). */
@@ -38,7 +37,6 @@ export default function MessageList({
 	conversationKey,
 	renderAssistant,
 	renderFooter,
-	onSend,
 }: MessageListProps) {
 	const { t } = useTranslation()
 	const { message: toast } = App.useApp()
@@ -61,19 +59,7 @@ export default function MessageList({
 					<Avatar icon={<RobotOutlined />} />
 				),
 				variant: 'borderless',
-				contentRender: (content, info) => {
-					const message = content as DifyChatMessage
-					return renderAssistant ? (
-						renderAssistant(message, info)
-					) : (
-						<MessageMarkdown
-							content={message.content}
-							streaming={info.status === 'updating'}
-							messageId={message.ids.messageId}
-							onSend={onSend}
-						/>
-					)
-				},
+				contentRender: (content, info) => renderAssistant(content as DifyChatMessage, info),
 				footer: renderFooter
 					? (content, info) => renderFooter(content as DifyChatMessage, info)
 					: undefined,
@@ -81,10 +67,10 @@ export default function MessageList({
 			user: {
 				placement: 'end',
 				avatar: <Avatar icon={<UserOutlined />} />,
-				contentRender: content => (content as DifyChatMessage).content,
+				contentRender: content => <UserContent message={content as DifyChatMessage} />,
 			},
 		}),
-		[site, renderAssistant, renderFooter, onSend],
+		[site, renderAssistant, renderFooter],
 	)
 
 	const items = useMemo(() => toBubbleItems(chat.messages), [chat.messages])

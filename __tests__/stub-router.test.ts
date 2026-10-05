@@ -215,9 +215,15 @@ describe('stub router', () => {
 				filename: 'stub-image.png',
 			}),
 		])
-		expect(
-			(await history(cited.events[0].conversation_id as string)).data[0].retriever_resources,
-		).toHaveLength(2)
+		const stored = (await history(cited.events[0].conversation_id as string)).data[0]
+			.retriever_resources as Record<string, unknown>[]
+		expect(stored).toHaveLength(2)
+		// The history row has an id; the streamed citation does not.
+		expect(stored.map(r => typeof r.id)).toEqual(['string', 'string'])
+		const streamed = cited.events.at(-1) as unknown as {
+			metadata: { retriever_resources: object[] }
+		}
+		expect(streamed.metadata.retriever_resources[0]).not.toHaveProperty('id')
 	})
 
 	it('records feedback per message and answers an unknown message with Dify 404', async () => {

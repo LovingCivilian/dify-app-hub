@@ -275,6 +275,31 @@ test.describe('chat', () => {
 		await expect(loadEarlier).toHaveCount(0)
 	})
 
+	// The stub's `cite` scenario ends with two retriever resources, streamed without an `id` as Dify's are.
+	// X Sources lists their titles; the excerpt of the one picked shows below the list.
+	test('citations are listed under the answer', async ({ page }, testInfo) => {
+		const text = `cite the handbook ${testInfo.project.name} ${testInfo.repeatEachIndex}.${testInfo.retry}`
+		await senderBox(page).fill(text)
+		await page.keyboard.press('Enter')
+		await expect(page.getByText(`Echo: ${text}`, { exact: true })).toBeVisible()
+		const first = page.getByText('#1 handbook-1.md', { exact: true })
+		const second = page.getByText('#2 handbook-2.md', { exact: true })
+		await expect(first).toBeHidden()
+		await page.getByText('Citations', { exact: true }).click()
+		await expect(first).toBeVisible()
+		await expect(second).toBeVisible()
+		// Opening the list picks nothing.
+		await expect(page.getByText('Tea is brewed at 80 °C.')).toHaveCount(0)
+		await second.click()
+		await expect(page.getByText('Steep for three minutes.', { exact: true })).toBeVisible()
+		await expect(page.getByText('Retrieval score: 0.70', { exact: true })).toBeVisible()
+		await expect(page.getByText('Tea is brewed at 80 °C.')).toHaveCount(0)
+		await first.click()
+		await expect(page.getByText('Tea is brewed at 80 °C.', { exact: true })).toBeVisible()
+		await expect(page.getByText('Retrieval score: 0.80', { exact: true })).toBeVisible()
+		await expect(page.getByText('Steep for three minutes.')).toHaveCount(0)
+	})
+
 	test('a failed history load shows an error with a retry, not an empty conversation', async ({
 		page,
 	}, testInfo) => {

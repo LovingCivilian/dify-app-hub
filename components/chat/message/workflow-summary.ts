@@ -43,3 +43,10 @@ export const formatCount = (value: number, language?: string) =>
  */
 export const formatSeconds = (seconds?: number | null, language?: string, fractionDigits = 3) =>
 	seconds == null ? '' : numberFormat(language, fractionDigits).format(seconds)
+
+/** Any number with a fixed count of decimals in the UI language's digits (a citation's score). */
+export const formatDecimal = (
+	value: number,
+	language: string | undefined,
+	fractionDigits: number,
+) => numberFormat(language, fractionDigits).format(value)

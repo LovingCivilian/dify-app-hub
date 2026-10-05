@@ -17,6 +17,8 @@ import { useConversations } from '../hooks/use-conversations'
 import { useDifyChat, type SendParams } from '../hooks/use-dify-chat'
 import { useSuggestions } from '../hooks/use-suggestions'
 import { parseConversationKey } from '../provider/keys'
+import type { DifyChatMessage } from '../provider/message'
+import AssistantContent from './assistant-content'
 import ChatSender, { type SenderRef } from './chat-sender'
 import styles from './chat-view.module.css'
 import ConversationDrawer from './conversation-drawer'
@@ -24,7 +26,7 @@ import ConversationSidebar from './conversation-sidebar'
 import InputsCollapse from './inputs-collapse'
 import { useInputsValid } from './inputs-form'
 import { decodeSenderText, inputFields, resolveInitialInputs } from './inputs-values'
-import MessageList from './message-list'
+import MessageList, { type BubbleInfo } from './message-list'
 import WelcomePanel from './welcome-panel'
 import WidthToggle from './width-toggle'
 
@@ -209,6 +211,19 @@ export default function ChatView() {
 		],
 	)
 	const postBack = useCallback((text: string) => void send(text), [send])
+	// Answer buttons and forms post back only between replies (AnswerButton is disabled without it).
+	const answerSend = chat.isRequesting ? undefined : postBack
+	// Stable between renders: Bubble.List's role map follows it, and a new map re-renders every bubble.
+	const renderAssistant = useCallback(
+		(message: DifyChatMessage, info: BubbleInfo) => (
+			<AssistantContent
+				message={message}
+				info={info}
+				onSend={answerSend}
+			/>
+		),
+		[answerSend],
+	)
 
 	// Welcome while the conversation has no messages, or always when the app asks for it (spec §5.2); never
 	// in place of a history that is loading or failed to load.
@@ -315,8 +330,7 @@ export default function ChatView() {
 						<MessageList
 							chat={chat}
 							conversationKey={activeKey}
-							// Answer buttons and forms post back only between replies (AnswerButton is disabled without it).
-							onSend={chat.isRequesting ? undefined : postBack}
+							renderAssistant={renderAssistant}
 						/>
 						{suggestions.suggestions.length > 0 && !chat.isRequesting && (
 							<div className={styles.suggestions}>

@@ -8,11 +8,11 @@ import type { StreamEvent } from './events'
 import {
 	chatScenario,
 	has,
-	hasWord,
 	parametersFor,
 	resumeScenario,
 	REVIEW_NODE,
 	runScenario,
+	streamDelay,
 } from './scenarios'
 import {
 	forUser,
@@ -494,9 +494,13 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 			agent_thoughts: events
 				.filter(e => e.event === 'agent_thought')
 				.map(e => ev.toHistoryThought(e)),
-			retriever_resources:
-				(messageEnd?.metadata as { retriever_resources?: unknown[] } | undefined)
-					?.retriever_resources ?? [],
+			retriever_resources: (
+				(
+					messageEnd?.metadata as
+						| { retriever_resources?: ReturnType<typeof ev.retrieverResource>[] }
+						| undefined
+				)?.retriever_resources ?? []
+			).map(ev.toHistoryResource),
 			extra_contents: [],
 			status: errorEvent ? 'error' : 'normal',
 			error: errorEvent ? String(errorEvent.message) : null,
@@ -531,7 +535,7 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 				expiresAt: form.expiration_time,
 			})
 		}
-		return sse(res, events, hasWord(query, 'slow') ? 100 : 20, { ping: mode === 'advanced-chat' })
+		return sse(res, events, streamDelay(query, events), { ping: mode === 'advanced-chat' })
 	}
 
 	if (method === 'POST' && (path === '/workflows/run' || path === '/completion-messages')) {

@@ -302,9 +302,11 @@ export const textChunk = (base: StreamBase, runId: string, text: string) =>
  */
 export const PING_FRAME = 'event: ping\n\n'
 
-/** One `metadata.retriever_resources` item of message_end (and of GET /messages). */
+/**
+ * One `metadata.retriever_resources` item of message_end, as streamed: the OpenAPI streaming example's
+ * items carry no `id` (that is the stored row's, see toHistoryResource).
+ */
 export const retrieverResource = (base: StreamBase, position: number, content: string) => ({
-	id: `rr-${base.message_id}-${position}`,
 	message_id: base.message_id,
 	position,
 	dataset_id: 'ds-1',
@@ -320,6 +322,12 @@ export const retrieverResource = (base: StreamBase, position: number, content: s
 	index_node_hash: 'abcdef1234567890',
 	content,
 	created_at: base.created_at,
+})
+
+/** A `retriever_resources` item of GET /messages (RetrieverResource): the streamed item with its row id. */
+export const toHistoryResource = (resource: ReturnType<typeof retrieverResource>) => ({
+	id: `rr-${resource.message_id}-${resource.position}`,
+	...resource,
 })
 
 /** An `agent_thoughts` item of GET /messages (OpenAPI: AgentThoughtItem) from the agent_thought stream event. */
