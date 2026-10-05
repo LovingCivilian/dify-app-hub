@@ -341,7 +341,18 @@
 		"detail": "Details",
 		"run": "Run",
 		"empty_hint": "Click \"Run\" to try it out.",
-		"copy_content": "Copy content"
+		"copy_content": "Copy content",
+		"summary": "Nodes: {{nodes}} · Time: {{seconds}} s · Tokens: {{tokens}}",
+		"tokens": "Tokens: {{value}}",
+		"retries": "Retried {{times}}×",
+		"error": "Error",
+		"status": {
+			"running": "Running",
+			"retrying": "Retrying",
+			"paused": "Paused",
+			"success": "Succeeded",
+			"failed": "Failed"
+		}
 	},
 	"sender": {
 		"upload_file": "Upload file",

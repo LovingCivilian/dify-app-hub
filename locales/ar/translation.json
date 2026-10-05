@@ -341,7 +341,18 @@
 		"detail": "التفاصيل",
 		"run": "تشغيل",
 		"empty_hint": "انقر على \"تشغيل\" للتجربة.",
-		"copy_content": "نسخ المحتوى"
+		"copy_content": "نسخ المحتوى",
+		"summary": "العقد: {{nodes}} · المدة: {{seconds}} ث · الرموز: {{tokens}}",
+		"tokens": "الرموز: {{value}}",
+		"retries": "أُعيدت المحاولة {{times}} مرة",
+		"error": "خطأ",
+		"status": {
+			"running": "قيد التشغيل",
+			"retrying": "جارٍ إعادة المحاولة",
+			"paused": "متوقف مؤقتًا",
+			"success": "تم بنجاح",
+			"failed": "فشل"
+		}
 	},
 	"sender": {
 		"upload_file": "رفع ملف",

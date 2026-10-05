@@ -341,7 +341,18 @@
 		"detail": "详情",
 		"run": "运行",
 		"empty_hint": "点击 \"运行\" 试试看, AI 会给你带来意想不到的惊喜。",
-		"copy_content": "复制内容"
+		"copy_content": "复制内容",
+		"summary": "节点：{{nodes}} · 耗时：{{seconds}} 秒 · Tokens：{{tokens}}",
+		"tokens": "Tokens：{{value}}",
+		"retries": "已重试 {{times}} 次",
+		"error": "错误",
+		"status": {
+			"running": "运行中",
+			"retrying": "重试中",
+			"paused": "已暂停",
+			"success": "成功",
+			"failed": "失败"
+		}
 	},
 	"sender": {
 		"upload_file": "上传文件",

@@ -10,7 +10,14 @@ const intlLocales: Record<string, string> = {
 }
 
 /**
+ * The `Intl` tag for a UI language (`i18n.resolvedLanguage`), English when it is missing or unknown.
+ * Numbers use it too, so Arabic digits come out the same way as in dates.
+ */
+export const intlLocale = (language?: string) =>
+	intlLocales[language ?? FALLBACK] ?? intlLocales[FALLBACK]
+
+/**
  * Date and time in the active language, e.g. "1/15/2026, 9:05:00 AM".
  */
 export const formatDateTime = (value: Date | number | string, language?: string) =>
-	new Date(value).toLocaleString(intlLocales[language ?? FALLBACK] ?? intlLocales[FALLBACK])
+	new Date(value).toLocaleString(intlLocale(language))
