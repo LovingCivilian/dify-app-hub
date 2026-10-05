@@ -16,7 +16,8 @@ Do not name an interpolation variable `count`, and do not run `i18next-cli extra
 2. Register it in `libs/i18n.ts` (`resources`) and `i18next.config.ts` (`locales`).
 3. Add it to `translations` in `__tests__/i18n-locales.test.ts` and to the resolution cases in `__tests__/i18n-init.test.ts`.
 4. Add the Ant Design pack and the Day.js locale to `libs/antd-locale.ts`, and a case to `__tests__/antd-locale.test.ts`.
-5. Add the language's own name to the two pickers: the `languages` map in `components/shell/language-dropdown.tsx` and the language radio in `components/chat/chat-layout.tsx`.
+5. Add the language's own name to the picker: the `languages` map in `components/shell/language-dropdown.tsx`.
+6. Add the language's Ant Design X strings to `libs/x-locale.ts` (a pack like `libs/x-locale-ar.ts`; X ships only English and Chinese) and a case to `__tests__/x-locale.test.ts`.
 
 Right-to-left languages also need `dir` set on `<html>` (`hooks/use-html-lang.ts`, from `i18n.dir()`) and `direction="rtl"` on the single `XProvider` in `components/providers/app-providers.tsx`; this is not done yet for Arabic.
 
@@ -39,7 +40,7 @@ The `git grep` lists every non-comment line containing Chinese. `pnpm i18n:lint`
 
 Lines the `git grep` is expected to print:
 
-- `components/shell/language-dropdown.tsx` and `components/chat/chat-layout.tsx`: `中文`, the language's own name.
+- `components/shell/language-dropdown.tsx`: `中文`, the language's own name.
 - `locales/zh/translation.json` is excluded by the path list; `locales/ar/translation.json` contains no Chinese.
 - `components/chat/markdown-renderer/blocks/think-block.tsx`: `text.includes('思考')`, matching model output.
 - `components/chat/chatbox/message/referrence.tsx`: text inside a commented-out block.
@@ -49,6 +50,6 @@ Lines the `git grep` is expected to print:
 ## Typical merge conflicts
 
 - `libs/i18n.ts`: upstream added or changed inline strings. Keep this fork's version of the file and move upstream's new strings into the locale files.
-- `components/providers/app-providers.tsx`: upstream changed the Ant Design locale line (upstream had it in `components/layout/page-layout-wrapper.tsx`, which no longer exists here, and in `app/(user)/layout.tsx`, which no longer has it). Keep `getAntdLocale(i18n.resolvedLanguage)` and add any new locale to `libs/antd-locale.ts`.
+- `components/providers/app-providers.tsx`: upstream changed the Ant Design locale line (upstream had it in `components/layout/page-layout-wrapper.tsx`, which no longer exists here, and in `app/(user)/layout.tsx`, which no longer has it). Keep the merged `locale={{ ...getAntdLocale(i18n.resolvedLanguage), ...getXLocale(i18n.resolvedLanguage) }}` and add any new locale to `libs/antd-locale.ts` and `libs/x-locale.ts`.
 - A line where upstream edited a string this fork replaced with `t()`: keep the `t()` call and update the JSON value.
 - `package.json` / `pnpm-lock.yaml`: keep both sides in `package.json`, then run `pnpm install`.

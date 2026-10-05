@@ -10,6 +10,7 @@ import { initResponsiveConfig } from '@/lib/helpers'
 import { ThemeContextProvider, useThemeContext } from '@/lib/theme'
 import type { InitialTheme } from '@/lib/theme/theme-cookie'
 import { getAntdLocale } from '@/libs/antd-locale'
+import { getXLocale } from '@/libs/x-locale'
 
 import '@/libs/i18n'
 
@@ -31,7 +32,7 @@ function AntdProviders({ children }: { children: React.ReactNode }) {
 
 	return (
 		<XProvider
-			locale={getAntdLocale(i18n.resolvedLanguage)}
+			locale={{ ...getAntdLocale(i18n.resolvedLanguage), ...getXLocale(i18n.resolvedLanguage) }}
 			theme={{ algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm }}
 		>
 			<App>{children}</App>

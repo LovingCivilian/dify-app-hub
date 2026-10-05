@@ -36,3 +36,37 @@ test('no page nests a second XProvider or ConfigProvider', async ({ page }) => {
 		)
 	expect(classes).toBe(1)
 })
+
+// The X locale is merged into the one XProvider next to antd's (libs/x-locale.ts): the Sender's stop control
+// is named by X's locale. The language is switched in the page: a hard load in Arabic would render English
+// on the server and warn about hydration until the language is cookie-backed. The stub streams a `slow`
+// reply for four seconds, so the control stays on screen.
+test("Ant Design X's strings follow the language through the one XProvider", async ({
+	page,
+	isMobile,
+}) => {
+	await page.goto(`/chat/${APP_ID}?isNewCvst=1`)
+	const textbox = page.getByRole('textbox').first()
+	await expect(textbox).toBeVisible()
+	// Below md the header's own language control is hidden; the drawer holds a copy (ADR-0014).
+	if (isMobile) {
+		await page
+			.locator('header.ant-layout-header')
+			.getByRole('button', { name: 'Menu', exact: true })
+			.click()
+	}
+	const controls = isMobile ? page.getByRole('dialog', { name: 'Conversations menu' }) : page
+	await controls.getByRole('button', { name: 'Language' }).click()
+	await page.getByRole('menuitem', { name: 'العربية' }).click()
+	await expect(page.locator('html')).toHaveAttribute('lang', 'ar')
+	if (isMobile) await page.keyboard.press('Escape')
+	await textbox.fill('slow locale check')
+	await page.keyboard.press('Enter')
+	const stop = page.getByRole('button', { name: 'إيقاف التحميل' })
+	await expect(stop).toBeVisible()
+	// End the stream once chunks flow (the stub's slow reply counts "0 1 2 …"), not while the request is still
+	// being sent and not by leaving it running while the page closes.
+	await expect(page.getByText(/^0 1 2/)).toBeVisible()
+	await stop.click()
+	await expect(stop).toHaveCount(0)
+})
