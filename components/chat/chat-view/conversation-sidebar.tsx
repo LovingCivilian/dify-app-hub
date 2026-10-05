@@ -22,6 +22,11 @@ export interface ConversationListProps {
 	/** The list's new-chat button; without it the list has none (the collapsed sider has its own). */
 	creation?: ListCreation
 	menu?: ConversationsProps['menu']
+	/**
+	 * A send waits for the active conversation's history (useDifyChat `queued`): the other conversations and
+	 * the item menus are off until its reply starts, and the list says why. The caller disables `creation`.
+	 */
+	locked?: boolean
 }
 
 export interface ConversationSidebarProps extends Omit<ConversationListProps, 'creation'> {
@@ -92,31 +97,48 @@ export const ConversationList = memo(function ConversationList({
 	onActiveChange,
 	creation,
 	menu,
+	locked = false,
 }: ConversationListProps) {
 	const { t } = useTranslation()
+	// X `ConversationItemType.disabled`: the item ignores clicks and shows no menu. The active one stays
+	// enabled, since X drops the active style of a disabled item.
 	const listItems = useMemo(
-		() => items.map(item => ({ key: item.key, label: item.label, group: item.group })),
-		[items],
+		() =>
+			items.map(item => ({
+				key: item.key,
+				label: item.label,
+				group: item.group,
+				disabled: locked && item.key !== activeKey,
+			})),
+		[activeKey, items, locked],
 	)
 	const groupable = useMemo<ConversationsProps['groupable']>(
 		() => ({ label: group => t(`chat.group_${group as ConversationGroup}`) }),
 		[t],
 	)
 	return (
-		<Conversations
-			items={listItems}
-			activeKey={activeKey}
-			onActiveChange={onActiveChange}
-			groupable={groupable}
-			creation={
-				creation && {
-					label: t('chat.new_chat'),
-					disabled: creation.disabled,
-					onClick: creation.onClick,
+		<>
+			{locked && (
+				<div className={styles.queuedHint}>
+					<Typography.Text type="secondary">{t('chat.sending_queued')}</Typography.Text>
+				</div>
+			)}
+			<Conversations
+				items={listItems}
+				activeKey={activeKey}
+				onActiveChange={onActiveChange}
+				groupable={groupable}
+				creation={
+					creation && {
+						label: t('chat.new_chat'),
+						disabled: creation.disabled,
+						onClick: creation.onClick,
+					}
 				}
-			}
-			menu={menu}
-		/>
+				// The active row's menu could delete it, which would switch conversation.
+				menu={locked ? undefined : menu}
+			/>
+		</>
 	)
 })
 
@@ -131,6 +153,7 @@ const ConversationSidebar = memo(function ConversationSidebar({
 	onCreate,
 	createDisabled,
 	menu,
+	locked,
 	action,
 }: ConversationSidebarProps) {
 	const creation = useMemo(
@@ -147,6 +170,7 @@ const ConversationSidebar = memo(function ConversationSidebar({
 					onActiveChange={onActiveChange}
 					creation={creation}
 					menu={menu}
+					locked={locked}
 				/>
 			</div>
 		</div>

@@ -2,7 +2,11 @@
 import type { TFunction } from 'i18next'
 import { describe, expect, it, vi } from 'vitest'
 
-import { getAccountMenuItems } from '@/components/shell/account-dropdown'
+import { getAccountMenuItems, logout } from '@/components/shell/account-dropdown'
+
+// next-auth's client is mocked: the test checks what logout asks of it, not the request it makes.
+vi.mock('next-auth/react', () => ({ signOut: vi.fn(), useSession: vi.fn() }))
+const { signOut } = await import('next-auth/react')
 
 // A stand-in for i18next's t that makes the key and options visible in the output.
 const t = ((key: string, options?: Record<string, string>) =>
@@ -22,5 +26,14 @@ describe('getAccountMenuItems', () => {
 		expect(items[1]).toMatchObject({ key: 'logout', label: 'auth.logout' })
 		;(items[1] as unknown as { onClick: () => void }).onClick()
 		expect(onLogout).toHaveBeenCalledTimes(1)
+	})
+})
+
+describe('logout', () => {
+	// next-auth client API, signOut(): without `redirect: false` it sets window.location.href to the
+	// callback URL, a full page load, so module state of the signed-out user does not outlive the session.
+	it('signs out with a full page load to the login page', async () => {
+		await logout()
+		expect(signOut).toHaveBeenCalledWith({ callbackUrl: '/login' })
 	})
 })

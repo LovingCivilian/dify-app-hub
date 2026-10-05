@@ -2,7 +2,7 @@ import i18n from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import { initReactI18next } from 'react-i18next'
 
-import { LANGUAGE_COOKIE } from '@/lib/i18n/language-cookie'
+import { LANGUAGE_COOKIE, languageCookieOptions } from '@/lib/i18n/language-cookie'
 import ar from '@/locales/ar/translation.json'
 import en from '@/locales/en/translation.json'
 import zh from '@/locales/zh/translation.json'
@@ -29,7 +29,10 @@ await i18n
 			caches: ['cookie', 'localStorage'],
 			lookupCookie: LANGUAGE_COOKIE,
 			cookieMinutes: 525600, // one year, like the theme cookies (ADR-0016)
-			cookieOptions: { path: '/', sameSite: 'lax' },
+			// Secure on https, like the theme cookies; the module also runs on the server, where there is no window.
+			cookieOptions: languageCookieOptions(
+				typeof window !== 'undefined' && window.location.protocol === 'https:',
+			),
 		},
 		interpolation: {
 			escapeValue: false, // not needed for react as it escapes by default

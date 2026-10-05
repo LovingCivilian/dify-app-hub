@@ -20,32 +20,33 @@
 	gap: var(--ant-margin-xs);
 	color: inherit;
 }
-.title {
-	white-space: nowrap;
-}
 .nav {
 	flex: 1;
 	min-width: 0;
 }
-/* screenSMMax is 767 (antd screen tokens); up to it the title text makes way for the controls */
-@media (max-width: 767px) {
-	.title {
-		display: none;
-	}
-}
 
-/* Both breakpoint variants are in the DOM; these two classes pick one. display: contents keeps the
-   visible variant a direct flex child of the header region. screenSMMax = 767, screenMD = 768 (antd). */
-.desktopOnly,
+/* Mobile first with one query at antd's screenMD (docs/frontend-conventions.md §4.3.4), so the two variants
+   are exact complements at any width, fractional ones included. Below md the title text makes way for the
+   controls. Both breakpoint variants are in the DOM and these two classes pick one; display: contents keeps
+   the visible variant a direct flex child of the header region. */
+.title {
+	display: none;
+	white-space: nowrap;
+}
+.desktopOnly {
+	display: none;
+}
 .mobileOnly {
 	display: contents;
 }
-@media (max-width: 767px /* screenSMMax */) {
-	.desktopOnly {
-		display: none;
-	}
-}
 @media (min-width: 768px /* screenMD */) {
+	/* Typography.Text is an inline span. */
+	.title {
+		display: inline;
+	}
+	.desktopOnly {
+		display: contents;
+	}
 	.mobileOnly {
 		display: none;
 	}

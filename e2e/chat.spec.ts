@@ -171,10 +171,14 @@ test.describe('chat', () => {
 	}, testInfo) => {
 		const run = `${testInfo.project.name} ${testInfo.repeatEachIndex}.${testInfo.retry}`
 		const topic = page.getByLabel('Topic')
-		const message = `hello topic ${run}`
+		// Not named with "topic": its row's menu button ("Actions for …") would also match getByLabel('Topic'),
+		// here and in every later test on the agent app (the stub lists the conversation for the whole run).
+		const message = `hello params ${run}`
+		// While the parameters are missing the Sender's placeholder says so (chat.inputs_required).
+		const waitingBox = page.getByPlaceholder('Fill in the conversation parameters first.')
 		await page.goto(`/chat/${APP_IDS['agent-chat']}?isNewCvst=1`)
 		await expect(topic).toBeVisible()
-		await expect(senderBox(page)).toBeDisabled()
+		await expect(waitingBox).toBeDisabled()
 		await topic.fill(`tea ${run}`)
 		await expect(senderBox(page)).toBeEnabled()
 		await senderBox(page).fill(message)
@@ -191,7 +195,7 @@ test.describe('chat', () => {
 			.click()
 		await expect(topic).toHaveValue('')
 		await expect(topic).toBeEnabled()
-		await expect(senderBox(page)).toBeDisabled()
+		await expect(waitingBox).toBeDisabled()
 		await (
 			await conversationList(page, isMobile)
 		)
@@ -378,8 +382,9 @@ test.describe('chat', () => {
 		const renamed = `Renamed ${run}`
 		const sider = page.getByRole('complementary')
 		const item = (name: string) => sider.getByRole('listitem', { name, exact: true })
+		// Each row's menu button is named after its conversation (chat.menu_for).
 		const actions = (name: string) =>
-			item(name).getByRole('button', { name: 'Conversation actions' })
+			item(name).getByRole('button', { name: `Actions for ${name}`, exact: true })
 		await senderBox(page).fill(original)
 		await page.keyboard.press('Enter')
 		await expect(page.getByText(`Echo: ${original}`)).toBeVisible()
@@ -429,7 +434,7 @@ test.describe('chat', () => {
 		const sider = page.getByRole('complementary')
 		const active = sider.locator('.ant-conversations-item-active')
 		await expect(active).toContainText('New conversation')
-		await active.getByRole('button', { name: 'Conversation actions' }).click()
+		await active.getByRole('button', { name: 'Actions for New conversation', exact: true }).click()
 		await expect(page.getByRole('menuitem', { name: 'Delete' })).toBeVisible()
 		await expect(page.getByRole('menuitem', { name: 'Rename' })).toHaveCount(0)
 	})
@@ -448,8 +453,18 @@ test.describe('chat', () => {
 		await expect(page.getByText(`Echo: ${text}`)).toBeVisible()
 		await expect(sider.getByRole('listitem', { name: text, exact: true })).toBeVisible()
 		const expanded = await width()
-		await sider.getByRole('button', { name: 'Collapse sidebar' }).click()
+		// The toggle is a disclosure of the sider (aria-expanded, aria-controls naming the sider's id).
+		const siderId = await sider.getAttribute('id')
+		expect(siderId).toBeTruthy()
+		const collapse = sider.getByRole('button', { name: 'Collapse sidebar' })
+		await expect(collapse).toHaveAttribute('aria-expanded', 'true')
+		await expect(collapse).toHaveAttribute('aria-controls', siderId!)
+		await collapse.click()
 		await expect(sider.getByRole('button', { name: 'Expand sidebar' })).toBeVisible()
+		await expect(sider.getByRole('button', { name: 'Expand sidebar' })).toHaveAttribute(
+			'aria-expanded',
+			'false',
+		)
 		// The list and the app info are gone from the sider; only the rail's controls remain.
 		await expect(sider.locator('.ant-conversations')).toHaveCount(0)
 		await expect(sider.getByText('Stub app', { exact: true })).toHaveCount(0)

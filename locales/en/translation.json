@@ -91,7 +91,8 @@
 		"stopped": "Stopped",
 		"send_placeholder": "Type a message",
 		"conversations_menu": "Conversations menu",
-		"menu_for": "Conversation actions",
+		"menu_for": "Actions for {{name}}",
+		"sending_queued": "Your message will be sent once this conversation has loaded.",
 		"history_load_failed": "Could not load this conversation's messages",
 		"retry": "Retry",
 		"inputs_required": "Fill in the conversation parameters first."

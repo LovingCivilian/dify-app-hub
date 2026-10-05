@@ -46,9 +46,11 @@ test.describe('mobile chat', () => {
 	}) => {
 		await menuButton(page).click()
 		const drawer = page.getByRole('dialog', { name: 'Conversations menu' })
-		await expect(drawer.getByRole('button', { name: 'Theme' })).toBeVisible()
+		// Exact names: the drawer's list names each row's menu button after its conversation ("Actions for
+		// md:theme" from the Markdown spec would also match a substring).
+		await expect(drawer.getByRole('button', { name: 'Theme', exact: true })).toBeVisible()
 		await expect(drawer.getByRole('button', { name: /signed in as/i })).toBeVisible()
-		await drawer.getByRole('button', { name: 'Language' }).click()
+		await drawer.getByRole('button', { name: 'Language', exact: true }).click()
 		// A click, not only visibility: it proves the dropdown is not covered by the drawer.
 		await page.getByRole('menuitem', { name: 'العربية' }).click()
 		await expect(page.locator('html')).toHaveAttribute('lang', 'ar')

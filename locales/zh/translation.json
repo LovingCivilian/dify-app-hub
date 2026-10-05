@@ -91,7 +91,8 @@
 		"stopped": "已停止",
 		"send_placeholder": "输入消息",
 		"conversations_menu": "会话菜单",
-		"menu_for": "会话操作",
+		"menu_for": "{{name}} 的操作",
+		"sending_queued": "此会话加载完成后将发送你的消息。",
 		"history_load_failed": "无法加载此会话的消息",
 		"retry": "重试",
 		"inputs_required": "请先填写对话参数。"

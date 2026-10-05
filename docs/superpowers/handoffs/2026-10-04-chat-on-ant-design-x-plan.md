@@ -1,5 +1,7 @@
 # Handoff — sub-project 2 (chat on Ant Design X): spec and plan approved, execution not started
 
+> 2026-10-05: this is the planning session's record. Where it conflicts with the chat spec's "Deviations during execution" paragraph or ADR-0017's dated notes (history pages are oldest first; X 2.9.0 colours neither feedback choice), those win.
+
 Date: 2026-10-04 · Branch: `feat/chat-on-ant-design-x` (from `fork/main` @ 11c3fb3d; one commit, 36998edc, not pushed) · Written by the brainstorming/planning session for the executing session.
 
 ## What the next session is for

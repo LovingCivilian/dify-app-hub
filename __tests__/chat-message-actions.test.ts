@@ -5,6 +5,7 @@ import {
 	footerActions,
 	questionOf,
 	regenerateRequest,
+	suggestionTarget,
 	unansweredKeys,
 } from '@/components/chat/chat-view/message-actions'
 import { emptyAssistant, type DifyChatMessage } from '@/components/chat/provider/message'
@@ -173,5 +174,34 @@ describe('unansweredKeys', () => {
 		expect(unansweredKeys([{ id: 'a1', message: answer(), status: 'success' }])).toStrictEqual([
 			'a1',
 		])
+	})
+})
+
+// Spec §4.7: next-question suggestions follow the reply that just ended.
+describe('suggestionTarget', () => {
+	const form = (state: 'pending' | 'filled' | 'expired') => ({
+		state,
+		formToken: 'token-1',
+		formContent: '',
+		inputs: [],
+		actions: [],
+		defaults: {},
+		expiresAt: 1_760_000_000,
+		workflowRunId: 'run-1',
+	})
+
+	it("follows the last answer's Dify message id", () => {
+		expect(suggestionTarget(answer())).toBe('m-1')
+	})
+	it('has none without an answer, or for one that was stopped or failed', () => {
+		expect(suggestionTarget(undefined)).toBeUndefined()
+		expect(suggestionTarget(answer({ aborted: true }))).toBeUndefined()
+		expect(suggestionTarget(answer({ error: { message: 'boom' } }))).toBeUndefined()
+	})
+	// A paused run waits on its human input form: questions under it would compete with the form.
+	it('has none while the answer waits on a human input form, and follows it once the form is done', () => {
+		expect(suggestionTarget(answer({ humanInput: form('pending') }))).toBeUndefined()
+		expect(suggestionTarget(answer({ humanInput: form('filled') }))).toBe('m-1')
+		expect(suggestionTarget(answer({ humanInput: form('expired') }))).toBe('m-1')
 	})
 })

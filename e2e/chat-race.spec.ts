@@ -1,4 +1,4 @@
-import { expect, test, type Request, type Response } from '@playwright/test'
+import { expect, test, type Page, type Request, type Response } from '@playwright/test'
 
 import { APP_ID } from './fixtures/constants'
 
@@ -45,4 +45,60 @@ test('a message sent while the history loads is kept next to the history', async
 	await expect(
 		page.locator('.ant-bubble-end').getByText('sent at once', { exact: true }),
 	).toBeVisible()
+})
+
+/** The conversation list: the sider from md up, the header's drawer below it (as in chat.spec.ts). */
+async function conversationList(page: Page, isMobile: boolean) {
+	if (!isMobile) return page.getByRole('complementary')
+	await page
+		.locator('header.ant-layout-header')
+		.getByRole('button', { name: 'Menu', exact: true })
+		.click()
+	return page.getByRole('dialog', { name: 'Conversations menu' })
+}
+
+// The SDK keeps a queued send per conversation and flushes it only for the conversation on screen
+// (use-x-chat: queueRequest), so switching away before the history lands would drop the message silently.
+// Until the queued reply has started, the other conversations and the new-chat button are disabled and the
+// list says why (ADR-0017 note of 2026-10-05, final review).
+test('while a send waits for the history, the conversation cannot be switched and the reply arrives', async ({
+	page,
+	isMobile,
+}, testInfo) => {
+	const run = `${testInfo.project.name} ${testInfo.repeatEachIndex}.${testInfo.retry}`
+	const other = `queue other ${run}`
+	const first = `slowhistory guard ${run}`
+	const hint = 'Your message will be sent once this conversation has loaded.'
+	// Another conversation to switch to, then the slow one, which is the latest (workers: 1).
+	await page.goto(`/chat/${APP_ID}?isNewCvst=1`)
+	await page.getByRole('textbox').first().fill(other)
+	await page.keyboard.press('Enter')
+	await expect(page.getByText(`Echo: ${other}`, { exact: true })).toBeVisible()
+	await page.goto(`/chat/${APP_ID}?isNewCvst=1`)
+	await page.getByRole('textbox').first().fill(first)
+	await page.keyboard.press('Enter')
+	await expect(page.getByText(`Echo: ${first}`, { exact: true })).toBeVisible()
+
+	// Reopen it and send while its history (1.5 s) is on the way, then try to leave.
+	await page.goto(`/chat/${APP_ID}`)
+	await page.getByRole('textbox').first().fill('queued while loading')
+	await page.keyboard.press('Enter')
+	await expect(page.getByText(`Echo: ${first}`, { exact: true })).toHaveCount(0)
+	const list = await conversationList(page, isMobile)
+	const item = (name: string) => list.getByRole('listitem', { name, exact: true })
+	await expect(list.getByText(hint, { exact: true })).toBeVisible()
+	await expect(item(other)).toHaveClass(/ant-conversations-item-disabled/)
+	await expect(list.getByRole('button', { name: 'New conversation' })).toHaveClass(
+		/ant-conversations-creation-disabled/,
+	)
+	await item(other).click()
+	// The click changed nothing: the slow conversation stays active, its history and the reply arrive.
+	await expect(page.getByText('Echo: queued while loading', { exact: true })).toBeVisible()
+	await expect(page.getByText(`Echo: ${first}`, { exact: true })).toBeVisible()
+	await expect(page.getByText(`Echo: ${other}`, { exact: true })).toHaveCount(0)
+	await expect(list.locator('.ant-conversations-item-active')).toHaveAttribute('title', first)
+	// Once the reply has started the guard is gone and switching works again.
+	await expect(list.getByText(hint, { exact: true })).toHaveCount(0)
+	await item(other).click()
+	await expect(page.getByText(`Echo: ${other}`, { exact: true })).toBeVisible()
 })

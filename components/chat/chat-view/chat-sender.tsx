@@ -10,6 +10,8 @@ export type SenderRef = GetRef<typeof Sender>
 export interface ChatSenderProps {
 	loading: boolean
 	disabled?: boolean
+	/** Replaces the usual placeholder (`chat.send_placeholder`), e.g. to say why the box is disabled. */
+	placeholder?: string
 	initialValue?: string
 	senderRef: React.RefObject<SenderRef | null>
 	/** Resolves false when the message was not taken (the text then stays in the box). */
@@ -27,6 +29,7 @@ export interface ChatSenderProps {
 export default function ChatSender({
 	loading,
 	disabled,
+	placeholder,
 	initialValue = '',
 	senderRef,
 	onSend,
@@ -65,7 +68,7 @@ export default function ChatSender({
 			ref={senderRef}
 			value={value}
 			onChange={setValue}
-			placeholder={t('chat.send_placeholder')}
+			placeholder={placeholder ?? t('chat.send_placeholder')}
 			loading={loading}
 			disabled={disabled}
 			header={header}

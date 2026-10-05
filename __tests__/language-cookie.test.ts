@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import {
 	DEFAULT_LANGUAGE,
 	LANGUAGE_COOKIE,
+	languageCookieOptions,
 	readLanguageCookie,
 	SUPPORTED_LANGUAGES,
 } from '@/lib/i18n/language-cookie'
@@ -47,6 +48,19 @@ describe('readLanguageCookie', () => {
 		['fr-CA', 'en'],
 	])('reduces %s to %s', (value, expected) => {
 		expect(readLanguageCookie(store({ [LANGUAGE_COOKIE]: value }))).toBe(expected)
+	})
+})
+
+// The detector writes the cookie with these options (README "Detector Options": `cookieOptions`, MDN
+// Set-Cookie attributes), like the theme cookies (themeCookieStrings): whole site, Lax, Secure on https.
+describe('languageCookieOptions', () => {
+	it('marks the cookie Secure only when the page is served over https', () => {
+		expect(languageCookieOptions(true)).toEqual({ path: '/', sameSite: 'lax', secure: true })
+		expect(languageCookieOptions(false)).toEqual({ path: '/', sameSite: 'lax', secure: false })
+	})
+
+	it('is what libs/i18n.ts gives the detector (no window under vitest, so not secure)', () => {
+		expect(i18n.options.detection?.cookieOptions).toEqual(languageCookieOptions(false))
 	})
 })
 

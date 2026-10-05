@@ -26,7 +26,11 @@ const selectOptions = (node: DomNode) => {
 	}
 }
 
-/** <form data-format="text|json"> inside an answer: labelled fields and a submit that posts back a message. */
+/**
+ * <form data-format="text|json"> inside an answer: labelled fields and a submit that posts back a message. The
+ * submit is disabled while there is no send (a reply streams); a disabled default button also stops Enter's
+ * implicit submission (HTML, "Implicit submission").
+ */
 export default function AnswerForm({ domNode }: MarkdownBlockProps) {
 	const { t } = useTranslation()
 	const send = useMarkdownSend()
@@ -62,6 +66,7 @@ export default function AnswerForm({ domNode }: MarkdownBlockProps) {
 								type="primary"
 								size="small"
 								htmlType="submit"
+								disabled={!send}
 							>
 								{textOf(child) || t('common.confirm')}
 							</Button>

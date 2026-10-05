@@ -9,6 +9,7 @@ import {
 	useCallback,
 	useEffect,
 	useEffectEvent,
+	useId,
 	useLayoutEffect,
 	useMemo,
 	useRef,
@@ -49,7 +50,7 @@ import {
 	pendingFileInputs,
 	resolveInitialInputs,
 } from './inputs-values'
-import { questionOf, regenerateRequest, unansweredKeys } from './message-actions'
+import { questionOf, regenerateRequest, suggestionTarget, unansweredKeys } from './message-actions'
 import MessageFooter, { type FeedbackRating } from './message-footer'
 import MessageList, { type BubbleInfo } from './message-list'
 import { useSenderAttachments } from './sender-attachments'
@@ -185,14 +186,14 @@ export default function ChatView() {
 		)
 	}, [list.error, t, toast])
 
-	// Next-question suggestions follow the reply that just ended (spec §4.7), not a stopped or failed one.
+	// Next-question suggestions follow the reply that just ended (spec §4.7), not a stopped or failed one, nor
+	// one whose run waits on a human input form.
 	const lastAssistant = chat.messages.findLast(m => m.message.role === 'assistant')?.message
 	const suggestions = useSuggestions({
 		enabled: Boolean(parameters.suggested_questions_after_answer?.enabled),
 		difyApi,
 		conversationKey: activeKey,
-		lastMessageId:
-			lastAssistant?.error || lastAssistant?.aborted ? undefined : lastAssistant?.ids.messageId,
+		lastMessageId: suggestionTarget(lastAssistant),
 		isRequesting: chat.isRequesting,
 	})
 
@@ -480,7 +481,9 @@ export default function ChatView() {
 	const conversationMenu = useConversationMenu({ rename, remove, getDifyId })
 
 	// The collapse toggle sits at the top of the sider (end of the app info row; under the icon when
-	// collapsed): the bottom-left corner is where Next's dev indicator floats and covers a click target.
+	// collapsed): the bottom-left corner is where Next's dev indicator floats and covers a click target. It
+	// discloses the sider, named by its id (WAI-ARIA disclosure pattern: aria-expanded, aria-controls).
+	const siderId = useId()
 	const siderToggle = useMemo(
 		() => (
 			<Button
@@ -488,18 +491,24 @@ export default function ChatView() {
 				icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
 				aria-label={collapsed ? t('chat.sidebar_open') : t('chat.sidebar_close')}
 				title={collapsed ? t('chat.sidebar_open') : t('chat.sidebar_close')}
+				aria-expanded={!collapsed}
+				aria-controls={siderId}
 				onClick={() => setCollapsed(value => !value)}
 			/>
 		),
-		[collapsed, t],
+		[collapsed, siderId, t],
 	)
+	// A send queued for this conversation's history lives in the SDK's queue of this conversation, which only
+	// the conversation on screen sends: until its reply starts, the list keeps it (ADR-0017 note of 2026-10-05).
+	const locked = chat.queued
 	const sidebarProps = {
 		items: list.conversations,
 		activeKey,
 		onActiveChange: selectConversation,
 		menu: conversationMenu,
+		locked,
 	}
-	const createDisabled = list.hasEmptyTemp
+	const createDisabled = list.hasEmptyTemp || locked
 
 	return (
 		<UserShell
@@ -512,10 +521,13 @@ export default function ChatView() {
 				</Typography.Text>
 			}
 			extra={
-				<WidthToggle
-					wide={Boolean(wide)}
-					onChange={setWide}
-				/>
+				// Below md the column already spans the viewport: the toggle shows from md up (CSS, as the sider).
+				<span className={styles.desktopOnly}>
+					<WidthToggle
+						wide={Boolean(wide)}
+						onChange={setWide}
+					/>
+				</span>
 			}
 			mobileMenu={
 				<Button
@@ -532,6 +544,7 @@ export default function ChatView() {
 				hasSider
 			>
 				<Layout.Sider
+					id={siderId}
 					width={SIDEBAR_WIDTH}
 					theme="light"
 					className={styles.sider}
@@ -623,6 +636,8 @@ export default function ChatView() {
 								// The deep link's `sender_text` prefills the box (spec §4.7).
 								initialValue={decodeSenderText(searchParams.get('sender_text'))}
 								disabled={!activeKey || !inputsValid}
+								// The box says why it waits while the required parameters are missing.
+								placeholder={activeKey && !inputsValid ? t('chat.inputs_required') : undefined}
 								senderRef={senderRef}
 								onSend={send}
 								onStop={() => void chat.stop()}

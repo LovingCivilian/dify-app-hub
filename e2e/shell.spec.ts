@@ -48,8 +48,12 @@ test('the account dropdown shows the email and logs out', async ({ page }) => {
 	await page.goto('/app-management')
 	await page.getByRole('button', { name: /signed in as/i }).click()
 	await expect(page.getByRole('menuitem', { name: /admin@e2e\.local/ })).toBeVisible()
+	// Sign-out is a full page load (next-auth's default redirect), so no client state of the signed-out user
+	// survives (ADR-0017 note of 2026-10-05): a value left on window before the click is gone afterwards.
+	await page.evaluate(() => Object.assign(window, { beforeLogout: true }))
 	await page.getByRole('menuitem', { name: /log out/i }).click()
 	await expect(page).toHaveURL(/\/login/)
+	await expect.poll(() => page.evaluate(() => 'beforeLogout' in window)).toBe(false)
 })
 
 test('on mobile the admin navigation opens from the menu button', async ({ page }, testInfo) => {

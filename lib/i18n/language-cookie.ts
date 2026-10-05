@@ -6,6 +6,14 @@
  */
 export const LANGUAGE_COOKIE = 'i18next'
 
+/**
+ * The detector's `cookieOptions` (i18next-browser-languagedetector README, "Detector Options": "optional set
+ * cookie options, reference: MDN Set-Cookie docs"), as the theme cookies set theirs (themeCookieStrings):
+ * whole site, Lax, and Secure when the page is served over https.
+ */
+export const languageCookieOptions = (secure: boolean) =>
+	({ path: '/', sameSite: 'lax', secure }) as const
+
 /** The UI languages, as `resources` in libs/i18n.ts loads them. */
 export const SUPPORTED_LANGUAGES = ['en', 'zh', 'ar'] as const
 

@@ -101,6 +101,11 @@ describe('sendDecision', () => {
 		expect(sendDecision(state({ isDefaultMessagesRequesting: true }))).toBe('queue')
 		expect(sendDecision(state({ isDefaultMessagesRequesting: true, queued: true }))).toBe('ignore')
 	})
+	// The SDK flushes its queue in a setTimeout after the history lands: until the queued reply has started,
+	// the conversation is neither loading nor requesting, and a second send would run a concurrent stream.
+	it('ignores a send while a queued one waits for the SDK to flush it after the history landed', () => {
+		expect(sendDecision(state({ queued: true }))).toBe('ignore')
+	})
 })
 
 describe('waitForHydration', () => {

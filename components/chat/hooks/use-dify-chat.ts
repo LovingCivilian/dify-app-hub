@@ -6,7 +6,14 @@ import {
 	type SSEOutput,
 } from '@ant-design/x-sdk'
 import type { TFunction } from 'i18next'
-import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from 'react'
 
 import type { DifyApi } from '@/lib/dify-client'
 
@@ -79,8 +86,6 @@ const subscribe = (listener: () => void) => {
 }
 /** Keys with an earlier page on the way (a second click asks for nothing). */
 const pagesInFlight = new Set<string>()
-/** Keys with a send waiting in the SDK's queue for their history. */
-const queuedKeys = new Set<string>()
 /** The latest `getDifyConversationId` given for each key; the key's cached provider reads it at send time. */
 const difyIdReaders = new Map<string, () => string | undefined>()
 /** The latest `onConversationId` given for each key; the key's cached provider calls it from its stream. */
@@ -148,8 +153,9 @@ export type SendDecision = 'send' | 'queue' | 'ignore'
 /**
  * One reply at a time per conversation. A send while this key's reply runs is ignored (Prompts and
  * regenerate are not blocked by the Sender). While the history loads, one send waits in the SDK's
- * queue (use-x-chat: queueRequest) and further ones are ignored: the SDK sends everything queued at
- * once when the history lands, which would run concurrent streams on the key's one provider.
+ * queue (use-x-chat: queueRequest) and further ones are ignored until its reply has started: the SDK
+ * sends everything queued at once, in a `setTimeout` after the history lands, which would run
+ * concurrent streams on the key's one provider.
  */
 export const sendDecision = ({
 	isRequesting,
@@ -160,9 +166,8 @@ export const sendDecision = ({
 	isDefaultMessagesRequesting: boolean
 	queued: boolean
 }): SendDecision => {
-	if (isRequesting) return 'ignore'
-	if (isDefaultMessagesRequesting) return queued ? 'ignore' : 'queue'
-	return 'send'
+	if (isRequesting || queued) return 'ignore'
+	return isDefaultMessagesRequesting ? 'queue' : 'send'
 }
 
 const toMessageInfo = (
@@ -283,10 +288,18 @@ export const useDifyChat = ({
 		if (onConversationId) conversationIdSinks.set(conversationKey, onConversationId)
 	})
 
-	// The SDK sends the queue when the history lands; a new send may wait again only after that.
+	// Keys with a send waiting in the SDK's queue. Per hook instance, like that queue (use-x-chat keeps it in
+	// a ref of the hook, `messageQueueRef`), so a flag never outlives the queue it stands for. The ref answers
+	// `send` at once (two quick sends see the first); the state renders the view's guard (ADR-0017 note).
+	const queuedRef = useRef(new Set<string>())
+	const [queuedKeys, setQueuedKeys] = useState<ReadonlySet<string>>(() => new Set())
+	// The queued send has left once its key requests. The SDK flushes the queue in a `setTimeout` after the
+	// history lands, so clearing the flag when the history ends would let a second send through before it.
 	useEffect(() => {
-		if (!chat.isDefaultMessagesRequesting) queuedKeys.delete(conversationKey)
-	}, [chat.isDefaultMessagesRequesting, conversationKey])
+		if (!chat.isRequesting || !queuedRef.current.has(conversationKey)) return
+		queuedRef.current.delete(conversationKey)
+		setQueuedKeys(new Set(queuedRef.current))
+	}, [chat.isRequesting, conversationKey])
 
 	/** Sends, or queues while the history loads (sendDecision); false when the send was ignored. */
 	const send = useCallback((params: SendParams) => {
@@ -295,7 +308,7 @@ export const useDifyChat = ({
 		const decision = sendDecision({
 			isRequesting: chat.isRequesting,
 			isDefaultMessagesRequesting: chat.isDefaultMessagesRequesting,
-			queued: queuedKeys.has(key),
+			queued: queuedRef.current.has(key),
 		})
 		if (decision === 'ignore') return false
 		const request: Partial<DifyChatInput> = {
@@ -304,7 +317,8 @@ export const useDifyChat = ({
 			files: params.files,
 		}
 		if (decision === 'queue') {
-			queuedKeys.add(key)
+			queuedRef.current.add(key)
+			setQueuedKeys(new Set(queuedRef.current))
 			chat.queueRequest(key, request)
 		} else chat.onRequest(request)
 		return true
@@ -394,6 +408,8 @@ export const useDifyChat = ({
 		messages: chat.messages,
 		isRequesting: chat.isRequesting,
 		isDefaultMessagesRequesting: chat.isDefaultMessagesRequesting,
+		/** A send waits in the SDK's queue for this conversation's history; its reply has not started yet. */
+		queued: queuedKeys.has(conversationKey),
 		setMessage: chat.setMessage,
 		setMessages: chat.setMessages,
 		abort,

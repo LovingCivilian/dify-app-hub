@@ -94,3 +94,12 @@ export const regenerateRequest = (
 	const question = questionOf(messages, key)
 	return question && { query: question.content, files: resendFiles(question) }
 }
+
+/**
+ * The Dify message id next-question suggestions follow (spec §4.7): the last answer's, unless it was stopped
+ * or failed, or its run waits on a human input form (questions under the form would compete with it).
+ */
+export const suggestionTarget = (lastAnswer: DifyChatMessage | undefined): string | undefined =>
+	lastAnswer?.error || lastAnswer?.aborted || lastAnswer?.humanInput?.state === 'pending'
+		? undefined
+		: lastAnswer?.ids.messageId

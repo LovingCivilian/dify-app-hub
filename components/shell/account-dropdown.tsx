@@ -4,7 +4,6 @@ import { LogoutOutlined, UserOutlined } from '@ant-design/icons'
 import { Button, Dropdown, GetProp } from 'antd'
 import type { TFunction } from 'i18next'
 import { signOut, useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
 
 type MenuItems = NonNullable<GetProp<typeof Dropdown, 'menu'>['items']>
@@ -37,15 +36,12 @@ export const getAccountMenuItems = ({
 ]
 
 /**
- * Sign out and return to the login page.
+ * Sign out and return to the login page with a full page load: next-auth's default (`redirect` true) sets
+ * `window.location.href` to the callback URL (next-auth client API, signOut "Specifying a callbackUrl").
+ * The chat keeps per-conversation state at module level (provider cache, history paging, x-sdk's stores),
+ * so a client navigation would hand it to the next account; a fresh document starts without it (ADR-0017).
  */
-export const useLogout = () => {
-	const router = useRouter()
-	return async () => {
-		await signOut({ redirect: false })
-		router.push('/login')
-	}
-}
+export const logout = () => signOut({ callbackUrl: '/login' })
 
 /**
  * Account dropdown for the shared AppHeader.
@@ -53,7 +49,6 @@ export const useLogout = () => {
 export default function AccountDropdown() {
 	const { data: session } = useSession()
 	const { t } = useTranslation()
-	const logout = useLogout()
 	const email = session?.user?.email
 	if (!email) return null
 	return (

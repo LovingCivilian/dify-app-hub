@@ -6,14 +6,22 @@
 	height: 100%;
 }
 /* Mobile first: below md the sider makes way for the header's drawer trigger (spec §3.3). One query, so
-   the sider and the trigger are exact complements at any width, fractional ones included. */
+   the sider and the trigger are exact complements at any width, fractional ones included. The header's
+   width toggle (desktopOnly) follows the sider: below md the column already spans the viewport. */
 .sider {
 	display: none;
 	border-inline-end: var(--ant-line-width) var(--ant-line-type) var(--ant-color-border-secondary);
 }
+.desktopOnly {
+	display: none;
+}
 @media (min-width: 768px /* screenMD */) {
 	.sider {
 		display: block;
+	}
+	/* display: contents keeps the toggle a direct flex child of the header region. */
+	.desktopOnly {
+		display: contents;
 	}
 }
 .siderInner {
@@ -31,6 +39,10 @@
 /* What the collapsed sider keeps: app icon, collapse toggle, new-chat button, list button. */
 .rail {
 	padding-block: var(--ant-padding-sm);
+}
+/* Why the list keeps the active conversation while a send waits for its history. */
+.queuedHint {
+	padding: var(--ant-padding-xs) var(--ant-padding-sm);
 }
 /* The collapsed sider's list, in a Popover: a fixed share of the control height token keeps its width
    steady, and it scrolls past half the viewport. */

@@ -91,7 +91,8 @@
 		"stopped": "تم الإيقاف",
 		"send_placeholder": "اكتب رسالة",
 		"conversations_menu": "قائمة المحادثات",
-		"menu_for": "إجراءات المحادثة",
+		"menu_for": "إجراءات {{name}}",
+		"sending_queued": "ستُرسَل رسالتك بعد اكتمال تحميل هذه المحادثة.",
 		"history_load_failed": "تعذّر تحميل رسائل هذه المحادثة",
 		"retry": "إعادة المحاولة",
 		"inputs_required": "يرجى تعبئة معاملات المحادثة أولاً."

@@ -69,16 +69,18 @@ export const useConversationMenu = ({
 					: []),
 				{ key: 'delete', label: t('chat.delete'), icon: <DeleteOutlined />, danger: true },
 			]
+			// X's default trigger is a bare icon: neither named nor reachable by keyboard. Each row's button is
+			// named after its conversation, so the list's buttons tell apart.
+			const name = t('chat.menu_for', { name: String(conversation.label ?? '') })
 			return {
 				items,
-				// X's default trigger is a bare icon: neither named nor reachable by keyboard.
 				trigger: (
 					<Button
 						type="text"
 						size="small"
 						icon={<EllipsisOutlined />}
-						aria-label={t('chat.menu_for')}
-						title={t('chat.menu_for')}
+						aria-label={name}
+						title={name}
 					/>
 				),
 				onClick: ({ key, domEvent }) => {

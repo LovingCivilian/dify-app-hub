@@ -14,7 +14,7 @@ export default function MarkdownImage({ domNode }: MarkdownBlockProps) {
 	return (
 		<Image
 			src={src}
-			alt={alt || t('message.image_load_failed')}
+			alt={alt || t('message.image_alt')}
 			classNames={{ root: styles.imageRoot, image: styles.media }}
 		/>
 	)
