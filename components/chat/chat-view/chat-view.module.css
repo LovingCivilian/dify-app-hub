@@ -28,10 +28,22 @@
 	overflow: auto;
 	padding-inline: var(--ant-padding-xs);
 }
+/* What the collapsed sider keeps: app icon, collapse toggle, new-chat button, list button. */
+.rail {
+	padding-block: var(--ant-padding-sm);
+}
+/* The collapsed sider's list, in a Popover: a fixed share of the control height token keeps its width
+   steady, and it scrolls past half the viewport. */
+.popoverList {
+	width: calc(var(--ant-control-height-lg) * 6);
+	max-height: 50vh;
+	overflow: auto;
+}
 .appInfo {
 	padding: var(--ant-padding-sm);
 }
 .appInfoText {
+	flex: 1;
 	min-width: 0;
 }
 .column {

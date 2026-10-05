@@ -13,7 +13,7 @@ import {
 } from '../provider/conversations'
 import type { DifyRequestError } from '../provider/dify-fetch'
 import { conversationKeyFor, newTempConversationKey, parseConversationKey } from '../provider/keys'
-import { envelopeError, toDifyError } from './dify-errors'
+import { envelopeError, renameError, toDifyError } from './dify-errors'
 
 /** The newest conversations the sidebar lists (Dify's maximum `limit` for GET /conversations). */
 const LIST_LIMIT = 100
@@ -173,12 +173,13 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 			const difyId = getDifyId(key)
 			if (difyId) {
 				try {
-					// Dify answers a rename with the conversation; anything else is its error body.
-					const answer = (await latest.current.difyApi.renameConversation({
+					// The proxy wraps Dify's answer as { code, data }: the renamed conversation or Dify's error body.
+					const answer: unknown = await latest.current.difyApi.renameConversation({
 						conversation_id: difyId,
 						name,
-					})) as { id?: unknown } | undefined
-					if (typeof answer?.id !== 'string') throw envelopeError(answer)
+					})
+					const refused = renameError(answer)
+					if (refused) throw refused
 				} catch (e) {
 					throw toDifyError(e)
 				}

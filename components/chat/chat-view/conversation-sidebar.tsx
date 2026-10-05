@@ -2,25 +2,52 @@
 
 import { Conversations, type ConversationsProps } from '@ant-design/x'
 import { Avatar, Flex, Typography } from 'antd'
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAppContext } from '../app-context'
 import type { ConversationGroup, ConversationItem } from '../provider/conversations'
 import styles from './chat-view.module.css'
 
-export interface ConversationSidebarProps {
+export interface ListCreation {
+	onClick: () => void
+	/** An unsent new chat already exists (spec §4.4: at most one). */
+	disabled: boolean
+}
+
+export interface ConversationListProps {
 	items: ConversationItem[]
 	activeKey: string
 	onActiveChange: (key: string) => void
-	onCreate: () => void
-	/** An unsent new chat already exists (spec §4.4: at most one). */
-	createDisabled: boolean
+	/** The list's new-chat button; without it the list has none (the collapsed sider has its own). */
+	creation?: ListCreation
 	menu?: ConversationsProps['menu']
 }
 
-/** The app's icon, name and description (site settings first, the app record second). */
-export function AppInfoBlock() {
+export interface ConversationSidebarProps extends Omit<ConversationListProps, 'creation'> {
+	onCreate: () => void
+	/** An unsent new chat already exists (spec §4.4: at most one). */
+	createDisabled: boolean
+	/** At the end of the app info row (the sider's collapse toggle). */
+	action?: React.ReactNode
+}
+
+/** The app's icon: the site's image or emoji, else the first letter of its name. */
+export function AppAvatar() {
+	const { app, site } = useAppContext()
+	const name = site.title || app.info.name
+	return (
+		<Avatar
+			shape="square"
+			src={site.icon_type === 'image' ? site.icon_url || site.icon : undefined}
+		>
+			{site.icon_type === 'emoji' ? site.icon : name.slice(0, 1)}
+		</Avatar>
+	)
+}
+
+/** The app's icon, name and description (site settings first, the app record second), then `action`. */
+export function AppInfoBlock({ action }: { action?: React.ReactNode }) {
 	const { app, site } = useAppContext()
 	const name = site.title || app.info.name
 	const description = site.description || app.info.description
@@ -31,12 +58,7 @@ export function AppInfoBlock() {
 				gap="small"
 				align="center"
 			>
-				<Avatar
-					shape="square"
-					src={site.icon_type === 'image' ? site.icon_url || site.icon : undefined}
-				>
-					{site.icon_type === 'emoji' ? site.icon : name.slice(0, 1)}
-				</Avatar>
+				<AppAvatar />
 				<Flex
 					vertical
 					className={styles.appInfoText}
@@ -57,20 +79,20 @@ export function AppInfoBlock() {
 						</Typography.Text>
 					)}
 				</Flex>
+				{action}
 			</Flex>
 		</div>
 	)
 }
 
-/** App info and the X Conversations list, grouped by date, with the new-chat button (spec §5.2). */
-export default function ConversationSidebar({
+/** The X Conversations list, grouped by date, with the item menu (spec §5.2). */
+export const ConversationList = memo(function ConversationList({
 	items,
 	activeKey,
 	onActiveChange,
-	onCreate,
-	createDisabled,
+	creation,
 	menu,
-}: ConversationSidebarProps) {
+}: ConversationListProps) {
 	const { t } = useTranslation()
 	const listItems = useMemo(
 		() => items.map(item => ({ key: item.key, label: item.label, group: item.group })),
@@ -81,18 +103,54 @@ export default function ConversationSidebar({
 		[t],
 	)
 	return (
+		<Conversations
+			items={listItems}
+			activeKey={activeKey}
+			onActiveChange={onActiveChange}
+			groupable={groupable}
+			creation={
+				creation && {
+					label: t('chat.new_chat'),
+					disabled: creation.disabled,
+					onClick: creation.onClick,
+				}
+			}
+			menu={menu}
+		/>
+	)
+})
+
+/**
+ * App info (with the optional `action` at its end) and the list with the new-chat button, for the sider
+ * and the mobile drawer. Memoised: the page re-renders on every streamed chunk and the list holds a dropdown per item.
+ */
+const ConversationSidebar = memo(function ConversationSidebar({
+	items,
+	activeKey,
+	onActiveChange,
+	onCreate,
+	createDisabled,
+	menu,
+	action,
+}: ConversationSidebarProps) {
+	const creation = useMemo(
+		() => ({ onClick: onCreate, disabled: createDisabled }),
+		[createDisabled, onCreate],
+	)
+	return (
 		<div className={styles.siderInner}>
-			<AppInfoBlock />
+			<AppInfoBlock action={action} />
 			<div className={styles.siderList}>
-				<Conversations
-					items={listItems}
+				<ConversationList
+					items={items}
 					activeKey={activeKey}
 					onActiveChange={onActiveChange}
-					groupable={groupable}
-					creation={{ label: t('chat.new_chat'), disabled: createDisabled, onClick: onCreate }}
+					creation={creation}
 					menu={menu}
 				/>
 			</div>
 		</div>
 	)
-}
+})
+
+export default ConversationSidebar

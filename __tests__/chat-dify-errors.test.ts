@@ -8,6 +8,7 @@ import {
 	feedbackError,
 	humanInputFailureText,
 	humanInputSubmitError,
+	renameError,
 	toDifyError,
 	transcriptionError,
 	uploadAnswerError,
@@ -170,6 +171,38 @@ describe('annotationError', () => {
 			status: 404,
 			message: '',
 		})
+	})
+})
+
+// The rename route answers { code: <HTTP status>, data } (createDifyApiResponse) with Dify's body as `data`:
+// the renamed conversation (`id`, `name`, …) or Dify's error body. A rename can never succeed when the
+// check reads the top level, which is where Dify's own body would be.
+describe('renameError', () => {
+	it('is undefined when Dify renamed the conversation', () => {
+		expect(
+			renameError({
+				code: 200,
+				data: { id: 'cv-1', name: 'Renamed', inputs: {}, status: 'normal' },
+			}),
+		).toBeUndefined()
+	})
+	it("reads Dify's error body", () => {
+		expect(
+			renameError({
+				code: 404,
+				data: { code: 'not_found', message: 'Conversation Not Exists.', status: 404 },
+			}),
+		).toMatchObject({ status: 404, code: 'not_found', message: 'Conversation Not Exists.' })
+	})
+	it("leaves the message empty for the proxy's own answers", () => {
+		expect(renameError({ error: 'Unauthorized' })).toMatchObject({ message: '' })
+		expect(renameError({ code: 404, data: { error: 'App not found' } })).toMatchObject({
+			status: 404,
+			message: '',
+		})
+	})
+	it('refuses a 2xx answer that names no conversation', () => {
+		expect(renameError({ code: 200, data: {} })).toMatchObject({ status: 200, message: '' })
 	})
 })
 

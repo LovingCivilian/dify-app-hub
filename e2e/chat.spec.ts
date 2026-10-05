@@ -363,4 +363,113 @@ test.describe('chat', () => {
 		await expect(page.getByText(`Echo: ${first}`)).toBeVisible()
 		await expect(alert).toHaveCount(0)
 	})
+
+	// Spec §4.4 / §5.2: the item menu renames on Dify and deletes there, both through a confirm modal; the
+	// stub keeps the changes, so the reloaded list proves the server side. Desktop only: the drawer has its own spec.
+	test('a conversation can be renamed and deleted from its menu', async ({
+		page,
+		isMobile,
+	}, testInfo) => {
+		test.skip(isMobile, 'the item menu is exercised on desktop; mobile uses the drawer spec')
+		const run = `${testInfo.project.name} ${testInfo.repeatEachIndex}.${testInfo.retry}`
+		const original = `rename me ${run}`
+		const renamed = `Renamed ${run}`
+		const sider = page.getByRole('complementary')
+		const item = (name: string) => sider.getByRole('listitem', { name, exact: true })
+		const actions = (name: string) =>
+			item(name).getByRole('button', { name: 'Conversation actions' })
+		await senderBox(page).fill(original)
+		await page.keyboard.press('Enter')
+		await expect(page.getByText(`Echo: ${original}`)).toBeVisible()
+		await expect(item(original)).toBeVisible()
+		// Rename: a confirm modal with a Form; an empty name is refused where it is typed.
+		await actions(original).click()
+		await page.getByRole('menuitem', { name: 'Rename' }).click()
+		const dialog = page.getByRole('dialog', { name: 'Rename' })
+		const nameBox = dialog.getByLabel('Enter a conversation name')
+		await expect(nameBox).toHaveValue(original)
+		await nameBox.fill('')
+		await dialog.getByRole('button', { name: 'OK' }).click()
+		await expect(dialog.getByText('Enter a conversation name', { exact: true })).toBeVisible()
+		await expect(dialog).toBeVisible()
+		await nameBox.fill(renamed)
+		await dialog.getByRole('button', { name: 'OK' }).click()
+		await expect(dialog).toBeHidden()
+		await expect(item(renamed)).toBeVisible()
+		await expect(item(original)).toHaveCount(0)
+		// Dify has the new name: a reload lists it.
+		await page.goto(`/chat/${APP_ID}`)
+		await expect(item(renamed)).toBeVisible()
+		// Delete: the active conversation goes, another one takes its place, and the server forgot it.
+		await actions(renamed).click()
+		await page.getByRole('menuitem', { name: 'Delete' }).click()
+		const confirm = page.getByRole('dialog', { name: 'Delete this conversation?' })
+		await confirm.getByRole('button', { name: 'Cancel' }).click()
+		await expect(confirm).toBeHidden()
+		await expect(item(renamed)).toBeVisible()
+		await actions(renamed).click()
+		await page.getByRole('menuitem', { name: 'Delete' }).click()
+		await confirm.getByRole('button', { name: 'Delete' }).click()
+		await expect(confirm).toBeHidden()
+		await expect(item(renamed)).toHaveCount(0)
+		await expect(page.getByText(`Echo: ${original}`)).toHaveCount(0)
+		// The page is still usable: some conversation is active and the Sender accepts text.
+		await expect(sider.locator('.ant-conversations-item-active')).toHaveCount(1)
+		await expect(senderBox(page)).toBeEnabled()
+		await page.goto(`/chat/${APP_ID}`)
+		await expect(senderBox(page)).toBeVisible()
+		await expect(item(renamed)).toHaveCount(0)
+	})
+
+	// A new chat has no Dify id until its first reply: it cannot be renamed there, only discarded.
+	test('a new chat that was not sent offers delete only', async ({ page, isMobile }) => {
+		test.skip(isMobile, 'the item menu is exercised on desktop; mobile uses the drawer spec')
+		const sider = page.getByRole('complementary')
+		const active = sider.locator('.ant-conversations-item-active')
+		await expect(active).toContainText('New conversation')
+		await active.getByRole('button', { name: 'Conversation actions' }).click()
+		await expect(page.getByRole('menuitem', { name: 'Delete' })).toBeVisible()
+		await expect(page.getByRole('menuitem', { name: 'Rename' })).toHaveCount(0)
+	})
+
+	// Spec §5.1: collapsed, the sider keeps the app icon, a new-chat button and the list behind a Popover.
+	test('the sider collapses to a rail with the list in a popover, and expands again', async ({
+		page,
+		isMobile,
+	}, testInfo) => {
+		test.skip(isMobile, 'no sider below md')
+		const text = `collapse me ${testInfo.project.name} ${testInfo.repeatEachIndex}.${testInfo.retry}`
+		const sider = page.getByRole('complementary')
+		const width = async () => (await sider.boundingBox())?.width ?? 0
+		await senderBox(page).fill(text)
+		await page.keyboard.press('Enter')
+		await expect(page.getByText(`Echo: ${text}`)).toBeVisible()
+		await expect(sider.getByRole('listitem', { name: text, exact: true })).toBeVisible()
+		const expanded = await width()
+		await sider.getByRole('button', { name: 'Collapse sidebar' }).click()
+		await expect(sider.getByRole('button', { name: 'Expand sidebar' })).toBeVisible()
+		// The list and the app info are gone from the sider; only the rail's controls remain.
+		await expect(sider.locator('.ant-conversations')).toHaveCount(0)
+		await expect(sider.getByText('Stub app', { exact: true })).toHaveCount(0)
+		await expect.poll(width).toBeLessThan(expanded)
+		await expect(sider.getByRole('button', { name: 'New conversation' })).toBeVisible()
+		// The list opens in a popover (click-triggered, ADR-0014) and picking an item closes it again.
+		await sider.getByRole('button', { name: 'Conversations', exact: true }).click()
+		const popover = page.locator('.ant-popover')
+		await expect(popover.getByRole('listitem', { name: text, exact: true })).toBeVisible()
+		await page.keyboard.press('Escape')
+		await expect(popover.getByRole('listitem', { name: text, exact: true })).toBeHidden()
+		await sider.getByRole('button', { name: 'New conversation' }).click()
+		await expect(page.getByText(`Echo: ${text}`)).toHaveCount(0)
+		await sider.getByRole('button', { name: 'Conversations', exact: true }).click()
+		await popover.getByRole('listitem', { name: text, exact: true }).click()
+		await expect(page.getByText(`Echo: ${text}`)).toBeVisible()
+		await expect(popover.getByRole('listitem', { name: text, exact: true })).toBeHidden()
+		// Expanding restores the list and the app info.
+		await sider.getByRole('button', { name: 'Expand sidebar' }).click()
+		await expect(sider.getByRole('button', { name: 'Collapse sidebar' })).toBeVisible()
+		await expect(sider.getByRole('listitem', { name: text, exact: true })).toBeVisible()
+		await expect(sider.getByText('Stub app', { exact: true })).toBeVisible()
+		await expect.poll(width).toBe(expanded)
+	})
 })

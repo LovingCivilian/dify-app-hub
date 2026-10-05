@@ -1,6 +1,6 @@
 'use client'
 
-import { MenuOutlined } from '@ant-design/icons'
+import { MenuFoldOutlined, MenuOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
 import { Prompts } from '@ant-design/x'
 import { useLocalStorageState } from 'ahooks'
 import { Alert, App, Button, Form, Layout, Typography, theme } from 'antd'
@@ -38,7 +38,7 @@ import AssistantContent from './assistant-content'
 import ChatSender, { type SenderRef } from './chat-sender'
 import styles from './chat-view.module.css'
 import ConversationDrawer from './conversation-drawer'
-import ConversationSidebar from './conversation-sidebar'
+import ConversationSidebar, { ConversationList } from './conversation-sidebar'
 import InputsCollapse from './inputs-collapse'
 import { useInputsValid } from './inputs-form'
 import { allowsLocalUpload } from './file-types'
@@ -53,6 +53,8 @@ import { questionOf, regenerateRequest, unansweredKeys } from './message-actions
 import MessageFooter, { type FeedbackRating } from './message-footer'
 import MessageList, { type BubbleInfo } from './message-list'
 import { useSenderAttachments } from './sender-attachments'
+import SiderCollapsed from './sider-collapsed'
+import { useConversationMenu } from './use-conversation-menu'
 import WelcomePanel from './welcome-panel'
 import WidthToggle from './width-toggle'
 
@@ -76,6 +78,9 @@ export default function ChatView() {
 	const [inputsForm] = Form.useForm<Record<string, unknown>>()
 	const senderRef = useRef<SenderRef>(null)
 	const [drawerOpen, setDrawerOpen] = useState(false)
+	// The sider's collapsed state and, when collapsed, the popover that holds the list (spec §5.1).
+	const [collapsed, setCollapsed] = useState(false)
+	const [railListOpen, setRailListOpen] = useState(false)
 	const [wide, setWide] = useLocalStorageState<boolean>('dify-app-hub-wide-screen', {
 		defaultValue: false,
 	})
@@ -460,21 +465,45 @@ export default function ChatView() {
 		(app.extConfig?.conversation?.openingStatement?.displayMode === 'always' ||
 			chat.messages.length === 0)
 
-	const sidebar = (
-		<ConversationSidebar
-			items={list.conversations}
-			activeKey={activeKey}
-			onActiveChange={key => {
-				list.setActiveKey(key)
-				setDrawerOpen(false)
-			}}
-			onCreate={() => {
-				list.createTemp()
-				setDrawerOpen(false)
-			}}
-			createDisabled={list.hasEmptyTemp}
-		/>
+	// The list's callbacks and menu are stable, so the memoised sidebar does not re-render per streamed chunk.
+	const { setActiveKey, createTemp, rename, remove } = list
+	const closeDrawer = useCallback(() => setDrawerOpen(false), [])
+	const selectConversation = useCallback(
+		(key: string) => {
+			setActiveKey(key)
+			setDrawerOpen(false)
+			setRailListOpen(false)
+		},
+		[setActiveKey],
 	)
+	const createConversation = useCallback(() => {
+		createTemp()
+		setDrawerOpen(false)
+		setRailListOpen(false)
+	}, [createTemp])
+	const conversationMenu = useConversationMenu({ rename, remove, getDifyId })
+
+	// The collapse toggle sits at the top of the sider (end of the app info row; under the icon when
+	// collapsed): the bottom-left corner is where Next's dev indicator floats and covers a click target.
+	const siderToggle = useMemo(
+		() => (
+			<Button
+				type="text"
+				icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+				aria-label={collapsed ? t('chat.sidebar_open') : t('chat.sidebar_close')}
+				title={collapsed ? t('chat.sidebar_open') : t('chat.sidebar_close')}
+				onClick={() => setCollapsed(value => !value)}
+			/>
+		),
+		[collapsed, t],
+	)
+	const sidebarProps = {
+		items: list.conversations,
+		activeKey,
+		onActiveChange: selectConversation,
+		menu: conversationMenu,
+	}
+	const createDisabled = list.hasEmptyTemp
 
 	return (
 		<UserShell
@@ -510,8 +539,29 @@ export default function ChatView() {
 					width={SIDEBAR_WIDTH}
 					theme="light"
 					className={styles.sider}
+					collapsible
+					collapsed={collapsed}
+					collapsedWidth={token.controlHeightLG * 2}
+					// Our own toggle (top of the sider) replaces antd's trigger bar.
+					trigger={null}
 				>
-					{sidebar}
+					{collapsed ? (
+						<SiderCollapsed
+							onCreate={createConversation}
+							createDisabled={createDisabled}
+							toggle={siderToggle}
+							listOpen={railListOpen}
+							onListOpenChange={setRailListOpen}
+							list={<ConversationList {...sidebarProps} />}
+						/>
+					) : (
+						<ConversationSidebar
+							{...sidebarProps}
+							onCreate={createConversation}
+							createDisabled={createDisabled}
+							action={siderToggle}
+						/>
+					)}
 				</Layout.Sider>
 				<Layout.Content>
 					<div
@@ -598,9 +648,13 @@ export default function ChatView() {
 			</Layout>
 			<ConversationDrawer
 				open={drawerOpen}
-				onClose={() => setDrawerOpen(false)}
+				onClose={closeDrawer}
 			>
-				{sidebar}
+				<ConversationSidebar
+					{...sidebarProps}
+					onCreate={createConversation}
+					createDisabled={createDisabled}
+				/>
 			</ConversationDrawer>
 			{app.extConfig?.annotation?.enabled && (
 				<AnnotationDrawer

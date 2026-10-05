@@ -90,18 +90,28 @@ export const feedbackError = (answer: unknown): DifyRequestError | undefined => 
 	return envelopeError(parseJsonText(data.detail), status)
 }
 
-/**
- * The answer of POST /api/client/dify/<app>/annotations (DifyApi.createAnnotation resolves it whatever the
- * status): `{ code: <HTTP status>, data }` with Dify's body as `data`, the new annotation (its `id`) or
- * Dify's error body; the proxy's own failures answer `{ error }`.
- */
-export const annotationError = (answer: unknown): DifyRequestError | undefined => {
+/** `{ code: <HTTP status>, data }` (createDifyApiResponse) whose `data` is Dify's body: undefined when it has an `id`. */
+const wrappedIdError = (answer: unknown): DifyRequestError | undefined => {
 	const body = recordOf(answer)
 	const status = typeof body.code === 'number' ? body.code : 0
 	const data = recordOf(body.data)
 	if (status >= 200 && status < 300 && typeof data.id === 'string') return
 	return envelopeError(data, status)
 }
+
+/**
+ * The answer of POST /api/client/dify/<app>/annotations (DifyApi.createAnnotation resolves it whatever the
+ * status): `{ code: <HTTP status>, data }` with Dify's body as `data`, the new annotation (its `id`) or
+ * Dify's error body; the proxy's own failures answer `{ error }`.
+ */
+export const annotationError = wrappedIdError
+
+/**
+ * The answer of POST /api/client/dify/<app>/conversation/<id>/name (DifyApi.renameConversation resolves it
+ * whatever the status): the same `{ code: <HTTP status>, data }` shape, `data` being Dify's renamed
+ * conversation (its `id`) or Dify's error body; the proxy's own failures answer `{ error }`.
+ */
+export const renameError = wrappedIdError
 
 /**
  * The answer of POST /api/client/dify/<app>/text2audio (DifyApi.text2Audio resolves the Response): the
