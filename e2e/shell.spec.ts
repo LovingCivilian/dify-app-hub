@@ -10,6 +10,23 @@ test('the language dropdown switches the UI and the html lang', async ({ page })
 	await expect(page.locator('html')).toHaveAttribute('lang', 'en')
 })
 
+test('the chosen language is kept in the i18next cookie, so the server renders it after a reload', async ({
+	page,
+}) => {
+	await page.goto('/app-management')
+	await page.getByRole('button', { name: 'Language' }).click()
+	await page.getByRole('menuitem', { name: 'العربية' }).click()
+	await expect(page.locator('html')).toHaveAttribute('lang', 'ar')
+	// The language detector caches the language in its cookie on every changeLanguage (`caches`).
+	await expect.poll(() => page.evaluate(() => document.cookie)).toMatch(/(?:^|; )i18next=ar(?:;|$)/)
+	// The server reads the same cookie: the next HTML is already Arabic.
+	const html = await (await page.request.get('/app-management')).text()
+	expect(html).toMatch(/<html[^>]*\blang="ar"/)
+	await page.reload()
+	await expect(page.locator('html')).toHaveAttribute('lang', 'ar')
+	await expect(page.getByRole('button', { name: 'اللغة' })).toBeVisible()
+})
+
 test('the theme dropdown switches to dark and the shell surface follows', async ({
 	page,
 }, testInfo) => {

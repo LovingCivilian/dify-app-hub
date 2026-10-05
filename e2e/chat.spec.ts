@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { gzipSync } from 'node:zlib'
 
 import { APP_ID, APP_IDS } from './fixtures/constants'
+import { baseURL } from './fixtures/env'
 
 /** The Sender's box by its placeholder: an app's parameter fields above it are textboxes too. */
 const senderBox = (page: Page) => page.getByPlaceholder('Type a message')
@@ -337,9 +338,10 @@ test.describe('chat', () => {
 		await expect(page.locator('.ant-bubble-start').last().getByTitle('Sent at')).toHaveText(
 			/^\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}:\d{2}\s[AP]M$/,
 		)
-		// Reopened in Arabic (i18next's `lng` query; workers: 1, so the latest conversation is this one):
-		// Arabic-Indic digits (ADR-0005).
-		await page.goto(`/chat/${APP_ID}?lng=ar`)
+		// Reopened in Arabic (the UI language cookie the root layout reads; workers: 1, so the latest conversation
+		// is this one): Arabic-Indic digits (ADR-0005).
+		await page.context().addCookies([{ name: 'i18next', value: 'ar', url: baseURL }])
+		await page.goto(`/chat/${APP_ID}`)
 		await expect(page.getByText(`Echo: ${text}`, { exact: true })).toBeVisible()
 		await expect(page.locator('.ant-bubble-start').last().getByTitle('وقت الإرسال')).toHaveText(
 			/[٠-٩]{4}/,

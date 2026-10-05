@@ -32,6 +32,18 @@ describe('i18n setup', () => {
 		expect(i18n.t('common.cancel')).toBe('إلغاء')
 	})
 
+	// The server render's instance (components/providers/app-providers.tsx): a clone in the cookie's language that
+	// leaves the shared module instance alone, and that react-i18next's useSSR skips (it checks options.isClone).
+	it('gives a server render its own language without changing the shared instance', async () => {
+		await i18n.changeLanguage('en')
+		const clone = i18n.cloneInstance({ lng: 'ar' })
+		expect(clone.resolvedLanguage).toBe('ar')
+		expect(clone.t('common.cancel')).toBe('إلغاء')
+		expect(clone.options).toHaveProperty('isClone', true)
+		expect(i18n.resolvedLanguage).toBe('en')
+		expect(i18n.t('common.cancel')).toBe('Cancel')
+	})
+
 	it('reports Arabic as right-to-left', () => {
 		expect(i18n.dir('ar')).toBe('rtl')
 		expect(i18n.dir('en')).toBe('ltr')

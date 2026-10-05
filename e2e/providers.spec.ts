@@ -38,9 +38,9 @@ test('no page nests a second XProvider or ConfigProvider', async ({ page }) => {
 })
 
 // The X locale is merged into the one XProvider next to antd's (libs/x-locale.ts): the Sender's stop control
-// is named by X's locale. The language is switched in the page: a hard load in Arabic would render English
-// on the server and warn about hydration until the language is cookie-backed. The stub streams a `slow`
-// reply for four seconds, so the control stays on screen.
+// is named by X's locale. The language is switched in the page, so the locale follows a live change (a hard load
+// in Arabic is covered by ssr-first-paint.spec.ts). The stub streams a `slow` reply for four seconds, so the
+// control stays on screen.
 test("Ant Design X's strings follow the language through the one XProvider", async ({
 	page,
 	isMobile,

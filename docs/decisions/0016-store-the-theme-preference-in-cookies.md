@@ -71,3 +71,5 @@ Chosen option: the two cookies. `theme-mode` (`system` | `light` | `dark`) and `
 ## More Information
 
 Sources: `node_modules/next/dist/docs/01-app/03-api-reference/04-functions/cookies.md` (Next 16.3.4 bundled docs: async, read in Server Components, dynamic rendering), MDN `document.cookie` and `MediaQueryList` `change` events, Playwright `page.request` (shares the context's cookies), chat sub-project spec §3.2 and §2 "Dark first paint". Related: [ADR-0008](0008-rebuild-frontend-on-ant-design-6-and-x-2.md), [ADR-0012](0012-alias-legacy-theme-variables-to-antd-tokens.md).
+
+Note, 2026-10-05 (chat sub-project Task 18b): the UI language follows the same cookie pattern. The language detector's `i18next` cookie is read in `app/layout.tsx` (`lib/i18n/language-cookie.ts`), so the first HTML carries the visitor's language and `<html lang>`, and a language stored before the cookie existed (localStorage) is applied once after hydration, like the theme's migration. Details in the [ADR-0005](0005-internationalise-the-ui-with-typed-i18next-keys-and-msa-arabic.md) note of the same date.

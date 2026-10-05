@@ -72,6 +72,76 @@ test.describe('legacy localStorage theme entries', () => {
 	})
 })
 
+// The UI language is the language detector's `i18next` cookie, read by the root layout (lib/i18n/language-cookie.ts),
+// so the first HTML is already in the visitor's language and the first client render matches it.
+test.describe('the UI language cookie', () => {
+	const arabicCookie = { name: 'i18next', value: 'ar', url: baseURL }
+
+	test('the first HTML is Arabic when the cookie says so', async ({ page }) => {
+		await page.context().addCookies([arabicCookie])
+		const response = await page.request.get('/apps')
+		expect(response.ok()).toBe(true)
+		const html = await response.text()
+		expect(html).toMatch(/<html[^>]*\blang="ar"/)
+		// The header's language button is named through system.language (locales/ar/translation.json).
+		expect(html).toContain('aria-label="اللغة"')
+		expect(html).not.toContain('aria-label="Language"')
+	})
+
+	test('without the cookie the first HTML stays English', async ({ page }) => {
+		// The signed-in storage state may carry the cookie the setup's own visit wrote.
+		await page.context().clearCookies({ name: 'i18next' })
+		const html = await (await page.request.get('/apps')).text()
+		expect(html).toMatch(/<html[^>]*\blang="en"/)
+		expect(html).toContain('aria-label="Language"')
+	})
+
+	test('a hard load with the cookie hydrates without a mismatch', async ({ page }) => {
+		// React reports hydration mismatches as console errors ("Hydration failed …", "A tree hydrated but some
+		// attributes … didn't match …"); uncaught errors arrive as pageerror (Playwright: page.on).
+		const errors: string[] = []
+		page.on('console', message => {
+			if (message.type() === 'error') errors.push(message.text())
+		})
+		page.on('pageerror', error => errors.push(error.message))
+		await page.context().addCookies([arabicCookie])
+		await page.goto('/apps')
+		await expect(page.locator('html')).toHaveAttribute('lang', 'ar')
+		// The menu opens only once React has hydrated the header, so the check below runs after hydration.
+		await page.getByRole('button', { name: 'اللغة' }).click()
+		await expect(page.getByRole('menuitem', { name: 'English' })).toBeVisible()
+		expect(errors.filter(text => /hydrat|did(?: not|n't) match/i.test(text))).toEqual([])
+	})
+
+	// Before the cookie the detector cached the language in localStorage only. Such a visitor has no cookie yet: the
+	// first HTML and the first client render are English, then the stored language is applied once and written to
+	// the cookie, so the next server render has it. Signed out (empty storage state) to start without the cookie.
+	test.describe('a language stored before the cookie existed', () => {
+		test.use({ storageState: { cookies: [], origins: [] } })
+
+		test('is applied after hydration and seeds the cookie', async ({ page }) => {
+			const errors: string[] = []
+			page.on('console', message => {
+				if (message.type() === 'error') errors.push(message.text())
+			})
+			page.on('pageerror', error => errors.push(error.message))
+			await page.addInitScript(() => localStorage.setItem('i18nextLng', 'ar'))
+			await page.goto('/login')
+			await expect(page.getByRole('button', { name: 'تسجيل الدخول' })).toBeVisible()
+			await expect(page.locator('html')).toHaveAttribute('lang', 'ar')
+			await expect
+				.poll(
+					async () =>
+						(await page.context().cookies()).find(cookie => cookie.name === 'i18next')?.value,
+				)
+				.toBe('ar')
+			expect(errors.filter(text => /hydrat|did(?: not|n't) match/i.test(text))).toEqual([])
+			const html = await (await page.request.get('/login')).text()
+			expect(html).toMatch(/<html[^>]*\blang="ar"/)
+		})
+	})
+})
+
 test('the shell and the account button are in the server HTML for a signed-in visitor', async ({
 	page,
 }) => {

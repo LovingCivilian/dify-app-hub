@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { applyDayjsLocale } from '@/libs/antd-locale'
 
 /**
- * Write the active language onto the <html> element. The root layout renders
- * lang="en" on the server; the browser only learns the real language here.
+ * Write the active language onto the <html> element. The root layout renders the
+ * language cookie's value on the server (app/layout.tsx); this keeps the attribute
+ * in step when the language changes in the page (the language dropdown).
  * Direction stays ltr for now; set `dir` from `i18n.dir()` here when RTL lands.
  */
 export const applyHtmlLang = (html: { lang: string }, language?: string) => {
