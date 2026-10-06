@@ -234,6 +234,14 @@ test.describe('annotations', () => {
 		await edit.getByRole('button', { name: 'OK' }).click()
 		await expect(row).toContainText('then Reset')
 
+		// A new annotation starts from empty fields after an edit.
+		await drawer.getByRole('button', { name: 'New annotation' }).click()
+		const fresh = page.getByRole('dialog', { name: 'New annotation' })
+		await expect(fresh.getByLabel('Question')).toHaveValue('')
+		await expect(fresh.getByLabel('Answer')).toHaveValue('')
+		await fresh.getByRole('button', { name: 'Cancel' }).click()
+		await expect(fresh).toBeHidden()
+
 		await row.getByRole('button', { name: 'Delete' }).click()
 		await page.getByRole('button', { name: 'Delete' }).last().click()
 		await expect(row).toHaveCount(0)

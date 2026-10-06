@@ -8,9 +8,10 @@ const row = (page: Page, email: string) => page.getByRole('row', { name: new Reg
 
 test.describe('user CRUD', () => {
 	// Spec users carry the project name and are removed after each test (the database survives between runs).
-	test.afterEach(async ({}, testInfo) => {
+	test.afterEach(async () => {
+		const { project } = test.info()
 		await withDb(db =>
-			db.execute('DELETE FROM users WHERE email LIKE ?', [`user-${testInfo.project.name}%`]),
+			db.execute('DELETE FROM users WHERE email LIKE ?', [`user-${project.name}%`]),
 		)
 	})
 
@@ -53,6 +54,9 @@ test.describe('user CRUD', () => {
 
 		await page.getByRole('button', { name: 'Add user' }).click()
 		const again = page.getByRole('dialog').filter({ hasText: 'Add user' })
+		// A new user starts from empty fields, whoever was edited before.
+		await expect(again.getByLabel('Name')).toHaveValue('')
+		await expect(again.getByLabel('Email')).toHaveValue('')
 		await again.getByLabel('Name').fill('Twin')
 		await again.getByLabel('Email').fill(email)
 		await again.getByLabel('Password').fill('12345678')
