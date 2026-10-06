@@ -11,6 +11,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 - On a fork `gh` targets the parent repo by default: always `gh pr create -R LovingCivilian/dify-app-hub --base fork/main …`, and `gh pr merge <n> -R LovingCivilian/dify-app-hub --merge` (merge commits, history kept). Merged branches may be deleted afterwards.
 - Upstream sync: `git fetch upstream && git checkout main && git merge --ff-only upstream/main`, then `git checkout fork/main && git merge main` and resolve conflicts there. Expected conflicts and the after-merge checks are listed in `docs/auth-gate.md` and `docs/i18n-maintenance.md`. After each sync `pnpm why @ant-design/cssinjs` must show one version (ADR-0013: upstream still pins `^1.24.0`).
 - The GitHub default branch is `fork/main`.
+- Local folders: each line has its own folder on this machine, a git worktree of the same repository. This line lives in `~/repos/dify-app-hub-main`; `fork/overhaul` lives in `~/repos/dify-app-hub` (the main worktree). Start Claude Code in the folder of the line you work on; feature branches for this line are created in this folder. Git refuses to check out a branch in both folders. Each folder has its own git-ignored `.env`, `.env.development.local`, `node_modules` and `.venv`, and its own Docker stack (below), so nothing in one folder touches the other. Claude Code's auto memory is shared by both folders (it is per repository).
 
 ## How to work here
 
@@ -48,23 +49,23 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 
 ### Docker stack (the real check before merging)
 
-`docker-compose.local.yml` (project `dify-app-hub-local`) builds the image from the checkout and runs it with MySQL on `http://localhost:5300`, settings from `.env`. Rebuild from the branch under test:
+`docker-compose.local.yml` (project `dify-app-hub-main-local`) builds the image from the checkout and runs it with its own MySQL on `http://127.0.0.1:5310`, settings from `.env`. Use `127.0.0.1`, not `localhost`: the overhaul folder's stack serves `localhost:5300`, and cookies are not isolated by port (RFC 6265 §8.5), so the two sign-ins would overwrite each other's session cookie under one host name. `NEXTAUTH_URL` in this folder's `.env` is `http://127.0.0.1:5310`. Rebuild from the branch under test:
 
 ```bash
 docker compose -f docker-compose.local.yml stop app && docker compose -f docker-compose.local.yml rm -f app
 docker compose -f docker-compose.local.yml up -d --build app   # ~2 min, 80 s of it is next build
 ```
 
-Take the old app container down first: this WSL machine has ~5 GB RAM and builds were killed otherwise. MySQL and its volume stay up, so the admin login and data survive. If Claude Code kills a build for memory, do not restart it unprompted. The user verifies in the browser; report the curl checks (`/api/health` 200, `/apps` signed out → 307 `/login?callbackUrl=%2Fapps`, `/api/client/apps` → 401, and `curl -s localhost:5300/login | grep -c 'id="antd-cssinjs"'` → 1, ADR-0013).
+Take the old app container down first: this WSL machine has ~5 GB RAM and builds were killed otherwise. MySQL and its volume stay up, so the admin login and data survive. If Claude Code kills a build for memory, do not restart it unprompted. The user verifies in the browser; report the curl checks (`/api/health` 200, `/apps` signed out → 307 `/login?callbackUrl=%2Fapps`, `/api/client/apps` → 401, and `curl -s 127.0.0.1:5310/login | grep -c 'id="antd-cssinjs"'` → 1, ADR-0013; the same paths on `127.0.0.1:5310`). Never build both folders' images at the same time.
 
 ### Quick dev loop (no image build)
 
 ```bash
-docker compose -f docker-compose.local.yml stop app   # frees port 5300; MySQL keeps running
-pnpm dev                                              # http://localhost:5300, hot reload
+docker compose -f docker-compose.local.yml stop app   # frees port 5310; MySQL keeps running
+pnpm dev                                              # http://127.0.0.1:5310, hot reload
 ```
 
-MySQL is published on `127.0.0.1:3306` only, and the git-ignored `.env.development.local` overrides `DATABASE_URL` to point there for `next dev` (Next's load order: `.env.development.local` over `.env`; Docker builds never read it). Port 5300 is kept so `NEXTAUTH_URL` and the session cookie keep working. Schema changes need `env $(grep DATABASE_URL .env.development.local) pnpm db:migrate` by hand; only the container's entrypoint runs migrations automatically. Dev mode skips `next build`, the standalone server and the entrypoint, so still do one Docker rebuild before merging.
+MySQL is published on `127.0.0.1:3316` only, and the git-ignored `.env.development.local` overrides `DATABASE_URL` to point there for `next dev` (Next's load order: `.env.development.local` over `.env`; Docker builds never read it). Port 5310 is kept so `NEXTAUTH_URL` and the session cookie keep working; the `dev` script's `PORT=5310` is this line's one edit to upstream's `package.json` line (upstream uses 5300), an expected conflict if upstream ever changes that line. Schema changes need `env $(grep DATABASE_URL .env.development.local) pnpm db:migrate` by hand; only the container's entrypoint runs migrations automatically. Dev mode skips `next build`, the standalone server and the entrypoint, so still do one Docker rebuild before merging.
 
 Without Chrome MCP tools, browser evidence can be produced with the headless Chromium in `~/.cache/ms-playwright/` against a throwaway stack (own MySQL, admin created through `POST /api/init`, fake Dify API) — never against the user's instance or real Dify server.
 

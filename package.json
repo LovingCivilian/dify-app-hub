@@ -4,7 +4,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "PORT=5300 next dev",
+		"dev": "PORT=5310 next dev",
 		"build": "next build",
 		"start": "next start",
 		"dev:docs": "pnpm --filter dify-app-hub-docs dev",
