@@ -6,6 +6,7 @@ import {
 	Avatar,
 	Button,
 	Col,
+	Empty,
 	Flex,
 	Popconfirm,
 	Row,
@@ -29,8 +30,6 @@ import { userErrorKey } from './user-errors'
 import UserFormDrawer from './user-form-drawer'
 import type { UserRow } from './user-row'
 
-type Drawer = { mode: 'create' } | { mode: 'edit'; user: UserRow } | null
-
 /** The user table (spec §6). The "Active" tag is kept as it was (owner decision); dates format in the browser. */
 export default function UserManagement({
 	users,
@@ -44,7 +43,16 @@ export default function UserManagement({
 	const { message } = App.useApp()
 	const router = useRouter()
 	const [query, setQuery] = useState('')
-	const [drawer, setDrawer] = useState<Drawer>(null)
+	// The drawer's `open` follows the admin's action alone; the user it edits stays until its close animation has
+	// ended (antd Drawer `afterOpenChange(false)`), so the title and fields do not change while it slides out. Each
+	// opening sets it again: the callback does not run when the drawer is closed before its open motion has ended
+	// (antd then removes it at once) or reopened while it slides out.
+	const [drawerOpen, setDrawerOpen] = useState(false)
+	const [editing, setEditing] = useState<UserRow>()
+	const openDrawer = (user?: UserRow) => {
+		setEditing(user)
+		setDrawerOpen(true)
+	}
 	const shown = users.filter(user => matchesQuery([user.name, user.email], query))
 
 	const remove = async (user: UserRow) => {
@@ -99,7 +107,7 @@ export default function UserManagement({
 					<Button
 						type="text"
 						icon={<EditOutlined />}
-						onClick={() => setDrawer({ mode: 'edit', user })}
+						onClick={() => openDrawer(user)}
 					>
 						{t('common.edit')}
 					</Button>
@@ -138,7 +146,7 @@ export default function UserManagement({
 					<Button
 						type="primary"
 						icon={<PlusOutlined />}
-						onClick={() => setDrawer({ mode: 'create' })}
+						onClick={() => openDrawer()}
 					>
 						{t('admin_users.add_user')}
 					</Button>
@@ -162,6 +170,18 @@ export default function UserManagement({
 				columns={columns}
 				dataSource={shown}
 				scroll={{ x: 'max-content' }}
+				locale={
+					query.trim()
+						? {
+								emptyText: (
+									<Empty
+										image={Empty.PRESENTED_IMAGE_SIMPLE}
+										description={t('admin_users.no_match')}
+									/>
+								),
+							}
+						: undefined
+				}
 				pagination={{
 					showSizeChanger: true,
 					showQuickJumper: true,
@@ -169,9 +189,10 @@ export default function UserManagement({
 				}}
 			/>
 			<UserFormDrawer
-				open={drawer !== null}
-				user={drawer?.mode === 'edit' ? drawer.user : undefined}
-				onClose={() => setDrawer(null)}
+				open={drawerOpen}
+				user={editing}
+				onClose={() => setDrawerOpen(false)}
+				onClosed={() => setEditing(undefined)}
 			/>
 		</Flex>
 	)

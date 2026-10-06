@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test'
 
 import { withDb } from './fixtures/db'
+import { drawerOpened } from './fixtures/drawer'
 import { e2eEnv } from './fixtures/env'
 
 const row = (page: Page, email: string) => page.getByRole('row', { name: new RegExp(email) })
@@ -39,6 +40,16 @@ test.describe('user CRUD', () => {
 		await edit.getByLabel('Name').fill('Spec user renamed')
 		await edit.getByRole('button', { name: 'Update' }).click()
 		await expect(row(page, email)).toContainText('Spec user renamed')
+		await expect(edit).toBeHidden()
+
+		// The drawer keeps its title and fields while it slides out (the user is cleared in afterOpenChange).
+		await row(page, email).getByRole('button', { name: 'Edit' }).click()
+		await expect(edit.getByLabel('Name')).toHaveValue('Spec user renamed')
+		await drawerOpened(edit)
+		await edit.getByRole('button', { name: 'Cancel' }).click()
+		await expect(edit).toContainText('Edit user')
+		await expect(edit.getByLabel('New password')).toBeVisible()
+		await expect(edit).toBeHidden()
 
 		await page.getByRole('button', { name: 'Add user' }).click()
 		const again = page.getByRole('dialog').filter({ hasText: 'Add user' })
@@ -64,6 +75,8 @@ test.describe('user CRUD', () => {
 		await page.getByRole('textbox', { name: 'Search users' }).fill('needle')
 		await expect(row(page, email)).toBeVisible()
 		await expect(row(page, e2eEnv.E2E_ADMIN_EMAIL)).toHaveCount(0)
+		await page.getByRole('textbox', { name: 'Search users' }).fill('no such user')
+		await expect(page.getByText('No users match your search')).toBeVisible()
 		await page.getByRole('textbox', { name: 'Search users' }).fill('')
 		const own = row(page, e2eEnv.E2E_ADMIN_EMAIL)
 		await expect(own.getByRole('button', { name: 'Edit' })).toBeVisible()

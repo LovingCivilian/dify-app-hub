@@ -2,6 +2,7 @@ import { expect, type Page, test, type TestInfo } from '@playwright/test'
 
 import { APP_ID, APP_IDS, CREATED_APP } from './fixtures/constants'
 import { withDb } from './fixtures/db'
+import { drawerOpened } from './fixtures/drawer'
 import { stubApiBase } from './fixtures/env'
 
 const PROJECTS = ['desktop-light', 'desktop-dark', 'mobile-light']
@@ -42,6 +43,8 @@ test('search narrows the table', async ({ page }) => {
 	await page.getByRole('textbox', { name: 'Search apps' }).fill('chatflow')
 	await expect(page.getByRole('row', { name: /Stub chatflow/ })).toBeVisible()
 	await expect(rowById(page, APP_ID)).toHaveCount(0)
+	await page.getByRole('textbox', { name: 'Search apps' }).fill('no such app')
+	await expect(page.getByText('No apps match your search')).toBeVisible()
 })
 
 test('user view is a link that opens the chat in a new tab', async ({ page }) => {
@@ -162,7 +165,11 @@ test.describe('create and edit', () => {
 		await rowById(page, APP_ID).getByRole('button', { name: 'Edit' }).click()
 		const first = page.getByRole('dialog').filter({ hasText: 'Edit app configuration - Stub app' })
 		await expect(first.getByLabel('API Base')).toHaveValue(`${stubApiBase}`)
+		await drawerOpened(first)
 		await first.getByRole('button', { name: 'Cancel' }).click()
+		// The drawer keeps its title and form while it slides out (cleared in afterOpenChange).
+		await expect(first).toContainText('Edit app configuration - Stub app')
+		await expect(first.getByLabel('API Base')).toHaveValue(`${stubApiBase}`)
 		await expect(first).toBeHidden()
 
 		await rowById(page, APP_IDS.workflow).getByRole('button', { name: 'Edit' }).click()
@@ -249,7 +256,10 @@ test.describe('annotations', () => {
 		await page.keyboard.press('Enter')
 		await expect(row).toHaveCount(0)
 
+		await drawerOpened(drawer)
 		await drawer.getByRole('button', { name: 'Close', exact: true }).click()
+		// The panel stays while the drawer slides out (the record is cleared in afterOpenChange).
+		await expect(drawer.getByRole('table')).toBeVisible()
 		await expect(drawer).toBeHidden()
 		await moreActions(page, chatflow).click()
 		await page.getByRole('menuitem', { name: 'Annotations' }).click()

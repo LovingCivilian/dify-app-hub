@@ -21,13 +21,18 @@ export function useAppRecord() {
 		setState({ appId })
 		try {
 			const record = await getApp(appId)
-			if (!record) throw new Error(`App ${appId} not found`)
-			setState(current => acceptRecord(current, appId, record))
-		} catch (error) {
-			console.error('Failed to load the app', error)
+			if (record) {
+				setState(current => acceptRecord(current, appId, record))
+				return
+			}
+			// getApp resolved null: the app is gone (deleted elsewhere since the list loaded).
 			message.error(t('admin_apps.not_found'))
-			setState(current => dropRecord(current, appId))
+		} catch (error) {
+			// A network or action failure says nothing about the app itself.
+			console.error('Failed to load the app', error)
+			message.error(t('common.operation_failed'))
 		}
+		setState(current => dropRecord(current, appId))
 	}
 
 	return { state, open, close: () => setState(null) }

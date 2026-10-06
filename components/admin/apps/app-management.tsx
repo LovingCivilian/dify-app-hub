@@ -1,7 +1,7 @@
 'use client'
 
 import { PlusOutlined } from '@ant-design/icons'
-import { Button, Col, Flex, Row, Table, type TableProps, Tag, Typography, theme } from 'antd'
+import { Button, Col, Empty, Flex, Row, Table, type TableProps, Tag, Typography, theme } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,10 +29,40 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 	const [query, setQuery] = useState('')
 	const editor = useAppRecord()
 	const annotator = useAppRecord()
+	// A drawer's `open` follows the admin's action alone; what it shows (mode, name, record) stays until its close
+	// animation has ended (antd Drawer `afterOpenChange(false)`), so nothing changes while it slides out. Each
+	// opening still sets all of it: the callback does not run when the drawer is closed before its open motion has
+	// ended (antd then removes it at once) or reopened while it slides out. A failed getApp empties the record
+	// state, which also closes the drawer.
+	const [formOpen, setFormOpen] = useState(false)
 	const [creating, setCreating] = useState(false)
-	const closeDrawer = () => {
-		setCreating(false)
+	const [editedName, setEditedName] = useState<string>()
+	const [annotationsOpen, setAnnotationsOpen] = useState(false)
+	const openCreate = () => {
 		editor.close()
+		setEditedName(undefined)
+		setCreating(true)
+		setFormOpen(true)
+	}
+	const openEdit = (app: AdminAppRow) => {
+		setCreating(false)
+		setEditedName(app.name)
+		setFormOpen(true)
+		void editor.open(app.id)
+	}
+	const formClosed = () => {
+		setFormOpen(false)
+		setCreating(false)
+		setEditedName(undefined)
+		editor.close()
+	}
+	const openAnnotations = (appId: string) => {
+		setAnnotationsOpen(true)
+		void annotator.open(appId)
+	}
+	const annotationsClosed = () => {
+		setAnnotationsOpen(false)
+		annotator.close()
 	}
 	const shown = apps.filter(app => matchesQuery([app.name, app.description, ...app.tags], query))
 
@@ -40,6 +70,7 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 		{
 			title: t('admin_apps.column_name'),
 			key: 'name',
+			ellipsis: true,
 			render: (_, app) => (
 				<Flex
 					align="center"
@@ -57,7 +88,7 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 		{
 			title: t('admin_apps.column_type'),
 			key: 'mode',
-			filters: AppModeOptions.map(option => ({ text: t(option.label), value: option.value })),
+			filters: AppModeOptions.map(({ value }) => ({ text: t(AppModeNames[value]), value })),
 			onFilter: (value, app) => app.mode === value,
 			render: (_, app) => (app.mode ? t(AppModeNames[app.mode]) : t('common.none')),
 		},
@@ -110,10 +141,8 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 			render: (_, app) => (
 				<AppActions
 					app={app}
-					onEdit={() => void editor.open(app.id)}
-					onAnnotations={
-						supportsAnnotations(app.mode) ? () => void annotator.open(app.id) : undefined
-					}
+					onEdit={() => openEdit(app)}
+					onAnnotations={supportsAnnotations(app.mode) ? () => openAnnotations(app.id) : undefined}
 				/>
 			),
 		},
@@ -130,7 +159,7 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 					<Button
 						type="primary"
 						icon={<PlusOutlined />}
-						onClick={() => setCreating(true)}
+						onClick={openCreate}
 					>
 						{t('common.new')}
 					</Button>
@@ -154,17 +183,32 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 				columns={columns}
 				dataSource={shown}
 				scroll={{ x: 'max-content' }}
+				locale={
+					query.trim()
+						? {
+								emptyText: (
+									<Empty
+										image={Empty.PRESENTED_IMAGE_SIMPLE}
+										description={t('app.no_match')}
+									/>
+								),
+							}
+						: undefined
+				}
 			/>
 			<AppFormDrawer
-				open={creating || editor.state !== null}
+				open={formOpen && (creating || editor.state !== null)}
 				mode={creating ? 'create' : 'edit'}
+				name={editedName}
 				record={editor.state?.record}
-				onClose={closeDrawer}
+				onClose={() => setFormOpen(false)}
+				onClosed={formClosed}
 			/>
 			<AnnotationsDrawer
-				open={annotator.state !== null}
+				open={annotationsOpen && annotator.state !== null}
 				record={annotator.state?.record}
-				onClose={annotator.close}
+				onClose={() => setAnnotationsOpen(false)}
+				onClosed={annotationsClosed}
 			/>
 		</Flex>
 	)

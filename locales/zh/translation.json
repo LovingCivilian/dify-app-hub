@@ -242,6 +242,7 @@
 		"password_required": "请输入密码",
 		"password_keep_hint": "留空则不修改密码",
 		"search_placeholder": "搜索用户",
+		"no_match": "没有符合搜索条件的用户",
 		"email_in_use": "该邮箱已被使用",
 		"not_found": "用户不存在",
 		"cannot_delete_self": "不能删除自己的账户"

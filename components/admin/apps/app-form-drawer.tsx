@@ -1,6 +1,6 @@
 'use client'
 
-import { App, Button, Drawer, Form, Skeleton, Space } from 'antd'
+import { App, Button, Drawer, Form, Space } from 'antd'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,10 +22,14 @@ const APP_FORM_ID = 'app-settings-form'
 
 export interface AppFormDrawerProps {
 	open: boolean
-	/** 'edit' shows a skeleton until `record` arrives (getApp, spec §5.4). */
+	/** 'edit' shows the Drawer's loading skeleton until `record` arrives (getApp, spec §5.4). */
 	mode: 'create' | 'edit'
+	/** The table row's name, so the edit title is complete before `record` arrives. */
+	name?: string
 	record?: IDifyAppItem
 	onClose: () => void
+	/** Called once the close animation has ended (Drawer `afterOpenChange(false)`): the parent clears the content. */
+	onClosed: () => void
 }
 
 /**
@@ -33,9 +37,19 @@ export interface AppFormDrawerProps {
  * unmounts the form on close. The Form owns its instance (no `form` prop), so each mounting gets a fresh store
  * seeded from its own `initialValues`; a drawer-level `Form.useForm()` would keep the last values (and
  * `clearOnDestroy` empties the store under Strict Mode's remount). The submit button reaches the form through
- * the HTML `form` attribute.
+ * the HTML `form` attribute. While the record loads, the Drawer's `loading` prop (antd 5.17+, a Skeleton since
+ * 5.18) renders a skeleton in place of the children, so the Form mounts only once its `initialValues` are known.
+ * The Form is keyed by what it edits, so a drawer reopened for other content while it still slides out (no
+ * unmount in between) gets a fresh store too.
  */
-export default function AppFormDrawer({ open, mode, record, onClose }: AppFormDrawerProps) {
+export default function AppFormDrawer({
+	open,
+	mode,
+	name,
+	record,
+	onClose,
+	onClosed,
+}: AppFormDrawerProps) {
 	const { t } = useTranslation()
 	const { message } = App.useApp()
 	const router = useRouter()
@@ -82,11 +96,15 @@ export default function AppFormDrawer({ open, mode, record, onClose }: AppFormDr
 		<Drawer
 			open={open}
 			onClose={onClose}
+			afterOpenChange={visible => {
+				if (!visible) onClosed()
+			}}
 			size="large"
 			destroyOnHidden
+			loading={loading}
 			title={
 				mode === 'edit'
-					? t('admin_apps.edit_title', { name: record?.info.name ?? '' })
+					? t('admin_apps.edit_title', { name: record?.info.name ?? name ?? '' })
 					: t('admin_apps.create_title')
 			}
 			extra={
@@ -104,22 +122,16 @@ export default function AppFormDrawer({ open, mode, record, onClose }: AppFormDr
 				</Space>
 			}
 		>
-			{loading ? (
-				<Skeleton
-					active
-					paragraph={{ rows: 10 }}
-				/>
-			) : (
-				<Form
-					id={APP_FORM_ID}
-					layout="vertical"
-					autoComplete="off"
-					initialValues={record ? toAppFormValues(record) : DEFAULT_APP_FORM_VALUES}
-					onFinish={save}
-				>
-					<AppSettingsFields record={record} />
-				</Form>
-			)}
+			<Form
+				key={record?.id ?? 'create'}
+				id={APP_FORM_ID}
+				layout="vertical"
+				autoComplete="off"
+				initialValues={record ? toAppFormValues(record) : DEFAULT_APP_FORM_VALUES}
+				onFinish={save}
+			>
+				<AppSettingsFields record={record} />
+			</Form>
 		</Drawer>
 	)
 }

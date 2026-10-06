@@ -242,6 +242,7 @@
 		"password_required": "Enter a password",
 		"password_keep_hint": "Leave blank to keep the current password",
 		"search_placeholder": "Search users",
+		"no_match": "No users match your search",
 		"email_in_use": "This email is already in use",
 		"not_found": "User not found",
 		"cannot_delete_self": "You cannot delete your own account"

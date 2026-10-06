@@ -23,16 +23,21 @@ interface UserFormValues {
  * `destroyOnHidden` gets a fresh store seeded from its own `initialValues`; a drawer-level `Form.useForm()` would
  * keep the previous user's values (and `clearOnDestroy` empties the store under Strict Mode's remount). The
  * submit button in `extra` reaches the form through the HTML `form` attribute; antd spreads `id` onto `<form>`.
+ * The Form is keyed by the user it edits, so a drawer reopened for someone else while it still slides out (no
+ * unmount in between) gets a fresh store too.
  */
 export default function UserFormDrawer({
 	open,
 	user,
 	onClose,
+	onClosed,
 }: {
 	open: boolean
 	/** The user to edit; absent when adding. */
 	user?: UserRow
 	onClose: () => void
+	/** Called once the close animation has ended (Drawer `afterOpenChange(false)`): the parent clears `user`. */
+	onClosed: () => void
 }) {
 	const { t } = useTranslation()
 	const { message } = App.useApp()
@@ -66,6 +71,9 @@ export default function UserFormDrawer({
 		<Drawer
 			open={open}
 			onClose={onClose}
+			afterOpenChange={visible => {
+				if (!visible) onClosed()
+			}}
 			destroyOnHidden
 			title={user ? t('admin_users.edit_user') : t('admin_users.add_user')}
 			extra={
@@ -83,6 +91,7 @@ export default function UserFormDrawer({
 			}
 		>
 			<Form
+				key={user?.id ?? 'create'}
 				id={USER_FORM_ID}
 				layout="vertical"
 				initialValues={user ? { name: user.name ?? '', email: user.email } : undefined}
