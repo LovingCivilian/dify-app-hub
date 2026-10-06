@@ -6,6 +6,8 @@ The user-level `handoff` skill is user-invocable only (`disable-model-invocation
 
 ## What the next session is for
 
+Status 2026-10-06: step 1's merge is done (PR #15 merged into `fork/overhaul`, its branch deleted), so the next session starts at step 2, from `fork/overhaul` in `~/repos/dify-app-hub`. The owner verification list below stays the checklist for the browser checks against a real Dify server.
+
 1. The owner verifies PR #15 in the browser against a real Dify server (list below) and merges it into `fork/overhaul` (`gh pr merge 15 -R LovingCivilian/dify-app-hub --merge`), then deletes the branch. Start the next session only after this merge: until then `fork/overhaul` (11c3fb3d) carries the pre-split `CLAUDE.md`, which still says PRs target `fork/main` and that sub-project 2 is next. A session that has to start earlier works from `feat/chat-on-ant-design-x`.
 2. **Next stage: sub-project 3** (admin, app list and auth pages) on `fork/overhaul` — brainstorming → spec → plan → subagent-driven execution, like sub-project 2. Its scope and done-criteria are the charter's (`docs/superpowers/specs/2026-10-04-frontend-overhaul-charter.md`, §4.5 and row 3 of the sub-projects table); its inputs are listed under "Sub-project 3 inputs" below and in `CLAUDE.md`.
 3. Then sub-project 4 (removal of Tailwind, Lucide, Radix and the alias block).
