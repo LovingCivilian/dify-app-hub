@@ -26,7 +26,7 @@
 6. Spacing snaps to antd's scale (`paddingXXS`…`paddingXL`, `marginXXS`…`marginXXL`); typography to `fontSize*`/`lineHeight*`; radius to `borderRadius*`.
 7. Forbidden in product code: hex/rgb/oklch literals, magic pixel numbers, Tailwind utility classes, `!important`, a second theme system, CSS-in-JS libraries other than antd's own.
 8. Dark mode is `darkAlgorithm`; nothing is styled per mode by hand.
-9. Forms inside a `destroyOnHidden` Drawer/Modal own their instance (no parent `Form.useForm()`); a button outside the `<form>` submits through the native `form` attribute (`htmlType="submit" form={<id>}`); stateful drawer bodies are children the Drawer unmounts (keyed by the record). Reason: `@rc-component/form` keeps a hook-held store across openings and `clearOnDestroy` empties it under Strict Mode without re-seeding (ADR-0020).
+9. Forms inside a `destroyOnHidden` Drawer/Modal own their instance (no parent `Form.useForm()`); a button outside the `<form>` submits through the native `form` attribute (`htmlType="submit" form={<id>}`); stateful drawer bodies are children the Drawer unmounts (keyed by the record). Reason: `@rc-component/form` keeps a hook-held store across openings and `clearOnDestroy` empties it under Strict Mode without re-seeding (ADR-0020). Drawer content state is set on every opening and cleared in the Drawer's documented `afterOpenChange(false)`, which antd skips when a drawer is closed before its open motion ends (so no code relies on it for correctness); edit forms are keyed by the edited record's id, and the Drawer's `loading` prop (5.18+) shows the load state (`antd doc Drawer`).
 
 ### 4.4 Chat (the X full-page pattern, `x-components/reference/PATTERNS.md` Pattern 1)
 
