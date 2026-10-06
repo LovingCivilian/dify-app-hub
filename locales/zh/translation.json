@@ -191,7 +191,9 @@
 		"reset_link_invalid": "重置链接无效",
 		"reset_success": "密码重置成功，请重新登录",
 		"reset_failed": "密码重置失败",
-		"reset_failed_retry": "密码重置失败，请稍后重试"
+		"reset_failed_retry": "密码重置失败，请稍后重试",
+		"reset_link_expired": "重置链接无效或已过期。",
+		"request_new_link": "重新获取链接"
 	},
 	"init": {
 		"title": "系统初始化",

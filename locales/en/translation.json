@@ -191,7 +191,9 @@
 		"reset_link_invalid": "This reset link is invalid",
 		"reset_success": "Password reset. Log in with your new password.",
 		"reset_failed": "Password reset failed",
-		"reset_failed_retry": "Password reset failed. Please try again later."
+		"reset_failed_retry": "Password reset failed. Please try again later.",
+		"reset_link_expired": "This reset link is invalid or has expired.",
+		"request_new_link": "Request a new link"
 	},
 	"init": {
 		"title": "System setup",
