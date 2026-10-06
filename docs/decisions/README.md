@@ -20,7 +20,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 
 ## ADRs
 
-This is the `fork/main` line (the line-level product, [ADR-0019](0019-keep-two-product-lines.md)). Numbers 0001–0019 match `fork/overhaul`'s (later numbers are per line); the records that concern only the frontend overhaul (ADR-0008–ADR-0014, ADR-0016–ADR-0018) live on that branch (ADR-0016–ADR-0018 on PR #15's branch until it merges) and are missing here on purpose; the body text of some copied records links to them. ADR-0007 is superseded on `fork/overhaul` but in force on this line.
+This is the `fork/main` line (the line-level product, [ADR-0019](0019-keep-two-product-lines.md)). Numbers 0001–0019 match `fork/overhaul`'s (later numbers are per line); the records that concern only the frontend overhaul (ADR-0008–ADR-0012, ADR-0014, ADR-0016–ADR-0018) live on that branch (ADR-0016–ADR-0018 on PR #15's branch until it merges) and are missing here on purpose; the body text of some copied records links to them. ADR-0007 is superseded on `fork/overhaul` but in force on this line.
 
 | # | Title | Status | Date |
 | --- | --- | --- | --- |
@@ -31,6 +31,7 @@ This is the `fork/main` line (the line-level product, [ADR-0019](0019-keep-two-p
 | [0005](0005-internationalise-the-ui-with-typed-i18next-keys-and-msa-arabic.md) | Internationalise the UI with typed i18next keys, with Modern Standard Arabic and Arabic-Indic digits | accepted | 2026-10-03 |
 | [0006](0006-require-login-everywhere-and-use-the-email-as-dify-end-user-id.md) | Require the app's own login for every page and API, and use the signed-in email as the Dify end-user id | accepted | 2026-10-04 |
 | [0007](0007-leave-the-ant-design-look-as-upstream-has-it.md) | Leave the Ant Design / Ant Design X look as upstream has it | accepted | 2026-10-04 |
+| [0013](0013-pin-ant-design-cssinjs-to-antd-version.md) | Pin `@ant-design/cssinjs` to the version Ant Design depends on | accepted | 2026-10-04 |
 | [0015](0015-record-decisions-as-adrs-and-session-handoffs.md) | Record decisions as MADR ADRs and session state as handoff documents; keep CLAUDE.md to rules and pointers | accepted | 2026-10-04 |
 | [0019](0019-keep-two-product-lines.md) | Keep two product lines: `fork/main` for the line-level fork, `fork/overhaul` for the frontend overhaul | accepted | 2026-10-06 |
 
