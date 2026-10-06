@@ -30,9 +30,12 @@ export default function ResetPasswordForm({ token }: { token?: string }) {
 				status="error"
 				title={t('auth.reset_link_invalid')}
 				extra={
-					<Link href="/login">
-						<Button type="primary">{t('auth.back_to_login')}</Button>
-					</Link>
+					<Button
+						type="primary"
+						href="/login"
+					>
+						{t('auth.back_to_login')}
+					</Button>
 				}
 			/>
 		)

@@ -1,7 +1,6 @@
 'use client'
 
 import { Alert, App, Button, Form, Input, theme, Typography } from 'antd'
-import Link from 'next/link'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -34,9 +33,12 @@ export default function ForgotPasswordForm({ mailConfigured }: { mailConfigured:
 	}
 
 	const backToLogin = (
-		<Link href="/login">
-			<Button block>{t('auth.back_to_login')}</Button>
-		</Link>
+		<Button
+			block
+			href="/login"
+		>
+			{t('auth.back_to_login')}
+		</Button>
 	)
 
 	if (!mailConfigured) {

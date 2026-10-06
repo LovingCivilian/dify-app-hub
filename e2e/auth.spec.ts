@@ -58,7 +58,7 @@ test.describe('password reset', () => {
 	test('/reset-password without a token shows the invalid-link result', async ({ page }) => {
 		await page.goto('/reset-password')
 		await expect(page.getByText('This reset link is invalid')).toBeVisible()
-		await expect(page.getByRole('button', { name: 'Back to login' })).toBeVisible()
+		await expect(page.getByRole('link', { name: 'Back to login' })).toBeVisible()
 	})
 
 	test('a valid token sets a new password once; reusing it says the link expired', async ({
