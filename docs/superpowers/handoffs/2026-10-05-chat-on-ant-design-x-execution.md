@@ -1,28 +1,31 @@
 # Handoff — sub-project 2 (chat on Ant Design X): executed, PR open, Docker gate passed
 
-Date: 2026-10-05 · Branch: `feat/chat-on-ant-design-x` (24 commits from `fork/main` @ 11c3fb3d; pushed) · PR: https://github.com/LovingCivilian/dify-app-hub/pull/15 (target `fork/main`) · Written by the execution session for the owner and the next session. Previous handoff (planning): `2026-10-04-chat-on-ant-design-x-plan.md` (dated record; where it conflicts with the chat spec's "Deviations during execution" paragraph and ADR-0017's notes, those win).
+Date: 2026-10-05 · Branch: `feat/chat-on-ant-design-x` (24 commits from 11c3fb3d; pushed) · PR: https://github.com/LovingCivilian/dify-app-hub/pull/15 (target `fork/overhaul` since 2026-10-06, ADR-0019) · Written by the execution session for the owner and the next session. Previous handoff (planning): `2026-10-04-chat-on-ant-design-x-plan.md` (dated record; where it conflicts with the chat spec's "Deviations during execution" paragraph and ADR-0017's notes, those win).
 
 The user-level `handoff` skill is user-invocable only (`disable-model-invocation`), so this document follows its instructions by hand: a compact summary, references instead of duplicated content, a suggested-skills section, no secrets.
 
 ## What the next session is for
 
-1. The owner verifies the PR in the browser against a real Dify server (list below) and merges it (`gh pr merge <n> -R LovingCivilian/dify-app-hub --merge`), then deletes the branch.
-2. After the merge: the backend rework (brief: `docs/superpowers/specs/2026-10-05-backend-rework-brief.md`, committed with this handoff) **before** sub-project 3, per the owner's 2026-10-05 decision to stop holding the backend back for upstream merges (the brief's first step records that decision as an ADR superseding ADR-0009).
-3. Then sub-project 3 (admin, apps and auth pages) with its own spec and plan.
+1. The owner verifies PR #15 in the browser against a real Dify server (list below) and merges it into `fork/overhaul` (`gh pr merge 15 -R LovingCivilian/dify-app-hub --merge`), then deletes the branch.
+2. **Next stage: sub-project 3** (admin, app list and auth pages) on `fork/overhaul` — brainstorming → spec → plan → subagent-driven execution, like sub-project 2. Its inputs are listed under "Sub-project 3 inputs" below and in `CLAUDE.md`.
+3. Then sub-project 4 (removal of Tailwind, Lucide, Radix and the alias block).
+4. The backend rework comes **last, after sub-project 4** (owner, 2026-10-06), on `fork/overhaul` only: `docs/superpowers/specs/2026-10-05-backend-rework-brief.md`. Leave it alone until then.
+
+Branch model since 2026-10-06 (ADR-0019): `fork/main` is the line-level app (upstream + i18n, login for everyone, header fixes; reset to `3d8e628e`); `fork/overhaul` is this overhaul (started at `11c3fb3d`). Overhaul work branches from and targets `fork/overhaul`; it takes no routine merges from `main` or `fork/main` (cherry-pick only).
 
 ## State of the work
 
 - All 20 plan tasks plus one added task (18b, cookie-backed UI language) are implemented, each with a fresh reviewer and fix rounds until clean; whole-branch review on the most capable model, one fix wave, one scoped re-review; Task 20 ran one more full e2e, the Docker rebuild and the curl checks, pushed, and opened the PR.
 - Verification at HEAD: `pnpm exec tsc --noEmit`, oxlint, oxfmt, vitest 531 tests; `pnpm test:e2e` 290 passed / 14 skipped / 0 failed at HEAD 3ce6c1b0 (desktop-light 96 + 5 skipped, desktop-dark 95 + 6, mobile-light 98 + 3; the skips are the known project-specific ones); `npx -y @ant-design/cli lint ./` 39 findings / 1 error (baseline 75 / 1), none under `components/chat/`; Docker gate: `/api/health` 200; `/apps` signed out 307 → `/login?callbackUrl=%2Fapps`; `/api/client/apps` 401; `antd-cssinjs` style 1; dark cookies → `class="antialiased dark"` 1 and `--ant-color-bg-layout:#000000` 1; `i18next=ar` cookie → `lang="ar"` 1 (image built from 3ce6c1b0 in 340 s; the local app container is left running on :5300, the local MySQL untouched).
-- PRs #7 and #8 stay open until the owner says "close them"; the comment texts are prepared in the Task 20 report section below.
+- PRs #7 and #8 stay open: since ADR-0019 they belong to `fork/main` (they fix the original chat that line keeps), so they are no longer superseded by #15. The closing comments prepared in the Task 20 record below are obsolete.
 - Nothing is merged. ADR-0016, 0017, 0018 are `accepted` on the branch (the plan's Task 19 set the status; the owner's merge is the acceptance).
 
 ## Read first, in this order
 
-1. `CLAUDE.md` (refreshed: decisions 0016–0018, the chat structure under "Where things are", the e2e section, open follow-ups) and `.claude/rules/frontend.md` (the CSS-breakpoint rule replaced `Grid.useBreakpoint()`).
+1. `CLAUDE.md` (refreshed: the two-line branch model of ADR-0019, decisions 0016–0019, the chat structure under "Where things are", the e2e section, open follow-ups) and `.claude/rules/frontend.md` (the CSS-breakpoint rule replaced `Grid.useBreakpoint()`).
 2. `docs/decisions/0017-build-the-chat-on-ant-design-x.md` — its dated notes under "More Information" are the record of every execution-time decision (history order, human-input fields, feedback buttons, sign-out, queued-send guard, …); then 0016 and 0018.
 3. The chat spec's final paragraph "Deviations during execution (2026-10-05)" in `docs/superpowers/specs/2026-10-04-chat-on-ant-design-x-design.md`.
-4. The backend brief `docs/superpowers/specs/2026-10-05-backend-rework-brief.md` (nine items, frontend areas affected, when to start).
+4. Only when sub-project 4 is done: the backend brief `docs/superpowers/specs/2026-10-05-backend-rework-brief.md`.
 5. The PR description (verification numbers, screenshots list, owner checklist).
 
 ## Owner verification list (browser, real Dify server)
@@ -93,7 +96,7 @@ Recorded here because the SDD workspace ledger is deleted at the session end. Ea
 
 ## Suggested skills for the next session
 
-- `superpowers:brainstorming` → spec → `superpowers:writing-plans` → `superpowers:subagent-driven-development` for the backend rework and sub-project 3; `superpowers:verification-before-completion` before any "done"; `superpowers:finishing-a-development-branch` before PRs.
+- `superpowers:brainstorming` → spec → `superpowers:writing-plans` → `superpowers:subagent-driven-development` for sub-project 3 (and later sub-project 4 and the backend rework); `superpowers:verification-before-completion` before any "done"; `superpowers:finishing-a-development-branch` before PRs.
 - Repo skills: `antd`, `x-components`, `use-x-chat`, `x-chat-provider`, `x-request`, `x-markdown`, `adr-skill` (run its scripts through a `.cjs` copy until fixed).
 - Lookups: Context7 (`npx ctx7@latest …`, max three commands per question), Next's bundled docs under `node_modules/next/dist/docs/`, Dify's OpenAPI `https://raw.githubusercontent.com/langgenius/dify-docs/main/en/api-reference/openapi_service.json` and Dify's source on GitHub for behaviour the document leaves open.
 
@@ -108,8 +111,8 @@ No secrets in this document; `.env` and `.env*.local` were never read or printed
 
 - Full `pnpm test:e2e` at 3ce6c1b0: 290 passed, 14 skipped, 0 failed, 0 flaky (13.4 min).
 - Docker: `docker compose -f docker-compose.local.yml up -d --build app` from the branch (340 s on this machine, not the plan's "about 2 min"); seven curl checks as listed under "State of the work", all as expected.
-- Push `5ab7270d..3ce6c1b0` to `origin feat/chat-on-ant-design-x`; PR #15 opened against `fork/main` with the template sections in English (Overview, what landed, dependencies, decisions, changes table, testing checklist with the owner's browser items, related ADRs, the two attribution lines).
-- Prepared, NOT posted (the owner closes #7 and #8 when ready):
+- Push `5ab7270d..3ce6c1b0` to `origin feat/chat-on-ant-design-x`; PR #15 opened against `fork/main` (retargeted to `fork/overhaul` on 2026-10-06) with the template sections in English (Overview, what landed, dependencies, decisions, changes table, testing checklist with the owner's browser items, related ADRs, the two attribution lines).
+- Prepared, NOT posted — obsolete since ADR-0019 (#7 and #8 belong to `fork/main`):
 
 ```bash
 gh pr comment 7 -R LovingCivilian/dify-app-hub --body "Superseded by the chat rebuild (#15): live assistant messages carry the Dify message id and created_at from StreamEventBase, feedback posts that id and is hidden without one. Closing."

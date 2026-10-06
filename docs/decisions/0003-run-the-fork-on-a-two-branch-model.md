@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by [ADR-0019](0019-keep-two-product-lines.md)
 date: 2026-10-04
 decision-makers: LovingCivilian (fork owner)
 ---
@@ -47,3 +47,5 @@ Non-goals: rebasing fork work onto upstream; squash merges.
 ## More Information
 
 Sources: `CLAUDE.md` "Branch model" (PR #6, 2026-10-04); merged PRs #3–#11; the i18n branches were merged directly before the PR flow existed (`6b6da666`, 2026-10-03). Related: [ADR-0009](0009-treat-the-frontend-as-fork-owned.md) (what upstream syncs may touch).
+
+Note, 2026-10-06: superseded by [ADR-0019](0019-keep-two-product-lines.md). The owner kept two products: `fork/main` (upstream + the line-level fork modifications) was reset from `11c3fb3d` to `3d8e628e`, and the frontend overhaul moved to `fork/overhaul` (from `11c3fb3d`). `fork/main` keeps this ADR's sync rule; `fork/overhaul` takes upstream changes by cherry-pick only. The GitHub default branch is `fork/main`.

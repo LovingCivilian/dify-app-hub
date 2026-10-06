@@ -22,7 +22,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | --- | --- | --- | --- |
 | [0001](0001-adopt-architecture-decision-records.md) | Adopt architecture decision records | accepted | 2026-10-04 |
 | [0002](0002-use-documented-library-approaches-only.md) | Use documented library approaches only, verified against current docs | accepted | 2026-10-04 |
-| [0003](0003-run-the-fork-on-a-two-branch-model.md) | Run the fork on a two-branch model: `main` mirrors upstream, `fork/main` integrates | accepted | 2026-10-04 |
+| [0003](0003-run-the-fork-on-a-two-branch-model.md) | Run the fork on a two-branch model: `main` mirrors upstream, `fork/main` integrates | superseded by [ADR-0019](0019-keep-two-product-lines.md) | 2026-10-04 |
 | [0004](0004-keep-mysql-through-drizzle.md) | Keep MySQL (through Drizzle) instead of moving to PostgreSQL | accepted | 2026-10-04 |
 | [0005](0005-internationalise-the-ui-with-typed-i18next-keys-and-msa-arabic.md) | Internationalise the UI with typed i18next keys, with Modern Standard Arabic and Arabic-Indic digits | accepted | 2026-10-03 |
 | [0006](0006-require-login-everywhere-and-use-the-email-as-dify-end-user-id.md) | Require the app's own login for every page and API, and use the signed-in email as the Dify end-user id | accepted | 2026-10-04 |
@@ -38,6 +38,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0016](0016-store-the-theme-preference-in-cookies.md) | Store the theme preference in cookies so the server renders the right scheme | accepted | 2026-10-04 |
 | [0017](0017-build-the-chat-on-ant-design-x.md) | Build the chat on Ant Design X with a provider-centred data layer | accepted | 2026-10-04 |
 | [0018](0018-gate-route-groups-on-the-server.md) | Gate route groups on the server and let the proxy gate navigations | accepted | 2026-10-04 |
+| [0019](0019-keep-two-product-lines.md) | Keep two product lines: `fork/main` for the line-level fork, `fork/overhaul` for the frontend overhaul | accepted | 2026-10-06 |
 
 ## Inherited from upstream (not fork decisions)
 

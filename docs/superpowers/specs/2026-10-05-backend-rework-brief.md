@@ -10,8 +10,8 @@ The owner has **not** yet given the go-ahead; the first step of the future sessi
 
 ## Decision to record (first task of the future session)
 
-- A new ADR superseding ADR-0009: the whole fork is fork-owned; upstream becomes a source of **cherry-picks** (Dify API tracking, security fixes), not routine merges. Keep `main` as the read-only upstream mirror; make `fork/main` the GitHub default branch (already an open follow-up in `CLAUDE.md`).
-- A dated note on ADR-0003 (branch model simplified: no more "sync = merge main into fork/main"; `git fetch upstream` + `git cherry-pick` when wanted).
+- A new ADR superseding ADR-0009 **for `fork/overhaul`**: the whole overhaul line is fork-owned; upstream becomes a source of **cherry-picks** (Dify API tracking, security fixes), not routine merges. Keep `main` as the read-only upstream mirror; make `fork/main` the GitHub default branch (already an open follow-up in `CLAUDE.md`).
+- (Done 2026-10-06 by ADR-0019: two product lines; `fork/overhaul` takes upstream changes by cherry-pick only.)
 - `CLAUDE.md`: rewrite the "Merge-friendly with upstream" bullet; keep ADR-0002 (documented approaches only) untouched — it is about library docs, not upstream.
 - The session's memory note "Fork translation, merge-friendly" becomes outdated and should be replaced.
 
@@ -97,14 +97,14 @@ Each item names the backend files and the frontend areas that change with it. "F
 | Account menu | `components/shell/account-dropdown.tsx` | item 6 (change password) |
 | Docs | ADR-0006, ADR-0017, ADR-0018 notes; `docs/auth-gate.md`; `CLAUDE.md` | every item |
 
-## When to do it (recommendation from the 2026-10-05 session)
+## When to do it
 
-**After the sub-project 2 PR merges and before sub-project 3 starts.** Reasons: sub-project 2's plan and reviews run on "backend untouched" and should finish that way; sub-project 3 builds the admin, apps and auth pages, which are exactly the areas items 1, 3 and 6 touch, so it should build on the fixed backend rather than on today's workarounds; sub-project 4 (Tailwind/Lucide/Radix removal) is independent of the backend and can go either side. Items 1–4 are small (about a day of agent time, one PR, one ADR); item 6 is its own project per feature.
+**After sub-project 4, at the very end of the overhaul** (owner's decision, 2026-10-06), on `fork/overhaul` only. The line-level app on `fork/main` keeps its upstream-shaped backend (ADR-0019). Until then, leave the backend alone; the follow-ups listed here are known limits, not tasks.
 
 ## How to run it
 
 - `superpowers:brainstorming` with this brief → a spec under `docs/superpowers/specs/` → a plan under `docs/superpowers/plans/` → `superpowers:subagent-driven-development` with per-task review (the owner's standing preference: "as robust as possible, the more eyes the better").
-- Branch from `fork/main`; PR to `fork/main` with `gh pr create -R LovingCivilian/dify-app-hub --base fork/main`.
+- Branch from `fork/overhaul`; PR to `fork/overhaul` with `gh pr create -R LovingCivilian/dify-app-hub --base fork/overhaul`.
 - Documented approaches only (ADR-0002): next-auth v4 via Context7 `/websites/next-auth_js`, Next 16 bundled docs under `node_modules/next/dist/docs/` (Server Actions and auth: `01-app/02-guides/authentication.md`), Dify OpenAPI `https://raw.githubusercontent.com/langgenius/dify-docs/main/en/api-reference/openapi_service.json`.
 - Tests: vitest for the handlers/helpers (mock pattern in `__tests__/session-user.test.ts`), the e2e stub already serves the stop endpoints.
 - Commit trailers: both lines in ONE `-m` (separate `-m` flags leave only the last line parsed as a trailer).

@@ -2,20 +2,19 @@
 
 This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin0412/dify-app-hub) (`upstream`), hosted at `LovingCivilian/dify-app-hub` (`origin`). `AGENTS.md` is upstream's and still applies (database migrations, `.cii-assessment.md` before commits, no dev server needed for verification, debugging rules). This file holds the fork's working rules and pointers; the decisions themselves are Architecture Decision Records in `docs/decisions/` (index: `docs/decisions/README.md`) — read the accepted ones for an area before changing it.
 
-## Branch model (ADR-0003)
+## Branch model (ADR-0019: two product lines)
 
 - `main` is an untouched mirror of `upstream/main`. Never commit to it.
-- `fork/main` is the integration branch: upstream + every accepted fork feature. Deploy and test from it.
-- Feature branches start from `fork/main`; PRs target `fork/main`. Stack a branch on another one only when it needs work that has not merged yet (then the PR targets the parent branch; GitHub retargets it once the parent merges and is deleted).
-- On a fork `gh` targets the parent repo by default: always `gh pr create -R LovingCivilian/dify-app-hub --base fork/main …`, and `gh pr merge <n> -R LovingCivilian/dify-app-hub --merge` (merge commits, history kept). Merged branches may be deleted afterwards.
-- Upstream sync: `git fetch upstream && git checkout main && git merge --ff-only upstream/main`, then `git checkout fork/main && git merge main` and resolve conflicts there. Syncs take the backend only; the frontend is fork-owned (ADR-0009). Expected conflicts and the after-merge checks are listed in `docs/auth-gate.md` and `docs/i18n-maintenance.md`.
-- The GitHub default branch is still `main` (not switched yet).
+- **This file describes `fork/overhaul`**, the frontend-overhaul product (antd 6 / Ant Design X rebuild): it started at `11c3fb3d` and holds sub-projects 0–2 onward. Overhaul feature branches start from `fork/overhaul`; PRs target it: `gh pr create -R LovingCivilian/dify-app-hub --base fork/overhaul …`, `gh pr merge <n> -R LovingCivilian/dify-app-hub --merge` (merge commits, history kept). Stack a branch on another only when it needs unmerged work. Merged branches may be deleted afterwards.
+- `fork/main` is the other product: upstream + the line-level fork modifications only (i18n, login for everyone, header fixes), reset to `3d8e628e` on 2026-10-06. It keeps its own `CLAUDE.md`, the merge-friendly rules and the old chat; PRs #7 and #8 belong there. Never merge `fork/overhaul` into it.
+- Updates: `fork/main` merges `main` after an upstream sync (`git fetch upstream && git checkout main && git merge --ff-only upstream/main`, then `git checkout fork/main && git merge main`). `fork/overhaul` takes no routine merges from `main` or `fork/main`; wanted commits are picked with `git cherry-pick -x`, frontend fixes are re-implemented in the overhaul's structure (ADR-0009).
+- The GitHub default branch is `fork/main`.
 
 ## How to work here
 
 - Documented, standard approaches only — no custom mechanisms or workarounds (ADR-0002). Check the library's current docs through Context7 (`ctx7`) before using an API, even a familiar one; when a wanted behaviour has no documented way, say so instead of hacking around it. The user asks "does this follow docs?" and expects a per-piece answer with sources.
 - Looking things up: Context7 first (`npx ctx7@latest library …` then `docs …`, at most three commands per question). When its snippets are shallow or a page needs a real browser, crawl4ai is installed in the repo's `.venv`: `.venv/bin/crwl <url> -o markdown --bypass-cache` prints the page as markdown (`crawl4ai-doctor` is its health check). WebFetch is fine for plain pages. The venv is per machine (no `pyproject.toml`), git-ignored by its own `.gitignore` and excluded from the Docker build context by `.dockerignore`.
-- Merge-friendly with upstream for backend and other non-frontend files: line-level edits inside upstream files, new behaviour in fork-owned files, upstream file paths never moved, upstream-shaped backend files kept close to upstream. The frontend (`app/` pages, `components/`, `hooks/`, styles) is fork-owned (ADR-0009).
+- Backend files stay upstream-shaped until the backend rework decides otherwise (line-level edits inside upstream files, new behaviour in fork-owned files, upstream file paths never moved), which keeps cherry-picks from upstream cheap. The frontend (`app/` pages, `components/`, `hooks/`, styles) is fork-owned (ADR-0009).
 - Process: brainstorm first (a short in-chat design for bounded changes, a spec + plan under `docs/superpowers/` for bigger ones), get an explicit yes, then implement test-first. Larger features run subagent-driven with per-task review — the user wants "as robust as possible, the more eyes the better".
 - Decisions and handoffs (ADR-0015): a decision that changes a pattern, adds a dependency or reverses a plan gets an ADR in the same PR (`/adr-skill`, project copy in `.claude/skills/adr-skill`); a session ends with a handoff under `docs/superpowers/handoffs/` (user-level `handoff` skill, give it the path). Keep this file to rules and pointers, under 200 lines.
 - Before a commit: `pnpm exec tsc --noEmit`, `pnpm exec oxlint <files>`, `pnpm exec oxfmt --check <files>`, `pnpm test` (vitest, node environment — no DOM tests; layout changes are verified by the e2e suite and the browser). lint-staged runs oxfmt/oxlint on commit.
@@ -27,7 +26,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 ## Decisions (one line each; the ADR has the why, the alternatives and the verification)
 
 - ADR-0002 Use documented library approaches only, verified against current docs.
-- ADR-0003 Two-branch fork model: `main` mirrors upstream, `fork/main` integrates.
+- ADR-0003 (superseded by ADR-0019) Two-branch fork model.
 - ADR-0004 Keep MySQL through Drizzle (Postgres considered and rejected).
 - ADR-0005 i18n with typed i18next keys; Arabic is Modern Standard Arabic with Arabic-Indic digits (`ar_EG`, Day.js `ar`, `Intl` `ar-SA-u-ca-gregory-nu-arab`); RTL is a separate follow-up; maintenance in `docs/i18n-maintenance.md`.
 - ADR-0006 The app's own login on every page and API, deny by default (`lib/access.ts`, `proxy.ts`); the Dify end-user id is the signed-in email set server-side; landing page `/apps`; no LDAP or roles yet; maintenance and known limits in `docs/auth-gate.md`.
@@ -43,6 +42,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 - ADR-0016 Store the theme preference in cookies so the server renders the right scheme (`theme-mode` + `theme`, read in `app/layout.tsx`); the UI language follows the same pattern (`i18next` cookie, ADR-0005 note).
 - ADR-0017 Build the chat on Ant Design X with a provider-centred data layer: one `DifyChatProvider`, `useXChat` per conversation key (history through `defaultMessages`, early sends queued), X components through `contentRender`. Markdown verdict: `XMarkdown` adopted (spike 27/27), the react-markdown pipeline removed, `react-syntax-highlighter` kept for the dark code style.
 - ADR-0018 Gate route groups on the server and let the proxy gate navigations: `requireSessionUser()` in the `(user)` and `(admin)` layouts, the client gates deleted, the shells server-render.
+- ADR-0019 Two product lines: `fork/main` (upstream + line-level mods, merges `main`) and `fork/overhaul` (this overhaul, cherry-pick only); never merged into each other.
 
 ## Where things are
 
@@ -79,11 +79,11 @@ MySQL is published on `127.0.0.1:3306` only, and the git-ignored `.env.developme
 
 ## Open follow-ups
 
-- Switch the GitHub default branch to `fork/main`; delete merged branches (`i18n/app-ui`, `i18n/arabic`, `auth/login-for-all`, `fix/language-switcher-placement`).
+- Delete merged branches (`i18n/app-ui`, `i18n/arabic`, `auth/login-for-all`, `fix/language-switcher-placement`, the overhaul's merged doc and foundation branches).
 - Auth: the `/api/users/*` revoked-session gap (ADR-0006); the proxy test relies on the undocumented `x-middleware-next` header; the server gate's limits (ADR-0018: no `callbackUrl` on the layout redirect, a token revoked mid-session is caught at the next hard load, the cookie is renewed only on tab focus or sign-in).
-- i18n: user review of the Arabic wording (countdown plurals, terminology, the X pack `libs/x-locale-ar.ts`); RTL layout; translation for sub-project 3; the language cookie has no `Secure` attribute yet and a visitor without it gets one English paint (reading `Accept-Language` on the server would remove it).
+- i18n: user review of the Arabic wording (countdown plurals, terminology, the X pack `libs/x-locale-ar.ts`); RTL layout; translation for sub-project 3; a visitor without the language cookie gets one English paint (reading `Accept-Language` on the server would remove it).
 - Frontend: old page bodies (double padding, clipped admin table on mobile, stray "0" tag, login logo image warning); two `@ant-design/icons` majors in the tree; chat: a workflow app that pauses for human input shows "Paused" without a form, the first Mermaid diagram draws blank under dev Strict Mode (ADR-0017).
-- Next project (owner's brief, not approved yet): the backend rework, `docs/superpowers/specs/2026-10-05-backend-rework-brief.md` (supersede ADR-0009; admin Server Action checks, the `/api/users/*` gap, stop and human-input-form proxy routes, the `audio2text` type).
+- After sub-project 4, last (owner, 2026-10-06; not before): the backend rework on `fork/overhaul`, `docs/superpowers/specs/2026-10-05-backend-rework-brief.md` (supersede ADR-0009 for this line; admin Server Action checks, the `/api/users/*` gap, stop and human-input-form proxy routes, the `audio2text` type).
 - Later steps the user has named: LDAP login, user groups / roles and permissions, an account-menu "change password".
 
 ## Next.js bundled docs
