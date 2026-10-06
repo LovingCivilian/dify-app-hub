@@ -199,15 +199,18 @@ test.describe('annotations', () => {
 		await page.goto('/app-management')
 		await moreActions(page, chatflow).click()
 		await page.getByRole('menuitem', { name: 'Annotations' }).click()
-		const drawer = page.getByRole('dialog').filter({ hasText: 'Annotations' })
+		// Dialogs by accessible name: a `hasText` filter would also match the drawer (its toolbar says "New
+		// annotation"), and the drawer's cells carry their text as aria-label (other specs' answers, too).
+		const drawer = page.getByRole('dialog', { name: 'Annotations' })
 		await expect(drawer.getByRole('table')).toBeVisible()
 
 		await drawer.getByRole('button', { name: 'New annotation' }).click()
-		const modal = page.getByRole('dialog').filter({ hasText: 'New annotation' })
+		const modal = page.getByRole('dialog', { name: 'New annotation' })
 		await modal.getByLabel('Question').fill(question)
 		await modal.getByLabel('Answer').fill('Open the account menu.')
 		await modal.getByRole('button', { name: 'OK' }).click()
-		const row = drawer.getByRole('row', { name: new RegExp(testInfo.project.name) })
+		// By this test's own question: chat-feedback.spec.ts leaves an annotation per project in the same app.
+		const row = drawer.getByRole('row', { name: question })
 		await expect(row).toBeVisible()
 
 		// Keyword search goes to Dify (the stub filters question or answer).
@@ -219,7 +222,7 @@ test.describe('annotations', () => {
 		await expect(row).toBeVisible()
 
 		await row.getByRole('button', { name: 'Edit' }).click()
-		const edit = page.getByRole('dialog').filter({ hasText: 'Edit annotation' })
+		const edit = page.getByRole('dialog', { name: 'Edit annotation' })
 		await edit.getByLabel('Answer').fill('Open the account menu, then Reset.')
 		await edit.getByRole('button', { name: 'OK' }).click()
 		await expect(row).toContainText('then Reset')
@@ -240,7 +243,7 @@ test.describe('annotations', () => {
 		await modal.getByLabel('Question').fill(question)
 		await modal.getByLabel('Answer').fill('Reopen and see me.')
 		await modal.getByRole('button', { name: 'OK' }).click()
-		const row = drawer.getByRole('row', { name: new RegExp(testInfo.project.name) })
+		const row = drawer.getByRole('row', { name: question })
 		await expect(row).toBeVisible()
 		await drawer.getByRole('searchbox', { name: 'Search annotations' }).fill('no such text')
 		await page.keyboard.press('Enter')
@@ -252,7 +255,7 @@ test.describe('annotations', () => {
 		await page.getByRole('menuitem', { name: 'Annotations' }).click()
 		const reopened = page.getByRole('dialog', { name: 'Annotations' })
 		await expect(reopened.getByRole('searchbox', { name: 'Search annotations' })).toHaveValue('')
-		const rowAgain = reopened.getByRole('row', { name: new RegExp(testInfo.project.name) })
+		const rowAgain = reopened.getByRole('row', { name: question })
 		await expect(rowAgain).toBeVisible()
 		await rowAgain.getByRole('button', { name: 'Delete' }).click()
 		await page.getByRole('button', { name: 'Delete' }).last().click()
