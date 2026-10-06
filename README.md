@@ -103,7 +103,6 @@ docker compose up -d
 - Next.js v16 (App Router)
 - Ant Design v6
 - Ant Design X v2
-- Tailwind CSS v4
 - TypeScript v5
 - Drizzle ORM + MySQL
 

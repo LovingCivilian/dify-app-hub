@@ -20,6 +20,5 @@ allowBuilds:
   esbuild: true
   sharp: true
   unrs-resolver: true
-  '@tailwindcss/oxide': true
   '@parcel/watcher': true
   '@swc/core': false

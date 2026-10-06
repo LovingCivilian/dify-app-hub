@@ -7,15 +7,12 @@ import { useEffect, useState } from 'react'
 import { I18nextProvider, useSSR, useTranslation } from 'react-i18next'
 
 import { useHtmlLang } from '@/hooks/use-html-lang'
-import { initResponsiveConfig } from '@/lib/helpers'
 import type { SupportedLanguage } from '@/lib/i18n/language-cookie'
 import { ThemeContextProvider, useThemeContext } from '@/lib/theme'
 import type { InitialTheme } from '@/lib/theme/theme-cookie'
 import { getAntdLocale } from '@/libs/antd-locale'
 import i18n from '@/libs/i18n'
 import { getXLocale } from '@/libs/x-locale'
-
-initResponsiveConfig()
 
 // The session as SessionProvider types it. `Session` imported from 'next-auth' resolves to the ambient
 // module declaration in types/next-auth.d.ts (no `expires`), which the provider's `session` prop rejects.

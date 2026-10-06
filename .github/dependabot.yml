@@ -17,8 +17,6 @@ updates:
       # 定义忽略 main 版本更新
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
-      - dependency-name: 'tailwindcss'
-        update-types: ['version-update:semver-major']
       - dependency-name: 'antd'
         update-types: ['version-update:semver-major']
       - dependency-name: '@ant-design/icons'
