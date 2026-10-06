@@ -6,7 +6,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 
 - `main` is an untouched mirror of `upstream/main`. Never commit to it.
 - `fork/main` (this line) is the line-level product: upstream + every accepted line-level fork feature. Deploy and test from it.
-- `fork/overhaul` is a second product line (since 2026-10-06): the frontend overhaul (antd 6 / Ant Design X rebuild), branched from this history at `11c3fb3d`. It never merges into `fork/main`, and `fork/main` work reaches it only by cherry-pick. It has its own rules, the overhaul-only ADRs and its handoffs (ADR-0019 for this two-line model; until PR #15 merges, ADR-0016–ADR-0018 sit on its branch; ADR-0019 is on both lines); work on this line-level app happens here.
+- `fork/overhaul` is a second product line (since 2026-10-06): the frontend overhaul (antd 6 / Ant Design X rebuild), branched from this history at `11c3fb3d`. It never merges into `fork/main`, and `fork/main` work reaches it only by cherry-pick. It has its own rules, the overhaul-only ADRs and its handoffs (ADR-0019 for this two-line model, on both lines); work on this line-level app happens here.
 - Feature branches start from `fork/main`; PRs target `fork/main`. Stack a branch on another one only when it needs work that has not merged yet (then the PR targets the parent branch; GitHub retargets it once the parent merges and is deleted).
 - On a fork `gh` targets the parent repo by default: always `gh pr create -R LovingCivilian/dify-app-hub --base fork/main …`, and `gh pr merge <n> -R LovingCivilian/dify-app-hub --merge` (merge commits, history kept). Merged branches may be deleted afterwards.
 - Upstream sync: `git fetch upstream && git checkout main && git merge --ff-only upstream/main`, then `git checkout fork/main && git merge main` and resolve conflicts there. Expected conflicts and the after-merge checks are listed in `docs/auth-gate.md` and `docs/i18n-maintenance.md`. After each sync `pnpm why @ant-design/cssinjs` must show one version (ADR-0013: upstream still pins `^1.24.0`).
@@ -71,7 +71,6 @@ Without Chrome MCP tools, browser evidence can be produced with the headless Chr
 
 ## Open follow-ups
 
-- Delete merged branches (`i18n/app-ui`, `i18n/arabic`, `auth/login-for-all`, `fix/language-switcher-placement`).
 - Auth: the `/api/users/*` revoked-session gap (ADR-0006); `app/(user)/layout.tsx` renders children for one frame when unauthenticated (gate on `isLoading || !isAuthorized`); `goAuthorize` in `hooks/use-auth.ts` is unused; the proxy test relies on the undocumented `x-middleware-next` header; spec §3 still shows `?? null` for `userId`.
 - i18n: user review of the Arabic wording (countdown plurals, terminology); RTL layout; translation sub-projects 2 and 3; Ant Design X ships no Arabic strings (its built-in labels stay English/Chinese).
 - Later steps the user has named: LDAP login, user groups / roles and permissions, an account-menu "change password".
