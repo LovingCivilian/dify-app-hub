@@ -3,9 +3,6 @@
 .page {
 	padding: var(--ant-padding);
 }
-.title {
-	margin: 0;
-}
 /* The link fills its column so every card in a row is as tall as the tallest. */
 .cardLink {
 	display: block;
@@ -15,8 +12,9 @@
 .card {
 	height: 100%;
 }
+/* antd sets only margin-bottom on a Paragraph; the bottom is zeroed inline (its selector outranks a class). */
 .description {
-	margin-block: var(--ant-margin-sm) 0;
+	margin-top: var(--ant-margin-sm);
 }
 .tags {
 	margin-top: var(--ant-margin-sm);

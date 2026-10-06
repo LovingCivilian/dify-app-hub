@@ -2,8 +2,6 @@
 
 import { Flex, Typography } from 'antd'
 
-import styles from './admin-page-header.module.css'
-
 /** Title, optional subtitle and the page's primary action; wraps on narrow screens (spec §3.4). */
 export default function AdminPageHeader({
 	title,
@@ -24,7 +22,7 @@ export default function AdminPageHeader({
 			<div>
 				<Typography.Title
 					level={4}
-					className={styles.title}
+					style={{ margin: 0 }}
 				>
 					{title}
 				</Typography.Title>

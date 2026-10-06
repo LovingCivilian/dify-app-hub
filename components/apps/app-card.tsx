@@ -46,6 +46,7 @@ export default function AppCard({ app }: { app: AppSummary }) {
 					type="secondary"
 					ellipsis={{ rows: 2 }}
 					className={styles.description}
+					style={{ marginBottom: 0 }}
 				>
 					{app.description || t('app.no_description_user')}
 				</Typography.Paragraph>

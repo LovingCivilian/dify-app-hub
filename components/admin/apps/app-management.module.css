@@ -1,6 +1,6 @@
 /* A reading measure, not a pixel size: Typography's two-line ellipsis needs a bounded width, and the table sizes
-   its columns from their content (scroll.x: 'max-content'). */
+   its columns from their content (scroll.x: 'max-content'). The paragraph's bottom margin is zeroed inline:
+   antd's selector for it outranks a single class. */
 .description {
 	max-width: 40ch;
-	margin: 0;
 }

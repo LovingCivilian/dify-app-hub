@@ -56,6 +56,7 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 			render: (_, app) => (
 				<Typography.Paragraph
 					className={styles.description}
+					style={{ marginBottom: 0 }}
 					ellipsis={{ rows: 2, tooltip: app.description }}
 				>
 					{app.description || t('app.no_description')}

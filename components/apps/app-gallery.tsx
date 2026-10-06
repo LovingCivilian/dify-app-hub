@@ -29,7 +29,7 @@ export default function AppGallery({ apps }: { apps: AppSummary[] }) {
 		>
 			<Typography.Title
 				level={4}
-				className={styles.title}
+				style={{ margin: 0 }}
 			>
 				{t('app.list')}
 			</Typography.Title>
