@@ -36,7 +36,7 @@ export default function AuthCard({ children }: { children: React.ReactNode }) {
 							src={LogoIcon}
 							width={64}
 							alt=""
-							priority
+							loading="eager"
 						/>
 						{/* Typography margins out-specify a single module class, so reset through style. */}
 						<Typography.Title
