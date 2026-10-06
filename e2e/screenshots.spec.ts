@@ -30,6 +30,7 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 			await noSpinner(page)
 			await expect(header(page)).toBeVisible()
 			await expect(stubApp(page)).toBeVisible()
+			await expect(page.getByText('🤖').first()).toBeVisible()
 		},
 	},
 	admin: {
@@ -38,6 +39,7 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 			await noSpinner(page)
 			await expect(header(page)).toBeVisible()
 			await expect(stubApp(page)).toBeVisible()
+			await expect(page.getByText('🤖').first()).toBeVisible()
 		},
 	},
 	users: {
@@ -137,6 +139,24 @@ test.describe('signed out', () => {
 		await expect(page.locator('.ant-card')).toBeVisible()
 		await capture(page, 'login', testInfo)
 	})
+
+	test('screenshot forgot-password', async ({ page }, testInfo) => {
+		await page.goto('/forgot-password')
+		await expect(page.locator('.ant-card')).toBeVisible()
+		await capture(page, 'forgot-password', testInfo)
+	})
+
+	test('screenshot reset-password', async ({ page }, testInfo) => {
+		await page.goto('/reset-password?token=screenshot')
+		await expect(page.getByLabel('New password')).toBeVisible()
+		await capture(page, 'reset-password', testInfo)
+	})
+
+	test('screenshot reset-password-invalid', async ({ page }, testInfo) => {
+		await page.goto('/reset-password')
+		await expect(page.getByText('This reset link is invalid')).toBeVisible()
+		await capture(page, 'reset-password-invalid', testInfo)
+	})
 })
 
 for (const [name, { path, ready }] of Object.entries(signedInPages)) {
@@ -146,3 +166,29 @@ for (const [name, { path, ready }] of Object.entries(signedInPages)) {
 		await capture(page, name, testInfo)
 	})
 }
+
+test('screenshot app-drawer', async ({ page }, testInfo) => {
+	await page.goto('/app-management')
+	await page.locator(`tr[data-row-key="${APP_ID}"]`).getByRole('button', { name: 'Edit' }).click()
+	await expect(page.getByRole('dialog').getByLabel('API Base')).toHaveValue(/5399/)
+	await capture(page, 'app-drawer', testInfo)
+})
+
+test('screenshot annotations-drawer', async ({ page }, testInfo) => {
+	await page.goto('/app-management')
+	await page
+		.locator(`tr[data-row-key="${APP_IDS['advanced-chat']}"]`)
+		.getByRole('button', { name: 'More actions' })
+		.click()
+	await page.getByRole('menuitem', { name: 'Annotations' }).click()
+	await expect(page.getByRole('dialog').getByRole('table')).toBeVisible()
+	await noSpinner(page)
+	await capture(page, 'annotations-drawer', testInfo)
+})
+
+test('screenshot user-drawer', async ({ page }, testInfo) => {
+	await page.goto('/user-management')
+	await page.getByRole('button', { name: 'Add user' }).click()
+	await expect(page.getByRole('dialog').getByLabel('Name')).toBeVisible()
+	await capture(page, 'user-drawer', testInfo)
+})

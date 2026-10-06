@@ -24,9 +24,11 @@
 		"operation_error": "حدث خطأ ما",
 		"request_failed_retry": "فشل الطلب. يرجى المحاولة لاحقًا.",
 		"network_error_retry": "خطأ في الشبكة. يرجى المحاولة لاحقًا.",
-		"unauthorized": "غير مصرح. تحقق من الإعدادات.",
 		"unsupported_file_type": "نوع الملف غير مدعوم: {{ext}}",
-		"unsupported_app_type": "نوع التطبيق غير مدعوم"
+		"unsupported_app_type": "نوع التطبيق غير مدعوم",
+		"retry": "إعادة المحاولة",
+		"load_failed": "تعذّر تحميل هذه الصفحة",
+		"session_expired": "انتهت صلاحية جلستك. سجّل الدخول مرة أخرى."
 	},
 	"form": {
 		"select_placeholder": "يرجى الاختيار",
@@ -40,13 +42,14 @@
 		"no_data_default": "لا توجد تطبيقات",
 		"no_description": "لا يوجد وصف",
 		"no_config_default_text": "لم يتم العثور على إعدادات تطبيق Dify. تواصل مع المسؤول.",
-		"fetch_list_failed": "فشل تحميل التطبيقات: {{error}}",
 		"info_missing": "معلومات التطبيق غير موجودة. تحقق من الإعدادات.",
 		"no_description_user": "لا يوجد وصف لهذا التطبيق",
 		"empty_contact_admin": "لا توجد تطبيقات بعد. اطلب من المسؤول إعداد تطبيق.",
 		"load_failed": "فشل التحميل",
 		"reload_page": "إعادة تحميل الصفحة",
-		"loading": "جارٍ تحميل التطبيق..."
+		"loading": "جارٍ تحميل التطبيق...",
+		"search_placeholder": "البحث في التطبيقات",
+		"no_match": "لا توجد تطبيقات تطابق بحثك"
 	},
 	"app_mode": {
 		"name": {
@@ -185,15 +188,15 @@
 		"reset_password": "إعادة تعيين كلمة المرور",
 		"reset_link_invalid": "رابط إعادة التعيين هذا غير صالح",
 		"reset_success": "تمت إعادة تعيين كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.",
-		"reset_failed": "فشلت إعادة تعيين كلمة المرور",
-		"reset_failed_retry": "فشلت إعادة تعيين كلمة المرور. يرجى المحاولة لاحقًا."
+		"reset_failed_retry": "فشلت إعادة تعيين كلمة المرور. يرجى المحاولة لاحقًا.",
+		"reset_link_expired": "رابط إعادة التعيين هذا غير صالح أو انتهت صلاحيته.",
+		"request_new_link": "طلب رابط جديد"
 	},
 	"init": {
 		"title": "إعداد النظام",
 		"description": "هذه هي المرة الأولى: أنشئ حساب مسؤول. ستُنقل إلى صفحة تسجيل الدخول عند انتهاء الإعداد.",
 		"not_initialized": "لم يتم إعداد النظام بعد. أنشئ حساب مسؤول.",
 		"already_initialized": "تم إعداد النظام مسبقًا. جارٍ التحويل إلى تسجيل الدخول...",
-		"status_check_failed": "تعذّر التحقق من حالة الإعداد",
 		"admin_name": "اسم المسؤول",
 		"admin_name_required": "أدخل اسم المسؤول",
 		"admin_name_placeholder": "مثال: المسؤول",
@@ -206,7 +209,6 @@
 		"password_placeholder": "8 أحرف على الأقل",
 		"confirm_password_required": "أدخل كلمة المرور مرة أخرى",
 		"confirm_password_placeholder": "أعد إدخال كلمة المرور",
-		"password_mismatch": "كلمتا المرور غير متطابقتين",
 		"submit": "إنشاء المسؤول وإنهاء الإعداد",
 		"admin_created": "تم إنشاء حساب المسؤول. سجّل الدخول به للمتابعة.",
 		"failed": "فشل الإعداد"
@@ -225,8 +227,6 @@
 		"name_not_set": "لم يُحدَّد اسم",
 		"status_active": "نشط",
 		"total": "إجمالي المستخدمين: {{total}}",
-		"fetch_failed": "فشل تحميل المستخدمين",
-		"fetch_error": "حدث خطأ أثناء تحميل المستخدمين",
 		"delete_confirm_title": "تأكيد الحذف",
 		"delete_confirm_description": "حذف هذا المستخدم؟ لا يمكن التراجع عن هذا الإجراء.",
 		"delete_success": "تم حذف المستخدم",
@@ -240,11 +240,16 @@
 		"email_required": "أدخل البريد الإلكتروني",
 		"email_placeholder": "أدخل عنوان البريد الإلكتروني",
 		"password_required": "أدخل كلمة المرور",
-		"password_min_6": "يجب ألا تقل كلمة المرور عن 6 أحرف",
-		"password_keep_hint": "اتركه فارغًا للإبقاء على كلمة المرور الحالية"
+		"password_keep_hint": "اتركه فارغًا للإبقاء على كلمة المرور الحالية",
+		"search_placeholder": "البحث في المستخدمين",
+		"no_match": "لا يوجد مستخدمون يطابقون بحثك",
+		"email_in_use": "هذا البريد الإلكتروني مستخدم بالفعل",
+		"not_found": "المستخدم غير موجود",
+		"cannot_delete_self": "لا يمكنك حذف حسابك الخاص"
 	},
 	"admin_apps": {
 		"title": "إعدادات التطبيقات",
+		"more_actions": "إجراءات أخرى",
 		"column_name": "الاسم",
 		"column_type": "النوع",
 		"column_description": "الوصف",
@@ -264,7 +269,8 @@
 		"edit_title": "تعديل إعدادات التطبيق - {{name}}",
 		"create_success": "تمت إضافة إعدادات التطبيق",
 		"edit_success": "تم تحديث إعدادات التطبيق",
-		"save_failed": "فشل حفظ إعدادات التطبيق: {{error}}"
+		"save_failed": "فشل حفظ إعدادات التطبيق",
+		"dify_unreachable": "تعذّر الوصول إلى تطبيق Dify. تحقّق من API Base وAPI Secret."
 	},
 	"app_setting": {
 		"section_request": "إعدادات الطلب",
@@ -314,7 +320,9 @@
 		"create_success": "تم حفظ التعليق التوضيحي",
 		"delete_confirm": "حذف هذا التعليق التوضيحي؟",
 		"question_required": "أدخل سؤالًا",
-		"answer_required": "أدخل إجابة"
+		"answer_required": "أدخل إجابة",
+		"search_placeholder": "البحث في التعليقات التوضيحية",
+		"load_failed": "تعذّر تحميل التعليقات التوضيحية"
 	},
 	"workflow": {
 		"title": "سير العمل",

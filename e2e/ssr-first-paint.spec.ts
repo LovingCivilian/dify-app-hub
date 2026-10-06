@@ -192,3 +192,30 @@ test('the media query shows one header variant and display: none keeps the other
 	await expect(header.getByRole('button', { name: 'Menu' })).toHaveCount(isMobile ? 1 : 0)
 	await expect(header.getByRole('menu')).toHaveCount(isMobile ? 0 : 1)
 })
+
+test('the app list arrives with its apps in the first HTML and no API key (spec §3.1)', async ({
+	page,
+}) => {
+	const html = await (await page.request.get('/apps')).text()
+	expect(html).toContain('Stub app')
+	expect(html).not.toContain('Stub disabled')
+	// The seeded apps' key; the trimmed props carry nothing from requestConfig.
+	expect(html).not.toContain('app-e2e')
+})
+
+test('the app table arrives with its rows in the first HTML and no API key (spec §5.1)', async ({
+	page,
+}) => {
+	const html = await (await page.request.get('/app-management')).text()
+	expect(html).toContain('Stub app')
+	expect(html).toContain('Stub disabled')
+	expect(html).not.toContain('app-e2e')
+})
+
+test('the user table arrives with its rows in the first HTML (spec §6)', async ({ page }) => {
+	const html = await (await page.request.get('/user-management')).text()
+	expect(html).toContain('admin@e2e.local')
+	// The admin's row itself: antd's Table sets data-row-key per body row, and only the server-rendered
+	// table puts the email inside one (the header shows it too, in the account trigger).
+	expect(html).toMatch(/<tr[^>]*data-row-key="[^"]+"[\s\S]*?admin@e2e\.local/)
+})

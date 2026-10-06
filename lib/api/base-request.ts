@@ -1,6 +1,4 @@
 import { DIFY_INFO } from '@/lib/helpers'
-import { message } from 'antd'
-import i18next from 'i18next'
 
 /**
  * 未授权错误类
@@ -39,7 +37,7 @@ export class XRequest {
 			}
 		}
 		if (result.status === 401) {
-			message.error(i18next.t('common.unauthorized'))
+			// The admin pages show the translated error through App.useApp() (spec §11); no static antd message here.
 			throw new UnauthorizedError('Unauthorized')
 		}
 		return result

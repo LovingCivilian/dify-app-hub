@@ -1,7 +1,7 @@
 'use client'
 
 import { AppstoreOutlined, TeamOutlined } from '@ant-design/icons'
-import { Layout, theme } from 'antd'
+import { Layout } from 'antd'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
@@ -17,7 +17,6 @@ const ADMIN_NAV = [
 export default function AdminShell({ children }: { children: React.ReactNode }) {
 	const { t } = useTranslation()
 	const pathname = usePathname()
-	const { token } = theme.useToken()
 	const nav = ADMIN_NAV.map(item => ({
 		key: item.key,
 		icon: item.icon,
@@ -31,10 +30,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 				nav={nav}
 				navSelectedKey={selected}
 			/>
-			<Layout.Content
-				className={styles.content}
-				style={{ padding: token.paddingLG }}
-			>
+			<Layout.Content className={`${styles.content} ${styles.adminContent}`}>
 				{children}
 			</Layout.Content>
 		</Layout>

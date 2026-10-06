@@ -41,6 +41,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0017](0017-build-the-chat-on-ant-design-x.md) | Build the chat on Ant Design X with a provider-centred data layer | accepted | 2026-10-04 |
 | [0018](0018-gate-route-groups-on-the-server.md) | Gate route groups on the server and let the proxy gate navigations | accepted | 2026-10-04 |
 | [0019](0019-keep-two-product-lines.md) | Keep two product lines: `fork/main` for the line-level fork, `fork/overhaul` for the frontend overhaul | accepted | 2026-10-06 |
+| [0020](0020-load-page-data-on-the-server.md) | Load a page's first paint on the server and hand trimmed props to client components | accepted | 2026-10-06 |
 
 ## Inherited from upstream (not fork decisions)
 

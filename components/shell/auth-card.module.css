@@ -1,0 +1,8 @@
+/* The auth pages' surface (spec §7.1): the layout background, centred, viewport-high (ADR-0011's 100dvh with the
+   100vh fallback before it). */
+.surface {
+	min-height: 100vh;
+	min-height: 100dvh;
+	background: var(--ant-color-bg-layout);
+	padding: var(--ant-padding-lg);
+}

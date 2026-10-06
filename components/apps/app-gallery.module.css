@@ -1,0 +1,24 @@
+/* A plain wrapper's class, not the Flex's: antd's Flex resets margin and padding at 0,1,1 (es/flex/style/index.js:10-11),
+   which beats a module class on it. The user shell's content region has no padding (the chat fills it edge to edge), so the app list frames itself
+   (spec §3.4): mobile first, one query at antd's screenMD (docs/frontend-conventions.md §4.3.4). */
+.page {
+	padding: var(--ant-padding);
+}
+/* The link fills its column so every card in a row is as tall as the tallest. */
+.cardLink {
+	display: block;
+	height: 100%;
+	color: inherit;
+}
+.card {
+	height: 100%;
+}
+/* antd sets only margin-bottom on a Paragraph; the bottom is zeroed inline (its selector outranks a class). */
+.description {
+	margin-top: var(--ant-margin-sm);
+}
+@media (min-width: 768px /* screenMD */) {
+	.page {
+		padding: var(--ant-padding-lg);
+	}
+}

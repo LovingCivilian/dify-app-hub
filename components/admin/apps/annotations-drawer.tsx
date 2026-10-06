@@ -1,0 +1,48 @@
+'use client'
+
+import { Drawer } from 'antd'
+import { useTranslation } from 'react-i18next'
+
+import type { IDifyAppItem } from '@/lib/core'
+
+import AnnotationsPanel from './annotations-panel'
+
+/**
+ * The annotations drawer (spec §5.5): the shell only; the panel inside holds the state and is reset per opening.
+ * The Drawer's `loading` prop (antd 5.17+, a Skeleton since 5.18) stands in for the panel until the record arrives.
+ */
+export default function AnnotationsDrawer({
+	open,
+	record,
+	onClose,
+	onClosed,
+}: {
+	open: boolean
+	record?: IDifyAppItem
+	onClose: () => void
+	/** Called once the close animation has ended (Drawer `afterOpenChange(false)`): the parent clears the record. */
+	onClosed: () => void
+}) {
+	const { t } = useTranslation()
+
+	return (
+		<Drawer
+			open={open}
+			onClose={onClose}
+			afterOpenChange={visible => {
+				if (!visible) onClosed()
+			}}
+			size="large"
+			destroyOnHidden
+			loading={!record}
+			title={t('admin_apps.annotations')}
+		>
+			{record && (
+				<AnnotationsPanel
+					key={record.id}
+					record={record}
+				/>
+			)}
+		</Drawer>
+	)
+}
