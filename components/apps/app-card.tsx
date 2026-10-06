@@ -1,6 +1,6 @@
 'use client'
 
-import { Card, Flex, Tag, Typography } from 'antd'
+import { Card, Flex, Tag, Typography, theme } from 'antd'
 import Link from 'next/link'
 import { useTranslation } from 'react-i18next'
 
@@ -16,6 +16,7 @@ import type { AppSummary } from './app-summary'
  */
 export default function AppCard({ app }: { app: AppSummary }) {
 	const { t } = useTranslation()
+	const { token } = theme.useToken()
 	if (app.missingInfo) {
 		return (
 			<Card className={styles.card}>
@@ -54,7 +55,8 @@ export default function AppCard({ app }: { app: AppSummary }) {
 					<Flex
 						wrap
 						gap="small"
-						className={styles.tags}
+						// style, not a module class: antd's Flex resets margin (es/flex/style/index.js:10-11) at 0,1,1.
+						style={{ marginTop: token.marginSM }}
 					>
 						{app.tags.map(tag => (
 							<Tag key={tag}>{tag}</Tag>

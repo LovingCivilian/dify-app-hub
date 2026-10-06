@@ -11,6 +11,10 @@ test('the app list shows enabled apps as links to their chat and hides disabled 
 	await expect(page.getByRole('link', card('Stub app'))).toHaveAttribute('href', `/chat/${APP_ID}`)
 	await expect(page.getByRole('link', card(NO_SITE_APP.name))).toBeVisible()
 	await expect(page.getByText(DISABLED_APP.name)).toHaveCount(0)
+	// The page frames itself: the padding sits on a plain wrapper, because a module class on antd's Flex loses
+	// to its `margin: 0; padding: 0` reset (the heading's left edge was 0 before).
+	const box = await page.getByRole('heading', { name: 'Apps' }).boundingBox()
+	expect(box!.x).toBeGreaterThanOrEqual(16)
 })
 
 test('a card shows the Dify emoji icon, or the mode icon when the app has no site', async ({

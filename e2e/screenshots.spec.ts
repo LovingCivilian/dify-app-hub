@@ -30,6 +30,7 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 			await noSpinner(page)
 			await expect(header(page)).toBeVisible()
 			await expect(stubApp(page)).toBeVisible()
+			await expect(page.getByText('🤖').first()).toBeVisible()
 		},
 	},
 	admin: {
@@ -38,6 +39,7 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 			await noSpinner(page)
 			await expect(header(page)).toBeVisible()
 			await expect(stubApp(page)).toBeVisible()
+			await expect(page.getByText('🤖').first()).toBeVisible()
 		},
 	},
 	users: {

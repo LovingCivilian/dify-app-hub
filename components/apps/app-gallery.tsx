@@ -21,57 +21,59 @@ export default function AppGallery({ apps }: { apps: AppSummary[] }) {
 		app.missingInfo ? !query.trim() : matchesQuery([app.name, app.description, ...app.tags], query),
 	)
 
+	// The padding sits on a plain wrapper: antd's Flex resets margin and padding (es/flex/style/index.js:10-11).
 	return (
-		<Flex
-			vertical
-			gap={token.margin}
-			className={styles.page}
-		>
-			<Typography.Title
-				level={4}
-				style={{ margin: 0 }}
+		<div className={styles.page}>
+			<Flex
+				vertical
+				gap={token.margin}
 			>
-				{t('app.list')}
-			</Typography.Title>
-			{apps.length === 0 ? (
-				<Empty description={t('app.empty_contact_admin')} />
-			) : (
-				<>
-					<Row>
-						<Col
-							xs={24}
-							md={12}
-							lg={8}
-						>
-							<SearchInput
-								placeholder={t('app.search_placeholder')}
-								value={query}
-								onChange={setQuery}
-							/>
-						</Col>
-					</Row>
-					{shown.length === 0 ? (
-						<Empty
-							image={Empty.PRESENTED_IMAGE_SIMPLE}
-							description={t('app.no_match')}
-						/>
-					) : (
-						<Row gutter={[token.margin, token.margin]}>
-							{shown.map(app => (
-								<Col
-									key={app.id}
-									xs={24}
-									sm={12}
-									lg={8}
-									xl={6}
-								>
-									<AppCard app={app} />
-								</Col>
-							))}
+				<Typography.Title
+					level={4}
+					style={{ margin: 0 }}
+				>
+					{t('app.list')}
+				</Typography.Title>
+				{apps.length === 0 ? (
+					<Empty description={t('app.empty_contact_admin')} />
+				) : (
+					<>
+						<Row>
+							<Col
+								xs={24}
+								md={12}
+								lg={8}
+							>
+								<SearchInput
+									placeholder={t('app.search_placeholder')}
+									value={query}
+									onChange={setQuery}
+								/>
+							</Col>
 						</Row>
-					)}
-				</>
-			)}
-		</Flex>
+						{shown.length === 0 ? (
+							<Empty
+								image={Empty.PRESENTED_IMAGE_SIMPLE}
+								description={t('app.no_match')}
+							/>
+						) : (
+							<Row gutter={[token.margin, token.margin]}>
+								{shown.map(app => (
+									<Col
+										key={app.id}
+										xs={24}
+										sm={12}
+										lg={8}
+										xl={6}
+									>
+										<AppCard app={app} />
+									</Col>
+								))}
+							</Row>
+						)}
+					</>
+				)}
+			</Flex>
+		</div>
 	)
 }
