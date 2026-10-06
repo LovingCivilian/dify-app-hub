@@ -1,6 +1,6 @@
 import { expect, type Page, test, type TestInfo } from '@playwright/test'
 
-import { APP_ID, CREATED_APP } from './fixtures/constants'
+import { APP_ID, APP_IDS, CREATED_APP } from './fixtures/constants'
 import { withDb } from './fixtures/db'
 import { stubApiBase } from './fixtures/env'
 
@@ -153,5 +153,30 @@ test.describe('create and edit', () => {
 		).toBeVisible()
 		await expect(create).toBeVisible()
 		await expect(page.getByRole('row', { name: /nope/ })).toHaveCount(0)
+	})
+
+	test('each opening of the drawer starts from its own app, and New starts empty', async ({
+		page,
+	}) => {
+		await page.goto('/app-management')
+		await rowById(page, APP_ID).getByRole('button', { name: 'Edit' }).click()
+		const first = page.getByRole('dialog').filter({ hasText: 'Edit app configuration - Stub app' })
+		await expect(first.getByLabel('API Base')).toHaveValue(`${stubApiBase}`)
+		await first.getByRole('button', { name: 'Cancel' }).click()
+		await expect(first).toBeHidden()
+
+		await rowById(page, APP_IDS.workflow).getByRole('button', { name: 'Edit' }).click()
+		const second = page
+			.getByRole('dialog')
+			.filter({ hasText: 'Edit app configuration - Stub workflow' })
+		await expect(second.getByLabel('API Base')).toHaveValue(`${stubApiBase}/workflow`)
+		await second.getByRole('button', { name: 'Cancel' }).click()
+		await expect(second).toBeHidden()
+
+		await page.getByRole('button', { name: 'New' }).click()
+		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
+		await expect(create.getByLabel('API Base')).toHaveValue('')
+		await expect(create.getByLabel('API Secret')).toHaveValue('')
+		await create.getByRole('button', { name: 'Cancel' }).click()
 	})
 })

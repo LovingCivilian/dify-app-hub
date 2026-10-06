@@ -18,6 +18,8 @@ import {
 import { isAppInfo, isFailedUpdate } from './app-record'
 import AppSettingsFields from './app-settings-fields'
 
+const APP_FORM_ID = 'app-settings-form'
+
 export interface AppFormDrawerProps {
 	open: boolean
 	/** 'edit' shows a skeleton until `record` arrives (getApp, spec §5.4). */
@@ -28,13 +30,15 @@ export interface AppFormDrawerProps {
 
 /**
  * Create or edit an app (spec §5.4): antd's form-in-drawer layout with the actions in `extra`; `destroyOnHidden`
- * mounts a fresh form with its initial values on every opening, and the form instance is used only while open.
+ * unmounts the form on close. The Form owns its instance (no `form` prop), so each mounting gets a fresh store
+ * seeded from its own `initialValues`; a drawer-level `Form.useForm()` would keep the last values (and
+ * `clearOnDestroy` empties the store under Strict Mode's remount). The submit button reaches the form through
+ * the HTML `form` attribute.
  */
 export default function AppFormDrawer({ open, mode, record, onClose }: AppFormDrawerProps) {
 	const { t } = useTranslation()
 	const { message } = App.useApp()
 	const router = useRouter()
-	const [form] = Form.useForm<AppFormValues>()
 	const [saving, setSaving] = useState(false)
 	const loading = mode === 'edit' && !record
 
@@ -92,7 +96,8 @@ export default function AppFormDrawer({ open, mode, record, onClose }: AppFormDr
 						type="primary"
 						loading={saving}
 						disabled={loading}
-						onClick={() => form.submit()}
+						htmlType="submit"
+						form={APP_FORM_ID}
 					>
 						{mode === 'edit' ? t('common.update') : t('common.ok')}
 					</Button>
@@ -106,7 +111,7 @@ export default function AppFormDrawer({ open, mode, record, onClose }: AppFormDr
 				/>
 			) : (
 				<Form
-					form={form}
+					id={APP_FORM_ID}
 					layout="vertical"
 					autoComplete="off"
 					initialValues={record ? toAppFormValues(record) : DEFAULT_APP_FORM_VALUES}
