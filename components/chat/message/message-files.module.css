@@ -1,0 +1,10 @@
+.images {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ant-margin-xs);
+}
+/* The size comes from Image's width/height props (message-files.tsx). */
+.image {
+	object-fit: cover;
+	border-radius: var(--ant-border-radius-lg);
+}

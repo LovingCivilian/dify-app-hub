@@ -1,0 +1,20 @@
+/*
+ * MessageMarkdown root. With paragraphTag="div" the themes' `p` margin no longer applies; the paragraph
+ * divs (and the Think block, also a direct child div) get the same 16px gap from the matching token.
+ */
+.root > div:not(:last-child) {
+	margin-block-end: var(--ant-margin);
+}
+
+/* Media inside answers: never wider than the bubble, rounded with the large token radius. */
+.media {
+	display: block;
+	max-width: 100%;
+	border-radius: var(--ant-border-radius-lg);
+	margin-block-start: var(--ant-margin-xs);
+}
+
+/* antd Image's wrapper is inline-block; it must shrink with the bubble too, or the image's max-width has no bound. */
+.imageRoot {
+	max-width: 100%;
+}

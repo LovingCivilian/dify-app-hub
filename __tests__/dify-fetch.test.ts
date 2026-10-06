@@ -1,0 +1,83 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { createDifyFetch, DifyRequestError } from '@/components/chat/provider/dify-fetch'
+
+const APP = 'app-1'
+const jsonResponse = (status: number, body: unknown, type = 'application/json') =>
+	new Response(JSON.stringify(body), { status, headers: { 'content-type': type } })
+
+describe('createDifyFetch', () => {
+	afterEach(() => vi.unstubAllGlobals())
+
+	it('posts chat requests to the app proxy with the body and the abort signal', async () => {
+		const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, {}, 'text/event-stream'))
+		vi.stubGlobal('fetch', fetchMock)
+		const controller = new AbortController()
+		const body = JSON.stringify({ query: 'hi', inputs: {}, files: [], response_mode: 'streaming' })
+		await createDifyFetch(APP)('ignored', { body, signal: controller.signal } as never)
+		expect(fetchMock).toHaveBeenCalledWith(
+			`/api/client/dify/${APP}/chat-messages`,
+			expect.objectContaining({
+				method: 'POST',
+				body,
+				signal: controller.signal,
+				headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+			}),
+		)
+	})
+
+	it('routes a resume request to the workflow events proxy as a GET without the resume payload', async () => {
+		const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, {}, 'text/event-stream'))
+		vi.stubGlobal('fetch', fetchMock)
+		const body = JSON.stringify({
+			resume: { workflowRunId: 'run-9', message: { role: 'assistant', content: 'x', ids: {} } },
+		})
+		await createDifyFetch(APP)('ignored', { body } as never)
+		expect(fetchMock).toHaveBeenCalledWith(
+			`/api/client/dify/${APP}/workflow/run-9/events`,
+			expect.objectContaining({ method: 'GET' }),
+		)
+		expect(fetchMock.mock.calls[0][1]).not.toHaveProperty('body')
+	})
+
+	it('throws a DifyRequestError carrying Dify code, message and status on a non-OK response', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi
+				.fn()
+				.mockResolvedValue(
+					jsonResponse(400, { code: 'invalid_param', message: 'query is required', status: 400 }),
+				),
+		)
+		const error = await createDifyFetch(APP)('ignored', { body: '{}' } as never).catch(e => e)
+		expect(error).toBeInstanceOf(DifyRequestError)
+		expect(error).toMatchObject({
+			name: 'DifyRequestError',
+			status: 400,
+			code: 'invalid_param',
+			message: 'query is required',
+		})
+	})
+
+	it('falls back to the status text when the error body is not JSON', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue(new Response('boom', { status: 502, statusText: 'Bad Gateway' })),
+		)
+		const error = await createDifyFetch(APP)('ignored', { body: '{}' } as never).catch(e => e)
+		expect(error).toMatchObject({ status: 502, message: 'Bad Gateway' })
+	})
+
+	// The proxy's own failures answer { error } (app not found, unexpected exception) rather than Dify's shape.
+	it("uses the proxy's error field when the body has no Dify message", async () => {
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(404, { error: 'App not found' })))
+		const error = await createDifyFetch(APP)('ignored', { body: '{}' } as never).catch(e => e)
+		expect(error).toMatchObject({ status: 404, code: undefined, message: 'App not found' })
+	})
+
+	it('returns the response untouched when it is OK', async () => {
+		const response = jsonResponse(200, {}, 'text/event-stream')
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response))
+		await expect(createDifyFetch(APP)('ignored', { body: '{}' } as never)).resolves.toBe(response)
+	})
+})

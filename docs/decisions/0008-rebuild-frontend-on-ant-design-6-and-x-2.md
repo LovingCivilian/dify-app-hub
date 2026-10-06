@@ -67,10 +67,12 @@ Components with no antd/X equivalent (the human-in-the-loop form, workflow logs,
 ### Verification
 
 - [x] Sub-projects 0 and 1: PR #12 (e2e 49 passed / 3 skipped; providers spec pins one `App` root and one CSS-variable class on the chat page).
-- [ ] Sub-project 2 (chat) spec and plan written and executed.
+- [x] Sub-project 2 (chat) spec and plan written and executed.
 - [ ] Sub-project 3 (admin, app list, auth pages).
 - [ ] Sub-project 4: Tailwind, Lucide, Radix and the alias block removed; `antd lint` reports no errors.
 
 ## More Information
 
 Sources: charter (PR #10), foundation spec `docs/superpowers/specs/2026-10-04-frontend-foundation-design.md`, plan `docs/superpowers/plans/2026-10-04-frontend-foundation.md` (PR #11), execution PR #12, handoff `docs/superpowers/handoffs/2026-10-04-frontend-foundation.md`. Research recorded in the charter (do not redo): antd 6 exposes tokens as `--ant-*` CSS variables on `<App>`'s root; the X site ships `@ant-design/x-skill`; antd serves docs pages as Markdown; ProComponents does not support antd 6; `antd-style` is not used.
+
+Note, 2026-10-05 (sub-project 2): the chat spec (`docs/superpowers/specs/2026-10-04-chat-on-ant-design-x-design.md`, with its "Deviations during execution" paragraph) and its plan were executed on `feat/chat-on-ant-design-x`: `/chat/[appId]` runs every Dify app mode on Ant Design X inside the user shell ([ADR-0017](0017-build-the-chat-on-ant-design-x.md)), the route groups gate on the server ([ADR-0018](0018-gate-route-groups-on-the-server.md)), the theme and the language are cookies the server renders ([ADR-0016](0016-store-the-theme-preference-in-cookies.md)), the X locale has a fork Arabic pack, and the old chat tree with its Tailwind classes, Lucide icons, Radix tree view, zustand store and react-markdown pipeline is deleted. Still one `XProvider` and one `App` at the root (providers e2e spec). `npx -y @ant-design/cli lint ./` fell from 75 findings to 39 (1 error, unchanged; none under `components/chat/`). The verification item above is done; sub-projects 3 and 4 remain.

@@ -1,0 +1,113 @@
+/* The chat fills the shell's content region (ADR-0011) and splits into a sider and a column. */
+.fill {
+	height: 100%;
+}
+.layout {
+	height: 100%;
+}
+/* Mobile first: below md the sider makes way for the header's drawer trigger (spec §3.3). One query, so
+   the sider and the trigger are exact complements at any width, fractional ones included. The header's
+   width toggle (desktopOnly) follows the sider: below md the column already spans the viewport. */
+.sider {
+	display: none;
+	border-inline-end: var(--ant-line-width) var(--ant-line-type) var(--ant-color-border-secondary);
+}
+.desktopOnly {
+	display: none;
+}
+@media (min-width: 768px /* screenMD */) {
+	.sider {
+		display: block;
+	}
+	/* display: contents keeps the toggle a direct flex child of the header region. */
+	.desktopOnly {
+		display: contents;
+	}
+}
+.siderInner {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+}
+.siderList {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding-inline: var(--ant-padding-xs);
+}
+/* What the collapsed sider keeps: app icon, collapse toggle, new-chat button, list button. */
+.rail {
+	padding-block: var(--ant-padding-sm);
+}
+/* Why the list keeps the active conversation while a send waits for its history. */
+.queuedHint {
+	padding: var(--ant-padding-xs) var(--ant-padding-sm);
+}
+/* The collapsed sider's list, in a Popover: a fixed share of the control height token keeps its width
+   steady, and it scrolls past half the viewport. */
+.popoverList {
+	width: calc(var(--ant-control-height-lg) * 6);
+	max-height: 50vh;
+	overflow: auto;
+}
+.appInfo {
+	padding: var(--ant-padding-sm);
+}
+.appInfoText {
+	flex: 1;
+	min-width: 0;
+}
+.column {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+	width: 100%;
+	margin-inline: auto;
+	padding-inline: var(--ant-padding);
+}
+/* Bubble.List scrolls inside its own box; the docs ask for a flex column parent with a bounded height
+   ("Bubble.List autoScroll Top Alignment"), and the list may shrink below its content. */
+.list {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+.bubbleList {
+	min-height: 0;
+}
+.composer {
+	padding-block: var(--ant-padding-sm);
+}
+.disclaimer {
+	display: block;
+	text-align: center;
+	padding-block-end: var(--ant-padding-xs);
+}
+.loadEarlier {
+	display: flex;
+	justify-content: center;
+	padding-block: var(--ant-padding-xs);
+}
+.historyAlert {
+	padding-block-start: var(--ant-padding-sm);
+}
+/* Welcome and the conversation parameters sit above the messages; they take at most half the column and
+   scroll beyond that, so the messages always keep room. */
+.top {
+	flex: 0 1 auto;
+	min-height: 0;
+	max-height: 50%;
+	overflow: auto;
+}
+.welcome {
+	padding-block: var(--ant-padding);
+}
+.inputs {
+	padding-block-end: var(--ant-padding-sm);
+}
+.suggestions {
+	padding-block-start: var(--ant-padding-sm);
+}

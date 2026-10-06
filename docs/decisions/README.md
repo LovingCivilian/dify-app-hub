@@ -13,6 +13,8 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 ## Workflow
 
 - Create a new ADR as `proposed` (`node .claude/skills/adr-skill/scripts/new_adr.js --title "…" --status proposed --update-index`).
+- The skill's scripts are CommonJS and crash under this repo's `"type": "module"`: run them from a temporary copy of `.claude/skills/adr-skill` with `scripts/*.js` renamed to `.cjs`, then check the index row here by hand (`--update-index` appends it below the table).
+- **ADR numbers are per line.** The two lines never merge (ADR-0019), so each line numbers its own records from its own highest number (what `new_adr.js` does). Records 0001–0019 match `fork/main`'s numbers; from 0020 the same number may mean different decisions on the two lines, so a document that refers to the other line's ADR names the line ("ADR-0020 on `fork/main`"), and an ADR file brought over by cherry-pick is renumbered to this line's next free number.
 - Discuss and iterate; the owner accepts (`scripts/set_adr_status.js`).
 - Read `accepted` ADRs before architecture work in their area.
 
@@ -22,7 +24,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | --- | --- | --- | --- |
 | [0001](0001-adopt-architecture-decision-records.md) | Adopt architecture decision records | accepted | 2026-10-04 |
 | [0002](0002-use-documented-library-approaches-only.md) | Use documented library approaches only, verified against current docs | accepted | 2026-10-04 |
-| [0003](0003-run-the-fork-on-a-two-branch-model.md) | Run the fork on a two-branch model: `main` mirrors upstream, `fork/main` integrates | accepted | 2026-10-04 |
+| [0003](0003-run-the-fork-on-a-two-branch-model.md) | Run the fork on a two-branch model: `main` mirrors upstream, `fork/main` integrates | superseded by [ADR-0019](0019-keep-two-product-lines.md) | 2026-10-04 |
 | [0004](0004-keep-mysql-through-drizzle.md) | Keep MySQL (through Drizzle) instead of moving to PostgreSQL | accepted | 2026-10-04 |
 | [0005](0005-internationalise-the-ui-with-typed-i18next-keys-and-msa-arabic.md) | Internationalise the UI with typed i18next keys, with Modern Standard Arabic and Arabic-Indic digits | accepted | 2026-10-03 |
 | [0006](0006-require-login-everywhere-and-use-the-email-as-dify-end-user-id.md) | Require the app's own login for every page and API, and use the signed-in email as the Dify end-user id | accepted | 2026-10-04 |
@@ -35,6 +37,10 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0013](0013-pin-ant-design-cssinjs-to-antd-version.md) | Pin `@ant-design/cssinjs` to the version Ant Design depends on | accepted | 2026-10-04 |
 | [0014](0014-header-controls-click-triggered-named-through-i18next.md) | Make header controls click-triggered and named through i18next, and keep legacy classes out of overlays | accepted | 2026-10-04 |
 | [0015](0015-record-decisions-as-adrs-and-session-handoffs.md) | Record decisions as MADR ADRs and session state as handoff documents; keep CLAUDE.md to rules and pointers | accepted | 2026-10-04 |
+| [0016](0016-store-the-theme-preference-in-cookies.md) | Store the theme preference in cookies so the server renders the right scheme | accepted | 2026-10-04 |
+| [0017](0017-build-the-chat-on-ant-design-x.md) | Build the chat on Ant Design X with a provider-centred data layer | accepted | 2026-10-04 |
+| [0018](0018-gate-route-groups-on-the-server.md) | Gate route groups on the server and let the proxy gate navigations | accepted | 2026-10-04 |
+| [0019](0019-keep-two-product-lines.md) | Keep two product lines: `fork/main` for the line-level fork, `fork/overhaul` for the frontend overhaul | accepted | 2026-10-06 |
 
 ## Inherited from upstream (not fork decisions)
 

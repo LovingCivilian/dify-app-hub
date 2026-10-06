@@ -1,0 +1,4 @@
+/* The model's reasoning as it wrote it: its line breaks are kept. */
+.text {
+	white-space: pre-wrap;
+}

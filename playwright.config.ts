@@ -20,7 +20,7 @@ export default defineConfig({
 	use: { baseURL, trace: 'retain-on-failure', screenshot: 'only-on-failure' },
 	webServer: [
 		{
-			command: 'pnpm exec tsx e2e/fixtures/dify-stub.ts',
+			command: 'pnpm exec tsx e2e/fixtures/stub/server.ts',
 			url: `http://127.0.0.1:${stubPort}/v1/parameters`,
 			reuseExistingServer: !process.env.CI,
 			env: e2eEnv,

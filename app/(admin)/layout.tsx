@@ -1,10 +1,9 @@
-import AuthGuard from '@/components/auth/auth-guard'
 import AdminShell from '@/components/shell/admin-shell'
+import { requireSessionUser } from '@/lib/session-user'
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-	return (
-		<AuthGuard>
-			<AdminShell>{children}</AdminShell>
-		</AuthGuard>
-	)
+export const dynamic = 'force-dynamic'
+
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+	await requireSessionUser()
+	return <AdminShell>{children}</AdminShell>
 }

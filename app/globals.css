@@ -141,50 +141,6 @@
 	}
 }
 
-.ant-bubble-list {
-	.ant-bubble-start:not(.ant-bubble-divider):not(.ant-bubble-system) {
-		padding-inline-end: 0;
-	}
-
-	.ant-bubble {
-		margin-bottom: 12px;
-
-		.ant-bubble-content {
-			padding: 0;
-			min-height: auto;
-			overflow: hidden;
-			background-color: transparent;
-
-			think,
-			details {
-				background-color: transparent !important;
-				padding: 0 !important;
-				margin-bottom: 0.25rem;
-			}
-		}
-
-		&.ant-bubble-end {
-			.ant-bubble-content {
-				padding-left: 10px;
-				padding-right: 10px;
-				background-color: var(--theme-bubble-bg-color);
-				color: #fff;
-			}
-		}
-
-		p {
-			margin-top: 0.5rem !important;
-			margin-bottom: 0.5rem !important;
-		}
-
-		pre {
-			border-radius: 8px;
-			color: var(--theme-text-color);
-			background-color: var(--theme-code-block-bg-color) !important;
-		}
-	}
-}
-
 hr {
 	margin: 0.25rem auto;
 	color: var(--theme-border-color);

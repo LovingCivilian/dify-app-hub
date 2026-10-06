@@ -1,6 +1,9 @@
-/* ADR-0011: viewport-bound shells, the content region scrolls — docs/decisions/0011-bound-the-shells-to-the-viewport.md */
+/* ADR-0011: viewport-bound shells, the content region scrolls — docs/decisions/0011-bound-the-shells-to-the-viewport.md
+   100dvh follows the visible viewport on mobile browsers while the URL bar shows; the 100vh line before it
+   is the fallback for browsers without dvh (cascade: the last supported declaration wins). */
 .root {
 	height: 100vh;
+	height: 100dvh;
 }
 .content {
 	overflow: auto;

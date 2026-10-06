@@ -40,7 +40,7 @@ Non-goals: tooltips as antd `Tooltip` components (native `title` suffices for ic
 
 - [x] `e2e/shell.spec.ts`: language switch via the "Language" button, theme switch via "Theme", logout via the account menu, mobile Drawer via "Menu".
 - [x] Task 7 review: rc-trigger binds click handlers only with `click` in `trigger` (verified in `@rc-component/trigger`).
-- [ ] Sub-project 2: the chat's mobile menu test opens the menu and asserts an item.
+- [x] Sub-project 2: the chat's mobile menu test opens the menu and asserts an item.
 
 ## Alternatives Considered
 
@@ -51,3 +51,5 @@ Non-goals: tooltips as antd `Tooltip` components (native `title` suffices for ic
 ## More Information
 
 Sources: PR #12 Task 7 review and fix round (commit `5f723cfa`), Task 10 and the final review; antd `Dropdown` API ("hover can't be used on touchscreens"). Related: [ADR-0005](0005-internationalise-the-ui-with-typed-i18next-keys-and-msa-arabic.md), [ADR-0008](0008-rebuild-frontend-on-ant-design-6-and-x-2.md).
+
+2026-10-05 (sub-project 2): the chat's mobile menu is the header's `system.menu` button ("Menu"), which opens a `Drawer` named `chat.conversations_menu`; the drawer carries the app info, the conversation list and, at the bottom, the shell's `LanguageDropdown`, `ThemeDropdown` and `AccountDropdown` unchanged, so what the header hides below `md` stays reachable. `e2e/chat-mobile.spec.ts` opens it, switches a conversation, opens the account menu and clicks an item of the language menu (a click, so a dropdown covered by the drawer would fail). The verification item is done.

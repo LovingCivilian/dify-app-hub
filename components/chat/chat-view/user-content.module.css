@@ -1,0 +1,4 @@
+/* The user's text as typed: X Bubble keeps line breaks only for string content (`-content-string`). */
+.text {
+	white-space: pre-wrap;
+}

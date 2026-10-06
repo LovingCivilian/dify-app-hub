@@ -55,8 +55,10 @@ Chosen option: the Playwright harness.
 
 - [x] `pnpm test:e2e` from a cold stack: 49 passed / 3 skipped (PR #12).
 - [x] Stub, MySQL and app bind 127.0.0.1 only; `.dockerignore` excludes `e2e/`, `playwright.config.ts`.
-- [ ] Sub-project 2 extends the stub (agent/chatflow/HITL/error/file streams, per-user scoping, body-parse hardening) and removes the need for the reset endpoint.
+- [x] Sub-project 2 extends the stub (agent/chatflow/HITL/error/file streams, per-user scoping, body-parse hardening) and removes the need for the reset endpoint.
 
 ## More Information
 
 Sources: foundation spec §2.3, plan Tasks 3–4 and 12, PR #12 Task 3/4/10/12 reviews, `CLAUDE.md` "Local testing → e2e suite", `docs/frontend-conventions.md` Status. Related: [ADR-0004](0004-keep-mysql-through-drizzle.md), [ADR-0008](0008-rebuild-frontend-on-ant-design-6-and-x-2.md).
+
+Note, 2026-10-05 (sub-project 2): the stub moved from `e2e/fixtures/dify-stub.ts` to `e2e/fixtures/stub/` (`server.ts`, `router.ts`, `scenarios.ts`, `events.ts`, `store.ts`, `apps.ts`, `assets.ts`; the Markdown samples stay in `e2e/fixtures/markdown-samples.ts`) and serves the catalogue the charter §4.6 and the chat spec §8.1 describe. Five apps by path prefix (`/v1` chat, `/v1/agent`, `/v1/chatflow`, `/v1/workflow`, `/v1/completion`), seeded as five `dify_apps` rows by `e2e/auth.setup.ts` from `STUB_APPS` (ids in `APP_IDS`); every event built after the OpenAPI schemas; scenarios chosen by the query text (echo, agent thoughts and messages, chatflow nodes and reasoning, `hitl` with the resume stream, `retry`, `nodefail`, `error`, `slow`, `files`, `cite`, `md:<sample>`); per-user and per-app storage; JSON bodies parsed with Dify's `400 invalid_param` on failure and unknown routes answered with Dify's 404 shape. `POST /__e2e/reset` and the smoke spec's `beforeEach` are gone: history and live replies share one store per conversation ([ADR-0017](0017-build-the-chat-on-ant-design-x.md)), and `e2e/chat-race.spec.ts` reopens a conversation and sends at once. The verification item above is done.

@@ -2,20 +2,20 @@
 
 This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin0412/dify-app-hub) (`upstream`), hosted at `LovingCivilian/dify-app-hub` (`origin`). `AGENTS.md` is upstream's and still applies (database migrations, `.cii-assessment.md` before commits, no dev server needed for verification, debugging rules). This file holds the fork's working rules and pointers; the decisions themselves are Architecture Decision Records in `docs/decisions/` (index: `docs/decisions/README.md`) — read the accepted ones for an area before changing it.
 
-## Branch model (ADR-0003)
+## Branch model (ADR-0019: two product lines)
 
 - `main` is an untouched mirror of `upstream/main`. Never commit to it.
-- `fork/main` is the integration branch: upstream + every accepted fork feature. Deploy and test from it.
-- Feature branches start from `fork/main`; PRs target `fork/main`. Stack a branch on another one only when it needs work that has not merged yet (then the PR targets the parent branch; GitHub retargets it once the parent merges and is deleted).
-- On a fork `gh` targets the parent repo by default: always `gh pr create -R LovingCivilian/dify-app-hub --base fork/main …`, and `gh pr merge <n> -R LovingCivilian/dify-app-hub --merge` (merge commits, history kept). Merged branches may be deleted afterwards.
-- Upstream sync: `git fetch upstream && git checkout main && git merge --ff-only upstream/main`, then `git checkout fork/main && git merge main` and resolve conflicts there. Syncs take the backend only; the frontend is fork-owned (ADR-0009). Expected conflicts and the after-merge checks are listed in `docs/auth-gate.md` and `docs/i18n-maintenance.md`.
-- The GitHub default branch is still `main` (not switched yet).
+- **This file describes `fork/overhaul`**, the frontend-overhaul product (antd 6 / Ant Design X rebuild): it started at `11c3fb3d` and holds sub-projects 0–2 onward. Overhaul feature branches start from `fork/overhaul`; PRs target it: `gh pr create -R LovingCivilian/dify-app-hub --base fork/overhaul …`, `gh pr merge <n> -R LovingCivilian/dify-app-hub --merge` (merge commits, history kept). Stack a branch on another only when it needs unmerged work. Merged branches may be deleted afterwards.
+- `fork/main` is the other product: upstream + the line-level fork modifications only (i18n, login for everyone, header fixes), reset to `3d8e628e` on 2026-10-06. It keeps its own `CLAUDE.md`, the merge-friendly rules and the old chat; PRs #7 and #8 belong there. Never merge `fork/overhaul` into it.
+- Updates: `fork/main` merges `main` after an upstream sync (`git fetch upstream && git checkout main && git merge --ff-only upstream/main`, then `git checkout fork/main && git merge main`). `fork/overhaul` takes no routine merges from `main` or `fork/main`; wanted commits are picked with `git cherry-pick -x`, frontend fixes are re-implemented in the overhaul's structure (ADR-0009).
+- The GitHub default branch is `fork/main`.
+- Local folders: each line has its own folder on this machine, a git worktree of the same repository. This line lives in `~/repos/dify-app-hub` (the main worktree); `fork/main` lives in `~/repos/dify-app-hub-main` with its own `CLAUDE.md`. Start Claude Code in the folder of the line you work on; overhaul feature branches are created in this folder. Git refuses to check out a branch in both folders. Each folder has its own git-ignored `.env`, `.env.development.local`, `node_modules` and `.venv`, and its own Docker stack, so nothing in one folder touches the other. Claude Code's auto memory is shared by both folders (it is per repository).
 
 ## How to work here
 
 - Documented, standard approaches only — no custom mechanisms or workarounds (ADR-0002). Check the library's current docs through Context7 (`ctx7`) before using an API, even a familiar one; when a wanted behaviour has no documented way, say so instead of hacking around it. The user asks "does this follow docs?" and expects a per-piece answer with sources.
 - Looking things up: Context7 first (`npx ctx7@latest library …` then `docs …`, at most three commands per question). When its snippets are shallow or a page needs a real browser, crawl4ai is installed in the repo's `.venv`: `.venv/bin/crwl <url> -o markdown --bypass-cache` prints the page as markdown (`crawl4ai-doctor` is its health check). WebFetch is fine for plain pages. The venv is per machine (no `pyproject.toml`), git-ignored by its own `.gitignore` and excluded from the Docker build context by `.dockerignore`.
-- Merge-friendly with upstream for backend and other non-frontend files: line-level edits inside upstream files, new behaviour in fork-owned files, upstream file paths never moved, upstream-shaped backend files kept close to upstream. The frontend (`app/` pages, `components/`, `hooks/`, styles) is fork-owned (ADR-0009).
+- Backend files stay upstream-shaped until the backend rework decides otherwise (line-level edits inside upstream files, new behaviour in fork-owned files, upstream file paths never moved), which keeps cherry-picks from upstream cheap. The frontend (`app/` pages, `components/`, `hooks/`, styles) is fork-owned (ADR-0009).
 - Process: brainstorm first (a short in-chat design for bounded changes, a spec + plan under `docs/superpowers/` for bigger ones), get an explicit yes, then implement test-first. Larger features run subagent-driven with per-task review — the user wants "as robust as possible, the more eyes the better".
 - Decisions and handoffs (ADR-0015): a decision that changes a pattern, adds a dependency or reverses a plan gets an ADR in the same PR (`/adr-skill`, project copy in `.claude/skills/adr-skill`); a session ends with a handoff under `docs/superpowers/handoffs/` (user-level `handoff` skill, give it the path). Keep this file to rules and pointers, under 200 lines.
 - Before a commit: `pnpm exec tsc --noEmit`, `pnpm exec oxlint <files>`, `pnpm exec oxfmt --check <files>`, `pnpm test` (vitest, node environment — no DOM tests; layout changes are verified by the e2e suite and the browser). lint-staged runs oxfmt/oxlint on commit.
@@ -27,31 +27,36 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 ## Decisions (one line each; the ADR has the why, the alternatives and the verification)
 
 - ADR-0002 Use documented library approaches only, verified against current docs.
-- ADR-0003 Two-branch fork model: `main` mirrors upstream, `fork/main` integrates.
+- ADR-0003 (superseded by ADR-0019) Two-branch fork model.
 - ADR-0004 Keep MySQL through Drizzle (Postgres considered and rejected).
 - ADR-0005 i18n with typed i18next keys; Arabic is Modern Standard Arabic with Arabic-Indic digits (`ar_EG`, Day.js `ar`, `Intl` `ar-SA-u-ca-gregory-nu-arab`); RTL is a separate follow-up; maintenance in `docs/i18n-maintenance.md`.
 - ADR-0006 The app's own login on every page and API, deny by default (`lib/access.ts`, `proxy.ts`); the Dify end-user id is the signed-in email set server-side; landing page `/apps`; no LDAP or roles yet; maintenance and known limits in `docs/auth-gate.md`.
 - ADR-0007 (superseded) The antd/X look was left as upstream had it.
-- ADR-0008 Rebuild the frontend on antd 6 / Ant Design X 2 per their docs: one `XProvider` + `App` at the root, route groups, token-only CSS Modules, sub-projects 0–4 (0 and 1 done).
+- ADR-0008 Rebuild the frontend on antd 6 / Ant Design X 2 per their docs: one `XProvider` + `App` at the root, route groups, token-only CSS Modules, sub-projects 0–4 (0, 1 and 2 done).
 - ADR-0009 The frontend is fork-owned; upstream syncs take the backend only.
 - ADR-0010 Playwright e2e against `next dev`, a throwaway MySQL and a stub Dify API; no test switches in product code.
-- ADR-0011 Shells are viewport-bound (`height: 100vh`, the content region scrolls).
+- ADR-0011 Shells are viewport-bound (`height: 100vh` then `100dvh`, the content region scrolls).
 - ADR-0012 Legacy `--theme-*`/shadcn variables are aliases of `--ant-*` tokens on `.ant-app` until sub-project 4; they do not reach antd overlays.
 - ADR-0013 `@ant-design/cssinjs` stays pinned to the version inside `antd` (one copy, or `AntdRegistry` extracts no first-paint styles).
 - ADR-0014 Header controls are click-triggered and named through i18next; legacy classes stay out of overlays.
 - ADR-0015 Decisions are MADR ADRs in `docs/decisions/`; session state goes to handoff documents; this file stays short.
+- ADR-0016 Store the theme preference in cookies so the server renders the right scheme (`theme-mode` + `theme`, read in `app/layout.tsx`); the UI language follows the same pattern (`i18next` cookie, ADR-0005 note).
+- ADR-0017 Build the chat on Ant Design X with a provider-centred data layer: one `DifyChatProvider`, `useXChat` per conversation key (history through `defaultMessages`, early sends queued), X components through `contentRender`. Markdown verdict: `XMarkdown` adopted (spike 27/27), the react-markdown pipeline removed, `react-syntax-highlighter` kept for the dark code style.
+- ADR-0018 Gate route groups on the server and let the proxy gate navigations: `requireSessionUser()` in the `(user)` and `(admin)` layouts, the client gates deleted, the shells server-render.
+- ADR-0019 Two product lines: `fork/main` (upstream + line-level mods, merges `main`) and `fork/overhaul` (this overhaul, cherry-pick only); never merged into each other; ADR numbers after 0019 are per line (`docs/decisions/README.md`).
 
 ## Where things are
 
-- Structure after sub-project 1: `components/providers/app-providers.tsx` (the single client provider stack: `SessionProvider` → `ThemeContextProvider` → `XProvider` → `App`, inside `AntdRegistry` in `app/layout.tsx`); `components/shell/` (`app-header` with language, theme and account dropdowns, `admin-shell`, `user-shell`, `auth-card`, token-only CSS Modules); route groups `app/(auth)` (login, forgot-password, reset-password), `app/(admin)` (app-management, user-management), `app/(user)` (apps, chat), each with its own layout; `app/globals.css` holds the alias block.
-- Specs and plans: `docs/superpowers/specs/`, `docs/superpowers/plans/` (upstream's own May 2026 records are inherited history). Conventions, lint baseline and status: `docs/frontend-conventions.md`. Latest handoff: `docs/superpowers/handoffs/2026-10-04-frontend-foundation.md`.
-- Next frontend step: sub-project 2 (chat) branches from `fork/main` once the foundation is on it and gets its own spec and plan via brainstorming first; sub-projects 3 (admin, app list, auth pages) and 4 (Tailwind/Lucide/Radix removal) follow. Research already recorded in the charter (do not redo): antd 6 exposes tokens as `--ant-*` CSS variables on `<App>`'s root; the X site ships `@ant-design/x-skill`; antd serves every docs page as Markdown (`https://ant.design/components/<name>.md`); ProComponents does not support antd 6; `antd-style` is not used.
+- Structure after sub-project 2: `components/providers/app-providers.tsx` (the single client provider stack: `I18nextProvider` → `InitialLanguage` → `SessionProvider` → `ThemeContextProvider` → `XProvider` → `App`, inside `AntdRegistry` in `app/layout.tsx`, which reads the session and the theme and language cookies); `components/shell/` (`app-header` with language, theme and account dropdowns, `admin-shell`, `user-shell`, `auth-card`, token-only CSS Modules); route groups `app/(auth)` (login, forgot-password, reset-password), `app/(admin)` (app-management, user-management), `app/(user)` (apps, chat), each with its own layout (`(user)` and `(admin)` gate on the server); `app/globals.css` holds the alias block.
+- Chat (`/chat/[appId]`, every app mode, ADR-0017): `components/chat/chat-workspace.tsx` (app loader, mode switch) and `app-context.tsx`; `provider/` (`DifyChatProvider`, message model, history mapper, keys, fetch); `hooks/` (`use-dify-chat`, conversations, workflow run, upload, speech, TTS, suggestions); `chat-view/` (sider and mobile drawer, message list, footer, sender, inputs form); `message/` (`message-markdown.tsx` + `markdown/`, workflow logs, HITL form, files, sources, reasoning); `workflow-view/` (workflow and completion runners); `persistence/` (zustand stores for run data and think times).
+- Specs and plans: `docs/superpowers/specs/`, `docs/superpowers/plans/` (upstream's own May 2026 records are inherited history). Conventions, lint baseline and status: `docs/frontend-conventions.md`. Latest handoff: `docs/superpowers/handoffs/2026-10-05-chat-on-ant-design-x-execution.md` (sub-project 2 executed, PR #15 open, owner verification list, rulings, follow-ups); previous: `2026-10-04-chat-on-ant-design-x-plan.md` (planning record), `2026-10-04-frontend-foundation.md`.
+- Next frontend step: sub-project 3 (admin, app list, auth pages) needs its own spec and plan (brainstorming first); its inputs include `LucideIcon` in `app/(user)/apps/page.tsx` and antd's static `message`/`Modal` calls in the admin pages (antd lint). Sub-project 4 (Tailwind/Lucide/Radix and alias-block removal) follows. Sub-project 2 (chat): spec `docs/superpowers/specs/2026-10-04-chat-on-ant-design-x-design.md` (its deviations paragraph at the end), plan `docs/superpowers/plans/2026-10-04-chat-on-ant-design-x.md`. Research already recorded in the charter (do not redo): antd 6 exposes tokens as `--ant-*` CSS variables on `<App>`'s root; the X site ships `@ant-design/x-skill`; antd serves every docs page as Markdown (`https://ant.design/components/<name>.md`); ProComponents does not support antd 6; `antd-style` is not used.
 
 ## Local testing
 
 ### Docker stack (the real check before merging)
 
-`docker-compose.local.yml` (project `dify-app-hub-local`) builds the image from the checkout and runs it with MySQL on `http://localhost:5300`, settings from `.env`. Rebuild from the branch under test:
+`docker-compose.local.yml` (project `dify-app-hub-local`) builds the image from the checkout and runs it with MySQL on `http://localhost:5300`, settings from `.env`. The `fork/main` folder runs its own stack beside it (project `dify-app-hub-main-local` on `127.0.0.1:5310`, MySQL `127.0.0.1:3316`); never build both folders' images at the same time. Rebuild from the branch under test:
 
 ```bash
 docker compose -f docker-compose.local.yml stop app && docker compose -f docker-compose.local.yml rm -f app
@@ -71,14 +76,15 @@ MySQL is published on `127.0.0.1:3306` only, and the git-ignored `.env.developme
 
 ### e2e suite (ADR-0010)
 
-`pnpm test:e2e` runs the Playwright suite (three projects: `desktop-light`, `desktop-dark`, `mobile-light`). It has its own environment, `.env.e2e` (test-only values, committed), and never touches the `.env` database or port 5300: a throwaway MySQL from `docker-compose.e2e.yml` on 127.0.0.1:3307 (`docker compose -f docker-compose.e2e.yml down` resets it), a stub Dify API (`e2e/fixtures/dify-stub.ts`, port 5399, with a test-only `POST /__e2e/reset`) and the app under `next dev` on 127.0.0.1:5301. Screenshots go to the git-ignored `e2e/screenshots/`; the HTML report opens with `pnpm test:e2e:report`. Without Chrome MCP tools, browser evidence comes from this suite, never from the user's instance or a real Dify server.
+`pnpm test:e2e` runs the Playwright suite (three projects: `desktop-light`, `desktop-dark`, `mobile-light`). It has its own environment, `.env.e2e` (test-only values, committed), and never touches the `.env` database or port 5300: a throwaway MySQL from `docker-compose.e2e.yml` on 127.0.0.1:3307 (`docker compose -f docker-compose.e2e.yml down` resets it), a stub Dify API (`e2e/fixtures/stub/`, port 5399, five apps by path prefix, scenarios chosen by the query text) and the app under `next dev` on 127.0.0.1:5301. Screenshots go to the git-ignored `e2e/screenshots/`; the HTML report opens with `pnpm test:e2e:report`. Without Chrome MCP tools, browser evidence comes from this suite, never from the user's instance or a real Dify server.
 
 ## Open follow-ups
 
-- Switch the GitHub default branch to `fork/main`; delete merged branches (`i18n/app-ui`, `i18n/arabic`, `auth/login-for-all`, `fix/language-switcher-placement`).
-- Auth: the `/api/users/*` revoked-session gap (ADR-0006); `goAuthorize` in `hooks/use-auth.ts` is unused; the proxy test relies on the undocumented `x-middleware-next` header; the client gates (`AuthGuard`, `useAuth`) redirect without `callbackUrl` and hide the shell until the session resolves (gate design for sub-projects 2–3, see the handoff).
-- i18n: user review of the Arabic wording (countdown plurals, terminology); RTL layout; translation sub-projects 2 and 3; Ant Design X ships no Arabic strings.
-- Frontend: the chat's late-history race (sub-project 2); stub streams for agent/chatflow/HITL/errors; old page bodies (double padding, clipped admin table on mobile, stray "0" tag, login logo image warning); `100vh` vs `100dvh`; two `@ant-design/icons` majors in the tree.
+- Delete merged branches (`i18n/app-ui`, `i18n/arabic`, `auth/login-for-all`, `fix/language-switcher-placement`, the overhaul's merged doc and foundation branches).
+- Auth: the `/api/users/*` revoked-session gap (ADR-0006); the proxy test relies on the undocumented `x-middleware-next` header; the server gate's limits (ADR-0018: no `callbackUrl` on the layout redirect, a token revoked mid-session is caught at the next hard load, the cookie is renewed only on tab focus or sign-in).
+- i18n: user review of the Arabic wording (countdown plurals, terminology, the X pack `libs/x-locale-ar.ts`); RTL layout; translation for sub-project 3; a visitor without the language cookie gets one English paint (reading `Accept-Language` on the server would remove it).
+- Frontend: old page bodies (double padding, clipped admin table on mobile, stray "0" tag, login logo image warning); two `@ant-design/icons` majors in the tree; chat: a workflow app that pauses for human input shows "Paused" without a form, the first Mermaid diagram draws blank under dev Strict Mode (ADR-0017).
+- After sub-project 4, last (owner, 2026-10-06; not before): the backend rework on `fork/overhaul`, `docs/superpowers/specs/2026-10-05-backend-rework-brief.md` (supersede ADR-0009 for this line; admin Server Action checks, the `/api/users/*` gap, stop and human-input-form proxy routes, the `audio2text` type).
 - Later steps the user has named: LDAP login, user groups / roles and permissions, an account-menu "change password".
 
 ## Next.js bundled docs
