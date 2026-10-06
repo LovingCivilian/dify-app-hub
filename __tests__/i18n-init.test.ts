@@ -56,8 +56,8 @@ describe('i18n setup', () => {
 
 	it('interpolates an Error object as its message', async () => {
 		await i18n.changeLanguage('en')
-		expect(i18n.t('app.fetch_list_failed', { error: new Error('boom') })).toBe(
-			'Failed to load apps: Error: boom',
+		expect(i18n.t('chat.fetch_list_failed', { error: new Error('boom') })).toBe(
+			'Failed to load conversations: Error: boom',
 		)
 	})
 

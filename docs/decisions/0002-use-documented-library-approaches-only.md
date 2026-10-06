@@ -49,3 +49,5 @@ Non-goals: this does not forbid custom code where no library covers the need (e.
 ## More Information
 
 Source: `CLAUDE.md` "How to work here" (PR #6, 2026-10-04); the owner's instruction repeated at the start of the 2026-10-04 execution session. Related: [ADR-0008](0008-rebuild-frontend-on-ant-design-6-and-x-2.md), [ADR-0015](0015-record-decisions-as-adrs-and-session-handoffs.md).
+
+2026-10-06 (sub-project 3): when the documentation covers only the basics, the architectural decision is also checked against two or three well-known, well-architected open-source projects on the same stack (Context7 indexes repositories; crawl4ai reads a page when the snippets are shallow), and the spec or ADR cites them beside the doc sources. Documented library behaviour still outranks a reference project's choice. First applied in [ADR-0020](0020-load-page-data-on-the-server.md).
