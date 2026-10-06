@@ -269,7 +269,8 @@
 		"edit_title": "تعديل إعدادات التطبيق - {{name}}",
 		"create_success": "تمت إضافة إعدادات التطبيق",
 		"edit_success": "تم تحديث إعدادات التطبيق",
-		"save_failed": "فشل حفظ إعدادات التطبيق: {{error}}"
+		"save_failed": "فشل حفظ إعدادات التطبيق",
+		"dify_unreachable": "تعذّر الوصول إلى تطبيق Dify. تحقّق من API Base وAPI Secret."
 	},
 	"app_setting": {
 		"section_request": "إعدادات الطلب",

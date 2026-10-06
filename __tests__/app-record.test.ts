@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { isAppInfo, isFailedUpdate } from '@/components/admin/apps/app-record'
+import {
+	acceptRecord,
+	dropRecord,
+	isAppInfo,
+	isFailedUpdate,
+} from '@/components/admin/apps/app-record'
 
 describe('isAppInfo', () => {
 	it('accepts Dify app info', () => {
@@ -27,5 +32,23 @@ describe('isFailedUpdate', () => {
 		expect(isFailedUpdate(undefined)).toBe(false)
 		expect(isFailedUpdate(null)).toBe(false)
 		expect(isFailedUpdate({ id: 'a1' })).toBe(false)
+	})
+})
+
+describe('acceptRecord and dropRecord', () => {
+	const record = { id: 'a1' } as never
+
+	it('fills the drawer that is still open for the app', () => {
+		expect(acceptRecord({ appId: 'a1' }, 'a1', record)).toEqual({ appId: 'a1', record })
+	})
+
+	it('ignores an answer after the drawer closed or another app was opened', () => {
+		expect(acceptRecord(null, 'a1', record)).toBeNull()
+		expect(acceptRecord({ appId: 'a2' }, 'a1', record)).toEqual({ appId: 'a2' })
+	})
+
+	it('closes only the drawer that waited for the failed app', () => {
+		expect(dropRecord({ appId: 'a1' }, 'a1')).toBeNull()
+		expect(dropRecord({ appId: 'a2' }, 'a1')).toEqual({ appId: 'a2' })
 	})
 })

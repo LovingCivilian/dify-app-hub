@@ -99,3 +99,59 @@ test('on a phone the table scrolls inside its container and More stays reachable
 	await more.click()
 	await expect(page.getByRole('menuitem', { name: 'Sync app info' })).toBeVisible()
 })
+
+test.describe('create and edit', () => {
+	// One project runs at a time, so the created app is removed by name after each test.
+	test.afterEach(async () => {
+		await withDb(db => db.execute('DELETE FROM dify_apps WHERE name = ?', [CREATED_APP.name]))
+	})
+
+	test('an admin creates an app from its Dify API base and key, then disables it', async ({
+		page,
+	}) => {
+		await page.goto('/app-management')
+		await page.getByRole('button', { name: 'New' }).click()
+		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
+		await create.getByLabel('API Base').fill(`${stubApiBase}${CREATED_APP.prefix}`)
+		await create.getByLabel('API Secret').fill('app-e2e')
+		await create.getByRole('button', { name: 'OK' }).click()
+
+		const row = page.getByRole('row', { name: new RegExp(CREATED_APP.name) })
+		await expect(row).toBeVisible()
+		// The created app's stub site names an image icon (Task 1).
+		await expect(row.locator('img')).toHaveAttribute('src', /stub-image\.png/)
+
+		await row.getByRole('button', { name: 'Edit' }).click()
+		const edit = page
+			.getByRole('dialog')
+			.filter({ hasText: `Edit app configuration - ${CREATED_APP.name}` })
+		await edit.getByRole('switch', { name: 'App status' }).click()
+		await edit.getByRole('button', { name: 'Update' }).click()
+		await expect(row.getByText('Disabled')).toBeVisible()
+
+		await row.getByRole('button', { name: 'Edit' }).click()
+		await expect(
+			page
+				.getByRole('dialog')
+				.filter({ hasText: `Edit app configuration - ${CREATED_APP.name}` })
+				.getByRole('switch', { name: 'App status' }),
+		).not.toBeChecked()
+	})
+
+	test('a Dify error body instead of app info keeps the drawer open with a translated error', async ({
+		page,
+	}) => {
+		await page.goto('/app-management')
+		await page.getByRole('button', { name: 'New' }).click()
+		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
+		// An unknown stub path answers Dify's 404 JSON body, which lib/api resolves as a value (Review Focus 1).
+		await create.getByLabel('API Base').fill(`${stubApiBase}/nope`)
+		await create.getByLabel('API Secret').fill('app-e2e')
+		await create.getByRole('button', { name: 'OK' }).click()
+		await expect(
+			page.getByText('Could not reach the Dify app. Check the API Base and API Secret.'),
+		).toBeVisible()
+		await expect(create).toBeVisible()
+		await expect(page.getByRole('row', { name: /nope/ })).toHaveCount(0)
+	})
+})

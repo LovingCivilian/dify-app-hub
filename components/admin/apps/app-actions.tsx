@@ -1,7 +1,7 @@
 'use client'
 
 import { EllipsisOutlined } from '@ant-design/icons'
-import { App, Button, Dropdown, type MenuProps } from 'antd'
+import { App, Button, Dropdown, Flex, type MenuProps } from 'antd'
 import { useRouter } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
 
@@ -12,7 +12,7 @@ import type { AdminAppRow } from './admin-app-row'
 import { isAppInfo, isFailedUpdate } from './app-record'
 
 /** A row's actions (spec §5.3). Every outcome is a translated message; success refreshes the server page. */
-export default function AppActions({ app }: { app: AdminAppRow }) {
+export default function AppActions({ app, onEdit }: { app: AdminAppRow; onEdit: () => void }) {
 	const { t } = useTranslation()
 	const { message, modal } = App.useApp()
 	const router = useRouter()
@@ -81,16 +81,27 @@ export default function AppActions({ app }: { app: AdminAppRow }) {
 	}
 
 	return (
-		<Dropdown
-			trigger={['click']}
-			menu={{ items, onClick }}
+		<Flex
+			align="center"
+			gap="small"
 		>
 			<Button
-				type="text"
-				icon={<EllipsisOutlined />}
-				aria-label={t('admin_apps.more_actions')}
-				title={t('admin_apps.more_actions')}
-			/>
-		</Dropdown>
+				type="link"
+				onClick={onEdit}
+			>
+				{t('common.edit')}
+			</Button>
+			<Dropdown
+				trigger={['click']}
+				menu={{ items, onClick }}
+			>
+				<Button
+					type="text"
+					icon={<EllipsisOutlined />}
+					aria-label={t('admin_apps.more_actions')}
+					title={t('admin_apps.more_actions')}
+				/>
+			</Dropdown>
+		</Flex>
 	)
 }

@@ -269,7 +269,8 @@
 		"edit_title": "Edit app configuration - {{name}}",
 		"create_success": "App configuration added",
 		"edit_success": "App configuration updated",
-		"save_failed": "Failed to save app configuration: {{error}}"
+		"save_failed": "Failed to save app configuration",
+		"dify_unreachable": "Could not reach the Dify app. Check the API Base and API Secret."
 	},
 	"app_setting": {
 		"section_request": "Request settings",

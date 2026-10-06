@@ -1,6 +1,7 @@
 'use client'
 
-import { Col, Flex, Row, Table, type TableProps, Tag, Typography, theme } from 'antd'
+import { PlusOutlined } from '@ant-design/icons'
+import { Button, Col, Flex, Row, Table, type TableProps, Tag, Typography, theme } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,7 +13,9 @@ import { matchesQuery } from '@/lib/match-query'
 
 import type { AdminAppRow } from './admin-app-row'
 import AppActions from './app-actions'
+import AppFormDrawer from './app-form-drawer'
 import styles from './app-management.module.css'
+import { useAppRecord } from './use-app-record'
 
 /**
  * The app table (spec §5.2): search above, documented column filters for type and status, horizontal scroll
@@ -23,6 +26,12 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 	const { t } = useTranslation()
 	const { token } = theme.useToken()
 	const [query, setQuery] = useState('')
+	const editor = useAppRecord()
+	const [creating, setCreating] = useState(false)
+	const closeDrawer = () => {
+		setCreating(false)
+		editor.close()
+	}
 	const shown = apps.filter(app => matchesQuery([app.name, app.description, ...app.tags], query))
 
 	const columns: TableProps<AdminAppRow>['columns'] = [
@@ -96,7 +105,12 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 		{
 			title: t('common.actions'),
 			key: 'actions',
-			render: (_, app) => <AppActions app={app} />,
+			render: (_, app) => (
+				<AppActions
+					app={app}
+					onEdit={() => void editor.open(app.id)}
+				/>
+			),
 		},
 	]
 
@@ -105,7 +119,18 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 			vertical
 			gap={token.margin}
 		>
-			<AdminPageHeader title={t('admin_apps.title')} />
+			<AdminPageHeader
+				title={t('admin_apps.title')}
+				action={
+					<Button
+						type="primary"
+						icon={<PlusOutlined />}
+						onClick={() => setCreating(true)}
+					>
+						{t('common.new')}
+					</Button>
+				}
+			/>
 			<Row>
 				<Col
 					xs={24}
@@ -124,6 +149,12 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 				columns={columns}
 				dataSource={shown}
 				scroll={{ x: 'max-content' }}
+			/>
+			<AppFormDrawer
+				open={creating || editor.state !== null}
+				mode={creating ? 'create' : 'edit'}
+				record={editor.state?.record}
+				onClose={closeDrawer}
 			/>
 		</Flex>
 	)
