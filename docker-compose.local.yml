@@ -3,13 +3,15 @@
 # Settings and passwords are read from .env (not committed).
 #
 # Quick dev loop (no image build): stop the app container, keep MySQL, run `pnpm dev`
-# on the host against 127.0.0.1:3306 (DATABASE_URL in .env.development.local). See CLAUDE.md.
-name: dify-app-hub-local
+# on the host against 127.0.0.1:3316 (DATABASE_URL in .env.development.local). See CLAUDE.md.
+# This line (fork/main) has its own project, containers, volume and host ports, so it runs beside the
+# fork/overhaul folder's stack (project dify-app-hub-local, ports 5300 and 3306) without touching it (ADR-0019).
+name: dify-app-hub-main-local
 
 services:
   mysql:
     image: mysql:8.4
-    container_name: dify-app-hub-local-mysql
+    container_name: dify-app-hub-main-local-mysql
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
@@ -17,7 +19,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     ports:
       # This machine only, for `pnpm dev` on the host; not reachable from the network
-      - '127.0.0.1:3306:3306'
+      - '127.0.0.1:3316:3306'
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -33,9 +35,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: dify-app-hub-local-app
+    container_name: dify-app-hub-main-local-app
     ports:
-      - '5300:5300'
+      # Host port 5310; the server inside the container still listens on 5300 (Dockerfile)
+      - '5310:5300'
     env_file:
       - .env
     depends_on:
