@@ -16,7 +16,7 @@ interface IMessageFooterProps {
 	 */
 	isRequesting?: boolean
 	/**
-	 * 消息 ID
+	 * Dify 消息 ID；为空时（如请求失败的占位回复）不展示点赞/点踩
 	 */
 	messageId: string
 	/**
@@ -213,7 +213,7 @@ export default function MessageFooter(props: IMessageFooterProps) {
 				title: t('message.feedback_positive'),
 				active: isLiked,
 				loading: loading.like,
-				hidden: false,
+				hidden: !messageId,
 			},
 			// 点踩
 			{
@@ -235,7 +235,7 @@ export default function MessageFooter(props: IMessageFooterProps) {
 				},
 				active: isDisLiked,
 				loading: loading.dislike,
-				hidden: false,
+				hidden: !messageId,
 			},
 			// 文本转语音
 			{
@@ -277,6 +277,7 @@ export default function MessageFooter(props: IMessageFooterProps) {
 		isLiked,
 		loading,
 		runFeedback,
+		messageId,
 		messageContent,
 		runTTS,
 		setLoading,

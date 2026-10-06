@@ -221,6 +221,14 @@ export interface IMessageFileItem {
 }
 
 export interface IAgentMessage {
+	/**
+	 * Dify 消息 ID，来自流事件的 message_id
+	 */
+	id?: string
+	/**
+	 * 消息创建时间戳（秒），来自流事件的 created_at
+	 */
+	createdAt?: number
 	workflows?: {
 		status?: 'running' | 'finished'
 		nodes?: IWorkflowNode[]
@@ -236,6 +244,10 @@ export type IRating = 'like' | 'dislike' | null
 
 export interface IMessageItem4Render extends IAgentMessage {
 	id: string
+	/**
+	 * Dify 消息 ID（反馈等接口使用）：历史消息即 id，本次会话中回答的消息来自流事件
+	 */
+	messageId?: string
 	status: 'local' | 'loading' | 'success' | 'error'
 	error?: string
 	role: IMessageRole
