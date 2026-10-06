@@ -1,33 +1,7 @@
-'use client'
+import { redirect } from 'next/navigation'
 
-import { Spin } from 'antd'
-import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
-
+// Spec §7.6: a server redirect replaces the client spinner. Signed out, the proxy already sends `/` to
+// /login?callbackUrl=%2F; redirect() throws, so nothing may wrap it in try/catch (Next redirect reference).
 export default function Home() {
-	const { data: session, status } = useSession()
-	const router = useRouter()
-
-	useEffect(() => {
-		if (status === 'authenticated' && session) {
-			router.replace('/apps')
-		} else if (status === 'unauthenticated') {
-			router.replace('/apps')
-		}
-	}, [session, status, router])
-
-	if (status === 'loading') {
-		return (
-			<div className="flex min-h-screen items-center justify-center">
-				<Spin spinning />
-			</div>
-		)
-	}
-
-	return (
-		<div className="flex min-h-screen items-center justify-center">
-			<Spin spinning />
-		</div>
-	)
+	redirect('/apps')
 }
