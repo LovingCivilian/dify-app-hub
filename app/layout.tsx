@@ -8,7 +8,10 @@ import { getCachedServerSession } from '@/lib/session-user'
 import { ThemeEnum } from '@/lib/theme/constants'
 import { readThemeCookies } from '@/lib/theme/theme-cookie'
 
-import './globals.css'
+// antd's browser reset (box-sizing, body margin, heading, paragraph and list margins, form-control font inheritance)
+// in place of Tailwind's Preflight (ADR-0021). No @layer wrapper: that is only needed with `StyleProvider layer`,
+// which this app does not enable. Text colour, font and line height come from antd's <App> root (`.ant-app`).
+import 'antd/dist/reset.css'
 
 export const metadata: Metadata = {
 	title: 'Dify App Hub',
