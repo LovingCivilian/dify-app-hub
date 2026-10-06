@@ -192,3 +192,13 @@ test('the media query shows one header variant and display: none keeps the other
 	await expect(header.getByRole('button', { name: 'Menu' })).toHaveCount(isMobile ? 1 : 0)
 	await expect(header.getByRole('menu')).toHaveCount(isMobile ? 0 : 1)
 })
+
+test('the app list arrives with its apps in the first HTML and no API key (spec §3.1)', async ({
+	page,
+}) => {
+	const html = await (await page.request.get('/apps')).text()
+	expect(html).toContain('Stub app')
+	expect(html).not.toContain('Stub disabled')
+	// The seeded apps' key; the trimmed props carry nothing from requestConfig.
+	expect(html).not.toContain('app-e2e')
+})

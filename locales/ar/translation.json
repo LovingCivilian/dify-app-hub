@@ -26,7 +26,9 @@
 		"network_error_retry": "خطأ في الشبكة. يرجى المحاولة لاحقًا.",
 		"unauthorized": "غير مصرح. تحقق من الإعدادات.",
 		"unsupported_file_type": "نوع الملف غير مدعوم: {{ext}}",
-		"unsupported_app_type": "نوع التطبيق غير مدعوم"
+		"unsupported_app_type": "نوع التطبيق غير مدعوم",
+		"retry": "إعادة المحاولة",
+		"load_failed": "تعذّر تحميل هذه الصفحة"
 	},
 	"form": {
 		"select_placeholder": "يرجى الاختيار",
@@ -46,7 +48,9 @@
 		"empty_contact_admin": "لا توجد تطبيقات بعد. اطلب من المسؤول إعداد تطبيق.",
 		"load_failed": "فشل التحميل",
 		"reload_page": "إعادة تحميل الصفحة",
-		"loading": "جارٍ تحميل التطبيق..."
+		"loading": "جارٍ تحميل التطبيق...",
+		"search_placeholder": "البحث في التطبيقات",
+		"no_match": "لا توجد تطبيقات تطابق بحثك"
 	},
 	"app_mode": {
 		"name": {

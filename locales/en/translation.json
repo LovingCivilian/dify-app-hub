@@ -26,7 +26,9 @@
 		"network_error_retry": "Network error. Please try again later.",
 		"unauthorized": "Unauthorized. Check your configuration.",
 		"unsupported_file_type": "Unsupported file type: {{ext}}",
-		"unsupported_app_type": "Unsupported app type"
+		"unsupported_app_type": "Unsupported app type",
+		"retry": "Try again",
+		"load_failed": "This page could not be loaded"
 	},
 	"form": {
 		"select_placeholder": "Please select",
@@ -46,7 +48,9 @@
 		"empty_contact_admin": "No apps yet. Ask your administrator to set one up.",
 		"load_failed": "Failed to load",
 		"reload_page": "Reload page",
-		"loading": "Loading app..."
+		"loading": "Loading app...",
+		"search_placeholder": "Search apps",
+		"no_match": "No apps match your search"
 	},
 	"app_mode": {
 		"name": {

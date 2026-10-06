@@ -26,7 +26,9 @@
 		"network_error_retry": "网络错误，请稍后重试",
 		"unauthorized": "未授权, 请检查你的配置",
 		"unsupported_file_type": "不支持的文件类型: {{ext}}",
-		"unsupported_app_type": "不支持的应用类型"
+		"unsupported_app_type": "不支持的应用类型",
+		"retry": "重试",
+		"load_failed": "页面加载失败"
 	},
 	"form": {
 		"select_placeholder": "请选择",
@@ -46,7 +48,9 @@
 		"empty_contact_admin": "暂无应用数据，请联系管理员配置",
 		"load_failed": "加载失败",
 		"reload_page": "刷新页面",
-		"loading": "应用加载中..."
+		"loading": "应用加载中...",
+		"search_placeholder": "搜索应用",
+		"no_match": "没有符合搜索条件的应用"
 	},
 	"app_mode": {
 		"name": {
