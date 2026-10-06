@@ -9,7 +9,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 - `fork/overhaul` is a second product line (since 2026-10-06): the frontend overhaul (antd 6 / Ant Design X rebuild), branched from this history at `11c3fb3d`. It never merges into `fork/main`, and `fork/main` work reaches it only by cherry-pick. It has its own rules, the overhaul-only ADRs and its handoffs (ADR-0019 for this two-line model; until PR #15 merges, ADR-0016–ADR-0018 sit on its branch; ADR-0019 is on both lines); work on this line-level app happens here.
 - Feature branches start from `fork/main`; PRs target `fork/main`. Stack a branch on another one only when it needs work that has not merged yet (then the PR targets the parent branch; GitHub retargets it once the parent merges and is deleted).
 - On a fork `gh` targets the parent repo by default: always `gh pr create -R LovingCivilian/dify-app-hub --base fork/main …`, and `gh pr merge <n> -R LovingCivilian/dify-app-hub --merge` (merge commits, history kept). Merged branches may be deleted afterwards.
-- Upstream sync: `git fetch upstream && git checkout main && git merge --ff-only upstream/main`, then `git checkout fork/main && git merge main` and resolve conflicts there. Expected conflicts and the after-merge checks are listed in `docs/auth-gate.md` and `docs/i18n-maintenance.md`.
+- Upstream sync: `git fetch upstream && git checkout main && git merge --ff-only upstream/main`, then `git checkout fork/main && git merge main` and resolve conflicts there. Expected conflicts and the after-merge checks are listed in `docs/auth-gate.md` and `docs/i18n-maintenance.md`. After each sync `pnpm why @ant-design/cssinjs` must show one version (ADR-0013: upstream still pins `^1.24.0`).
 - The GitHub default branch is `fork/main`.
 
 ## How to work here
@@ -55,7 +55,7 @@ docker compose -f docker-compose.local.yml stop app && docker compose -f docker-
 docker compose -f docker-compose.local.yml up -d --build app   # ~2 min, 80 s of it is next build
 ```
 
-Take the old app container down first: this WSL machine has ~5 GB RAM and builds were killed otherwise. MySQL and its volume stay up, so the admin login and data survive. If Claude Code kills a build for memory, do not restart it unprompted. The user verifies in the browser; report the curl checks (`/api/health` 200, `/apps` signed out → 307 `/login?callbackUrl=%2Fapps`, `/api/client/apps` → 401).
+Take the old app container down first: this WSL machine has ~5 GB RAM and builds were killed otherwise. MySQL and its volume stay up, so the admin login and data survive. If Claude Code kills a build for memory, do not restart it unprompted. The user verifies in the browser; report the curl checks (`/api/health` 200, `/apps` signed out → 307 `/login?callbackUrl=%2Fapps`, `/api/client/apps` → 401, and `curl -s localhost:5300/login | grep -c 'id="antd-cssinjs"'` → 1, ADR-0013).
 
 ### Quick dev loop (no image build)
 
