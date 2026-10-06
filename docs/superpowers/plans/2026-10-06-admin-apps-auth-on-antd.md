@@ -86,11 +86,13 @@ docs/decisions/0020-…md, README.md; docs/frontend-conventions.md; CLAUDE.md; .
 Deleted: `components/shared/` (Task 3); `app/(admin)/app-management/components/`, `app/(admin)/app-management/enums.ts` (Task 4); `app/(admin)/user-management/components/` (Task 7).
 
 ---
+
 ### Task 1: Stub Dify API and seed for the admin pages
 
 The admin pages call Dify from the browser, so the stub needs Dify's CORS behaviour, the annotation list/update/delete endpoints, per-app `/site` variants and two extra seeded apps (spec §9.3). Test-only files; no product code.
 
 **Files:**
+
 - Modify: `e2e/fixtures/stub/apps.ts` (prefix type, optional fields, extra apps, `appFromPath`)
 - Modify: `e2e/fixtures/stub/store.ts` (annotations per app)
 - Modify: `e2e/fixtures/stub/router.ts` (CORS, `/info`, `/site`, annotations)
@@ -99,6 +101,7 @@ The admin pages call Dify from the browser, so the stub needs Dify's CORS behavi
 - Test: `__tests__/stub-router.test.ts`, `__tests__/stub-events.test.ts`
 
 **Interfaces:**
+
 - Produces: `DISABLED_APP`, `NO_SITE_APP`, `CREATED_APP`, `SEEDED_EXTRA_APPS` (from `e2e/fixtures/constants.ts`), each a `StubApp` with `id`, `name`, `mode`, `prefix`; `withDb<T>(fn: (db: Connection) => Promise<T>): Promise<T>` (from `e2e/fixtures/db.ts`). Names: `'Stub disabled'` (chat, `/disabled`, `isEnabled: 2`), `'Stub no-site'` (workflow, `/nosite`, `site: 'none'`), `'Created app'` (chat, `/created`, `site: 'image'`, not seeded). None of the names contains the text "Stub app", so `getByText('Stub app')` in older specs stays unambiguous.
 
 - [ ] **Step 1: Write the failing stub tests**
@@ -106,12 +109,12 @@ The admin pages call Dify from the browser, so the stub needs Dify's CORS behavi
 Append to `__tests__/stub-events.test.ts` inside `describe('modeFromPath', …)`:
 
 ```ts
-	it('knows the sub-project 3 prefixes and tells which app a path belongs to', () => {
-		expect(modeFromPath('/v1/nosite/parameters')).toEqual({ mode: 'workflow', path: '/parameters' })
-		expect(modeFromPath('/v1/created/info')).toEqual({ mode: 'chat', path: '/info' })
-		expect(appFromPath('/v1/disabled/site').name).toBe('Stub disabled')
-		expect(appFromPath('/v1/info').name).toBe('Stub app')
-	})
+it('knows the sub-project 3 prefixes and tells which app a path belongs to', () => {
+	expect(modeFromPath('/v1/nosite/parameters')).toEqual({ mode: 'workflow', path: '/parameters' })
+	expect(modeFromPath('/v1/created/info')).toEqual({ mode: 'chat', path: '/info' })
+	expect(appFromPath('/v1/disabled/site').name).toBe('Stub disabled')
+	expect(appFromPath('/v1/info').name).toBe('Stub app')
+})
 ```
 
 and add `appFromPath` to that file's import from `@/e2e/fixtures/stub/apps`.
@@ -131,7 +134,10 @@ describe('stub router for the admin pages (sub-project 3)', () => {
 	})
 
 	it('names the app behind each prefix in /info', async () => {
-		expect(await (await fetch(`${base}/v1/info`)).json()).toMatchObject({ name: 'Stub app', mode: 'chat' })
+		expect(await (await fetch(`${base}/v1/info`)).json()).toMatchObject({
+			name: 'Stub app',
+			mode: 'chat',
+		})
 		expect(await (await fetch(`${base}/v1/created/info`)).json()).toMatchObject({
 			name: 'Created app',
 			mode: 'chat',
@@ -157,7 +163,10 @@ describe('stub router for the admin pages (sub-project 3)', () => {
 	})
 
 	it('keeps annotations per app: create, newest-first paging, keyword, update, delete', async () => {
-		type Page = { data: { id: string; question: string; answer: string }[] } & Record<string, unknown>
+		type Page = { data: { id: string; question: string; answer: string }[] } & Record<
+			string,
+			unknown
+		>
 		const list = async (query: string) =>
 			(await (await fetch(`${base}/v1/chatflow/apps/annotations${query}`)).json()) as Page
 		for (const question of ['first question', 'second question', 'third thing']) {
@@ -201,8 +210,7 @@ describe('stub router for the admin pages (sub-project 3)', () => {
 
 - [ ] **Step 2: Run them and watch them fail**
 
-Run: `pnpm exec vitest run __tests__/stub-router.test.ts __tests__/stub-events.test.ts`
-Expected: FAIL (`appFromPath` is not exported; no CORS header; `/v1/created/info` answers 404; no annotation list).
+Run: `pnpm exec vitest run __tests__/stub-router.test.ts __tests__/stub-events.test.ts` Expected: FAIL (`appFromPath` is not exported; no CORS header; `/v1/created/info` answers 404; no annotation list).
 
 - [ ] **Step 3: Extend `e2e/fixtures/stub/apps.ts`**
 
@@ -342,109 +350,107 @@ const CORS_HEADERS = {
 3. First lines of `handle`, right after `const method = …`:
 
 ```ts
-	// setHeader values are merged into every later writeHead (Node http), so each answer carries them.
-	for (const [name, value] of Object.entries(CORS_HEADERS)) res.setHeader(name, value)
-	if (method === 'OPTIONS') {
-		res.writeHead(200)
-		return res.end()
-	}
+// setHeader values are merged into every later writeHead (Node http), so each answer carries them.
+for (const [name, value] of Object.entries(CORS_HEADERS)) res.setHeader(name, value)
+if (method === 'OPTIONS') {
+	res.writeHead(200)
+	return res.end()
+}
 ```
 
 4. Below `const { mode, path } = modeFromPath(url.pathname)` add `const matched = appFromPath(url.pathname)`.
 5. Replace the `/info` and `/site` blocks:
 
 ```ts
-	if (method === 'GET' && path === '/info') {
-		return json(res, 200, {
-			name: matched.name,
-			description: 'e2e',
-			tags: [],
-			mode: matched.mode,
-			author_name: 'e2e',
-		})
-	}
-	if (method === 'GET' && path === '/site') {
-		// Dify answers 403 forbidden when the app has no site (OpenAPI getChatWebAppSettings).
-		if (matched.site === 'none') return difyError(res, 403, 'forbidden', 'Site not found.')
-		const icon =
-			matched.site === 'image'
-				? { icon_type: 'image', icon: 'stub-icon-file', icon_url: fileUrl, icon_background: null }
-				: { icon_type: 'emoji', icon: '🤖', icon_background: '#FFEAD5', icon_url: null }
-		return json(res, 200, {
-			title: matched.name,
-			...icon,
-			description: 'e2e',
-			default_language: 'en-US',
-			chat_color_theme: '',
-			show_workflow_steps: true,
-			use_icon_as_answer_icon: false,
-			custom_disclaimer: 'Answers come from the stub.',
-		})
-	}
+if (method === 'GET' && path === '/info') {
+	return json(res, 200, {
+		name: matched.name,
+		description: 'e2e',
+		tags: [],
+		mode: matched.mode,
+		author_name: 'e2e',
+	})
+}
+if (method === 'GET' && path === '/site') {
+	// Dify answers 403 forbidden when the app has no site (OpenAPI getChatWebAppSettings).
+	if (matched.site === 'none') return difyError(res, 403, 'forbidden', 'Site not found.')
+	const icon =
+		matched.site === 'image'
+			? { icon_type: 'image', icon: 'stub-icon-file', icon_url: fileUrl, icon_background: null }
+			: { icon_type: 'emoji', icon: '🤖', icon_background: '#FFEAD5', icon_url: null }
+	return json(res, 200, {
+		title: matched.name,
+		...icon,
+		description: 'e2e',
+		default_language: 'en-US',
+		chat_color_theme: '',
+		show_workflow_steps: true,
+		use_icon_as_answer_icon: false,
+		custom_disclaimer: 'Answers come from the stub.',
+	})
+}
 ```
 
 6. Replace the existing `if (method === 'POST' && path === '/apps/annotations') { … }` block with:
 
 ```ts
-	if (path === '/apps/annotations' || path.startsWith('/apps/annotations/')) {
-		const annotations = annotationsFor(matched.id)
-		const invalid = () => difyError(res, 400, 'invalid_param', 'question and answer are required.')
-		if (method === 'GET' && path === '/apps/annotations') {
-			// Newest first; `keyword` filters question or answer; `limit` ≤ 100 (OpenAPI GET /apps/annotations).
-			const keyword = (url.searchParams.get('keyword') ?? '').trim().toLowerCase()
-			const page = Math.max(1, Number(url.searchParams.get('page')) || 1)
-			const limit = limitOf(url)
-			const found = keyword
-				? annotations.filter(
-						a =>
-							a.question.toLowerCase().includes(keyword) ||
-							a.answer.toLowerCase().includes(keyword),
-					)
-				: annotations
-			return json(res, 200, {
-				data: found.slice((page - 1) * limit, page * limit),
-				has_more: page * limit < found.length,
-				limit,
-				total: found.length,
-				page,
-			})
-		}
-		if (method === 'POST' && path === '/apps/annotations') {
-			const body = await parseJson(req, res)
-			if (!body) return
-			if (typeof body.question !== 'string' || typeof body.answer !== 'string') return invalid()
-			const item = {
-				id: randomUUID(),
-				question: body.question,
-				answer: body.answer,
-				hit_count: 0,
-				created_at: now(),
-			}
-			annotations.unshift(item)
-			return json(res, 201, item)
-		}
-		const index = annotations.findIndex(a => a.id === idAt(path, 3))
-		if (method === 'PUT') {
-			const body = await parseJson(req, res)
-			if (!body) return
-			if (typeof body.question !== 'string' || typeof body.answer !== 'string') return invalid()
-			if (index < 0) return difyError(res, 404, 'not_found', 'Annotation not found.')
-			annotations[index] = { ...annotations[index], question: body.question, answer: body.answer }
-			return json(res, 200, annotations[index])
-		}
-		if (method === 'DELETE') {
-			if (index < 0) return difyError(res, 404, 'not_found', 'Annotation not found.')
-			annotations.splice(index, 1)
-			res.writeHead(204)
-			return res.end()
-		}
+if (path === '/apps/annotations' || path.startsWith('/apps/annotations/')) {
+	const annotations = annotationsFor(matched.id)
+	const invalid = () => difyError(res, 400, 'invalid_param', 'question and answer are required.')
+	if (method === 'GET' && path === '/apps/annotations') {
+		// Newest first; `keyword` filters question or answer; `limit` ≤ 100 (OpenAPI GET /apps/annotations).
+		const keyword = (url.searchParams.get('keyword') ?? '').trim().toLowerCase()
+		const page = Math.max(1, Number(url.searchParams.get('page')) || 1)
+		const limit = limitOf(url)
+		const found = keyword
+			? annotations.filter(
+					a =>
+						a.question.toLowerCase().includes(keyword) || a.answer.toLowerCase().includes(keyword),
+				)
+			: annotations
+		return json(res, 200, {
+			data: found.slice((page - 1) * limit, page * limit),
+			has_more: page * limit < found.length,
+			limit,
+			total: found.length,
+			page,
+		})
 	}
+	if (method === 'POST' && path === '/apps/annotations') {
+		const body = await parseJson(req, res)
+		if (!body) return
+		if (typeof body.question !== 'string' || typeof body.answer !== 'string') return invalid()
+		const item = {
+			id: randomUUID(),
+			question: body.question,
+			answer: body.answer,
+			hit_count: 0,
+			created_at: now(),
+		}
+		annotations.unshift(item)
+		return json(res, 201, item)
+	}
+	const index = annotations.findIndex(a => a.id === idAt(path, 3))
+	if (method === 'PUT') {
+		const body = await parseJson(req, res)
+		if (!body) return
+		if (typeof body.question !== 'string' || typeof body.answer !== 'string') return invalid()
+		if (index < 0) return difyError(res, 404, 'not_found', 'Annotation not found.')
+		annotations[index] = { ...annotations[index], question: body.question, answer: body.answer }
+		return json(res, 200, annotations[index])
+	}
+	if (method === 'DELETE') {
+		if (index < 0) return difyError(res, 404, 'not_found', 'Annotation not found.')
+		annotations.splice(index, 1)
+		res.writeHead(204)
+		return res.end()
+	}
+}
 ```
 
 - [ ] **Step 6: Run the stub tests**
 
-Run: `pnpm exec vitest run __tests__/stub-router.test.ts __tests__/stub-events.test.ts`
-Expected: PASS (the older cases too).
+Run: `pnpm exec vitest run __tests__/stub-router.test.ts __tests__/stub-events.test.ts` Expected: PASS (the older cases too).
 
 - [ ] **Step 7: Constants, the db helper and the seed**
 
@@ -485,33 +491,32 @@ export const withDb = async <T>(fn: (db: mysql.Connection) => Promise<T>): Promi
 `e2e/auth.setup.ts` — import `SEEDED_EXTRA_APPS` next to `STUB_APPS`, loop over both and seed `is_enabled`:
 
 ```ts
-	for (const app of [...STUB_APPS, ...SEEDED_EXTRA_APPS]) {
-		// A database that survives between runs keeps its rows: the display mode, the annotation switch and the
-		// status are refreshed on them.
-		await db.execute(
-			'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key, opening_statement_display_mode, enable_annotation, is_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE opening_statement_display_mode = ?, enable_annotation = ?, is_enabled = ?',
-			[
-				app.id,
-				app.name,
-				app.mode,
-				'Seeded for the e2e suite',
-				`${stubApiBase}${app.prefix}`,
-				'app-e2e',
-				app.openingStatementDisplayMode,
-				app.enableAnnotation,
-				app.isEnabled ?? 1,
-				app.openingStatementDisplayMode,
-				app.enableAnnotation,
-				app.isEnabled ?? 1,
-			],
-		)
-	}
+for (const app of [...STUB_APPS, ...SEEDED_EXTRA_APPS]) {
+	// A database that survives between runs keeps its rows: the display mode, the annotation switch and the
+	// status are refreshed on them.
+	await db.execute(
+		'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key, opening_statement_display_mode, enable_annotation, is_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE opening_statement_display_mode = ?, enable_annotation = ?, is_enabled = ?',
+		[
+			app.id,
+			app.name,
+			app.mode,
+			'Seeded for the e2e suite',
+			`${stubApiBase}${app.prefix}`,
+			'app-e2e',
+			app.openingStatementDisplayMode,
+			app.enableAnnotation,
+			app.isEnabled ?? 1,
+			app.openingStatementDisplayMode,
+			app.enableAnnotation,
+			app.isEnabled ?? 1,
+		],
+	)
+}
 ```
 
 - [ ] **Step 8: Run the setup and the harness against the new seed**
 
-Run: `pnpm exec playwright test e2e/harness.spec.ts e2e/smoke.spec.ts`
-Expected: PASS on all three projects (the setup seeds seven apps; the old app list still renders them).
+Run: `pnpm exec playwright test e2e/harness.spec.ts e2e/smoke.spec.ts` Expected: PASS on all three projects (the setup seeds seven apps; the old app list still renders them).
 
 - [ ] **Step 9: Gates and commit**
 
@@ -530,10 +535,12 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 A Dify site's icon on an app card and in the admin table, or the mode icon when the app has none (spec §4.3). The pure decision is unit-tested; the component is exercised by Task 3's e2e.
 
 **Files:**
+
 - Create: `components/apps/app-icon-kind.ts`, `components/apps/app-icon.tsx`
 - Test: `__tests__/app-icon-kind.test.ts`
 
 **Interfaces:**
+
 - Produces: `type AppIconKind = { kind: 'emoji'; emoji: string; background?: string } | { kind: 'image'; src: string } | { kind: 'mode' }`; `toAppIconKind(answer: unknown): AppIconKind`; default export `AppIcon({ appId: string; mode?: AppModeEnums; size?: 'large' | 'small' })` (client component).
 
 - [ ] **Step 1: Write the failing test**
@@ -550,7 +557,9 @@ const site = (data: unknown) => ({ code: 200, data })
 
 describe('toAppIconKind', () => {
 	it('reads an emoji icon with its background', () => {
-		expect(toAppIconKind(site({ icon_type: 'emoji', icon: '🤖', icon_background: '#FFEAD5' }))).toEqual({
+		expect(
+			toAppIconKind(site({ icon_type: 'emoji', icon: '🤖', icon_background: '#FFEAD5' })),
+		).toEqual({
 			kind: 'emoji',
 			emoji: '🤖',
 			background: '#FFEAD5',
@@ -566,11 +575,15 @@ describe('toAppIconKind', () => {
 	})
 
 	it('reads an image icon from icon_url, and a link icon from icon', () => {
-		expect(toAppIconKind(site({ icon_type: 'image', icon: 'file-id', icon_url: 'https://x/i.png' }))).toEqual({
+		expect(
+			toAppIconKind(site({ icon_type: 'image', icon: 'file-id', icon_url: 'https://x/i.png' })),
+		).toEqual({
 			kind: 'image',
 			src: 'https://x/i.png',
 		})
-		expect(toAppIconKind(site({ icon_type: 'link', icon: 'https://x/l.png', icon_url: null }))).toEqual({
+		expect(
+			toAppIconKind(site({ icon_type: 'link', icon: 'https://x/l.png', icon_url: null })),
+		).toEqual({
 			kind: 'image',
 			src: 'https://x/l.png',
 		})
@@ -578,10 +591,14 @@ describe('toAppIconKind', () => {
 
 	it('falls back to the mode icon for anything else', () => {
 		// Dify's 403 for an app without a site, passed through by the proxy.
-		expect(toAppIconKind({ code: 403, data: { code: 'forbidden', message: 'x', status: 403 } })).toEqual({
+		expect(
+			toAppIconKind({ code: 403, data: { code: 'forbidden', message: 'x', status: 403 } }),
+		).toEqual({
 			kind: 'mode',
 		})
-		expect(toAppIconKind(site({ icon_type: 'image', icon: 'file-id', icon_url: null }))).toEqual({ kind: 'mode' })
+		expect(toAppIconKind(site({ icon_type: 'image', icon: 'file-id', icon_url: null }))).toEqual({
+			kind: 'mode',
+		})
 		expect(toAppIconKind(site({ icon_type: 'emoji', icon: '' }))).toEqual({ kind: 'mode' })
 		expect(toAppIconKind(site({ icon_type: 'sticker', icon: 'x' }))).toEqual({ kind: 'mode' })
 		expect(toAppIconKind({ error: 'fetch failed' })).toEqual({ kind: 'mode' })
@@ -593,8 +610,7 @@ describe('toAppIconKind', () => {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm exec vitest run __tests__/app-icon-kind.test.ts`
-Expected: FAIL (module not found).
+Run: `pnpm exec vitest run __tests__/app-icon-kind.test.ts` Expected: FAIL (module not found).
 
 - [ ] **Step 3: Implement `components/apps/app-icon-kind.ts`**
 
@@ -624,7 +640,8 @@ export const toAppIconKind = (answer: unknown): AppIconKind => {
 			background: filled(site.icon_background) ? site.icon_background : undefined,
 		}
 	}
-	if (site.icon_type === 'image' && filled(site.icon_url)) return { kind: 'image', src: site.icon_url }
+	if (site.icon_type === 'image' && filled(site.icon_url))
+		return { kind: 'image', src: site.icon_url }
 	if (site.icon_type === 'link' && filled(site.icon)) return { kind: 'image', src: site.icon }
 	return { kind: 'mode' }
 }
@@ -632,8 +649,7 @@ export const toAppIconKind = (answer: unknown): AppIconKind => {
 
 - [ ] **Step 4: Run the test**
 
-Run: `pnpm exec vitest run __tests__/app-icon-kind.test.ts`
-Expected: PASS.
+Run: `pnpm exec vitest run __tests__/app-icon-kind.test.ts` Expected: PASS.
 
 - [ ] **Step 5: The component `components/apps/app-icon.tsx`**
 
@@ -743,11 +759,13 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
 ---
+
 ### Task 3: `/apps` — server page, gallery, search, load and error states
 
 Spec §3.1, §3.3, §4. The first server page of the pattern (ADR-0020 is written in Task 11; cite the spec until then).
 
 **Files:**
+
 - Create: `lib/match-query.ts`, `components/apps/app-summary.ts`, `components/apps/app-gallery.tsx`, `components/apps/app-card.tsx`, `components/apps/app-gallery-skeleton.tsx`, `components/apps/app-gallery.module.css`, `components/shell/route-error.tsx`, `app/(user)/apps/loading.tsx`, `app/(user)/apps/error.tsx`
 - Replace: `app/(user)/apps/page.tsx`
 - Modify: `locales/{en,zh,ar}/translation.json`, `e2e/theme-aliases.spec.ts`, `e2e/ssr-first-paint.spec.ts`
@@ -755,6 +773,7 @@ Spec §3.1, §3.3, §4. The first server page of the pattern (ADR-0020 is writte
 - Test: `__tests__/match-query.test.ts`, `__tests__/app-summary.test.ts`, `__tests__/apps-page.test.ts`, `e2e/apps.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `AppIcon` (Task 2); `DISABLED_APP`, `NO_SITE_APP` (Task 1).
 - Produces: `matchesQuery(fields: ReadonlyArray<string | null | undefined>, query: string): boolean`; `type AppSummary = { id: string; missingInfo: false; name: string; description: string; mode?: AppModeEnums; tags: string[] } | { id: string; missingInfo: true }`; `toAppSummaries(items: IDifyAppItem[]): AppSummary[]`; default export `RouteError({ retry }: { retry: () => void })`; i18n keys `common.retry`, `common.load_failed`, `app.search_placeholder`, `app.no_match`.
 
@@ -846,14 +865,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppModeEnums, EIsEnabled } from '@/lib/core'
 
 // vi.mock factories are hoisted above imports, so the mocks must be created with vi.hoisted.
-const { requireSessionUser, getAppList, UserShell, AppGallery, redirectSignal } = vi.hoisted(() => ({
-	requireSessionUser: vi.fn(),
-	getAppList: vi.fn(),
-	// Client component trees; the page test only checks the props it hands them.
-	UserShell: () => null,
-	AppGallery: () => null,
-	redirectSignal: new Error('NEXT_REDIRECT'),
-}))
+const { requireSessionUser, getAppList, UserShell, AppGallery, redirectSignal } = vi.hoisted(
+	() => ({
+		requireSessionUser: vi.fn(),
+		getAppList: vi.fn(),
+		// Client component trees; the page test only checks the props it hands them.
+		UserShell: () => null,
+		AppGallery: () => null,
+		redirectSignal: new Error('NEXT_REDIRECT'),
+	}),
+)
 vi.mock('@/lib/session-user', () => ({ requireSessionUser }))
 vi.mock('@/repository/app', () => ({ getAppList }))
 vi.mock('@/components/shell/user-shell', () => ({ default: UserShell }))
@@ -896,8 +917,7 @@ describe('/apps page', () => {
 
 - [ ] **Step 2: Run them and watch them fail**
 
-Run: `pnpm exec vitest run __tests__/match-query.test.ts __tests__/app-summary.test.ts __tests__/apps-page.test.ts`
-Expected: FAIL (modules not found; the old page is a client component that renders `UserShell` with hooks).
+Run: `pnpm exec vitest run __tests__/match-query.test.ts __tests__/app-summary.test.ts __tests__/apps-page.test.ts` Expected: FAIL (modules not found; the old page is a client component that renders `UserShell` with hooks).
 
 - [ ] **Step 3: `lib/match-query.ts` and `components/apps/app-summary.ts`**
 
@@ -907,7 +927,10 @@ Expected: FAIL (modules not found; the old page is a client component that rende
  * The search boxes of the app list and the admin tables (spec §4.4): true when any field contains the query,
  * case-insensitive, surrounding spaces ignored; an empty query lets everything through.
  */
-export const matchesQuery = (fields: ReadonlyArray<string | null | undefined>, query: string): boolean => {
+export const matchesQuery = (
+	fields: ReadonlyArray<string | null | undefined>,
+	query: string,
+): boolean => {
 	const needle = query.trim().toLocaleLowerCase()
 	if (!needle) return true
 	return fields.some(field => field?.toLocaleLowerCase().includes(needle))
@@ -950,8 +973,7 @@ export const toAppSummaries = (items: IDifyAppItem[]): AppSummary[] =>
 
 - [ ] **Step 4: Locale keys (all three files)**
 
-Add to the `common` object — en: `"retry": "Try again"`, `"load_failed": "This page could not be loaded"`; zh: `"retry": "重试"`, `"load_failed": "页面加载失败"`; ar: `"retry": "إعادة المحاولة"`, `"load_failed": "تعذّر تحميل هذه الصفحة"`.
-Add to the `app` object — en: `"search_placeholder": "Search apps"`, `"no_match": "No apps match your search"`; zh: `"search_placeholder": "搜索应用"`, `"no_match": "没有符合搜索条件的应用"`; ar: `"search_placeholder": "البحث في التطبيقات"`, `"no_match": "لا توجد تطبيقات تطابق بحثك"`.
+Add to the `common` object — en: `"retry": "Try again"`, `"load_failed": "This page could not be loaded"`; zh: `"retry": "重试"`, `"load_failed": "页面加载失败"`; ar: `"retry": "إعادة المحاولة"`, `"load_failed": "تعذّر تحميل هذه الصفحة"`. Add to the `app` object — en: `"search_placeholder": "Search apps"`, `"no_match": "No apps match your search"`; zh: `"search_placeholder": "搜索应用"`, `"no_match": "没有符合搜索条件的应用"`; ar: `"search_placeholder": "البحث في التطبيقات"`, `"no_match": "لا توجد تطبيقات تطابق بحثك"`.
 
 - [ ] **Step 5: `components/shell/route-error.tsx`**
 
@@ -1118,9 +1140,7 @@ export default function AppGallery({ apps }: { apps: AppSummary[] }) {
 	const [query, setQuery] = useState('')
 	// A row without info has nothing to search, so it shows only while the query is empty.
 	const shown = apps.filter(app =>
-		app.missingInfo
-			? !query.trim()
-			: matchesQuery([app.name, app.description, ...app.tags], query),
+		app.missingInfo ? !query.trim() : matchesQuery([app.name, app.description, ...app.tags], query),
 	)
 
 	return (
@@ -1294,8 +1314,7 @@ Delete `components/shared/index.ts` and `components/shared/lucide-icon.tsx` (the
 
 - [ ] **Step 8: Run the unit tests**
 
-Run: `pnpm exec vitest run __tests__/match-query.test.ts __tests__/app-summary.test.ts __tests__/apps-page.test.ts __tests__/i18n-locales.test.ts`
-Expected: PASS.
+Run: `pnpm exec vitest run __tests__/match-query.test.ts __tests__/app-summary.test.ts __tests__/apps-page.test.ts __tests__/i18n-locales.test.ts` Expected: PASS.
 
 - [ ] **Step 9: e2e — the new spec and the two changed ones**
 
@@ -1317,7 +1336,9 @@ test('the app list shows enabled apps as links to their chat and hides disabled 
 	await expect(page.getByText(DISABLED_APP.name)).toHaveCount(0)
 })
 
-test('a card shows the Dify emoji icon, or the mode icon when the app has no site', async ({ page }) => {
+test('a card shows the Dify emoji icon, or the mode icon when the app has no site', async ({
+	page,
+}) => {
 	await page.goto('/apps')
 	await expect(page.getByRole('link', card('Stub app')).getByText('🤖')).toBeVisible()
 	// antd icons render role="img" named after the icon; the no-site app is a workflow app.
@@ -1340,9 +1361,9 @@ test('on a phone the app list never scrolls sideways', async ({ page, isMobile }
 	test.skip(!isMobile, 'a phone-width check')
 	await page.goto('/apps')
 	await expect(page.getByRole('link', card('Stub app'))).toBeVisible()
-	expect(
-		await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-	).toBe(true)
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+		true,
+	)
 })
 ```
 
@@ -1386,8 +1407,7 @@ test('the app list arrives with its apps in the first HTML and no API key (spec 
 })
 ```
 
-Run: `pnpm exec playwright test e2e/apps.spec.ts e2e/theme-aliases.spec.ts e2e/ssr-first-paint.spec.ts e2e/smoke.spec.ts e2e/providers.spec.ts`
-Expected: PASS on all projects (the phone test runs on `mobile-light` only).
+Run: `pnpm exec playwright test e2e/apps.spec.ts e2e/theme-aliases.spec.ts e2e/ssr-first-paint.spec.ts e2e/smoke.spec.ts e2e/providers.spec.ts` Expected: PASS on all projects (the phone test runs on `mobile-light` only).
 
 - [ ] **Step 10: Gates and commit**
 
@@ -1401,11 +1421,13 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
 ---
+
 ### Task 4: Admin frame and the app table — server page, filters, search, user view, sync, delete
 
 Spec §3.3–§3.5, §5.1–§5.3. Create/edit arrive in Task 5 and annotations in Task 6; this task removes the old drawers with the old page.
 
 **Files:**
+
 - Create: `components/admin/admin-page-header.tsx`, `components/admin/admin-page-header.module.css`, `components/admin/apps/admin-app-row.ts`, `components/admin/apps/app-record.ts`, `components/admin/apps/app-management.tsx`, `components/admin/apps/app-management.module.css`, `components/admin/apps/app-actions.tsx`, `app/(admin)/loading.tsx`, `app/(admin)/error.tsx`
 - Replace: `app/(admin)/app-management/page.tsx`
 - Modify: `components/shell/admin-shell.tsx`, `components/shell/shell.module.css`, `lib/api/base-request.ts`, `locales/{en,zh,ar}/translation.json`, `e2e/ssr-first-paint.spec.ts`
@@ -1413,6 +1435,7 @@ Spec §3.3–§3.5, §5.1–§5.3. Create/edit arrive in Task 5 and annotations 
 - Test: `__tests__/admin-app-row.test.ts`, `__tests__/app-record.test.ts`, `__tests__/app-management-page.test.ts`, `e2e/admin-apps.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `AppIcon` (Task 2); `matchesQuery`, `RouteError` (Task 3); `withDb`, `CREATED_APP` (Task 1).
 - Produces: `interface AdminAppRow { id: string; name: string; mode?: AppModeEnums; description: string; tags: string[]; isEnabled: EIsEnabled }`; `toAdminAppRows(items: Pick<IDifyAppItem, 'id' | 'info' | 'isEnabled'>[]): AdminAppRow[]`; `supportsAnnotations(mode?: AppModeEnums): boolean`; `isAppInfo(value: unknown): value is IGetAppInfoResponse`; `isFailedUpdate(result: unknown): boolean`; default export `AdminPageHeader({ title: ReactNode; subtitle?: ReactNode; action?: ReactNode })`; default export `AppManagement({ apps: AdminAppRow[] })`; default export `AppActions({ app: AdminAppRow })` (Task 5 adds `onEdit`, Task 6 `onAnnotations`); key `admin_apps.more_actions`.
 
@@ -1484,7 +1507,9 @@ describe('isAppInfo', () => {
 
 	it('rejects Dify error bodies and anything else', () => {
 		// lib/api parses any JSON answer, so a refused key arrives as a value, not a rejection.
-		expect(isAppInfo({ code: 'unauthorized', message: 'Access token is invalid', status: 401 })).toBe(false)
+		expect(
+			isAppInfo({ code: 'unauthorized', message: 'Access token is invalid', status: 401 }),
+		).toBe(false)
 		expect(isAppInfo({ name: 3 })).toBe(false)
 		expect(isAppInfo(undefined)).toBe(false)
 		expect(isAppInfo('<html>')).toBe(false)
@@ -1558,8 +1583,7 @@ describe('/app-management page', () => {
 
 - [ ] **Step 2: Run them and watch them fail**
 
-Run: `pnpm exec vitest run __tests__/admin-app-row.test.ts __tests__/app-record.test.ts __tests__/app-management-page.test.ts`
-Expected: FAIL (modules not found).
+Run: `pnpm exec vitest run __tests__/admin-app-row.test.ts __tests__/app-record.test.ts __tests__/app-management-page.test.ts` Expected: FAIL (modules not found).
 
 - [ ] **Step 3: The pure modules**
 
@@ -1619,8 +1643,7 @@ export const isFailedUpdate = (result: unknown) => isRecord(result) && result.su
 
 - [ ] **Step 4: Run the unit tests for the pure modules**
 
-Run: `pnpm exec vitest run __tests__/admin-app-row.test.ts __tests__/app-record.test.ts`
-Expected: PASS.
+Run: `pnpm exec vitest run __tests__/admin-app-row.test.ts __tests__/app-record.test.ts` Expected: PASS.
 
 - [ ] **Step 5: Admin frame — shell padding, header, loading, error**
 
@@ -1641,7 +1664,7 @@ Expected: PASS.
 `components/shell/admin-shell.tsx` — drop `theme` from the antd import and the `token` line, and render the content with both classes:
 
 ```tsx
-			<Layout.Content className={`${styles.content} ${styles.adminContent}`}>{children}</Layout.Content>
+<Layout.Content className={`${styles.content} ${styles.adminContent}`}>{children}</Layout.Content>
 ```
 
 `components/admin/admin-page-header.module.css`:
@@ -1732,10 +1755,10 @@ export default function AdminError({
 Replace the 401 branch and remove the now unused `message` (antd) and `i18next` imports:
 
 ```ts
-		if (result.status === 401) {
-			// The admin pages show the translated error through App.useApp() (spec §11); no static antd message here.
-			throw new UnauthorizedError('Unauthorized')
-		}
+if (result.status === 401) {
+	// The admin pages show the translated error through App.useApp() (spec §11); no static antd message here.
+	throw new UnauthorizedError('Unauthorized')
+}
 ```
 
 - [ ] **Step 7: Locale key**
@@ -2016,8 +2039,7 @@ Delete `app/(admin)/app-management/components/annotation-manager-drawer.tsx`, `a
 
 - [ ] **Step 9: Run the unit tests**
 
-Run: `pnpm exec vitest run __tests__/app-management-page.test.ts __tests__/admin-app-row.test.ts __tests__/app-record.test.ts __tests__/i18n-locales.test.ts`
-Expected: PASS.
+Run: `pnpm exec vitest run __tests__/app-management-page.test.ts __tests__/admin-app-row.test.ts __tests__/app-record.test.ts __tests__/i18n-locales.test.ts` Expected: PASS.
 
 - [ ] **Step 10: e2e**
 
@@ -2047,7 +2069,9 @@ const rowById = (page: Page, id: string) => page.locator(`tr[data-row-key="${id}
 const moreActions = (page: Page, id: string) =>
 	rowById(page, id).getByRole('button', { name: 'More actions' })
 
-test('the table shows every app with its status, and the type filter narrows it', async ({ page }) => {
+test('the table shows every app with its status, and the type filter narrows it', async ({
+	page,
+}) => {
 	await page.goto('/app-management')
 	await expect(page.getByRole('row', { name: /Stub disabled/ }).getByText('Disabled')).toBeVisible()
 	await page.getByRole('columnheader', { name: 'Type' }).getByRole('button').click()
@@ -2138,8 +2162,7 @@ test('the app table arrives with its rows in the first HTML and no API key (spec
 })
 ```
 
-Run: `pnpm exec playwright test e2e/admin-apps.spec.ts e2e/ssr-first-paint.spec.ts e2e/smoke.spec.ts e2e/shell.spec.ts`
-Expected: PASS (the phone test runs on `mobile-light` only).
+Run: `pnpm exec playwright test e2e/admin-apps.spec.ts e2e/ssr-first-paint.spec.ts e2e/smoke.spec.ts e2e/shell.spec.ts` Expected: PASS (the phone test runs on `mobile-light` only).
 
 - [ ] **Step 11: Gates and commit**
 
@@ -2153,16 +2176,19 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
 ---
+
 ### Task 5: Create and edit an app — the form drawer
 
 Spec §5.4. The full record is loaded with `getApp(id)` only for edit; a late answer after close or after opening another app is dropped (Review Focus 3).
 
 **Files:**
+
 - Create: `components/admin/apps/app-form-values.ts`, `components/admin/apps/use-app-record.ts`, `components/admin/apps/app-settings-fields.tsx`, `components/admin/apps/app-form-drawer.tsx`
 - Modify: `components/admin/apps/app-record.ts` (`RecordState`, `acceptRecord`, `dropRecord`), `components/admin/apps/app-management.tsx`, `components/admin/apps/app-actions.tsx`, `locales/{en,zh,ar}/translation.json`, `e2e/admin-apps.spec.ts`
 - Test: `__tests__/app-form-values.test.ts`, `__tests__/app-record.test.ts`
 
 **Interfaces:**
+
 - Consumes: `isAppInfo`, `isFailedUpdate`, `AppManagement`, `AppActions` (Task 4); `CREATED_APP`, `withDb` (Task 1).
 - Produces: `interface AppFormValues`, `DEFAULT_APP_FORM_VALUES`, `toAppFormValues(item: IDifyAppItem): AppFormValues`, `fromAppFormValues(values: AppFormValues, info: IGetAppInfoResponse): Omit<IDifyAppItem, 'id'>`, `statusSwitchProps: { getValueProps(value?: EIsEnabled): { checked: boolean }; normalize(checked: boolean): EIsEnabled }`; `type RecordState = { appId: string; record?: IDifyAppItem } | null`, `acceptRecord(current: RecordState, appId: string, record: IDifyAppItem): RecordState`, `dropRecord(current: RecordState, appId: string): RecordState`; `useAppRecord(): { state: RecordState; open(appId: string): Promise<void>; close(): void }` (Task 6 reuses it); `AppActions` gains `onEdit: () => void`; key `admin_apps.dify_unreachable`; `admin_apps.save_failed` loses its `{{error}}` placeholder.
 
@@ -2242,7 +2268,9 @@ describe('fromAppFormValues', () => {
 
 	it("falls back to the form's mode when Dify reports none", () => {
 		const withoutMode = { name: info.name, description: info.description, tags: info.tags }
-		expect(fromAppFormValues(toAppFormValues(saved), withoutMode).info.mode).toBe(AppModeEnums.CHATFLOW)
+		expect(fromAppFormValues(toAppFormValues(saved), withoutMode).info.mode).toBe(
+			AppModeEnums.CHATFLOW,
+		)
 	})
 
 	it('keeps an empty feedback text when the form reply field is not rendered', () => {
@@ -2289,8 +2317,7 @@ describe('acceptRecord and dropRecord', () => {
 
 - [ ] **Step 2: Run them and watch them fail**
 
-Run: `pnpm exec vitest run __tests__/app-form-values.test.ts __tests__/app-record.test.ts`
-Expected: FAIL (module and exports not found).
+Run: `pnpm exec vitest run __tests__/app-form-values.test.ts __tests__/app-record.test.ts` Expected: FAIL (module and exports not found).
 
 - [ ] **Step 3: The pure parts**
 
@@ -2404,13 +2431,11 @@ export const dropRecord = (current: RecordState, appId: string): RecordState =>
 
 - [ ] **Step 4: Run the unit tests**
 
-Run: `pnpm exec vitest run __tests__/app-form-values.test.ts __tests__/app-record.test.ts`
-Expected: PASS.
+Run: `pnpm exec vitest run __tests__/app-form-values.test.ts __tests__/app-record.test.ts` Expected: PASS.
 
 - [ ] **Step 5: Locale keys**
 
-Add to `admin_apps` — en `"dify_unreachable": "Could not reach the Dify app. Check the API Base and API Secret."`, zh `"dify_unreachable": "无法连接到 Dify 应用，请检查 API Base 和 API Secret。"`, ar `"dify_unreachable": "تعذّر الوصول إلى تطبيق Dify. تحقّق من API Base وAPI Secret."`.
-Change `admin_apps.save_failed` (the Error object no longer goes into the text) — en `"Failed to save app configuration"`, zh `"保存应用配置失败"`, ar `"فشل حفظ إعدادات التطبيق"`.
+Add to `admin_apps` — en `"dify_unreachable": "Could not reach the Dify app. Check the API Base and API Secret."`, zh `"dify_unreachable": "无法连接到 Dify 应用，请检查 API Base 和 API Secret。"`, ar `"dify_unreachable": "تعذّر الوصول إلى تطبيق Dify. تحقّق من API Base وAPI Secret."`. Change `admin_apps.save_failed` (the Error object no longer goes into the text) — en `"Failed to save app configuration"`, zh `"保存应用配置失败"`, ar `"فشل حفظ إعدادات التطبيق"`.
 
 - [ ] **Step 6: The loader hook**
 
@@ -2733,60 +2758,61 @@ export default function AppFormDrawer({ open, mode, record, onClose }: AppFormDr
 `components/admin/apps/app-actions.tsx` — the props become `{ app: AdminAppRow; onEdit: () => void }`; add `Flex` to the antd import; return an Edit link button beside the dropdown:
 
 ```tsx
-	return (
-		<Flex
-			align="center"
-			gap="small"
+return (
+	<Flex
+		align="center"
+		gap="small"
+	>
+		<Button
+			type="link"
+			onClick={onEdit}
+		>
+			{t('common.edit')}
+		</Button>
+		<Dropdown
+			trigger={['click']}
+			menu={{ items, onClick }}
 		>
 			<Button
-				type="link"
-				onClick={onEdit}
-			>
-				{t('common.edit')}
-			</Button>
-			<Dropdown
-				trigger={['click']}
-				menu={{ items, onClick }}
-			>
-				<Button
-					type="text"
-					icon={<EllipsisOutlined />}
-					aria-label={t('admin_apps.more_actions')}
-					title={t('admin_apps.more_actions')}
-				/>
-			</Dropdown>
-		</Flex>
-	)
+				type="text"
+				icon={<EllipsisOutlined />}
+				aria-label={t('admin_apps.more_actions')}
+				title={t('admin_apps.more_actions')}
+			/>
+		</Dropdown>
+	</Flex>
+)
 ```
 
 `components/admin/apps/app-management.tsx`:
+
 - add `PlusOutlined` to the icons import and `Button` to the antd import; import `AppFormDrawer from './app-form-drawer'` and `{ useAppRecord } from './use-app-record'`;
 - inside the component:
 
 ```tsx
-	const editor = useAppRecord()
-	const [creating, setCreating] = useState(false)
-	const closeDrawer = () => {
-		setCreating(false)
-		editor.close()
-	}
+const editor = useAppRecord()
+const [creating, setCreating] = useState(false)
+const closeDrawer = () => {
+	setCreating(false)
+	editor.close()
+}
 ```
 
 - the header and the actions column:
 
 ```tsx
-			<AdminPageHeader
-				title={t('admin_apps.title')}
-				action={
-					<Button
-						type="primary"
-						icon={<PlusOutlined />}
-						onClick={() => setCreating(true)}
-					>
-						{t('common.new')}
-					</Button>
-				}
-			/>
+<AdminPageHeader
+	title={t('admin_apps.title')}
+	action={
+		<Button
+			type="primary"
+			icon={<PlusOutlined />}
+			onClick={() => setCreating(true)}
+		>
+			{t('common.new')}
+		</Button>
+	}
+/>
 ```
 
 ```tsx
@@ -2801,12 +2827,12 @@ export default function AppFormDrawer({ open, mode, record, onClose }: AppFormDr
 - after the `Table`:
 
 ```tsx
-			<AppFormDrawer
-				open={creating || editor.state !== null}
-				mode={creating ? 'create' : 'edit'}
-				record={editor.state?.record}
-				onClose={closeDrawer}
-			/>
+<AppFormDrawer
+	open={creating || editor.state !== null}
+	mode={creating ? 'create' : 'edit'}
+	record={editor.state?.record}
+	onClose={closeDrawer}
+/>
 ```
 
 - [ ] **Step 9: e2e — create, edit, an error body from Dify**
@@ -2820,7 +2846,9 @@ test.describe('create and edit', () => {
 		await withDb(db => db.execute('DELETE FROM dify_apps WHERE name = ?', [CREATED_APP.name]))
 	})
 
-	test('an admin creates an app from its Dify API base and key, then disables it', async ({ page }) => {
+	test('an admin creates an app from its Dify API base and key, then disables it', async ({
+		page,
+	}) => {
 		await page.goto('/app-management')
 		await page.getByRole('button', { name: 'New' }).click()
 		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
@@ -2834,7 +2862,9 @@ test.describe('create and edit', () => {
 		await expect(row.locator('img')).toHaveAttribute('src', /stub-image\.png/)
 
 		await row.getByRole('button', { name: 'Edit' }).click()
-		const edit = page.getByRole('dialog').filter({ hasText: `Edit app configuration - ${CREATED_APP.name}` })
+		const edit = page
+			.getByRole('dialog')
+			.filter({ hasText: `Edit app configuration - ${CREATED_APP.name}` })
 		await edit.getByRole('switch', { name: 'App status' }).click()
 		await edit.getByRole('button', { name: 'Update' }).click()
 		await expect(row.getByText('Disabled')).toBeVisible()
@@ -2867,8 +2897,7 @@ test.describe('create and edit', () => {
 })
 ```
 
-Run: `pnpm exec playwright test e2e/admin-apps.spec.ts`
-Expected: PASS on all projects.
+Run: `pnpm exec playwright test e2e/admin-apps.spec.ts` Expected: PASS on all projects.
 
 - [ ] **Step 10: Gates and commit**
 
@@ -2881,16 +2910,19 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
 ---
+
 ### Task 6: Annotations — drawer, keyword search, add/edit modal, delete
 
 Spec §5.5. The browser calls Dify with the app's key (loaded through `useAppRecord`), as today; the stub from Task 1 serves the endpoints.
 
 **Files:**
+
 - Modify: `lib/api/client.ts` (`IGetAnnotationListRequest.keyword`, `getAnnotationList`), `components/admin/apps/app-record.ts` (`isAnnotationPage`), `components/admin/apps/app-actions.tsx`, `components/admin/apps/app-management.tsx`, `locales/{en,zh,ar}/translation.json`, `e2e/admin-apps.spec.ts`
 - Create: `components/admin/apps/annotations-drawer.tsx`, `components/admin/apps/annotation-form-modal.tsx`
 - Test: `__tests__/app-record.test.ts`
 
 **Interfaces:**
+
 - Consumes: `useAppRecord`, `AppActions`, `AppManagement` (Tasks 4–5); `supportsAnnotations` (Task 4); `APP_IDS` (existing).
 - Produces: `isAnnotationPage(value: unknown): value is IGetAnnotationListResponse`; default export `AnnotationsDrawer({ open: boolean; record?: IDifyAppItem; onClose: () => void })`; default export `AnnotationFormModal({ open: boolean; initial?: Pick<IAnnotationItem, 'question' | 'answer'>; onSubmit: (values: { question: string; answer: string }) => Promise<void>; onCancel: () => void })`; `AppActions` gains `onAnnotations?: () => void`; keys `annotation.search_placeholder`, `annotation.load_failed`.
 
@@ -2914,8 +2946,7 @@ describe('isAnnotationPage', () => {
 
 - [ ] **Step 2: Run it and watch it fail**
 
-Run: `pnpm exec vitest run __tests__/app-record.test.ts`
-Expected: FAIL (`isAnnotationPage` is not exported).
+Run: `pnpm exec vitest run __tests__/app-record.test.ts` Expected: FAIL (`isAnnotationPage` is not exported).
 
 - [ ] **Step 3: The pure part and the client's `keyword`**
 
@@ -2939,19 +2970,18 @@ export interface IGetAnnotationListRequest {
 ```
 
 ```ts
-	getAnnotationList = async (params?: IGetAnnotationListRequest) => {
-		return this.baseRequest.get('/apps/annotations', {
-			page: (params?.page || 1).toString(),
-			limit: (params?.limit || 20).toString(),
-			...(params?.keyword ? { keyword: params.keyword } : {}),
-		}) as Promise<IGetAnnotationListResponse>
-	}
+getAnnotationList = async (params?: IGetAnnotationListRequest) => {
+	return this.baseRequest.get('/apps/annotations', {
+		page: (params?.page || 1).toString(),
+		limit: (params?.limit || 20).toString(),
+		...(params?.keyword ? { keyword: params.keyword } : {}),
+	}) as Promise<IGetAnnotationListResponse>
+}
 ```
 
 - [ ] **Step 4: Run the unit test**
 
-Run: `pnpm exec vitest run __tests__/app-record.test.ts`
-Expected: PASS.
+Run: `pnpm exec vitest run __tests__/app-record.test.ts` Expected: PASS.
 
 - [ ] **Step 5: Locale keys**
 
@@ -3238,7 +3268,9 @@ export default function AnnotationsDrawer({
 						allowClear
 						placeholder={t('annotation.search_placeholder')}
 						aria-label={t('annotation.search_placeholder')}
-						onSearch={value => setQuery(current => ({ ...current, page: 1, keyword: value.trim() }))}
+						onSearch={value =>
+							setQuery(current => ({ ...current, page: 1, keyword: value.trim() }))
+						}
 					/>
 					{loaded.status === 'error' ? (
 						<Result
@@ -3303,11 +3335,11 @@ and `onClick` handles it: `if (key === 'annotations') onAnnotations?.()`.
 and after `AppFormDrawer`:
 
 ```tsx
-			<AnnotationsDrawer
-				open={annotator.state !== null}
-				record={annotator.state?.record}
-				onClose={annotator.close}
-			/>
+<AnnotationsDrawer
+	open={annotator.state !== null}
+	record={annotator.state?.record}
+	onClose={annotator.close}
+/>
 ```
 
 - [ ] **Step 9: e2e**
@@ -3367,8 +3399,7 @@ test.describe('annotations', () => {
 
 If `Input.Search`'s textbox has no `searchbox` role in antd 6.6.5 (check the trace), locate it with `getByRole('textbox', { name: 'Search annotations' })`.
 
-Run: `pnpm exec playwright test e2e/admin-apps.spec.ts`
-Expected: PASS on all projects.
+Run: `pnpm exec playwright test e2e/admin-apps.spec.ts` Expected: PASS on all projects.
 
 - [ ] **Step 10: Gates and commit**
 
@@ -3381,11 +3412,13 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
 ---
+
 ### Task 7: `/user-management` — server page, table, drawer, dates in the browser's zone
 
 Spec §3.2, §3.6, §6. The user query only exists inside the route handler today, so the page gets a fork-owned `server-only` read module; writes keep `/api/users`.
 
 **Files:**
+
 - Create: `lib/data/users.ts`, `components/admin/users/user-row.ts`, `components/admin/users/user-errors.ts`, `components/admin/client-date-time.tsx`, `components/admin/users/user-management.tsx`, `components/admin/users/user-form-drawer.tsx`
 - Replace: `app/(admin)/user-management/page.tsx`
 - Delete: `app/(admin)/user-management/components/user-edit-drawer.tsx`
@@ -3393,6 +3426,7 @@ Spec §3.2, §3.6, §6. The user query only exists inside the route handler toda
 - Test: `__tests__/user-row.test.ts`, `__tests__/user-errors.test.ts`, `__tests__/user-management-page.test.ts`, `e2e/admin-users.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `AdminPageHeader` (Task 4); `matchesQuery` (Task 3); `withDb` (Task 1).
 - Produces: `listUsers(): Promise<{ id: string; name: string | null; email: string; createdAt: Date; updatedAt: Date }[]>`, `hasUsers(): Promise<boolean>` (Task 10 uses it); `interface UserRow { id: string; name: string | null; email: string; createdAt: string; updatedAt: string }`, `toUserRows(users): UserRow[]`; `userErrorKey(status: number, action: 'create' | 'update' | 'delete')`; default export `ClientDateTime({ value: string })`; keys `admin_users.search_placeholder`, `admin_users.email_in_use`, `admin_users.not_found`, `admin_users.cannot_delete_self`, `common.session_expired`.
 
@@ -3409,7 +3443,9 @@ describe('toUserRows', () => {
 	it('passes dates to the client as ISO strings, so the browser formats them in its own zone', () => {
 		const created = new Date('2026-01-15T09:05:00.000Z')
 		expect(
-			toUserRows([{ id: 'u1', name: null, email: 'a@b.c', createdAt: created, updatedAt: created }]),
+			toUserRows([
+				{ id: 'u1', name: null, email: 'a@b.c', createdAt: created, updatedAt: created },
+			]),
 		).toEqual([
 			{
 				id: 'u1',
@@ -3500,8 +3536,7 @@ describe('/user-management page', () => {
 
 - [ ] **Step 2: Run them and watch them fail**
 
-Run: `pnpm exec vitest run __tests__/user-row.test.ts __tests__/user-errors.test.ts __tests__/user-management-page.test.ts`
-Expected: FAIL (modules not found; the old page is a client component).
+Run: `pnpm exec vitest run __tests__/user-row.test.ts __tests__/user-errors.test.ts __tests__/user-management-page.test.ts` Expected: FAIL (modules not found; the old page is a client component).
 
 - [ ] **Step 3: The data module and the pure parts**
 
@@ -3588,8 +3623,7 @@ export const userErrorKey = (status: number, action: UserAction) => {
 
 - [ ] **Step 4: Locale keys**
 
-Add to `admin_users` — en `"search_placeholder": "Search users"`, `"email_in_use": "This email is already in use"`, `"not_found": "User not found"`, `"cannot_delete_self": "You cannot delete your own account"`; zh `"search_placeholder": "搜索用户"`, `"email_in_use": "该邮箱已被使用"`, `"not_found": "用户不存在"`, `"cannot_delete_self": "不能删除自己的账户"`; ar `"search_placeholder": "البحث في المستخدمين"`, `"email_in_use": "هذا البريد الإلكتروني مستخدم بالفعل"`, `"not_found": "المستخدم غير موجود"`, `"cannot_delete_self": "لا يمكنك حذف حسابك الخاص"`.
-Add to `common` — en `"session_expired": "Your session has expired. Sign in again."`, zh `"session_expired": "登录已过期，请重新登录。"`, ar `"session_expired": "انتهت صلاحية جلستك. سجّل الدخول مرة أخرى."`.
+Add to `admin_users` — en `"search_placeholder": "Search users"`, `"email_in_use": "This email is already in use"`, `"not_found": "User not found"`, `"cannot_delete_self": "You cannot delete your own account"`; zh `"search_placeholder": "搜索用户"`, `"email_in_use": "该邮箱已被使用"`, `"not_found": "用户不存在"`, `"cannot_delete_self": "不能删除自己的账户"`; ar `"search_placeholder": "البحث في المستخدمين"`, `"email_in_use": "هذا البريد الإلكتروني مستخدم بالفعل"`, `"not_found": "المستخدم غير موجود"`, `"cannot_delete_self": "لا يمكنك حذف حسابك الخاص"`. Add to `common` — en `"session_expired": "Your session has expired. Sign in again."`, zh `"session_expired": "登录已过期，请重新登录。"`, ar `"session_expired": "انتهت صلاحية جلستك. سجّل الدخول مرة أخرى."`.
 
 - [ ] **Step 5: `components/admin/client-date-time.tsx`**
 
@@ -3755,7 +3789,13 @@ export default function UserFormDrawer({
 ```tsx
 'use client'
 
-import { DeleteOutlined, EditOutlined, PlusOutlined, SearchOutlined, UserOutlined } from '@ant-design/icons'
+import {
+	DeleteOutlined,
+	EditOutlined,
+	PlusOutlined,
+	SearchOutlined,
+	UserOutlined,
+} from '@ant-design/icons'
 import {
 	App,
 	Avatar,
@@ -3961,8 +4001,7 @@ Delete `app/(admin)/user-management/components/user-edit-drawer.tsx`.
 
 - [ ] **Step 7: Run the unit tests**
 
-Run: `pnpm exec vitest run __tests__/user-row.test.ts __tests__/user-errors.test.ts __tests__/user-management-page.test.ts __tests__/i18n-locales.test.ts`
-Expected: PASS.
+Run: `pnpm exec vitest run __tests__/user-row.test.ts __tests__/user-errors.test.ts __tests__/user-management-page.test.ts __tests__/i18n-locales.test.ts` Expected: PASS.
 
 - [ ] **Step 8: e2e**
 
@@ -4021,7 +4060,9 @@ test.describe('user CRUD', () => {
 		await expect(row(page, email)).toHaveCount(0)
 	})
 
-	test('search narrows the table, and the signed-in admin has no Delete', async ({ page }, testInfo) => {
+	test('search narrows the table, and the signed-in admin has no Delete', async ({
+		page,
+	}, testInfo) => {
 		const email = `user-${testInfo.project.name}-search@e2e.local`
 		await page.request.post('/api/users', { data: { name: 'Needle', email, password: '12345678' } })
 		await page.goto('/user-management')
@@ -4040,13 +4081,18 @@ test.describe('dates in the browser zone', () => {
 	// Far from the server's UTC (Review Focus 4): the text must be the browser's, with no hydration complaint.
 	test.use({ timezoneId: 'Pacific/Kiritimati' })
 
-	test('user dates render in the browser time zone without a hydration mismatch', async ({ page }) => {
+	test('user dates render in the browser time zone without a hydration mismatch', async ({
+		page,
+	}) => {
 		const complaints: string[] = []
 		page.on('console', message => {
 			if (/hydrat/i.test(message.text())) complaints.push(message.text())
 		})
 		await page.goto('/user-management')
-		const time = page.getByRole('row', { name: /admin@e2e\.local/ }).locator('time').first()
+		const time = page
+			.getByRole('row', { name: /admin@e2e\.local/ })
+			.locator('time')
+			.first()
 		await expect(time).not.toContainText(/^\s*$/)
 		const { text, local, utc } = await time.evaluate(el => {
 			const at = new Date(el.getAttribute('datetime') ?? '')
@@ -4072,8 +4118,7 @@ test('the user table arrives with its rows in the first HTML (spec §6)', async 
 })
 ```
 
-Run: `pnpm exec playwright test e2e/admin-users.spec.ts e2e/ssr-first-paint.spec.ts e2e/shell.spec.ts`
-Expected: PASS on all projects.
+Run: `pnpm exec playwright test e2e/admin-users.spec.ts e2e/ssr-first-paint.spec.ts e2e/shell.spec.ts` Expected: PASS on all projects.
 
 - [ ] **Step 9: Gates and commit**
 
@@ -4087,16 +4132,19 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
 ---
+
 ### Task 8: The auth frame, `/login` and `/`
 
 Spec §7.1, §7.2, §7.6. `AuthCard` becomes the branded frame for every auth page and `/init`; the login page reads `searchParams` on the server; `/` is a server redirect.
 
 **Files:**
+
 - Create: `lib/search-params.ts`, `components/shell/auth-card.module.css`, `components/auth/login-form.tsx`, `components/auth/login-form.module.css`, `app/(auth)/error.tsx`
 - Replace: `components/shell/auth-card.tsx`, `app/(auth)/login/page.tsx`, `app/page.tsx`
 - Test: `__tests__/search-params.test.ts`, `__tests__/login-page.test.ts`, `__tests__/root-page.test.ts`, `e2e/auth.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `RouteError` (Task 3); `getSafeCallbackUrl` (`lib/access.ts`), `redirectSignedInUser` (existing login layout, unchanged).
 - Produces: `firstParam(value: string | string[] | undefined): string | undefined`; `type SearchParams = Promise<Record<string, string | string[] | undefined>>`; default export `AuthCard({ children })` (the `title` prop goes; the brand header is built in); default export `LoginForm({ callbackUrl?: string; email?: string })`.
 
@@ -4147,7 +4195,10 @@ describe('/login page', () => {
 
 	it('passes nothing for a bare /login', async () => {
 		const page = await LoginPage({ searchParams: Promise.resolve({}) })
-		expect(page).toMatchObject({ type: LoginForm, props: { callbackUrl: undefined, email: undefined } })
+		expect(page).toMatchObject({
+			type: LoginForm,
+			props: { callbackUrl: undefined, email: undefined },
+		})
 	})
 })
 ```
@@ -4178,8 +4229,7 @@ describe('/ page', () => {
 
 - [ ] **Step 2: Run them and watch them fail**
 
-Run: `pnpm exec vitest run __tests__/search-params.test.ts __tests__/login-page.test.ts __tests__/root-page.test.ts`
-Expected: FAIL (module not found; the old pages are client components).
+Run: `pnpm exec vitest run __tests__/search-params.test.ts __tests__/login-page.test.ts __tests__/root-page.test.ts` Expected: FAIL (module not found; the old pages are client components).
 
 - [ ] **Step 3: `lib/search-params.ts` and `app/page.tsx`**
 
@@ -4341,7 +4391,13 @@ interface LoginValues {
 }
 
 /** Spec §7.2: labels on, placeholders and the flow kept (`signIn` without redirect, then the safe callback). */
-export default function LoginForm({ callbackUrl, email }: { callbackUrl?: string; email?: string }) {
+export default function LoginForm({
+	callbackUrl,
+	email,
+}: {
+	callbackUrl?: string
+	email?: string
+}) {
 	const { t } = useTranslation()
 	const { message } = App.useApp()
 	const router = useRouter()
@@ -4367,7 +4423,9 @@ export default function LoginForm({ callbackUrl, email }: { callbackUrl?: string
 
 	return (
 		<>
-			<Typography.Paragraph className={styles.subtitle}>{t('auth.login_subtitle')}</Typography.Paragraph>
+			<Typography.Paragraph className={styles.subtitle}>
+				{t('auth.login_subtitle')}
+			</Typography.Paragraph>
 			<Form
 				name="login"
 				layout="vertical"
@@ -4442,8 +4500,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
 
 - [ ] **Step 6: Run the unit tests**
 
-Run: `pnpm exec vitest run __tests__/search-params.test.ts __tests__/login-page.test.ts __tests__/root-page.test.ts __tests__/auth-page-layouts.test.ts`
-Expected: PASS.
+Run: `pnpm exec vitest run __tests__/search-params.test.ts __tests__/login-page.test.ts __tests__/root-page.test.ts __tests__/auth-page-layouts.test.ts` Expected: PASS.
 
 - [ ] **Step 7: e2e**
 
@@ -4491,8 +4548,7 @@ test.describe('signed out', () => {
 })
 ```
 
-Run: `pnpm exec playwright test e2e/auth.spec.ts e2e/smoke.spec.ts e2e/ssr-first-paint.spec.ts`
-Expected: PASS (the setup project still signs in through the placeholders).
+Run: `pnpm exec playwright test e2e/auth.spec.ts e2e/smoke.spec.ts e2e/ssr-first-paint.spec.ts` Expected: PASS (the setup project still signs in through the placeholders).
 
 - [ ] **Step 8: Gates and commit**
 
@@ -4511,12 +4567,14 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 Spec §3.6, §7.3, §7.4.
 
 **Files:**
+
 - Create: `components/auth/auth-failure.ts`, `components/auth/forgot-password-form.tsx`, `components/auth/reset-password-form.tsx`
 - Replace: `app/(auth)/forgot-password/page.tsx`, `app/(auth)/reset-password/page.tsx`
 - Modify: `locales/{en,zh,ar}/translation.json`, `e2e/auth.spec.ts`
 - Test: `__tests__/auth-failure.test.ts`, `__tests__/forgot-password-page.test.ts`, `__tests__/reset-password-page.test.ts`
 
 **Interfaces:**
+
 - Consumes: `firstParam`, `SearchParams` (Task 8); `isMailConfigured` (`lib/mail.ts`); `withDb` (Task 1); `hashPasswordResetToken` (`lib/password-reset.ts`).
 - Produces: `resetFailureKey(status: number)`; default exports `ForgotPasswordForm({ mailConfigured: boolean })`, `ResetPasswordForm({ token?: string })`; keys `auth.reset_link_expired`, `auth.request_new_link`.
 
@@ -4578,7 +4636,9 @@ import ResetPasswordPage from '@/app/(auth)/reset-password/page'
 
 describe('/reset-password page', () => {
 	it('reads the token on the server', async () => {
-		expect(await ResetPasswordPage({ searchParams: Promise.resolve({ token: 'abc' }) })).toMatchObject({
+		expect(
+			await ResetPasswordPage({ searchParams: Promise.resolve({ token: 'abc' }) }),
+		).toMatchObject({
 			type: ResetPasswordForm,
 			props: { token: 'abc' },
 		})
@@ -4591,8 +4651,7 @@ describe('/reset-password page', () => {
 
 - [ ] **Step 2: Run them and watch them fail**
 
-Run: `pnpm exec vitest run __tests__/auth-failure.test.ts __tests__/forgot-password-page.test.ts __tests__/reset-password-page.test.ts`
-Expected: FAIL.
+Run: `pnpm exec vitest run __tests__/auth-failure.test.ts __tests__/forgot-password-page.test.ts __tests__/reset-password-page.test.ts` Expected: FAIL.
 
 - [ ] **Step 3: Keys and the pure part**
 
@@ -4608,8 +4667,7 @@ export const resetFailureKey = (status: number) =>
 
 - [ ] **Step 4: Run the unit test for the pure part**
 
-Run: `pnpm exec vitest run __tests__/auth-failure.test.ts`
-Expected: PASS.
+Run: `pnpm exec vitest run __tests__/auth-failure.test.ts` Expected: PASS.
 
 - [ ] **Step 5: The forms and pages**
 
@@ -4853,8 +4911,7 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
 
 - [ ] **Step 6: Run the unit tests**
 
-Run: `pnpm exec vitest run __tests__/forgot-password-page.test.ts __tests__/reset-password-page.test.ts __tests__/i18n-locales.test.ts`
-Expected: PASS.
+Run: `pnpm exec vitest run __tests__/forgot-password-page.test.ts __tests__/reset-password-page.test.ts __tests__/i18n-locales.test.ts` Expected: PASS.
 
 - [ ] **Step 7: e2e**
 
@@ -4935,8 +4992,7 @@ test.describe('password reset', () => {
 })
 ```
 
-Run: `pnpm exec playwright test e2e/auth.spec.ts`
-Expected: PASS on all projects.
+Run: `pnpm exec playwright test e2e/auth.spec.ts` Expected: PASS on all projects.
 
 - [ ] **Step 8: Gates and commit**
 
@@ -4955,12 +5011,14 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 Spec §7.5.
 
 **Files:**
+
 - Create: `components/auth/init-form.tsx`, `app/init/error.tsx`
 - Replace: `app/init/page.tsx`
 - Modify: `components/auth/auth-failure.ts`, `e2e/auth.spec.ts`
 - Test: `__tests__/auth-failure.test.ts`, `__tests__/init-page.test.ts`
 
 **Interfaces:**
+
 - Consumes: `hasUsers` (Task 7); `AuthCard` (Task 8); `RouteError` (Task 3).
 - Produces: `initFailureKey(status: number)`; default export `InitForm()`.
 
@@ -5014,7 +5072,10 @@ describe('/init page', () => {
 
 	it('renders the setup form inside the auth card on an empty database', async () => {
 		hasUsers.mockResolvedValue(false)
-		expect(await InitPage()).toMatchObject({ type: AuthCard, props: { children: { type: InitForm } } })
+		expect(await InitPage()).toMatchObject({
+			type: AuthCard,
+			props: { children: { type: InitForm } },
+		})
 		expect(redirect).not.toHaveBeenCalled()
 	})
 })
@@ -5022,8 +5083,7 @@ describe('/init page', () => {
 
 - [ ] **Step 2: Run them and watch them fail**
 
-Run: `pnpm exec vitest run __tests__/auth-failure.test.ts __tests__/init-page.test.ts`
-Expected: FAIL.
+Run: `pnpm exec vitest run __tests__/auth-failure.test.ts __tests__/init-page.test.ts` Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
@@ -5208,23 +5268,21 @@ export default function InitError({
 
 - [ ] **Step 4: Run the unit tests**
 
-Run: `pnpm exec vitest run __tests__/auth-failure.test.ts __tests__/init-page.test.ts`
-Expected: PASS.
+Run: `pnpm exec vitest run __tests__/auth-failure.test.ts __tests__/init-page.test.ts` Expected: PASS.
 
 - [ ] **Step 5: e2e**
 
 Append to `e2e/auth.spec.ts` inside the first `signed out` describe:
 
 ```ts
-	test('/init on an initialised instance goes straight to /login', async ({ page }) => {
-		// The suite's database holds the admin, so the form never shows (spec §9.6 states the form gap).
-		await page.goto('/init')
-		await expect(page).toHaveURL(/\/login$/)
-	})
+test('/init on an initialised instance goes straight to /login', async ({ page }) => {
+	// The suite's database holds the admin, so the form never shows (spec §9.6 states the form gap).
+	await page.goto('/init')
+	await expect(page).toHaveURL(/\/login$/)
+})
 ```
 
-Run: `pnpm exec playwright test e2e/auth.spec.ts`
-Expected: PASS.
+Run: `pnpm exec playwright test e2e/auth.spec.ts` Expected: PASS.
 
 - [ ] **Step 6: Gates and commit**
 
@@ -5237,11 +5295,13 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
 ---
+
 ### Task 11: Screenshots, unused keys, lint to zero, ADR-0020, docs, CII, full gates, PR
 
 Spec §8, §9.2, §9.5, §11. Nothing is pushed until the owner says so.
 
 **Files:**
+
 - Modify: `e2e/screenshots.spec.ts`, `locales/{en,zh,ar}/translation.json`, `docs/frontend-conventions.md`, `CLAUDE.md`, `docs/decisions/README.md`, `.cii-assessment.md`
 - Create: `docs/decisions/0020-load-page-data-on-the-server.md`
 
@@ -5250,23 +5310,23 @@ Spec §8, §9.2, §9.5, §11. Nothing is pushed until the owner says so.
 In `e2e/screenshots.spec.ts` add, next to the existing `signed out` describe, screenshots for the two auth pages:
 
 ```ts
-	test('screenshot forgot-password', async ({ page }, testInfo) => {
-		await page.goto('/forgot-password')
-		await expect(page.locator('.ant-card')).toBeVisible()
-		await capture(page, 'forgot-password', testInfo)
-	})
+test('screenshot forgot-password', async ({ page }, testInfo) => {
+	await page.goto('/forgot-password')
+	await expect(page.locator('.ant-card')).toBeVisible()
+	await capture(page, 'forgot-password', testInfo)
+})
 
-	test('screenshot reset-password', async ({ page }, testInfo) => {
-		await page.goto('/reset-password?token=screenshot')
-		await expect(page.getByLabel('New password')).toBeVisible()
-		await capture(page, 'reset-password', testInfo)
-	})
+test('screenshot reset-password', async ({ page }, testInfo) => {
+	await page.goto('/reset-password?token=screenshot')
+	await expect(page.getByLabel('New password')).toBeVisible()
+	await capture(page, 'reset-password', testInfo)
+})
 
-	test('screenshot reset-password-invalid', async ({ page }, testInfo) => {
-		await page.goto('/reset-password')
-		await expect(page.getByText('This reset link is invalid')).toBeVisible()
-		await capture(page, 'reset-password-invalid', testInfo)
-	})
+test('screenshot reset-password-invalid', async ({ page }, testInfo) => {
+	await page.goto('/reset-password')
+	await expect(page.getByText('This reset link is invalid')).toBeVisible()
+	await capture(page, 'reset-password-invalid', testInfo)
+})
 ```
 
 and, after the signed-in loop, the three drawers:
