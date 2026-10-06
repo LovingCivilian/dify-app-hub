@@ -108,7 +108,7 @@ export default function UserFormDrawer({
 				<Form.Item
 					name="password"
 					label={user ? t('auth.new_password') : t('auth.password')}
-					help={user ? t('admin_users.password_keep_hint') : undefined}
+					extra={user ? t('admin_users.password_keep_hint') : undefined}
 					rules={[
 						...(user ? [] : [{ required: true, message: t('admin_users.password_required') }]),
 						{ min: PASSWORD_MIN, message: t('auth.password_min_8') },

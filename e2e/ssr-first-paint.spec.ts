@@ -215,4 +215,7 @@ test('the app table arrives with its rows in the first HTML and no API key (spec
 test('the user table arrives with its rows in the first HTML (spec §6)', async ({ page }) => {
 	const html = await (await page.request.get('/user-management')).text()
 	expect(html).toContain('admin@e2e.local')
+	// The admin's row itself: antd's Table sets data-row-key per body row, and only the server-rendered
+	// table puts the email inside one (the header shows it too, in the account trigger).
+	expect(html).toMatch(/<tr[^>]*data-row-key="[^"]+"[\s\S]*?admin@e2e\.local/)
 })

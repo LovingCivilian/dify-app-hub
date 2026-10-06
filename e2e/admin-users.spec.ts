@@ -32,6 +32,10 @@ test.describe('user CRUD', () => {
 
 		await row(page, email).getByRole('button', { name: 'Edit' }).click()
 		const edit = page.getByRole('dialog').filter({ hasText: 'Edit user' })
+		await edit.getByLabel('New password').fill('1234567')
+		await edit.getByRole('button', { name: 'Update' }).click()
+		await expect(edit.getByText('Password must be at least 8 characters')).toBeVisible()
+		await edit.getByLabel('New password').fill('')
 		await edit.getByLabel('Name').fill('Spec user renamed')
 		await edit.getByRole('button', { name: 'Update' }).click()
 		await expect(row(page, email)).toContainText('Spec user renamed')
