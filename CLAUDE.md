@@ -6,6 +6,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 
 - `main` is an untouched mirror of `upstream/main`. Never commit to it.
 - `fork/main` is the integration branch: upstream + every accepted fork feature. Deploy and test from it.
+- `fork/overhaul` is a second product line (since 2026-10-06): the frontend overhaul (antd 6 / Ant Design X rebuild), branched from this history at `11c3fb3d`. It never merges into `fork/main`, and `fork/main` work reaches it only by cherry-pick. Its rules, ADRs (`docs/decisions/`, ADR-0019 for this two-line model) and handoffs live on that branch; work on this line-level app happens here.
 - Feature branches start from `fork/main`; PRs target `fork/main`. Stack a branch on another one only when it needs work that has not merged yet (then the PR targets the parent branch; GitHub retargets it once the parent merges and is deleted).
 - On a fork `gh` targets the parent repo by default: always `gh pr create -R LovingCivilian/dify-app-hub --base fork/main …`, and `gh pr merge <n> -R LovingCivilian/dify-app-hub --merge` (merge commits, history kept). Merged branches may be deleted afterwards.
 - Upstream sync: `git fetch upstream && git checkout main && git merge --ff-only upstream/main`, then `git checkout fork/main && git merge main` and resolve conflicts there. Expected conflicts and the after-merge checks are listed in `docs/auth-gate.md` and `docs/i18n-maintenance.md`.
