@@ -72,9 +72,9 @@ Nothing remains, so the file is deleted and its import goes. A future global rul
 
 ### 4.4 The theme marker: `color-scheme`
 
-- `app/layout.tsx` renders `<html lang={…} suppressHydrationWarning style={{ colorScheme }}>` with `colorScheme` = `'dark'` when the resolved theme from `readThemeCookies` is dark, else `'light'`. The `<body>` renders without `className`: `antialiased` was a Tailwind utility and `dark` fed Tailwind's `dark:` variant only.
+- `app/layout.tsx` renders `<html lang={…} suppressHydrationWarning style={{ colorScheme }}>` with `colorScheme` = `'dark'` when the resolved theme from `readThemeCookies` is dark, else `'only light'`. The `<body>` renders without `className`: `antialiased` was a Tailwind utility and `dark` fed Tailwind's `dark:` variant only.
 - `lib/theme/theme-context.tsx`: `applyScheme` sets `document.documentElement.style.colorScheme = dark ? 'dark' : 'light'` where it toggles the body class today; `DARK_CLASS_NAME` is removed (no other importer).
-- Both values are explicit so that browsers with forced auto-darkening leave the light theme alone.
+- The light value is `only light`: the `only` keyword "forbids the user agent from overriding the color scheme for the element" and is the documented opt-out from Chrome's Auto Dark Theme (MDN `color-scheme`, verified 2026-10-07), so a browser that darkens pages on its own leaves the light theme alone. A bare `light` does not do that (execution ruling, §10). The dark theme renders `dark`.
 - The antd dark algorithm keeps being applied by `ThemeContextProvider` as before; the marker only tells the browser which scheme to use for the canvas behind the shell, native form controls and scrollbars. This closes the ADR-0012 limit "the body has no background, so a dark-mode user sees a white canvas until the shell paints".
 - Sources: `color-scheme` is standard CSS (MDN); antd sets nothing of the kind (no `color-scheme` or `colorScheme` in `node_modules/antd/es`); next-themes, the reference project for theme switching in Next apps, ends in exactly this DOM state (`document.documentElement.style = 'color-scheme: dark'`, asserted by its own tests) and also sets a `data-theme` attribute, which we skip because no CSS keys on the theme by hand (charter §4.3 rule 8) and the server already reads the cookies. Next's `generateViewport({ colorScheme })` renders a `<meta name="color-scheme">` for the first paint and was considered; it would still need the client-side style for toggling, so one mechanism is better than two.
 
@@ -92,7 +92,7 @@ The sub-project intends no visual change. Where the screenshots show one:
 ### 5.1 e2e (ADR-0010; projects `desktop-light`, `desktop-dark`, `mobile-light`)
 
 - `e2e/theme-aliases.spec.ts` is deleted with the block it pinned.
-- `e2e/ssr-first-paint.spec.ts`: the first HTML contains `style="color-scheme:dark"` on `<html>` under the dark cookies and `style="color-scheme:light"` without them (string assertions on the served HTML, as the spec does today for the body class); the legacy-localStorage migration case waits for `html` to have `color-scheme: dark` (Playwright `toHaveCSS('color-scheme', 'dark')` on the `html` locator).
+- `e2e/ssr-first-paint.spec.ts`: the first HTML contains `style="color-scheme:dark"` on `<html>` under the dark cookies and `style="color-scheme:only light"` without them (string assertions on the served HTML, as the spec does today for the body class); the legacy-localStorage migration case waits for `html` to have `color-scheme: dark` (Playwright `toHaveCSS('color-scheme', 'dark')` on the `html` locator).
 - `e2e/chat-markdown.spec.ts`: the dark-project `beforeEach` waits for the same `toHaveCSS` instead of the body class.
 - The whole suite green on all three projects.
 
@@ -162,3 +162,4 @@ The visual effect of `color-scheme` on native controls and scrollbars is not ass
 - **§4.5 image case did not occur.** The `apps-*` screenshots are byte-identical before and after; no CSS Module was edited.
 - **§5.1 gap stated.** No e2e spec exercises the input-parameters panel; its look is covered by the screenshot review only.
 - **§5.2 timing.** The dark and mobile screenshots after Task 1 predate the Collapse revert; Task 4's full run regenerates every set, and the review of the dark set happens then, before the final review.
+- **§4.4: `light` became `only light`.** The brainstorming text claimed an explicit `light` keeps auto-darkening browsers away; the Task 3 review checked MDN: only the `only` keyword forbids the user agent's override, and `color-scheme: only light` is the documented opt-out from Chrome's Auto Dark Theme. Ruling: the light theme renders `only light`, the dark theme `dark`; the served-HTML probe asserts `style="color-scheme:only light"`, and the computed-value probes assert `light only`, the order in which Chrome serialises the computed value (the grammar's `&&` allows either).
