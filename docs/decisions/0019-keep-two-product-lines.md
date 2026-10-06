@@ -82,3 +82,5 @@ Non-goals: merging the two lines later; a feature flag or runtime switch between
 ## More Information
 
 Decided by the owner on 2026-10-06 ("I want to have both, the app hub with just the line mods we did, and the app hub with the overhauls"), with the reset point `3d8e628e` (keeping PR #9's `.dockerignore` and lookup-tools note), the branch name `fork/overhaul`, PR #15 retargeted rather than closed, and cherry-pick-only updates for the overhaul line. Supersedes [ADR-0003](0003-run-the-fork-on-a-two-branch-model.md). Related: [ADR-0009](0009-treat-the-frontend-as-fork-owned.md), [ADR-0015](0015-record-decisions-as-adrs-and-session-handoffs.md).
+
+Note, 2026-10-06 (owner, after this record was accepted): ADR numbers after 0019 are per line. Each line numbers its own records; a reference to the other line's ADR names the line, and an ADR file brought over by cherry-pick is renumbered (`docs/decisions/README.md`, Workflow). The same rule is recorded on `fork/main` (PR #16).

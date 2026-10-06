@@ -6,17 +6,17 @@ The user-level `handoff` skill is user-invocable only (`disable-model-invocation
 
 ## What the next session is for
 
-1. The owner verifies PR #15 in the browser against a real Dify server (list below) and merges it into `fork/overhaul` (`gh pr merge 15 -R LovingCivilian/dify-app-hub --merge`), then deletes the branch.
-2. **Next stage: sub-project 3** (admin, app list and auth pages) on `fork/overhaul` — brainstorming → spec → plan → subagent-driven execution, like sub-project 2. Its inputs are listed under "Sub-project 3 inputs" below and in `CLAUDE.md`.
+1. The owner verifies PR #15 in the browser against a real Dify server (list below) and merges it into `fork/overhaul` (`gh pr merge 15 -R LovingCivilian/dify-app-hub --merge`), then deletes the branch. Start the next session only after this merge: until then `fork/overhaul` (11c3fb3d) carries the pre-split `CLAUDE.md`, which still says PRs target `fork/main` and that sub-project 2 is next. A session that has to start earlier works from `feat/chat-on-ant-design-x`.
+2. **Next stage: sub-project 3** (admin, app list and auth pages) on `fork/overhaul` — brainstorming → spec → plan → subagent-driven execution, like sub-project 2. Its scope and done-criteria are the charter's (`docs/superpowers/specs/2026-10-04-frontend-overhaul-charter.md`, §4.5 and row 3 of the sub-projects table); its inputs are listed under "Sub-project 3 inputs" below and in `CLAUDE.md`.
 3. Then sub-project 4 (removal of Tailwind, Lucide, Radix and the alias block).
 4. The backend rework comes **last, after sub-project 4** (owner, 2026-10-06), on `fork/overhaul` only: `docs/superpowers/specs/2026-10-05-backend-rework-brief.md`. Leave it alone until then.
 
-Branch model since 2026-10-06 (ADR-0019): `fork/main` is the line-level app (upstream + i18n, login for everyone, header fixes; reset to `3d8e628e`); `fork/overhaul` is this overhaul (started at `11c3fb3d`). Overhaul work branches from and targets `fork/overhaul`; it takes no routine merges from `main` or `fork/main` (cherry-pick only).
+Branch model since 2026-10-06 (ADR-0019): `fork/main` is the line-level app (upstream + i18n, login for everyone, header fixes; reset to `3d8e628e`); `fork/overhaul` is this overhaul (started at `11c3fb3d`). Overhaul work branches from and targets `fork/overhaul`; it takes no routine merges from `main` or `fork/main` (cherry-pick only). ADR numbers after 0019 are per line (`docs/decisions/README.md`): a new overhaul ADR is 0020 here whatever `fork/main` has, and a mention of a `fork/main` ADR names that line.
 
 ## State of the work
 
 - All 20 plan tasks plus one added task (18b, cookie-backed UI language) are implemented, each with a fresh reviewer and fix rounds until clean; whole-branch review on the most capable model, one fix wave, one scoped re-review; Task 20 ran one more full e2e, the Docker rebuild and the curl checks, pushed, and opened the PR.
-- Verification at HEAD: `pnpm exec tsc --noEmit`, oxlint, oxfmt, vitest 531 tests; `pnpm test:e2e` 290 passed / 14 skipped / 0 failed at HEAD 3ce6c1b0 (desktop-light 96 + 5 skipped, desktop-dark 95 + 6, mobile-light 98 + 3; the skips are the known project-specific ones); `npx -y @ant-design/cli lint ./` 39 findings / 1 error (baseline 75 / 1), none under `components/chat/`; Docker gate: `/api/health` 200; `/apps` signed out 307 → `/login?callbackUrl=%2Fapps`; `/api/client/apps` 401; `antd-cssinjs` style 1; dark cookies → `class="antialiased dark"` 1 and `--ant-color-bg-layout:#000000` 1; `i18next=ar` cookie → `lang="ar"` 1 (image built from 3ce6c1b0 in 340 s; the local app container is left running on :5300, the local MySQL untouched).
+- Verification at HEAD: `pnpm exec tsc --noEmit`, oxlint, oxfmt, vitest 531 tests; `pnpm test:e2e` 290 passed / 14 skipped / 0 failed at HEAD 3ce6c1b0 (desktop-light 96 + 5 skipped, desktop-dark 95 + 6, mobile-light 98 + 3; the skips are the known project-specific ones); `npx -y @ant-design/cli lint ./` 39 findings / 1 error (baseline 75 / 1), none under `components/chat/`; Docker gate: `/api/health` 200; `/apps` signed out 307 → `/login?callbackUrl=%2Fapps`; `/api/client/apps` 401; `antd-cssinjs` style 1; dark cookies → `class="antialiased dark"` 1 and `--ant-color-bg-layout:#000000` 1; `i18next=ar` cookie → `lang="ar"` 1 (image built from 3ce6c1b0 in 340 s; the local app container was left running on :5300, the local MySQL untouched). Since 2026-10-06 :5300 serves `fork/main`'s build instead (PR #17's Docker check); rebuild from this line before any browser check (CLAUDE.md "Docker stack").
 - PRs #7 and #8 stay open: since ADR-0019 they belong to `fork/main` (they fix the original chat that line keeps), so they are no longer superseded by #15. The closing comments prepared in the Task 20 record below are obsolete.
 - Nothing is merged. ADR-0016, 0017, 0018 are `accepted` on the branch (the plan's Task 19 set the status; the owner's merge is the acceptance).
 
@@ -25,8 +25,9 @@ Branch model since 2026-10-06 (ADR-0019): `fork/main` is the line-level app (ups
 1. `CLAUDE.md` (refreshed: the two-line branch model of ADR-0019, decisions 0016–0019, the chat structure under "Where things are", the e2e section, open follow-ups) and `.claude/rules/frontend.md` (the CSS-breakpoint rule replaced `Grid.useBreakpoint()`).
 2. `docs/decisions/0017-build-the-chat-on-ant-design-x.md` — its dated notes under "More Information" are the record of every execution-time decision (history order, human-input fields, feedback buttons, sign-out, queued-send guard, …); then 0016 and 0018.
 3. The chat spec's final paragraph "Deviations during execution (2026-10-05)" in `docs/superpowers/specs/2026-10-04-chat-on-ant-design-x-design.md`.
-4. Only when sub-project 4 is done: the backend brief `docs/superpowers/specs/2026-10-05-backend-rework-brief.md`.
-5. The PR description (verification numbers, screenshots list, owner checklist).
+4. For sub-project 3: the charter `docs/superpowers/specs/2026-10-04-frontend-overhaul-charter.md`, §4 (conventions, §4.5 for admin, app list and auth pages) and the sub-projects table (row 3: done when e2e flows cover app CRUD, user CRUD and login/reset, with screenshots).
+5. Only when sub-project 4 is done: the backend brief `docs/superpowers/specs/2026-10-05-backend-rework-brief.md`.
+6. The PR description (verification numbers, screenshots list, owner checklist).
 
 ## Owner verification list (browser, real Dify server)
 

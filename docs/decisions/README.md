@@ -13,6 +13,8 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 ## Workflow
 
 - Create a new ADR as `proposed` (`node .claude/skills/adr-skill/scripts/new_adr.js --title "…" --status proposed --update-index`).
+- The skill's scripts are CommonJS and crash under this repo's `"type": "module"`: run them from a temporary copy of `.claude/skills/adr-skill` with `scripts/*.js` renamed to `.cjs`, then check the index row here by hand (`--update-index` appends it below the table).
+- **ADR numbers are per line.** The two lines never merge (ADR-0019), so each line numbers its own records from its own highest number (what `new_adr.js` does). Records 0001–0019 match `fork/main`'s numbers; from 0020 the same number may mean different decisions on the two lines, so a document that refers to the other line's ADR names the line ("ADR-0020 on `fork/main`"), and an ADR file brought over by cherry-pick is renumbered to this line's next free number.
 - Discuss and iterate; the owner accepts (`scripts/set_adr_status.js`).
 - Read `accepted` ADRs before architecture work in their area.
 

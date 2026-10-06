@@ -42,7 +42,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 - ADR-0016 Store the theme preference in cookies so the server renders the right scheme (`theme-mode` + `theme`, read in `app/layout.tsx`); the UI language follows the same pattern (`i18next` cookie, ADR-0005 note).
 - ADR-0017 Build the chat on Ant Design X with a provider-centred data layer: one `DifyChatProvider`, `useXChat` per conversation key (history through `defaultMessages`, early sends queued), X components through `contentRender`. Markdown verdict: `XMarkdown` adopted (spike 27/27), the react-markdown pipeline removed, `react-syntax-highlighter` kept for the dark code style.
 - ADR-0018 Gate route groups on the server and let the proxy gate navigations: `requireSessionUser()` in the `(user)` and `(admin)` layouts, the client gates deleted, the shells server-render.
-- ADR-0019 Two product lines: `fork/main` (upstream + line-level mods, merges `main`) and `fork/overhaul` (this overhaul, cherry-pick only); never merged into each other.
+- ADR-0019 Two product lines: `fork/main` (upstream + line-level mods, merges `main`) and `fork/overhaul` (this overhaul, cherry-pick only); never merged into each other; ADR numbers after 0019 are per line (`docs/decisions/README.md`).
 
 ## Where things are
 
