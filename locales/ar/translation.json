@@ -28,7 +28,8 @@
 		"unsupported_file_type": "نوع الملف غير مدعوم: {{ext}}",
 		"unsupported_app_type": "نوع التطبيق غير مدعوم",
 		"retry": "إعادة المحاولة",
-		"load_failed": "تعذّر تحميل هذه الصفحة"
+		"load_failed": "تعذّر تحميل هذه الصفحة",
+		"session_expired": "انتهت صلاحية جلستك. سجّل الدخول مرة أخرى."
 	},
 	"form": {
 		"select_placeholder": "يرجى الاختيار",
@@ -245,7 +246,11 @@
 		"email_placeholder": "أدخل عنوان البريد الإلكتروني",
 		"password_required": "أدخل كلمة المرور",
 		"password_min_6": "يجب ألا تقل كلمة المرور عن 6 أحرف",
-		"password_keep_hint": "اتركه فارغًا للإبقاء على كلمة المرور الحالية"
+		"password_keep_hint": "اتركه فارغًا للإبقاء على كلمة المرور الحالية",
+		"search_placeholder": "البحث في المستخدمين",
+		"email_in_use": "هذا البريد الإلكتروني مستخدم بالفعل",
+		"not_found": "المستخدم غير موجود",
+		"cannot_delete_self": "لا يمكنك حذف حسابك الخاص"
 	},
 	"admin_apps": {
 		"title": "إعدادات التطبيقات",

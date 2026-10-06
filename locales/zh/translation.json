@@ -28,7 +28,8 @@
 		"unsupported_file_type": "不支持的文件类型: {{ext}}",
 		"unsupported_app_type": "不支持的应用类型",
 		"retry": "重试",
-		"load_failed": "页面加载失败"
+		"load_failed": "页面加载失败",
+		"session_expired": "登录已过期，请重新登录。"
 	},
 	"form": {
 		"select_placeholder": "请选择",
@@ -245,7 +246,11 @@
 		"email_placeholder": "请输入邮箱地址",
 		"password_required": "请输入密码",
 		"password_min_6": "密码至少6位",
-		"password_keep_hint": "留空则不修改密码"
+		"password_keep_hint": "留空则不修改密码",
+		"search_placeholder": "搜索用户",
+		"email_in_use": "该邮箱已被使用",
+		"not_found": "用户不存在",
+		"cannot_delete_self": "不能删除自己的账户"
 	},
 	"admin_apps": {
 		"title": "应用配置",

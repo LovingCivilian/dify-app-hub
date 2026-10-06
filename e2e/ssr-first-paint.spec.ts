@@ -211,3 +211,8 @@ test('the app table arrives with its rows in the first HTML and no API key (spec
 	expect(html).toContain('Stub disabled')
 	expect(html).not.toContain('app-e2e')
 })
+
+test('the user table arrives with its rows in the first HTML (spec §6)', async ({ page }) => {
+	const html = await (await page.request.get('/user-management')).text()
+	expect(html).toContain('admin@e2e.local')
+})

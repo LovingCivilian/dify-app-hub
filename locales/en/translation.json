@@ -28,7 +28,8 @@
 		"unsupported_file_type": "Unsupported file type: {{ext}}",
 		"unsupported_app_type": "Unsupported app type",
 		"retry": "Try again",
-		"load_failed": "This page could not be loaded"
+		"load_failed": "This page could not be loaded",
+		"session_expired": "Your session has expired. Sign in again."
 	},
 	"form": {
 		"select_placeholder": "Please select",
@@ -245,7 +246,11 @@
 		"email_placeholder": "Enter an email address",
 		"password_required": "Enter a password",
 		"password_min_6": "Password must be at least 6 characters",
-		"password_keep_hint": "Leave blank to keep the current password"
+		"password_keep_hint": "Leave blank to keep the current password",
+		"search_placeholder": "Search users",
+		"email_in_use": "This email is already in use",
+		"not_found": "User not found",
+		"cannot_delete_self": "You cannot delete your own account"
 	},
 	"admin_apps": {
 		"title": "App configuration",
