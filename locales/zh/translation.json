@@ -249,6 +249,7 @@
 	},
 	"admin_apps": {
 		"title": "应用配置",
+		"more_actions": "更多操作",
 		"column_name": "名称",
 		"column_type": "类型",
 		"column_description": "描述",

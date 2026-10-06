@@ -249,6 +249,7 @@
 	},
 	"admin_apps": {
 		"title": "إعدادات التطبيقات",
+		"more_actions": "إجراءات أخرى",
 		"column_name": "الاسم",
 		"column_type": "النوع",
 		"column_description": "الوصف",

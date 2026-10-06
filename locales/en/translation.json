@@ -249,6 +249,7 @@
 	},
 	"admin_apps": {
 		"title": "App configuration",
+		"more_actions": "More actions",
 		"column_name": "Name",
 		"column_type": "Type",
 		"column_description": "Description",

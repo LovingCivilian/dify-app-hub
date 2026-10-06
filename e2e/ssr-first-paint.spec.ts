@@ -202,3 +202,12 @@ test('the app list arrives with its apps in the first HTML and no API key (spec 
 	// The seeded apps' key; the trimmed props carry nothing from requestConfig.
 	expect(html).not.toContain('app-e2e')
 })
+
+test('the app table arrives with its rows in the first HTML and no API key (spec §5.1)', async ({
+	page,
+}) => {
+	const html = await (await page.request.get('/app-management')).text()
+	expect(html).toContain('Stub app')
+	expect(html).toContain('Stub disabled')
+	expect(html).not.toContain('app-e2e')
+})

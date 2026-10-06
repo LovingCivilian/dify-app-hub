@@ -8,3 +8,13 @@
 .content {
 	overflow: auto;
 }
+
+/* The admin pages' frame (spec §3.4): mobile first, one query at antd's screenMD; pages add no padding. */
+.adminContent {
+	padding: var(--ant-padding);
+}
+@media (min-width: 768px /* screenMD */) {
+	.adminContent {
+		padding: var(--ant-padding-lg);
+	}
+}
