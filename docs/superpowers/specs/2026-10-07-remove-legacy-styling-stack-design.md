@@ -60,7 +60,7 @@ Kept on purpose: `ahooks` (the chat's wide-screen preference uses `useLocalStora
 | 47–50 | `* { border-color; outline-color }` | Tailwind's border reset companion, gone |
 | 52–91 | ADR-0012 alias block on `.ant-app` | no consumers left, gone (closes ADR-0012's open verification item) |
 | 93–125 | `.bg-theme-*`, `.text-theme-*`, `.border-theme*` | no consumers left, gone |
-| 127–142 | `.ant-collapse` override (no item borders, `!important` text colour) | gone; the chat's `InputsCollapse` gets `bordered={false}` (§4.5) |
+| 127–142 | `.ant-collapse` override (no item borders, `!important` text colour) | gone; every Collapse takes antd's default look (the override had removed only the header/content divider, which no prop reproduces; §10) |
 | 144–166 | `hr`, `h3` with `!important`, `body` (margin, unresolvable legacy colours, a misspelt font), `a` | gone; the reset, `.ant-app` and the X markdown theme cover them |
 | 168–185 | `.content` | dead (the shell's `.content` is module-scoped), gone |
 | 187–207 | `::-webkit-scrollbar*` | gone, native scrollbars (ADR-0012 already schedules this) |
@@ -82,7 +82,7 @@ Nothing remains, so the file is deleted and its import goes. A future global rul
 
 The sub-project intends no visual change. Where the screenshots show one:
 
-- A deleted rule shaped an antd component and one documented prop restores the look → use the prop. Known case: `components/chat/chat-view/inputs-collapse.tsx` gets `bordered={false}` (antd Collapse API), which keeps the panel borderless as the override made it.
+- A deleted rule shaped an antd component and one documented prop restores the look → use the prop. No case qualified in the end: the `.ant-collapse` override had removed only the header/content divider of a bordered Collapse, which no prop reproduces (`bordered={false}` is antd's filled borderless variant), so the chat's Collapses take antd's default look (ruling of 2026-10-07, §10).
 - The reset changed a plain element inside our own CSS Module (expected: `img` renders inline instead of block, so an icon may show a descender gap) → fix in that module with token-free layout properties (`display: block`), which the conventions allow.
 - Markdown output (paragraph margins, list indentation, `h3` size, link colour) now follows the X markdown theme and the reset → accepted as the defaults sub-project 2 designed against; preferences go on the cosmetic-sweep list.
 - Scrollbars become native; dark under `color-scheme: dark`. Token-coloured thin scrollbars (`scrollbar-width`, `scrollbar-color` on `.ant-app`) are a cosmetic-sweep candidate, not part of this sub-project.
@@ -154,3 +154,11 @@ The visual effect of `color-scheme` on native controls and scrollbars is not ass
 - MDN `color-scheme`; next-themes README and `_autodocs/api-reference/script.md` (`data-theme` attribute plus `style="color-scheme: dark"` on `documentElement`).
 - Playwright `toHaveCSS` (web-first assertion on a computed style).
 - Inventory of §3: `git grep` on `fork/overhaul` 039c2356, 2026-10-07.
+
+## 10. Deviations during execution (2026-10-07)
+
+- **§2.3, §4.3, §4.5: the `bordered={false}` premise was wrong.** The deleted `.ant-collapse` override removed only the header/content divider and the panel border of a bordered Collapse; `bordered={false}` is antd's filled borderless variant, a different look (seen in the Task 1 before/after screenshots). Ruling: the chat's Collapses (input parameters, workflow logs) take antd's default look, a 1 px divider under the header; `components/chat/chat-view/inputs-collapse.tsx` is unchanged. Cosmetic-sweep candidate.
+- **§4.3 row 144–166 reached further than markdown.** The legacy `h3 { font-size: 18px !important }` rule had been shrinking every `Typography.Title level={3}`, so the auth card's "Dify App Hub" title grows from 18 px to antd's 24 px. Accepted as the documented antd look; cosmetic-sweep candidate (level 4 is 20 px) if the owner prefers it smaller.
+- **§4.5 image case did not occur.** The `apps-*` screenshots are byte-identical before and after; no CSS Module was edited.
+- **§5.1 gap stated.** No e2e spec exercises the input-parameters panel; its look is covered by the screenshot review only.
+- **§5.2 timing.** The dark and mobile screenshots after Task 1 predate the Collapse revert; Task 4's full run regenerates every set, and the review of the dark set happens then, before the final review.
