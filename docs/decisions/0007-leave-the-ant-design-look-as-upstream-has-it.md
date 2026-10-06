@@ -31,4 +31,4 @@ None; the decision was to leave the code unchanged. Superseded the same day by t
 
 Source: `CLAUDE.md` "Infrastructure" as of PR #6 ("The Ant Design / Ant Design X look is left as upstream has it (adopting the X components was sized and dropped)"), reworded in PR #12 as superseded.
 
-Note, 2026-10-06 (copy on `fork/main`): on `fork/overhaul` this record is superseded by ADR-0008 (the frontend rebuild). On `fork/main`, the line-level product of [ADR-0019](0019-keep-two-product-lines.md), this decision is the one in force: the Ant Design / Ant Design X look stays as upstream has it, so its status here is `accepted`. ADR-0008 has no file on this line.
+Note, 2026-10-06 (copy on `fork/main`): on `fork/overhaul` this record is superseded by ADR-0008 (the frontend rebuild). On `fork/main`, the line-level product of [ADR-0019](0019-keep-two-product-lines.md), this decision is the one in force: the Ant Design / Ant Design X look stays as upstream has it, so its status here is `accepted`. ADR-0008 has no file on this line; the body's "Superseded the same day" and its ticked Verification item describe `fork/overhaul`.

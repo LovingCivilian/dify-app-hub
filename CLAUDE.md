@@ -6,7 +6,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 
 - `main` is an untouched mirror of `upstream/main`. Never commit to it.
 - `fork/main` (this line) is the line-level product: upstream + every accepted line-level fork feature. Deploy and test from it.
-- `fork/overhaul` is a second product line (since 2026-10-06): the frontend overhaul (antd 6 / Ant Design X rebuild), branched from this history at `11c3fb3d`. It never merges into `fork/main`, and `fork/main` work reaches it only by cherry-pick. Its rules, ADRs (`docs/decisions/`, ADR-0019 for this two-line model) and handoffs live on that branch; work on this line-level app happens here.
+- `fork/overhaul` is a second product line (since 2026-10-06): the frontend overhaul (antd 6 / Ant Design X rebuild), branched from this history at `11c3fb3d`. It never merges into `fork/main`, and `fork/main` work reaches it only by cherry-pick. It has its own rules, the overhaul-only ADRs and its handoffs (ADR-0019 for this two-line model; until PR #15 merges, ADR-0016–ADR-0019 sit on its branch); work on this line-level app happens here.
 - Feature branches start from `fork/main`; PRs target `fork/main`. Stack a branch on another one only when it needs work that has not merged yet (then the PR targets the parent branch; GitHub retargets it once the parent merges and is deleted).
 - On a fork `gh` targets the parent repo by default: always `gh pr create -R LovingCivilian/dify-app-hub --base fork/main …`, and `gh pr merge <n> -R LovingCivilian/dify-app-hub --merge` (merge commits, history kept). Merged branches may be deleted afterwards.
 - Upstream sync: `git fetch upstream && git checkout main && git merge --ff-only upstream/main`, then `git checkout fork/main && git merge main` and resolve conflicts there. Expected conflicts and the after-merge checks are listed in `docs/auth-gate.md` and `docs/i18n-maintenance.md`.
@@ -19,7 +19,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 - Merge-friendly with upstream: line-level edits inside upstream files, new behaviour in fork-owned files, upstream file paths never moved. Keep upstream-shaped files close to upstream (e.g. `components/layout/admin-header-title.tsx` differs only by `t()` strings).
 - Process: brainstorm first (a short in-chat design for bounded changes, a spec + plan under `docs/superpowers/` for bigger ones), get an explicit yes, then implement test-first. Larger features run subagent-driven with per-task review — the user wants "as robust as possible, the more eyes the better".
 - Decisions and handoffs (ADR-0015): a decision that changes a pattern, adds a dependency or reverses a plan gets an ADR in the same PR (`/adr-skill`, project copy in `.claude/skills/adr-skill`; its scripts are CommonJS and crash under this repo's `"type": "module"`, so run them from a temporary copy of the skill with the scripts renamed to `.cjs`, then check the index row in `docs/decisions/README.md` by hand); a session ends with a handoff under `docs/superpowers/handoffs/` (user-level `handoff` skill). Keep this file to rules and pointers.
-- Ant Design and Ant Design X: before touching their components, read the matching skill in `.claude/skills/` (`antd` with its `@ant-design/cli` commands, `x-components`, `use-x-chat`, `x-chat-provider`, `x-request`, `x-markdown`). The skills describe antd 6.6 / X 2.9; this line pins older versions (`package.json`), so confirm an API against the installed `node_modules` types before using it.
+- Ant Design and Ant Design X: before touching their components, read the matching skill in `.claude/skills/` (`antd` with its `@ant-design/cli` commands, `x-components`, `use-x-chat`, `x-chat-provider`, `x-request`, `x-markdown`). The X skills describe X 2.9.0; this line runs antd 6.4.3 and X 2.7.0 (`pnpm-lock.yaml`), so pass `--version 6.4.3` to `antd info`/`doc`/`demo`/`token` and check X APIs against the installed `node_modules` types.
 - Before a commit: `pnpm exec tsc --noEmit`, `pnpm exec oxlint <files>`, `pnpm exec oxfmt --check <files>`, `pnpm test` (vitest, node environment — no DOM tests, so layout changes are verified by build + browser). lint-staged runs oxfmt/oxlint on commit.
 - Commits: conventional (`feat|fix|docs|chore(scope): …`), English, with the attribution trailers the session supplies (`Co-Authored-By` and `Claude-Session` — the user chose to keep the session link). Commit and push only when asked.
 - PR descriptions follow `.github/PULL_REQUEST_TEMPLATE.md` (Overview / Changes table / Testing / Related Issue), in English, and name the ADRs they implement.
@@ -32,7 +32,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 - ADR-0003 (superseded by ADR-0019) Two-branch fork model.
 - ADR-0004 Keep MySQL through Drizzle (Postgres considered and rejected).
 - ADR-0005 i18n with typed i18next keys; Arabic is Modern Standard Arabic with Arabic-Indic digits (`ar_EG`, Day.js `ar`, `Intl` `ar-SA-u-ca-gregory-nu-arab`); text first, RTL later; maintenance in `docs/i18n-maintenance.md`.
-- ADR-0006 The app's own login on every page and API, deny by default (`lib/access.ts`, `proxy.ts`); the Dify end-user id is the signed-in email set server-side; landing page `/apps`; no LDAP or roles yet; maintenance and known limits in `docs/auth-gate.md`.
+- ADR-0006 The app's own login on every page and API, deny by default (`lib/access.ts`, `proxy.ts`); the Dify end-user id is the signed-in email set server-side; landing page `/apps`; no LDAP or roles yet; maintenance and known limits in `docs/auth-gate.md` and the ADR (the `/api/users/*` gap is listed in the ADR only).
 - ADR-0007 The Ant Design / Ant Design X look stays as upstream has it (in force on this line; superseded only on `fork/overhaul`).
 - ADR-0015 Decisions are MADR ADRs in `docs/decisions/`; session state goes to handoff documents; this file stays short.
 - ADR-0019 Two product lines: `fork/main` (this line: upstream + line-level mods, merges `main`) and `fork/overhaul` (the frontend overhaul, cherry-pick only); never merged into each other.
@@ -70,8 +70,8 @@ Without Chrome MCP tools, browser evidence can be produced with the headless Chr
 ## Open follow-ups
 
 - Delete merged branches (`i18n/app-ui`, `i18n/arabic`, `auth/login-for-all`, `fix/language-switcher-placement`).
-- Auth: the `/api/users/*` revoked-session gap above; `app/(user)/layout.tsx` renders children for one frame when unauthenticated (gate on `isLoading || !isAuthorized`); `goAuthorize` in `hooks/use-auth.ts` is unused; the proxy test relies on the undocumented `x-middleware-next` header; spec §3 still shows `?? null` for `userId`.
-- i18n: user review of the Arabic wording (countdown plurals, terminology); RTL layout; translation sub-projects 2 and 3.
+- Auth: the `/api/users/*` revoked-session gap (ADR-0006); `app/(user)/layout.tsx` renders children for one frame when unauthenticated (gate on `isLoading || !isAuthorized`); `goAuthorize` in `hooks/use-auth.ts` is unused; the proxy test relies on the undocumented `x-middleware-next` header; spec §3 still shows `?? null` for `userId`.
+- i18n: user review of the Arabic wording (countdown plurals, terminology); RTL layout; translation sub-projects 2 and 3; Ant Design X ships no Arabic strings (its built-in labels stay English/Chinese).
 - Later steps the user has named: LDAP login, user groups / roles and permissions, an account-menu "change password".
 
 ## Next.js bundled docs

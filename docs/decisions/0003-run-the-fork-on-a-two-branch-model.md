@@ -50,4 +50,4 @@ Sources: `CLAUDE.md` "Branch model" (PR #6, 2026-10-04); merged PRs #3–#11; th
 
 Note, 2026-10-06: superseded by [ADR-0019](0019-keep-two-product-lines.md). The owner kept two products: `fork/main` (upstream + the line-level fork modifications) was reset from `11c3fb3d` to `3d8e628e`, and the frontend overhaul moved to `fork/overhaul` (from `11c3fb3d`). `fork/main` keeps this ADR's sync rule; `fork/overhaul` takes upstream changes by cherry-pick only. The GitHub default branch is `fork/main`.
 
-Note, 2026-10-06 (copy on `fork/main`): the same record exists on `fork/overhaul`; ADR numbers are shared by both lines, so records that concern only the overhaul are missing here on purpose.
+Note, 2026-10-06 (copy on `fork/main`): the same record exists on the overhaul line (PR #15's branch until it merges into `fork/overhaul`); records that concern only the overhaul are missing here on purpose, and ADR numbers after 0019 are per line (`docs/decisions/README.md`).
