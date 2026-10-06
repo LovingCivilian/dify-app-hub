@@ -25,9 +25,6 @@ export const ThemeContext = React.createContext<IThemeContext>({
 	themeMode: ThemeModeEnum.SYSTEM,
 })
 
-/** Class the dark scheme puts on <body>; app/layout.tsx renders it on the server from the cookie. */
-export const DARK_CLASS_NAME = 'dark'
-
 /** Deletes the pre-ADR-0016 localStorage entries; localStorage can throw (privacy modes, sandboxed frames). */
 const removeLegacyThemeEntries = () => {
 	try {
@@ -66,7 +63,8 @@ export const ThemeContextProvider = ({
 
 	const applyScheme = useCallback((dark: boolean) => {
 		setThemeState(dark ? ThemeEnum.DARK : ThemeEnum.LIGHT)
-		document.body.classList.toggle(DARK_CLASS_NAME, dark)
+		// The browser's scheme (canvas, native controls, scrollbars); app/layout.tsx renders it on the server from the cookie.
+		document.documentElement.style.colorScheme = dark ? 'dark' : 'only light'
 	}, [])
 
 	useEffect(() => {

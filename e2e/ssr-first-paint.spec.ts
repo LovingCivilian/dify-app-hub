@@ -14,7 +14,10 @@ test('the first HTML carries the dark scheme when the theme cookies say so', asy
 	const response = await page.request.get('/apps')
 	expect(response.ok()).toBe(true)
 	const html = await response.text()
-	expect(html).toContain('class="antialiased dark"')
+	// The scheme marker is the browser's own color-scheme on <html> (ADR-0021), rendered from the cookies, so the canvas
+	// behind the shell, native controls and scrollbars are dark before hydration. React serialises the style object as
+	// `color-scheme:dark`.
+	expect(html).toMatch(/<html[^>]*\bstyle="color-scheme:dark"/)
 	// AntdRegistry inlines antd's <style id="antd-cssinjs"> in the server HTML (also under next dev, measured
 	// 2026-10-04), so the dark algorithm is already in the first HTML, not applied after hydration. The production
 	// build gets the same check as a curl in Task 20.
@@ -33,9 +36,25 @@ test('junk theme cookies still render the light default', async ({ page }) => {
 	const response = await page.request.get('/apps')
 	expect(response.ok()).toBe(true)
 	const html = await response.text()
-	expect(html).toContain('class="antialiased"')
-	expect(html).not.toContain('class="antialiased dark"')
+	expect(html).toMatch(/<html[^>]*\bstyle="color-scheme:only light"/)
+	expect(html).not.toMatch(/<html[^>]*color-scheme:dark/)
 	expect(html).toContain('--ant-color-bg-layout:#f5f5f5')
+})
+
+// `only light` is the documented opt-out from Chrome's Auto Dark Theme (MDN color-scheme, `only`), so a browser that
+// darkens pages on its own leaves the light theme alone. Meaningful in the desktop-dark project, whose
+// colorScheme emulation says the OS prefers dark.
+test('an explicit light theme keeps the light scheme under an OS dark preference', async ({
+	page,
+}) => {
+	await page.context().addCookies([
+		{ name: 'theme-mode', value: 'light', url: baseURL },
+		{ name: 'theme', value: 'light', url: baseURL },
+	])
+	await page.goto('/apps')
+	// Chrome serialises the computed value with the keyword after the scheme: "light only".
+	await expect(page.locator('html')).toHaveCSS('color-scheme', 'light only')
+	await expect(page.locator('.ant-app').first()).toHaveCSS('--ant-color-bg-layout', '#f5f5f5')
 })
 
 // The migration needs a visitor without theme cookies, so the signed-in storage state is replaced by an empty one
@@ -54,7 +73,7 @@ test.describe('legacy localStorage theme entries', () => {
 			localStorage.setItem('__DC__THEME', 'dark')
 		})
 		await page.goto('/login')
-		await expect(page.locator('body')).toHaveClass(/\bdark\b/)
+		await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark')
 		await expect.poll(themeModeCookie).toBe('dark')
 		await expect
 			.poll(() =>
