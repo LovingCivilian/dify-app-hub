@@ -11,7 +11,8 @@ import SearchInput from '@/components/shell/search-input'
 import { AppModeNames, AppModeOptions, EIsEnabled } from '@/lib/core'
 import { matchesQuery } from '@/lib/match-query'
 
-import type { AdminAppRow } from './admin-app-row'
+import { type AdminAppRow, supportsAnnotations } from './admin-app-row'
+import AnnotationsDrawer from './annotations-drawer'
 import AppActions from './app-actions'
 import AppFormDrawer from './app-form-drawer'
 import styles from './app-management.module.css'
@@ -27,6 +28,7 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 	const { token } = theme.useToken()
 	const [query, setQuery] = useState('')
 	const editor = useAppRecord()
+	const annotator = useAppRecord()
 	const [creating, setCreating] = useState(false)
 	const closeDrawer = () => {
 		setCreating(false)
@@ -109,6 +111,9 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 				<AppActions
 					app={app}
 					onEdit={() => void editor.open(app.id)}
+					onAnnotations={
+						supportsAnnotations(app.mode) ? () => void annotator.open(app.id) : undefined
+					}
 				/>
 			),
 		},
@@ -155,6 +160,11 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 				mode={creating ? 'create' : 'edit'}
 				record={editor.state?.record}
 				onClose={closeDrawer}
+			/>
+			<AnnotationsDrawer
+				open={annotator.state !== null}
+				record={annotator.state?.record}
+				onClose={annotator.close}
 			/>
 		</Flex>
 	)

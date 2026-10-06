@@ -385,6 +385,8 @@ export interface IAnnotationItem {
 export interface IGetAnnotationListRequest {
 	page?: number
 	limit?: number
+	/** Filters by question or answer content (OpenAPI GET /apps/annotations). */
+	keyword?: string
 }
 
 /**
@@ -725,6 +727,7 @@ export class DifyApi {
 		return this.baseRequest.get('/apps/annotations', {
 			page: (params?.page || 1).toString(),
 			limit: (params?.limit || 20).toString(),
+			...(params?.keyword ? { keyword: params.keyword } : {}),
 		}) as Promise<IGetAnnotationListResponse>
 	}
 

@@ -320,7 +320,9 @@
 		"create_success": "标注成功",
 		"delete_confirm": "确认删除?",
 		"question_required": "请输入问题",
-		"answer_required": "请输入答案"
+		"answer_required": "请输入答案",
+		"search_placeholder": "搜索标注",
+		"load_failed": "标注加载失败"
 	},
 	"workflow": {
 		"title": "工作流",

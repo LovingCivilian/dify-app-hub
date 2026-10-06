@@ -320,7 +320,9 @@
 		"create_success": "تم حفظ التعليق التوضيحي",
 		"delete_confirm": "حذف هذا التعليق التوضيحي؟",
 		"question_required": "أدخل سؤالًا",
-		"answer_required": "أدخل إجابة"
+		"answer_required": "أدخل إجابة",
+		"search_placeholder": "البحث في التعليقات التوضيحية",
+		"load_failed": "تعذّر تحميل التعليقات التوضيحية"
 	},
 	"workflow": {
 		"title": "سير العمل",

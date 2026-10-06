@@ -1,4 +1,4 @@
-import type { IGetAppInfoResponse } from '@/lib/api'
+import type { IGetAnnotationListResponse, IGetAppInfoResponse } from '@/lib/api'
 import type { IDifyAppItem } from '@/lib/core'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -27,3 +27,7 @@ export const acceptRecord = (
 /** A failed getApp closes the drawer only if it still waits for that app. */
 export const dropRecord = (current: RecordState, appId: string): RecordState =>
 	current?.appId === appId ? null : current
+
+/** GET /apps/annotations answered a page (data array + total), not an error body. */
+export const isAnnotationPage = (value: unknown): value is IGetAnnotationListResponse =>
+	isRecord(value) && Array.isArray(value.data) && typeof value.total === 'number'

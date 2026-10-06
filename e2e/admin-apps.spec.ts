@@ -180,3 +180,52 @@ test.describe('create and edit', () => {
 		await create.getByRole('button', { name: 'Cancel' }).click()
 	})
 })
+
+test.describe('annotations', () => {
+	const chatflow = APP_IDS['advanced-chat']
+
+	test('the menu offers annotations for chat apps only', async ({ page }) => {
+		await page.goto('/app-management')
+		await moreActions(page, APP_IDS.workflow).click()
+		await expect(page.getByRole('menuitem', { name: 'Sync app info' })).toBeVisible()
+		await expect(page.getByRole('menuitem', { name: 'Annotations' })).toHaveCount(0)
+		await page.keyboard.press('Escape')
+		await moreActions(page, chatflow).click()
+		await expect(page.getByRole('menuitem', { name: 'Annotations' })).toBeVisible()
+	})
+
+	test('an admin adds, finds, edits and deletes an annotation', async ({ page }, testInfo) => {
+		const question = `How do I reset? ${testInfo.project.name}`
+		await page.goto('/app-management')
+		await moreActions(page, chatflow).click()
+		await page.getByRole('menuitem', { name: 'Annotations' }).click()
+		const drawer = page.getByRole('dialog').filter({ hasText: 'Annotations' })
+		await expect(drawer.getByRole('table')).toBeVisible()
+
+		await drawer.getByRole('button', { name: 'New annotation' }).click()
+		const modal = page.getByRole('dialog').filter({ hasText: 'New annotation' })
+		await modal.getByLabel('Question').fill(question)
+		await modal.getByLabel('Answer').fill('Open the account menu.')
+		await modal.getByRole('button', { name: 'OK' }).click()
+		const row = drawer.getByRole('row', { name: new RegExp(testInfo.project.name) })
+		await expect(row).toBeVisible()
+
+		// Keyword search goes to Dify (the stub filters question or answer).
+		await drawer.getByRole('searchbox', { name: 'Search annotations' }).fill('no such text')
+		await page.keyboard.press('Enter')
+		await expect(row).toHaveCount(0)
+		await drawer.getByRole('searchbox', { name: 'Search annotations' }).fill(testInfo.project.name)
+		await page.keyboard.press('Enter')
+		await expect(row).toBeVisible()
+
+		await row.getByRole('button', { name: 'Edit' }).click()
+		const edit = page.getByRole('dialog').filter({ hasText: 'Edit annotation' })
+		await edit.getByLabel('Answer').fill('Open the account menu, then Reset.')
+		await edit.getByRole('button', { name: 'OK' }).click()
+		await expect(row).toContainText('then Reset')
+
+		await row.getByRole('button', { name: 'Delete' }).click()
+		await page.getByRole('button', { name: 'Delete' }).last().click()
+		await expect(row).toHaveCount(0)
+	})
+})

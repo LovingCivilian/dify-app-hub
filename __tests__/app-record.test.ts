@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
 	acceptRecord,
 	dropRecord,
+	isAnnotationPage,
 	isAppInfo,
 	isFailedUpdate,
 } from '@/components/admin/apps/app-record'
@@ -50,5 +51,17 @@ describe('acceptRecord and dropRecord', () => {
 	it('closes only the drawer that waited for the failed app', () => {
 		expect(dropRecord({ appId: 'a1' }, 'a1')).toBeNull()
 		expect(dropRecord({ appId: 'a2' }, 'a1')).toEqual({ appId: 'a2' })
+	})
+})
+
+describe('isAnnotationPage', () => {
+	it('accepts a Dify annotation page', () => {
+		expect(isAnnotationPage({ data: [], has_more: false, limit: 10, total: 0, page: 1 })).toBe(true)
+	})
+
+	it('rejects Dify error bodies, which lib/api resolves as values', () => {
+		expect(isAnnotationPage({ code: 'unauthorized', message: 'x', status: 401 })).toBe(false)
+		expect(isAnnotationPage({ data: 'nope', total: 0 })).toBe(false)
+		expect(isAnnotationPage(undefined)).toBe(false)
 	})
 })

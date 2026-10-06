@@ -320,7 +320,9 @@
 		"create_success": "Annotation saved",
 		"delete_confirm": "Delete this annotation?",
 		"question_required": "Enter a question",
-		"answer_required": "Enter an answer"
+		"answer_required": "Enter an answer",
+		"search_placeholder": "Search annotations",
+		"load_failed": "Annotations could not be loaded"
 	},
 	"workflow": {
 		"title": "Workflow",
