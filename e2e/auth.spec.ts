@@ -41,6 +41,12 @@ test.describe('signed out', () => {
 			'/forgot-password',
 		)
 	})
+
+	test('/init on an initialised instance goes straight to /login', async ({ page }) => {
+		// The suite's database holds the admin, so the form never shows (spec §9.6 states the form gap).
+		await page.goto('/init')
+		await expect(page).toHaveURL(/\/login$/)
+	})
 })
 
 test.describe('password reset', () => {
