@@ -44,7 +44,7 @@ Chosen: antd's `reset.css`, `color-scheme` on `<html>`, pure cleanup (owner deci
 
 ## Implementation Plan
 
-- **Affected paths**: `app/layout.tsx`, `lib/theme/theme-context.tsx`, `components/chat/chat-view/inputs-collapse.tsx`, `components/providers/app-providers.tsx`, `lib/helpers/index.ts`, `package.json`, `.oxfmtrc.json`, `.github/dependabot.yml`, `README.md`; deletions as listed above; e2e probes in `e2e/ssr-first-paint.spec.ts`, `e2e/chat-markdown.spec.ts`, `e2e/shell.spec.ts`.
+- **Affected paths**: `app/layout.tsx`, `lib/theme/theme-context.tsx`, `components/providers/app-providers.tsx`, `lib/helpers/index.ts`, `package.json`, `.oxfmtrc.json`, `.github/dependabot.yml`, `README.md`; deletions as listed above; e2e probes in `e2e/ssr-first-paint.spec.ts`, `e2e/chat-markdown.spec.ts`, `e2e/shell.spec.ts`.
 - **Dependencies**: twelve removed, none added.
 - **Patterns to follow**: global CSS is the one antd reset import in the root layout; a global rule needs a new file and a reason; the scheme is `color-scheme` on `<html>` (server from the cookie, client in `applyScheme`); component looks come from antd props and token-only CSS Modules.
 - **Patterns to avoid**: a `globals.css` that accumulates rules; `.dark` selectors or a body class for the theme; `--theme-*`/shadcn names; utility-class frameworks; a second reset.
