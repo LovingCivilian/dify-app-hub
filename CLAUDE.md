@@ -34,6 +34,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 - ADR-0005 i18n with typed i18next keys; Arabic is Modern Standard Arabic with Arabic-Indic digits (`ar_EG`, Day.js `ar`, `Intl` `ar-SA-u-ca-gregory-nu-arab`); text first, RTL later; maintenance in `docs/i18n-maintenance.md`.
 - ADR-0006 The app's own login on every page and API, deny by default (`lib/access.ts`, `proxy.ts`); the Dify end-user id is the signed-in email set server-side; landing page `/apps`; no LDAP or roles yet; maintenance and known limits in `docs/auth-gate.md` and the ADR (the `/api/users/*` gap is listed in the ADR only).
 - ADR-0007 The Ant Design / Ant Design X look stays as upstream has it (in force on this line; superseded only on `fork/overhaul`).
+- ADR-0013 `@ant-design/cssinjs` stays pinned to the range `antd` depends on (one copy, or `AntdRegistry` extracts no first-paint styles); re-align it on every antd bump (`pnpm why @ant-design/cssinjs` must show one version).
 - ADR-0015 Decisions are MADR ADRs in `docs/decisions/`; session state goes to handoff documents; this file stays short.
 - ADR-0019 Two product lines: `fork/main` (this line: upstream + line-level mods, merges `main`) and `fork/overhaul` (the frontend overhaul, cherry-pick only); never merged into each other.
 
