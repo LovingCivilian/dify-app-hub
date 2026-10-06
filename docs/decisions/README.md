@@ -33,7 +33,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0009](0009-treat-the-frontend-as-fork-owned.md) | Treat the frontend as fork-owned; upstream syncs take the backend only | accepted | 2026-10-04 |
 | [0010](0010-verify-the-frontend-with-playwright-and-a-stub-dify-api.md) | Verify the frontend with Playwright against `next dev`, a throwaway MySQL and a stub Dify API | accepted | 2026-10-04 |
 | [0011](0011-bound-the-shells-to-the-viewport.md) | Bound the shells to the viewport and scroll the content region, with the header pinned | accepted | 2026-10-04 |
-| [0012](0012-alias-legacy-theme-variables-to-antd-tokens.md) | Alias the legacy theme variables to Ant Design tokens on the App root until sub-project 4 | accepted | 2026-10-04 |
+| [0012](0012-alias-legacy-theme-variables-to-antd-tokens.md) | Alias the legacy theme variables to Ant Design tokens on the App root until sub-project 4 | superseded by [ADR-0021](0021-finish-on-pure-antd-after-the-tailwind-removal.md) | 2026-10-04 |
 | [0013](0013-pin-ant-design-cssinjs-to-antd-version.md) | Pin `@ant-design/cssinjs` to the version Ant Design depends on | accepted | 2026-10-04 |
 | [0014](0014-header-controls-click-triggered-named-through-i18next.md) | Make header controls click-triggered and named through i18next, and keep legacy classes out of overlays | accepted | 2026-10-04 |
 | [0015](0015-record-decisions-as-adrs-and-session-handoffs.md) | Record decisions as MADR ADRs and session state as handoff documents; keep CLAUDE.md to rules and pointers | accepted | 2026-10-04 |
@@ -42,6 +42,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0018](0018-gate-route-groups-on-the-server.md) | Gate route groups on the server and let the proxy gate navigations | accepted | 2026-10-04 |
 | [0019](0019-keep-two-product-lines.md) | Keep two product lines: `fork/main` for the line-level fork, `fork/overhaul` for the frontend overhaul | accepted | 2026-10-06 |
 | [0020](0020-load-page-data-on-the-server.md) | Load a page's first paint on the server and hand trimmed props to client components | accepted | 2026-10-06 |
+| [0021](0021-finish-on-pure-antd-after-the-tailwind-removal.md) | Finish on pure antd after the Tailwind removal: antd's reset, `color-scheme` on `<html>`, pure cleanup | accepted | 2026-10-07 |
 
 ## Inherited from upstream (not fork decisions)
 
