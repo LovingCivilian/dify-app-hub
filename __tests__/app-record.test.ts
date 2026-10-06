@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
 	acceptRecord,
 	dropRecord,
+	isAnnotationItem,
 	isAnnotationPage,
 	isAppInfo,
 	isFailedUpdate,
@@ -63,5 +64,16 @@ describe('isAnnotationPage', () => {
 		expect(isAnnotationPage({ code: 'unauthorized', message: 'x', status: 401 })).toBe(false)
 		expect(isAnnotationPage({ data: 'nope', total: 0 })).toBe(false)
 		expect(isAnnotationPage(undefined)).toBe(false)
+	})
+})
+
+describe('isAnnotationItem', () => {
+	it('accepts a saved annotation', () => {
+		expect(isAnnotationItem({ id: 'a1', question: 'q', answer: 'a', hit_count: 0 })).toBe(true)
+	})
+
+	it('rejects Dify error bodies, which lib/api resolves as values', () => {
+		expect(isAnnotationItem({ code: 'not_found', message: 'x', status: 404 })).toBe(false)
+		expect(isAnnotationItem(undefined)).toBe(false)
 	})
 })

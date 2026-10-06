@@ -1,4 +1,4 @@
-import type { IGetAnnotationListResponse, IGetAppInfoResponse } from '@/lib/api'
+import type { IAnnotationItem, IGetAnnotationListResponse, IGetAppInfoResponse } from '@/lib/api'
 import type { IDifyAppItem } from '@/lib/core'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -31,3 +31,7 @@ export const dropRecord = (current: RecordState, appId: string): RecordState =>
 /** GET /apps/annotations answered a page (data array + total), not an error body. */
 export const isAnnotationPage = (value: unknown): value is IGetAnnotationListResponse =>
 	isRecord(value) && Array.isArray(value.data) && typeof value.total === 'number'
+
+/** A saved annotation echoed back by Dify's create or update, not an error body. */
+export const isAnnotationItem = (value: unknown): value is IAnnotationItem =>
+	isRecord(value) && typeof value.id === 'string'
