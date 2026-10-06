@@ -20,7 +20,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 
 ## ADRs
 
-This is the `fork/main` line (the line-level product, [ADR-0019](0019-keep-two-product-lines.md)). Numbers 0001–0019 match `fork/overhaul`'s (later numbers are per line); the records that concern only the frontend overhaul (ADR-0008–ADR-0012, ADR-0014, ADR-0016–ADR-0018) live on that branch (ADR-0016–ADR-0018 on PR #15's branch until it merges) and are missing here on purpose; the body text of some copied records links to them. ADR-0007 is superseded on `fork/overhaul` but in force on this line.
+This is the `fork/main` line (the line-level product, [ADR-0019](0019-keep-two-product-lines.md)). Numbers 0001–0019 match `fork/overhaul`'s (later numbers are per line); the records that concern only the frontend overhaul (ADR-0008–ADR-0012, ADR-0014, ADR-0016–ADR-0018) live on that line and are missing here on purpose; the body text of some copied records links to them. ADR-0007 is superseded on `fork/overhaul` but in force on this line.
 
 | # | Title | Status | Date |
 | --- | --- | --- | --- |
