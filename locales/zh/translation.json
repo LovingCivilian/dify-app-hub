@@ -28,7 +28,7 @@
 		"unsupported_app_type": "不支持的应用类型",
 		"retry": "重试",
 		"load_failed": "页面加载失败",
-		"session_expired": "登录已过期，请重新登录。"
+		"session_expired": "登录已过期，请重新登录"
 	},
 	"form": {
 		"select_placeholder": "请选择",
@@ -189,7 +189,7 @@
 		"reset_link_invalid": "重置链接无效",
 		"reset_success": "密码重置成功，请重新登录",
 		"reset_failed_retry": "密码重置失败，请稍后重试",
-		"reset_link_expired": "重置链接无效或已过期。",
+		"reset_link_expired": "重置链接无效或已过期",
 		"request_new_link": "重新获取链接"
 	},
 	"init": {
