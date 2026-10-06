@@ -58,7 +58,7 @@ Non-goals: merging the two lines later; a feature flag or runtime switch between
 - [x] `origin/fork/overhaul` = `11c3fb3d` before PR #15 merges; `origin/fork/main` = `3d8e628e` (2026-10-06).
 - [x] PR #15 targets `fork/overhaul`; PR #7 targets `fork/main`, PR #8 stacks on #7.
 - [x] `git merge-base --is-ancestor 3d8e628e origin/fork/overhaul` succeeds (the overhaul line contains the line-level history it started from).
-- [ ] `fork/main`'s `CLAUDE.md` names `fork/overhaul`.
+- [x] `fork/main`'s `CLAUDE.md` names `fork/overhaul` (7485dd56).
 - [ ] After PR #15 merges: `fork/overhaul` holds sub-project 2; no merge from `fork/main` or `main` appears in `git log --first-parent fork/overhaul` after `11c3fb3d`.
 
 ## Pros and Cons of the Options
