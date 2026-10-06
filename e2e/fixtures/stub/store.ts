@@ -63,3 +63,23 @@ export const forUser = (user: string, mode: StubMode): UserStore => {
 export const pendingForms = new Map<string, PendingForm>()
 
 export const now = () => Math.floor(Date.now() / 1000)
+
+/** One item of GET /apps/annotations (OpenAPI: AnnotationItem), as the stub stores it. */
+export interface StoredAnnotation {
+	id: string
+	question: string
+	answer: string
+	hit_count: number
+	created_at: number
+}
+
+const annotations = new Map<string, StoredAnnotation[]>()
+/** Dify keeps annotations per app; the stub keys them by the stub app's id. Newest first. */
+export const annotationsFor = (appId: string): StoredAnnotation[] => {
+	let list = annotations.get(appId)
+	if (!list) {
+		list = []
+		annotations.set(appId, list)
+	}
+	return list
+}

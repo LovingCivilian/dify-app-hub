@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
-import { modeFromPath, STUB_APPS, type StubMode } from './apps'
+import { appFromPath, modeFromPath, type StubMode } from './apps'
 import { STUB_PNG, STUB_WAV } from './assets'
 import * as ev from './events'
 import type { StreamEvent } from './events'
@@ -16,6 +16,7 @@ import {
 	streamDelay,
 } from './scenarios'
 import {
+	annotationsFor,
 	forUser,
 	now,
 	type PendingForm,
@@ -31,6 +32,17 @@ const json = (res: ServerResponse, status: number, body: unknown) => {
 /** Dify's error body: `{ code, message, status }` (OpenAPI error examples). */
 const difyError = (res: ServerResponse, status: number, code: string, message: string) =>
 	json(res, status, { code, message, status })
+
+/**
+ * Dify's service API answers cross-origin calls: flask-cors defaults on the service_api blueprint (any origin,
+ * no credentials; api/extensions/ext_blueprints.py). The admin pages call it from the browser with the app's key.
+ */
+const CORS_HEADERS = {
+	'access-control-allow-origin': '*',
+	'access-control-allow-headers': 'Content-Type, X-App-Code, X-App-Passport, Authorization',
+	'access-control-allow-methods': 'GET, PUT, POST, DELETE, OPTIONS, PATCH',
+	'access-control-expose-headers': 'X-Version, X-Env, X-Trace-Id, X-Dify-Catalog',
+}
 
 const readBuffer = (req: IncomingMessage) =>
 	new Promise<Buffer>(resolve => {
@@ -105,8 +117,6 @@ const requireUser = (res: ServerResponse, body: Record<string, unknown>) => {
 const limitOf = (url: URL) =>
 	Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 20))
 
-const appFor = (mode: StubMode) => STUB_APPS.find(a => a.mode === mode)!
-
 const CHAT_MODES: StubMode[] = ['chat', 'agent-chat', 'advanced-chat']
 
 const conversationItem = (c: StoredConversation) => ({ ...c, status: 'normal', introduction: '' })
@@ -144,6 +154,12 @@ const formResponse = (formToken: string, runId: string, expiresAt: number) => {
 export const handle = async (req: IncomingMessage, res: ServerResponse, port: number) => {
 	const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`)
 	const method = req.method ?? 'GET'
+	// setHeader values are merged into every later writeHead (Node http), so each answer carries them.
+	for (const [name, value] of Object.entries(CORS_HEADERS)) res.setHeader(name, value)
+	if (method === 'OPTIONS') {
+		res.writeHead(200)
+		return res.end()
+	}
 
 	if (method === 'GET' && url.pathname === '/files/stub-image.png') {
 		res.writeHead(200, { 'content-type': 'image/png' })
@@ -151,27 +167,31 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 	}
 
 	const { mode, path } = modeFromPath(url.pathname)
+	const matched = appFromPath(url.pathname)
 
-	const app = appFor(mode)
 	const fileUrl = `http://127.0.0.1:${port}/files/stub-image.png`
 
 	if (method === 'GET' && path === '/parameters') return json(res, 200, parametersFor(mode))
 	if (method === 'GET' && path === '/meta') return json(res, 200, { tool_icons: {} })
 	if (method === 'GET' && path === '/info') {
 		return json(res, 200, {
-			name: app.name,
+			name: matched.name,
 			description: 'e2e',
 			tags: [],
-			mode,
+			mode: matched.mode,
 			author_name: 'e2e',
 		})
 	}
 	if (method === 'GET' && path === '/site') {
+		// Dify answers 403 forbidden when the app has no site (OpenAPI getChatWebAppSettings).
+		if (matched.site === 'none') return difyError(res, 403, 'forbidden', 'Site not found.')
+		const icon =
+			matched.site === 'image'
+				? { icon_type: 'image', icon: 'stub-icon-file', icon_url: fileUrl, icon_background: null }
+				: { icon_type: 'emoji', icon: '🤖', icon_background: '#FFEAD5', icon_url: null }
 		return json(res, 200, {
-			title: app.name,
-			icon_type: 'emoji',
-			icon: '🤖',
-			icon_background: '#FFEAD5',
+			title: matched.name,
+			...icon,
 			description: 'e2e',
 			default_language: 'en-US',
 			chat_color_theme: '',
@@ -327,19 +347,58 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 		await readBody(req)
 		return json(res, 200, { text: 'transcribed from the stub' })
 	}
-	if (method === 'POST' && path === '/apps/annotations') {
-		const body = await parseJson(req, res)
-		if (!body) return
-		if (typeof body.question !== 'string' || typeof body.answer !== 'string') {
-			return difyError(res, 400, 'invalid_param', 'question and answer are required.')
+	if (path === '/apps/annotations' || path.startsWith('/apps/annotations/')) {
+		const annotations = annotationsFor(matched.id)
+		const invalid = () => difyError(res, 400, 'invalid_param', 'question and answer are required.')
+		if (method === 'GET' && path === '/apps/annotations') {
+			// Newest first; `keyword` filters question or answer; `limit` ≤ 100 (OpenAPI GET /apps/annotations).
+			const keyword = (url.searchParams.get('keyword') ?? '').trim().toLowerCase()
+			const page = Math.max(1, Number(url.searchParams.get('page')) || 1)
+			const limit = limitOf(url)
+			const found = keyword
+				? annotations.filter(
+						a =>
+							a.question.toLowerCase().includes(keyword) ||
+							a.answer.toLowerCase().includes(keyword),
+					)
+				: annotations
+			return json(res, 200, {
+				data: found.slice((page - 1) * limit, page * limit),
+				has_more: page * limit < found.length,
+				limit,
+				total: found.length,
+				page,
+			})
 		}
-		return json(res, 201, {
-			id: randomUUID(),
-			question: body.question,
-			answer: body.answer,
-			hit_count: 0,
-			created_at: now(),
-		})
+		if (method === 'POST' && path === '/apps/annotations') {
+			const body = await parseJson(req, res)
+			if (!body) return
+			if (typeof body.question !== 'string' || typeof body.answer !== 'string') return invalid()
+			const item = {
+				id: randomUUID(),
+				question: body.question,
+				answer: body.answer,
+				hit_count: 0,
+				created_at: now(),
+			}
+			annotations.unshift(item)
+			return json(res, 201, item)
+		}
+		const index = annotations.findIndex(a => a.id === idAt(path, 3))
+		if (method === 'PUT') {
+			const body = await parseJson(req, res)
+			if (!body) return
+			if (typeof body.question !== 'string' || typeof body.answer !== 'string') return invalid()
+			if (index < 0) return difyError(res, 404, 'not_found', 'Annotation not found.')
+			annotations[index] = { ...annotations[index], question: body.question, answer: body.answer }
+			return json(res, 200, annotations[index])
+		}
+		if (method === 'DELETE') {
+			if (index < 0) return difyError(res, 404, 'not_found', 'Annotation not found.')
+			annotations.splice(index, 1)
+			res.writeHead(204)
+			return res.end()
+		}
 	}
 
 	if (method === 'GET' && /^\/form\/human_input\/[^/]+$/.test(path)) {

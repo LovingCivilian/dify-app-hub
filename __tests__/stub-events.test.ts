@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { APP_ID } from '@/e2e/fixtures/constants'
 import { MARKDOWN_SAMPLES } from '@/e2e/fixtures/markdown-samples'
-import { APP_IDS, modeFromPath, STUB_APPS } from '@/e2e/fixtures/stub/apps'
+import { APP_IDS, appFromPath, modeFromPath, STUB_APPS } from '@/e2e/fixtures/stub/apps'
 import * as ev from '@/e2e/fixtures/stub/events'
 import {
 	chatScenario,
@@ -40,6 +40,12 @@ describe('modeFromPath', () => {
 			mode: 'completion',
 			path: '/completion-messages',
 		})
+	})
+	it('knows the sub-project 3 prefixes and tells which app a path belongs to', () => {
+		expect(modeFromPath('/v1/nosite/parameters')).toEqual({ mode: 'workflow', path: '/parameters' })
+		expect(modeFromPath('/v1/created/info')).toEqual({ mode: 'chat', path: '/info' })
+		expect(appFromPath('/v1/disabled/site').name).toBe('Stub disabled')
+		expect(appFromPath('/v1/info').name).toBe('Stub app')
 	})
 	it('keeps the resume route /workflow/<id>/events under the prefix of its app', () => {
 		expect(modeFromPath('/v1/chatflow/workflow/run-1/events')).toEqual({
