@@ -9,6 +9,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 - `fork/main` is the other product: upstream + the line-level fork modifications only (i18n, login for everyone, header fixes), reset to `3d8e628e` on 2026-10-06. It keeps its own `CLAUDE.md`, the merge-friendly rules and the old chat; PRs #7 and #8 belong there. Never merge `fork/overhaul` into it.
 - Updates: `fork/main` merges `main` after an upstream sync (`git fetch upstream && git checkout main && git merge --ff-only upstream/main`, then `git checkout fork/main && git merge main`). `fork/overhaul` takes no routine merges from `main` or `fork/main`; wanted commits are picked with `git cherry-pick -x`, frontend fixes are re-implemented in the overhaul's structure (ADR-0009).
 - The GitHub default branch is `fork/main`.
+- Local folders: each line has its own folder on this machine, a git worktree of the same repository. This line lives in `~/repos/dify-app-hub` (the main worktree); `fork/main` lives in `~/repos/dify-app-hub-main` with its own `CLAUDE.md`. Start Claude Code in the folder of the line you work on; overhaul feature branches are created in this folder. Git refuses to check out a branch in both folders. Each folder has its own git-ignored `.env`, `.env.development.local`, `node_modules` and `.venv`, and its own Docker stack, so nothing in one folder touches the other. Claude Code's auto memory is shared by both folders (it is per repository).
 
 ## How to work here
 
@@ -55,7 +56,7 @@ This is a personal fork of [lexmin0412/dify-app-hub](https://github.com/lexmin04
 
 ### Docker stack (the real check before merging)
 
-`docker-compose.local.yml` (project `dify-app-hub-local`) builds the image from the checkout and runs it with MySQL on `http://localhost:5300`, settings from `.env`. Rebuild from the branch under test:
+`docker-compose.local.yml` (project `dify-app-hub-local`) builds the image from the checkout and runs it with MySQL on `http://localhost:5300`, settings from `.env`. The `fork/main` folder runs its own stack beside it (project `dify-app-hub-main-local` on `127.0.0.1:5310`, MySQL `127.0.0.1:3316`); never build both folders' images at the same time. Rebuild from the branch under test:
 
 ```bash
 docker compose -f docker-compose.local.yml stop app && docker compose -f docker-compose.local.yml rm -f app
