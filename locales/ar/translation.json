@@ -60,14 +60,16 @@
 			"chatbot": "روبوت محادثة",
 			"workflow": "سير عمل",
 			"chatflow": "تدفق محادثة",
-			"agent": "وكيل"
+			"agent": "وكيل",
+			"agent_app": "تطبيق وكيل"
 		},
 		"option": {
 			"text_generator": "مولّد نصوص",
 			"chatbot": "روبوت محادثة",
 			"workflow": "سير عمل",
 			"chatflow": "تدفق محادثة (روبوت محادثة مع تنسيق سير العمل)",
-			"agent": "وكيل (روبوت محادثة مع استدلال واستخدام مستقل للأدوات)"
+			"agent": "وكيل (روبوت محادثة مع استدلال واستخدام مستقل للأدوات)",
+			"agent_app": "تطبيق وكيل (الوكيل الجديد، بثّ فقط)"
 		}
 	},
 	"chat": {
@@ -280,7 +282,9 @@
 		"create_success": "تمت إضافة إعدادات التطبيق",
 		"edit_success": "تم تحديث إعدادات التطبيق",
 		"save_failed": "فشل حفظ إعدادات التطبيق",
-		"dify_unreachable": "تعذّر الوصول إلى تطبيق Dify. تحقّق من API Base وAPI Secret."
+		"dify_unreachable": "تعذّر الوصول إلى تطبيق Dify. تحقّق من API Base وAPI Secret.",
+		"invalid_input": "تحقّق من الحقول المحدّدة",
+		"icon_not_stored": "تم الحفظ، لكن تعذّر تخزين صورة أيقونة التطبيق"
 	},
 	"app_setting": {
 		"section_request": "إعدادات الطلب",
@@ -290,6 +294,7 @@
 		"api_secret_tooltip": "مفتاح API السري لتطبيق Dify (يبدأ بـ app-)",
 		"api_secret_required": "مفتاح API السري مطلوب",
 		"api_secret_placeholder": "أدخل مفتاح API السري",
+		"api_secret_keep": "اتركه فارغًا للإبقاء على مفتاح API الحالي",
 		"section_basic": "المعلومات الأساسية",
 		"name": "اسم التطبيق",
 		"name_placeholder": "أدخل اسم التطبيق",

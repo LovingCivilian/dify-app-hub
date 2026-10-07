@@ -4,26 +4,18 @@ import { Card, Flex, Tag, Typography, theme } from 'antd'
 import Link from 'next/link'
 import { useTranslation } from 'react-i18next'
 
-import { AppModeNames } from '@/lib/core'
-
 import styles from './app-gallery.module.css'
 import AppIcon from './app-icon'
+import { APP_MODE_NAME_KEYS } from './app-modes'
 import type { AppSummary } from './app-summary'
 
 /**
  * One app (spec §4.2): a real link around a hoverable Card, so the keyboard and "open in new tab" work. antd
- * documents no whole-card link pattern; this is plain HTML semantics. A row without info is not a link.
+ * documents no whole-card link pattern; this is plain HTML semantics.
  */
 export default function AppCard({ app }: { app: AppSummary }) {
 	const { t } = useTranslation()
 	const { token } = theme.useToken()
-	if (app.missingInfo) {
-		return (
-			<Card className={styles.card}>
-				<Typography.Text type="secondary">{t('app.info_missing')}</Typography.Text>
-			</Card>
-		)
-	}
 	return (
 		<Link
 			href={`/chat/${app.id}`}
@@ -37,11 +29,12 @@ export default function AppCard({ app }: { app: AppSummary }) {
 					avatar={
 						<AppIcon
 							appId={app.id}
+							icon={app.icon}
 							mode={app.mode}
 						/>
 					}
 					title={app.name}
-					description={app.mode ? t(AppModeNames[app.mode]) : undefined}
+					description={app.mode ? t(APP_MODE_NAME_KEYS[app.mode]) : undefined}
 				/>
 				<Typography.Paragraph
 					type="secondary"

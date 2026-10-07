@@ -16,12 +16,12 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DifyApi, type IAnnotationItem } from '@/lib/api'
-import type { IDifyAppItem } from '@/lib/core'
+import { failureText } from '@/components/chat/hooks/dify-errors'
+import { createDifyApi } from '@/lib/dify/browser'
+import type { AnnotationItem } from '@/lib/dify/types'
 import { formatDateTime } from '@/libs/format-date'
 
 import AnnotationFormModal, { type AnnotationFormValues } from './annotation-form-modal'
-import { isAnnotationItem, isAnnotationPage } from './app-record'
 
 const DEFAULT_PAGE_SIZE = 10
 
@@ -29,14 +29,15 @@ type Query = { page: number; limit: number; keyword: string; version: number }
 type Loaded =
 	| { status: 'loading' }
 	| { status: 'error' }
-	| { status: 'ready'; items: IAnnotationItem[]; total: number }
+	| { status: 'ready'; items: AnnotationItem[]; total: number }
 
 /**
- * The annotations of one app (spec §5.5): server paging, keyword search, add/edit in a modal, confirmed delete.
- * antd's `destroyOnHidden` destroys the Drawer's children on close, and the drawer keys this panel by app id (React,
- * "resetting state with a key"), so every opening starts with a fresh query, list and modal.
+ * The annotations of one app (spec §5.5): server paging, keyword search, add/edit in a modal, confirmed delete,
+ * through the app's annotation routes (charter §4.1). antd's `destroyOnHidden` destroys the Drawer's children on
+ * close, and the drawer keys this panel by app id (React, "resetting state with a key"), so every opening starts
+ * with a fresh query, list and modal.
  */
-export default function AnnotationsPanel({ record }: { record: IDifyAppItem }) {
+export default function AnnotationsPanel({ appId }: { appId: string }) {
 	const { t, i18n } = useTranslation()
 	const { message } = App.useApp()
 	const [query, setQuery] = useState<Query>({
@@ -46,19 +47,21 @@ export default function AnnotationsPanel({ record }: { record: IDifyAppItem }) {
 		version: 0,
 	})
 	const [loaded, setLoaded] = useState<Loaded>({ status: 'loading' })
-	const [editing, setEditing] = useState<{ item?: IAnnotationItem } | null>(null)
-	// The browser calls Dify with the app's key, as the old drawer did; the key arrives through getApp (spec §5.1).
-	const difyApi = useMemo(() => new DifyApi({ ...record.requestConfig, user: '' }), [record])
+	const [editing, setEditing] = useState<{ item?: AnnotationItem } | null>(null)
+	const difyApi = useMemo(() => createDifyApi(appId), [appId])
 
 	// The only fetcher: a newer query or a closed panel makes the older answer ignored (React, useEffect "Fetching data").
 	useEffect(() => {
 		let ignore = false
 		setLoaded({ status: 'loading' })
 		difyApi
-			.getAnnotationList({ page: query.page, limit: query.limit, keyword: query.keyword })
+			.listAnnotations({
+				page: query.page,
+				limit: query.limit,
+				keyword: query.keyword || undefined,
+			})
 			.then(page => {
 				if (ignore) return
-				if (!isAnnotationPage(page)) throw new Error('Dify answered without an annotation page')
 				setLoaded({ status: 'ready', items: page.data, total: page.total })
 			})
 			.catch(error => {
@@ -72,26 +75,23 @@ export default function AnnotationsPanel({ record }: { record: IDifyAppItem }) {
 	}, [difyApi, query])
 	const reload = () => setQuery(current => ({ ...current, version: current.version + 1 }))
 
-	// lib/api resolves Dify's error bodies as values, so a refused write is recognised before any success message.
+	// The browser client rejects a non-OK answer with DifyRequestError; failureText words it (charter §4.5).
 	const save = async (values: AnnotationFormValues) => {
 		try {
-			const result = editing?.item
-				? await difyApi.updateAnnotation(editing.item.id, values)
-				: await difyApi.createAnnotation(values)
-			if (!isAnnotationItem(result)) throw new Error('Dify refused the annotation')
+			if (editing?.item) await difyApi.updateAnnotation(editing.item.id, values)
+			else await difyApi.createAnnotation(values)
 			message.success(editing?.item ? t('common.update_success') : t('common.create_success'))
 			setEditing(null)
 			reload()
 		} catch (error) {
 			console.error('Failed to save the annotation', error)
-			message.error(t('common.operation_failed'))
+			message.error(failureText(error, t, t('common.operation_failed')))
 		}
 	}
 
 	const remove = async (id: string) => {
 		try {
-			const response = await difyApi.deleteAnnotation(id)
-			if (!response.ok) throw new Error(`Dify answered ${response.status}`)
+			await difyApi.deleteAnnotation(id)
 			message.success(t('common.delete_success'))
 			reload()
 		} catch (error) {
@@ -108,7 +108,7 @@ export default function AnnotationsPanel({ record }: { record: IDifyAppItem }) {
 			{value}
 		</Typography.Paragraph>
 	)
-	const columns: TableProps<IAnnotationItem>['columns'] = [
+	const columns: TableProps<AnnotationItem>['columns'] = [
 		{ title: t('annotation.question'), dataIndex: 'question', render: text },
 		{ title: t('annotation.answer'), dataIndex: 'answer', render: text },
 		{ title: t('annotation.hit_count'), dataIndex: 'hit_count' },

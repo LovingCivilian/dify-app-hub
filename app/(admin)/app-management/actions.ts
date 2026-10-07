@@ -1,63 +1,80 @@
 'use server'
 
-import {
-	addApp,
-	deleteApp as deleteAppItem,
-	getAppItem as getAppItemFromRepository,
-	getAppList as getAppListFromRepository,
-	updateApp as updateAppItem,
-} from '@/repository/app'
-import { IDifyAppItem } from '@/types'
+import { refresh } from 'next/cache'
+import * as z from 'zod'
 
-import { maskApiKey4AppConfig } from './utils'
+import { toActionFailure } from '@/lib/action-failure'
+import { fail, ok, type ActionResult } from '@/lib/action-result'
+import { requireActor } from '@/lib/auth/session'
+import { createApp, deleteApp, syncApp, updateApp, type SyncResult } from '@/lib/data/apps'
 
-export async function listApp({ isMask = false }: { isMask?: boolean } = {}) {
-	const res = await getAppListFromRepository()
-	if (isMask) {
-		const result = await Promise.all(
-			res.map(item => {
-				return maskApiKey4AppConfig(item)
-			}),
-		)
-		return result
-	}
-	return res
-}
+import { appInputSchema, createAppInputSchema } from './schemas'
 
-/**
- * 获取应用详情
+/*
+ * Thin Server Actions (charter §4.2): verify, validate, call the DAL, refresh the route (next/cache `refresh`:
+ * the page reads the database directly, so the current route's RSC payload is refetched in the same round
+ * trip), answer a plain ActionResult. Every expected failure is a result, never a throw.
  */
-export async function getApp(id: string, { isMask = false }: { isMask?: boolean } = {}) {
-	const res = await getAppItemFromRepository(id)
-	if (isMask && res) {
-		return await maskApiKey4AppConfig(res)
-	}
-	return res
-}
 
-/**
- * 删除应用
- */
-export async function deleteApp(id: string) {
-	return deleteAppItem(id)
-}
+const invalid = (error: z.ZodError) =>
+	fail('invalid_input', z.flattenError(error).fieldErrors as Record<string, string[]>)
 
-export async function createApp(appItem: Omit<IDifyAppItem, 'id'>) {
-	const res = await addApp({
-		...appItem,
-	})
-	return res
-}
+const isId = (id: string) => z.uuid().safeParse(id).success
 
-export async function updateApp(appItem: IDifyAppItem) {
+export async function createAppAction(input: unknown): Promise<ActionResult<SyncResult>> {
 	try {
-		const res = await updateAppItem(appItem)
-		return res
+		const actor = await requireActor()
+		const parsed = createAppInputSchema.safeParse(input)
+		if (!parsed.success) return invalid(parsed.error)
+		const result = await createApp(actor, parsed.data)
+		refresh()
+		return ok(result)
 	} catch (error) {
-		console.error(error)
-		return {
-			success: false,
-			message: '更新应用配置失败',
-		}
+		return toActionFailure(error, 'createAppAction')
+	}
+}
+
+export async function updateAppAction(
+	id: string,
+	input: unknown,
+): Promise<ActionResult<SyncResult>> {
+	try {
+		const actor = await requireActor()
+		if (!isId(id)) return fail('not_found')
+		const parsed = appInputSchema.safeParse(input)
+		if (!parsed.success) return invalid(parsed.error)
+		const result = await updateApp(actor, id, {
+			...parsed.data,
+			apiKey: parsed.data.apiKey || undefined,
+		})
+		if (!result) return fail('not_found')
+		refresh()
+		return ok(result)
+	} catch (error) {
+		return toActionFailure(error, 'updateAppAction')
+	}
+}
+
+export async function deleteAppAction(id: string): Promise<ActionResult> {
+	try {
+		const actor = await requireActor()
+		if (!isId(id) || !(await deleteApp(actor, id))) return fail('not_found')
+		refresh()
+		return ok(undefined)
+	} catch (error) {
+		return toActionFailure(error, 'deleteAppAction')
+	}
+}
+
+export async function syncAppAction(id: string): Promise<ActionResult<SyncResult>> {
+	try {
+		const actor = await requireActor()
+		if (!isId(id)) return fail('not_found')
+		const result = await syncApp(actor, id)
+		if (!result) return fail('not_found')
+		refresh()
+		return ok(result)
+	} catch (error) {
+		return toActionFailure(error, 'syncAppAction')
 	}
 }

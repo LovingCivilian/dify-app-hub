@@ -2,15 +2,12 @@ import AppGallery from '@/components/apps/app-gallery'
 import { toAppSummaries } from '@/components/apps/app-summary'
 import UserShell from '@/components/shell/user-shell'
 import { requireUser } from '@/lib/auth/session'
-import { getAppList } from '@/repository/app'
+import { listApps } from '@/lib/data/apps'
 
-/**
- * Spec §3.1: the server page checks the session where it reads data (Next authentication guide, "Layouts and
- * auth checks"), loads, trims and hands plain props to the client gallery.
- */
+/** The server page checks the session, reads the DAL, trims and hands plain props to the client gallery (ADR-0020). */
 export default async function AppListPage() {
-	await requireUser()
-	const apps = toAppSummaries(await getAppList())
+	const actor = await requireUser()
+	const apps = toAppSummaries(await listApps(actor))
 	return (
 		<UserShell>
 			<AppGallery apps={apps} />

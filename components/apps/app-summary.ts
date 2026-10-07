@@ -1,30 +1,25 @@
-import { type AppModeEnums, EIsEnabled, type IDifyAppItem } from '@/lib/core'
+import type { AppDto, AppIcon } from '@/lib/data/apps'
+import type { AppMode } from '@/lib/dify/types'
 
-/** What an app card shows (spec §4.1) — nothing from requestConfig reaches the client. */
-export type AppSummary =
-	| {
-			id: string
-			missingInfo: false
-			name: string
-			description: string
-			mode?: AppModeEnums
-			tags: string[]
-	  }
-	| { id: string; missingInfo: true }
+/** What an app card shows: the DTO minus the base and the settings. */
+export interface AppSummary {
+	id: string
+	name: string
+	description: string
+	mode: AppMode | null
+	tags: string[]
+	icon: AppIcon
+}
 
-/** Enabled apps only, decided as `/chat`'s index does (`isEnabled !== EIsEnabled.disabled`), trimmed for the client. */
-export const toAppSummaries = (items: IDifyAppItem[]): AppSummary[] =>
-	items
-		.filter(item => item.isEnabled !== EIsEnabled.disabled)
-		.map(item =>
-			item.info
-				? {
-						id: item.id,
-						missingInfo: false,
-						name: item.info.name,
-						description: item.info.description ?? '',
-						mode: item.info.mode,
-						tags: item.info.tags ?? [],
-					}
-				: { id: item.id, missingInfo: true },
-		)
+/** Enabled apps only, trimmed for the client. */
+export const toAppSummaries = (apps: AppDto[]): AppSummary[] =>
+	apps
+		.filter(app => app.enabled)
+		.map(({ id, name, description, mode, tags, icon }) => ({
+			id,
+			name,
+			description,
+			mode,
+			tags,
+			icon,
+		}))

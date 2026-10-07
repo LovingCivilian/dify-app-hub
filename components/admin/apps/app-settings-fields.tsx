@@ -3,15 +3,14 @@
 import { Descriptions, Divider, Flex, Form, Input, Select, Switch, Tag } from 'antd'
 import { useTranslation } from 'react-i18next'
 
-import { AppModeOptions, type IDifyAppItem, OpeningStatementDisplayModeOptions } from '@/lib/core'
+import { APP_MODE_OPTION_KEYS, APP_MODE_OPTIONS } from '@/components/apps/app-modes'
+import type { AppDto } from '@/lib/data/apps'
 
-import { statusSwitchProps } from './app-form-values'
-
-/** The settings form's fields (spec §5.4); `record` shows the app's Dify info above them when editing. */
-export default function AppSettingsFields({ record }: { record?: IDifyAppItem }) {
+/** The settings form's fields; `record` shows the app's Dify info above them when editing. */
+export default function AppSettingsFields({ record }: { record?: AppDto }) {
 	const { t } = useTranslation()
 	const form = Form.useFormInstance()
-	const replyOn = Form.useWatch(['answerForm', 'enabled'], form)
+	const replyOn = Form.useWatch(['settings', 'answerForm', 'enabled'], form)
 
 	return (
 		<>
@@ -20,21 +19,21 @@ export default function AppSettingsFields({ record }: { record?: IDifyAppItem })
 					column={1}
 					size="small"
 					items={[
-						{ key: 'name', label: t('app_setting.name'), children: record.info.name },
+						{ key: 'name', label: t('app_setting.name'), children: record.name },
 						{
 							key: 'description',
 							label: t('app_setting.description'),
-							children: record.info.description || t('common.none'),
+							children: record.description || t('common.none'),
 						},
 						{
 							key: 'tags',
 							label: t('app_setting.tags'),
-							children: record.info.tags?.length ? (
+							children: record.tags.length ? (
 								<Flex
 									wrap
 									gap="small"
 								>
-									{record.info.tags.map(tag => (
+									{record.tags.map(tag => (
 										<Tag key={tag}>{tag}</Tag>
 									))}
 								</Flex>
@@ -49,7 +48,7 @@ export default function AppSettingsFields({ record }: { record?: IDifyAppItem })
 			<Divider titlePlacement="start">{t('app_setting.section_request')}</Divider>
 			<Form.Item
 				label="API Base"
-				name={['requestConfig', 'apiBase']}
+				name="apiBase"
 				tooltip={t('app_setting.api_base_tooltip')}
 				rules={[{ required: true, message: t('app_setting.api_base_required') }]}
 			>
@@ -57,9 +56,11 @@ export default function AppSettingsFields({ record }: { record?: IDifyAppItem })
 			</Form.Item>
 			<Form.Item
 				label="API Secret"
-				name={['requestConfig', 'apiKey']}
+				name="apiKey"
 				tooltip={t('app_setting.api_secret_tooltip')}
-				rules={[{ required: true, message: t('app_setting.api_secret_required') }]}
+				// The stored key is never sent back to the browser: on edit a blank field keeps it (charter §4.4).
+				extra={record ? t('app_setting.api_secret_keep') : undefined}
+				rules={record ? [] : [{ required: true, message: t('app_setting.api_secret_required') }]}
 			>
 				<Input.Password
 					autoComplete="new-password"
@@ -70,20 +71,23 @@ export default function AppSettingsFields({ record }: { record?: IDifyAppItem })
 			<Divider titlePlacement="start">{t('app_setting.section_basic')}</Divider>
 			<Form.Item
 				label={t('app_setting.type')}
-				name={['info', 'mode']}
+				name="mode"
 				tooltip={t('app_setting.type_tooltip')}
 				rules={[{ required: true, message: t('app_setting.type_required') }]}
 			>
 				<Select
 					placeholder={t('app_setting.type_placeholder')}
-					options={AppModeOptions.map(option => ({ value: option.value, label: t(option.label) }))}
+					options={APP_MODE_OPTIONS.map(mode => ({
+						value: mode,
+						label: t(APP_MODE_OPTION_KEYS[mode]),
+					}))}
 				/>
 			</Form.Item>
 			<Form.Item
 				label={t('app_setting.status')}
-				name="isEnabled"
+				name="enabled"
 				tooltip={t('app_setting.status_tooltip')}
-				{...statusSwitchProps}
+				valuePropName="checked"
 			>
 				<Switch />
 			</Form.Item>
@@ -91,7 +95,7 @@ export default function AppSettingsFields({ record }: { record?: IDifyAppItem })
 			<Divider titlePlacement="start">{t('app_setting.section_conversation')}</Divider>
 			<Form.Item
 				label={t('app_setting.update_inputs')}
-				name={['inputParams', 'enableUpdateAfterCvstStarts']}
+				name={['settings', 'enableUpdateAfterConversationStarts']}
 				tooltip={t('app_setting.update_inputs_tooltip')}
 				valuePropName="checked"
 			>
@@ -99,21 +103,21 @@ export default function AppSettingsFields({ record }: { record?: IDifyAppItem })
 			</Form.Item>
 			<Form.Item
 				label={t('app_setting.opening_display')}
-				name={['extConfig', 'conversation', 'openingStatement', 'displayMode']}
+				name={['settings', 'openingStatementDisplayMode']}
 				tooltip={t('app_setting.opening_display_tooltip')}
 			>
 				<Select
-					options={OpeningStatementDisplayModeOptions.map(option => ({
-						value: option.value,
-						label: t(option.label),
-					}))}
+					options={[
+						{ value: 'default', label: t('app_setting.opening_display_default') },
+						{ value: 'always', label: t('app_setting.opening_display_always') },
+					]}
 				/>
 			</Form.Item>
 
 			<Divider titlePlacement="start">{t('app_setting.section_more')}</Divider>
 			<Form.Item
 				label={t('app_setting.allow_annotation')}
-				name={['extConfig', 'annotation', 'enabled']}
+				name={['settings', 'annotationEnabled']}
 				tooltip={t('app_setting.allow_annotation_tooltip')}
 				valuePropName="checked"
 			>
@@ -121,7 +125,7 @@ export default function AppSettingsFields({ record }: { record?: IDifyAppItem })
 			</Form.Item>
 			<Form.Item
 				label={t('app_setting.form_reply')}
-				name={['answerForm', 'enabled']}
+				name={['settings', 'answerForm', 'enabled']}
 				tooltip={t('app_setting.form_reply_tooltip')}
 				valuePropName="checked"
 			>
@@ -130,7 +134,7 @@ export default function AppSettingsFields({ record }: { record?: IDifyAppItem })
 			{replyOn && (
 				<Form.Item
 					label={t('app_setting.submit_text')}
-					name={['answerForm', 'feedbackText']}
+					name={['settings', 'answerForm', 'feedbackText']}
 					tooltip={t('app_setting.submit_text_tooltip')}
 				>
 					<Input placeholder={t('app_setting.submit_text_placeholder')} />

@@ -20,8 +20,8 @@ export interface StubApp {
 	enableAnnotation: boolean
 	/** GET /site: an emoji icon (default), an image icon, or Dify's 403 for an app without a site. */
 	site?: 'emoji' | 'image' | 'none'
-	/** Seeded into `dify_apps.is_enabled` (1 enabled, 2 disabled); 1 when absent. */
-	isEnabled?: 1 | 2
+	/** Seeded into dify_apps.is_enabled; true when absent. */
+	enabled?: false
 }
 
 /** The five seeded apps. The first keeps the foundation's id and name so older specs keep their locators. */
@@ -85,7 +85,7 @@ export const DISABLED_APP: StubApp = {
 	prefix: '/disabled',
 	openingStatementDisplayMode: 'default',
 	enableAnnotation: false,
-	isEnabled: 2,
+	enabled: false,
 }
 export const NO_SITE_APP: StubApp = {
 	id: 'e2e00000-0000-4000-8000-000000000007',

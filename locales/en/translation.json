@@ -60,14 +60,16 @@
 			"chatbot": "Chatbot",
 			"workflow": "Workflow",
 			"chatflow": "Chatflow",
-			"agent": "Agent"
+			"agent": "Agent",
+			"agent_app": "Agent app"
 		},
 		"option": {
 			"text_generator": "Text Generator",
 			"chatbot": "Chatbot",
 			"workflow": "Workflow",
 			"chatflow": "Chatflow (chatbot with workflow orchestration)",
-			"agent": "Agent (chatbot with reasoning and autonomous tool use)"
+			"agent": "Agent (chatbot with reasoning and autonomous tool use)",
+			"agent_app": "Agent app (the new Agent, streaming only)"
 		}
 	},
 	"chat": {
@@ -280,7 +282,9 @@
 		"create_success": "App configuration added",
 		"edit_success": "App configuration updated",
 		"save_failed": "Failed to save app configuration",
-		"dify_unreachable": "Could not reach the Dify app. Check the API Base and API Secret."
+		"dify_unreachable": "Could not reach the Dify app. Check the API Base and API Secret.",
+		"invalid_input": "Check the highlighted fields",
+		"icon_not_stored": "Saved, but the app's icon image could not be stored"
 	},
 	"app_setting": {
 		"section_request": "Request settings",
@@ -290,6 +294,7 @@
 		"api_secret_tooltip": "API Secret of the Dify app (starts with app-)",
 		"api_secret_required": "API Secret is required",
 		"api_secret_placeholder": "Enter the API Secret",
+		"api_secret_keep": "Leave blank to keep the current API Secret",
 		"section_basic": "Basic information",
 		"name": "App name",
 		"name_placeholder": "Enter the app name",

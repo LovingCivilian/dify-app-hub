@@ -13,10 +13,11 @@ setup('initialise the admin, seed the stub apps, sign in', async ({ page, reques
 
 	const db = await mysql.createConnection(e2eEnv.DATABASE_URL)
 	for (const app of [...STUB_APPS, ...SEEDED_EXTRA_APPS]) {
-		// A database that survives between runs keeps its rows: the display mode, the annotation switch and the
-		// status are refreshed on them.
+		// A database that survives between runs keeps its rows: the display mode, the annotation switch, the
+		// status and the icon are refreshed on them. The icon is the emoji the stub's /site answers (the DAL stores
+		// it at create and sync; a seeded row needs it set), none for the app without a site.
 		await db.execute(
-			'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key, opening_statement_display_mode, enable_annotation, is_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE opening_statement_display_mode = ?, enable_annotation = ?, is_enabled = ?',
+			'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key, opening_statement_display_mode, enable_annotation, is_enabled, icon_type, icon, icon_background) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE opening_statement_display_mode = ?, enable_annotation = ?, is_enabled = ?, icon_type = ?, icon = ?, icon_background = ?',
 			[
 				app.id,
 				app.name,
@@ -26,10 +27,12 @@ setup('initialise the admin, seed the stub apps, sign in', async ({ page, reques
 				'app-e2e',
 				app.openingStatementDisplayMode,
 				app.enableAnnotation,
-				app.isEnabled ?? 1,
+				app.enabled === false ? 0 : 1,
+				...(app.site === 'none' ? [null, null, null] : ['emoji', '🤖', '#FFEAD5']),
 				app.openingStatementDisplayMode,
 				app.enableAnnotation,
-				app.isEnabled ?? 1,
+				app.enabled === false ? 0 : 1,
+				...(app.site === 'none' ? [null, null, null] : ['emoji', '🤖', '#FFEAD5']),
 			],
 		)
 	}

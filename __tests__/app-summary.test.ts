@@ -1,43 +1,46 @@
 import { describe, expect, it } from 'vitest'
 
 import { toAppSummaries } from '@/components/apps/app-summary'
-import { AppModeEnums, EIsEnabled, type IDifyAppItem } from '@/lib/core'
+import type { AppDto } from '@/lib/data/apps'
 
-const item = (over: Partial<IDifyAppItem> = {}): IDifyAppItem => ({
+const settings = {
+	answerForm: { enabled: false, feedbackText: '' },
+	enableUpdateAfterConversationStarts: false,
+	openingStatementDisplayMode: 'default' as const,
+	annotationEnabled: false,
+}
+const app = (over: Partial<AppDto> = {}): AppDto => ({
 	id: 'a1',
-	info: { name: 'Alpha', mode: AppModeEnums.CHATBOT, description: 'First app', tags: ['support'] },
-	isEnabled: EIsEnabled.enabled,
-	requestConfig: { apiBase: 'https://dify.example/v1', apiKey: 'app-secret' },
+	name: 'Alpha',
+	mode: 'chat',
+	description: 'First app',
+	tags: ['support'],
+	enabled: true,
+	icon: { kind: 'emoji', emoji: '🍵', background: null },
+	settings,
+	apiBase: 'https://dify.example/v1',
+	createdAt: '2026-10-07T00:00:00.000Z',
+	updatedAt: '2026-10-07T00:00:00.000Z',
 	...over,
 })
 
 describe('toAppSummaries', () => {
 	it('keeps enabled apps and drops disabled ones, as /chat does', () => {
-		const result = toAppSummaries([item(), item({ id: 'a2', isEnabled: EIsEnabled.disabled })])
-		expect(result.map(app => app.id)).toEqual(['a1'])
+		expect(toAppSummaries([app(), app({ id: 'a2', enabled: false })]).map(a => a.id)).toEqual([
+			'a1',
+		])
 	})
-
-	it('trims each app to what a card shows', () => {
-		expect(toAppSummaries([item()])).toEqual([
+	it('trims each app to what a card shows, the icon included, the base left out', () => {
+		expect(toAppSummaries([app()])).toEqual([
 			{
 				id: 'a1',
-				missingInfo: false,
 				name: 'Alpha',
 				description: 'First app',
-				mode: AppModeEnums.CHATBOT,
+				mode: 'chat',
 				tags: ['support'],
+				icon: { kind: 'emoji', emoji: '🍵', background: null },
 			},
 		])
-		expect(JSON.stringify(toAppSummaries([item()]))).not.toMatch(/app-secret|dify\.example/)
-	})
-
-	it('marks a row without info and defaults a missing description and tags', () => {
-		expect(toAppSummaries([item({ info: undefined as unknown as IDifyAppItem['info'] })])).toEqual([
-			{ id: 'a1', missingInfo: true },
-		])
-		const bare = item({
-			info: { name: 'Bare' } as unknown as IDifyAppItem['info'],
-		})
-		expect(toAppSummaries([bare])[0]).toMatchObject({ description: '', tags: [] })
+		expect(JSON.stringify(toAppSummaries([app()]))).not.toContain('dify.example')
 	})
 })
