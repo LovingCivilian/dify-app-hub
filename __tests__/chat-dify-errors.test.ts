@@ -31,7 +31,6 @@ describe('failureText', () => {
 		['unauthorized', 401, 'chat.error_unauthorized'],
 		['app_not_found', 404, 'chat.error_app_not_found'],
 		['app_disabled', 403, 'chat.error_app_disabled'],
-		['invalid_param', 400, 'chat.error_invalid_param'],
 		['upstream_error', 502, 'chat.error_upstream_error'],
 		['upstream_unreachable', 502, 'chat.error_upstream_unreachable'],
 	])('gives the key of the app code %s, not its message', (code, status, key) => {
@@ -40,6 +39,11 @@ describe('failureText', () => {
 	it("keeps Dify's own message for Dify's own code (ADR-0017)", () => {
 		const error = new DifyRequestError(415, 'unsupported_file_type', 'File type not allowed.')
 		expect(failureText(error, t, 'generic')).toBe('File type not allowed.')
+	})
+	// Dify refuses a missing or bad field with the same code (endpoint map: legend, §4); the route passes it through.
+	it("keeps Dify's message for invalid_param", () => {
+		const error = new DifyRequestError(400, 'invalid_param', 'topic is not valid.')
+		expect(failureText(error, t, 'generic')).toBe('topic is not valid.')
 	})
 	it('gives the fallback for internal_error, an empty message or a failure that is not an answer', () => {
 		expect(

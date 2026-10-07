@@ -178,10 +178,9 @@ export default function ChatView() {
 
 	useEffect(() => {
 		if (!list.error) return
+		const reason = failureText(list.error, t)
 		toast.error(
-			list.error.message
-				? t('chat.fetch_list_failed', { error: list.error.message })
-				: t('common.request_failed_retry'),
+			reason ? t('chat.fetch_list_failed', { error: reason }) : t('common.request_failed_retry'),
 		)
 	}, [list.error, t, toast])
 
@@ -371,7 +370,7 @@ export default function ChatView() {
 
 	/**
 	 * Rates an answer by its Dify message id (spec §4.7): shown at once, taken back if Dify refuses
-	 * (the browser client rejects with DifyRequestError) with Dify's text or the generic one.
+	 * (the browser client rejects with DifyRequestError) with the failure's text (failureText) or the generic one.
 	 */
 	const feedback = useCallback(
 		async (

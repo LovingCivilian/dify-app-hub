@@ -14,12 +14,14 @@ export const toDifyError = (error: unknown): DifyRequestError => {
 	return wrapped
 }
 
-/** The app's own refusal codes (charter §4.5): their English messages are never shown, these keys are. */
+/**
+ * The app's own refusal codes (charter §4.5): their English messages are never shown, these keys are. Not
+ * `invalid_param`: Dify refuses a missing or bad field with it too, and its message is the reason (endpoint map: legend, §4).
+ */
 const APP_CODE_KEYS = {
 	unauthorized: 'chat.error_unauthorized',
 	app_not_found: 'chat.error_app_not_found',
 	app_disabled: 'chat.error_app_disabled',
-	invalid_param: 'chat.error_invalid_param',
 	upstream_error: 'chat.error_upstream_error',
 	upstream_unreachable: 'chat.error_upstream_unreachable',
 } as const
