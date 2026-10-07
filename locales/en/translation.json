@@ -100,6 +100,12 @@
 		"menu_for": "Actions for {{name}}",
 		"sending_queued": "Your message will be sent once this conversation has loaded.",
 		"history_load_failed": "Could not load this conversation's messages",
+		"error_unauthorized": "Not authorised. Sign in again; if it keeps happening, ask an admin to check the app's settings.",
+		"error_app_not_found": "This app could not be found.",
+		"error_app_disabled": "This app is disabled.",
+		"error_invalid_param": "The request was not valid. Reload the page and try again.",
+		"error_upstream_error": "Dify answered with an error. Please try again later.",
+		"error_upstream_unreachable": "Dify could not be reached. Please try again later.",
 		"retry": "Retry",
 		"inputs_required": "Fill in the conversation parameters first."
 	},

@@ -100,6 +100,12 @@
 		"menu_for": "{{name}} 的操作",
 		"sending_queued": "此会话加载完成后将发送你的消息。",
 		"history_load_failed": "无法加载此会话的消息",
+		"error_unauthorized": "未获授权。请重新登录；如果问题仍然存在，请联系管理员检查应用设置。",
+		"error_app_not_found": "找不到此应用。",
+		"error_app_disabled": "此应用已停用。",
+		"error_invalid_param": "请求无效。请刷新页面后重试。",
+		"error_upstream_error": "Dify 返回了错误，请稍后重试。",
+		"error_upstream_unreachable": "无法连接到 Dify，请稍后重试。",
 		"retry": "重试",
 		"inputs_required": "请先填写对话参数。"
 	},

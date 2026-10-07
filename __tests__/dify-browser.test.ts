@@ -108,23 +108,24 @@ describe('createDifyApi: errors', () => {
 			message: 'Expired.',
 		})
 	})
-	it('falls back to the status text for a body that is not the envelope', async () => {
+	// No English reaches the user: without Dify's text the view shows its own i18n text (charter §4.5).
+	it('keeps no message, not the status text, for a body that is not the envelope', async () => {
 		fetchMock.mockResolvedValue(new Response('boom', { status: 502, statusText: 'Bad Gateway' }))
 		await expect(api.getParameters()).rejects.toMatchObject({
 			status: 502,
 			code: undefined,
-			message: 'Bad Gateway',
+			message: '',
 		})
 	})
 	// Next answers a failure before a route's `try` (a database error) with an empty 500.
-	it('falls back to the status text for an empty body', async () => {
+	it('keeps no message, not the status text, for an empty body', async () => {
 		fetchMock.mockResolvedValue(
 			new Response(null, { status: 500, statusText: 'Internal Server Error' }),
 		)
 		await expect(api.getSite()).rejects.toMatchObject({
 			status: 500,
 			code: undefined,
-			message: 'Internal Server Error',
+			message: '',
 		})
 	})
 	it('rejects every method alike, a stream or binary one included', async () => {

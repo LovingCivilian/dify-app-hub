@@ -21,7 +21,7 @@ import UserShell from '@/components/shell/user-shell'
 import type { HumanInputSubmission } from '@/lib/dify/types'
 
 import { useAppContext } from '../app-context'
-import { humanInputFailureText, toDifyError } from '../hooks/dify-errors'
+import { failureText, humanInputFailureText } from '../hooks/dify-errors'
 import { useConversations } from '../hooks/use-conversations'
 import { useDifyChat, type SendParams } from '../hooks/use-dify-chat'
 import { useSpeechToText } from '../hooks/use-speech-to-text'
@@ -397,7 +397,7 @@ export default function ChatView() {
 						feedback: info.message.feedback === rating ? previous : info.message.feedback,
 					},
 				}))
-				toast.error(toDifyError(error).message || t('common.request_failed_retry'))
+				toast.error(failureText(error, t, t('common.request_failed_retry')))
 			}
 		},
 		[difyApi, t, toast],
@@ -580,7 +580,7 @@ export default function ChatView() {
 									type="error"
 									showIcon
 									title={t('chat.history_load_failed')}
-									description={chat.historyError.message || t('common.request_failed_retry')}
+									description={failureText(chat.historyError, t, t('common.request_failed_retry'))}
 									action={
 										<Button
 											size="small"

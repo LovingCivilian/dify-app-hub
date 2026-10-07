@@ -36,7 +36,10 @@ export class DifyRequestError extends Error {
 	}
 }
 
-/** Reads a non-OK answer; an empty or non-JSON body (a proxy page, Next's empty 500) falls back to the status text. */
+/**
+ * Reads a non-OK answer. An empty or non-JSON body (a proxy page, Next's empty 500) keeps no message, never the
+ * status text: nothing user-facing is English from the wire, the view shows its own i18n text (charter §4.5).
+ */
 export const readDifyError = async (response: Response): Promise<DifyRequestError> => {
 	let body: { code?: unknown; message?: unknown } | null = null
 	try {
@@ -47,7 +50,7 @@ export const readDifyError = async (response: Response): Promise<DifyRequestErro
 	return new DifyRequestError(
 		response.status,
 		typeof body?.code === 'string' ? body.code : undefined,
-		typeof body?.message === 'string' ? body.message : response.statusText,
+		typeof body?.message === 'string' ? body.message : '',
 	)
 }
 

@@ -10,7 +10,7 @@ import { createDifyApi } from '@/lib/dify/browser'
 
 import { DEFAULT_SITE_SETTINGS } from './app-answers'
 import { AppContext, type AppContextValue } from './app-context'
-import { toDifyError } from './hooks/dify-errors'
+import { failureText } from './hooks/dify-errors'
 import ChatView from './chat-view/chat-view'
 import styles from './chat-view/chat-view.module.css'
 import { isChatLikeApp, isWorkflowLikeApp } from './utils-index'
@@ -18,7 +18,7 @@ import WorkflowView from './workflow-view/workflow-view'
 
 type State =
 	| { status: 'loading' }
-	| { status: 'error'; message: string }
+	| { status: 'error'; error: unknown }
 	| { status: 'ready'; value: AppContextValue }
 
 /** Loads the app's parameters and site settings, provides AppContext and picks the view by mode. The app itself arrives from the server page. */
@@ -37,8 +37,8 @@ export default function ChatWorkspace({ app }: { app: ChatAppDto }) {
 				])
 				if (!cancelled) setState({ status: 'ready', value: { app, parameters, site, difyApi } })
 			} catch (error) {
-				// Dify's text, or '' for anything else (the Result then shows the generic key).
-				if (!cancelled) setState({ status: 'error', message: toDifyError(error).message })
+				// Kept as it is: the Result words it in the current language (failureText).
+				if (!cancelled) setState({ status: 'error', error })
 			}
 		})()
 		return () => {
@@ -68,7 +68,7 @@ export default function ChatWorkspace({ app }: { app: ChatAppDto }) {
 				<Result
 					status="500"
 					title={t('app.load_failed')}
-					subTitle={state.message || t('common.request_failed_retry')}
+					subTitle={failureText(state.error, t, t('common.request_failed_retry'))}
 					extra={
 						<Button
 							type="primary"

@@ -59,16 +59,16 @@ describe('createDifyFetch', () => {
 		})
 	})
 
-	it('falls back to the status text when the error body is not JSON', async () => {
+	it('keeps no message, not the status text, when the error body is not JSON', async () => {
 		vi.stubGlobal(
 			'fetch',
 			vi.fn().mockResolvedValue(new Response('boom', { status: 502, statusText: 'Bad Gateway' })),
 		)
 		const error = await createDifyFetch(APP)('ignored', { body: '{}' } as never).catch(e => e)
-		expect(error).toMatchObject({ status: 502, message: 'Bad Gateway' })
+		expect(error).toMatchObject({ status: 502, message: '' })
 	})
 
-	it('keeps the status text when the body is not the envelope', async () => {
+	it('keeps no message, not the status text, when the body is not the envelope', async () => {
 		vi.stubGlobal(
 			'fetch',
 			vi.fn().mockResolvedValue(
@@ -80,7 +80,7 @@ describe('createDifyFetch', () => {
 			),
 		)
 		const error = await createDifyFetch(APP)('ignored', { body: '{}' } as never).catch(e => e)
-		expect(error).toMatchObject({ status: 404, code: undefined, message: 'Not Found' })
+		expect(error).toMatchObject({ status: 404, code: undefined, message: '' })
 	})
 
 	it('returns the response untouched when it is OK', async () => {

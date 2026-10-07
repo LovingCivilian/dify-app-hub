@@ -31,7 +31,7 @@ import {
 	type WorkflowState,
 } from '../provider/message'
 import { getProvider } from '../provider/provider-cache'
-import { toDifyError } from './dify-errors'
+import { failureText, toDifyError } from './dify-errors'
 import { nextPaging, prependLatestPage, prependOlder, type HistoryPaging } from './history-paging'
 
 export const HISTORY_PAGE = 20
@@ -168,14 +168,9 @@ const toMessageInfo = (
 	status: info.status ?? 'success',
 })
 
-const toMessageError = (error: Error, fallback: string): MessageError =>
+const toMessageError = (error: Error, t: TFunction, fallback: string): MessageError =>
 	error instanceof DifyRequestError
-		? {
-				code: error.code,
-				// HTTP/2 has no statusText, so an error without a body can arrive with an empty message.
-				message: error.message || fallback,
-				status: error.status,
-			}
+		? { code: error.code, message: failureText(error, t, fallback), status: error.status }
 		: { message: fallback }
 
 /**
@@ -195,7 +190,7 @@ export const fallbackMessage = (
 	const { agentAnswer: _agentAnswer, ...base } = current ?? emptyAssistant()
 	if (error.name === 'AbortError') return { ...base, aborted: true }
 	const fallback = resumed ? t('hitl.resume_failed') : t('common.request_failed_retry')
-	return { ...base, error: toMessageError(error, fallback) }
+	return { ...base, error: toMessageError(error, t, fallback) }
 }
 
 /**

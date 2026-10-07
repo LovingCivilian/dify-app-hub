@@ -7,7 +7,7 @@ import { App, Button, Form, Input } from 'antd'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { toDifyError } from '../hooks/dify-errors'
+import { failureText } from '../hooks/dify-errors'
 
 /** `Conversations` `menu` as a function of the item (the prop also takes one fixed menu for all items). */
 type ConversationMenu = Extract<
@@ -42,10 +42,10 @@ export const useConversationMenu = ({
 	// a form warning when used in Modal?").
 	const [form] = Form.useForm<{ name: string }>()
 
-	/** Dify's text when it gave one, else the generic one; the modal stays open for another try. */
+	/** The failure's text (failureText), else the generic one; the modal stays open for another try. */
 	const reportFailure = useCallback(
 		(error: unknown) => {
-			message.error(toDifyError(error).message || t('common.request_failed_retry'))
+			message.error(failureText(error, t, t('common.request_failed_retry')))
 		},
 		[message, t],
 	)

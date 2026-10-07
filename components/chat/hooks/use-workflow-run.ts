@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { useAppContext } from '../app-context'
 import { apiInputs, pendingFileInputs } from '../chat-view/inputs-values'
 import { parseEvent } from '../provider/dify-chat-provider'
-import { toDifyError } from './dify-errors'
+import { failureText } from './dify-errors'
 import { initialRunState, reduceRunEvent, type RunState } from './run-reducer'
 
 /**
@@ -88,8 +88,8 @@ export const useWorkflowRun = () => {
 				// A stream that closed without its closing event has ended all the same.
 				update(s => (s.status === 'running' ? { ...s, status: 'finished' } : s))
 			} catch (error) {
-				// A network failure keeps no text (the view shows the generic one).
-				update(s => ({ ...s, status: 'failed', error: toDifyError(error).message }))
+				// The failure's text; '' for a network failure or the like (the view shows the generic one).
+				update(s => ({ ...s, status: 'failed', error: failureText(error, t) }))
 			}
 			return true
 		},

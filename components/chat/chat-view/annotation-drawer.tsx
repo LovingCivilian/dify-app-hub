@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAppContext } from '../app-context'
-import { toDifyError } from '../hooks/dify-errors'
+import { failureText } from '../hooks/dify-errors'
 
 export interface AnnotationDrawerProps {
 	open: boolean
@@ -52,7 +52,7 @@ export default function AnnotationDrawer({
 			toast.success(t('annotation.create_success'))
 			onClose()
 		} catch (error) {
-			toast.error(toDifyError(error).message || t('common.request_failed_retry'))
+			toast.error(failureText(error, t, t('common.request_failed_retry')))
 		} finally {
 			setSaving(false)
 		}

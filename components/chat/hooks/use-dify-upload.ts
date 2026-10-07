@@ -13,7 +13,7 @@ import {
 	type FileRules,
 } from '../chat-view/file-types'
 import { formatCount } from '../message/workflow-summary'
-import { toDifyError } from './dify-errors'
+import { failureText, toDifyError } from './dify-errors'
 
 export interface UploadRules extends FileRules {
 	/** The most files the list may hold; none for a single file, which antd's `maxCount: 1` replaces. */
@@ -72,7 +72,7 @@ export const useDifyUpload = ({ types, extensions, limit }: UploadRules, count: 
 		const fail = (error: unknown) => {
 			const failure = toDifyError(error)
 			// The list shows a string `response` as the failed item's text.
-			onError?.(failure, failure.message || t('common.request_failed_retry'))
+			onError?.(failure, failureText(failure, t, t('common.request_failed_retry')))
 		}
 		difyApi.uploadFile(file as File).then(answer => onSuccess?.(answer), fail)
 	}

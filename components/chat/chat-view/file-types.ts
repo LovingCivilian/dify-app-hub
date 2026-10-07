@@ -1,7 +1,7 @@
 import type { FileInput, FileType } from '@/lib/dify/types'
 
 /**
- * Dify 支持的文件类型和对应的格式
+ * The file types Dify supports and the extensions of each
  */
 export const FileTypeMap: Map<FileType, string[]> = new Map()
 
@@ -29,7 +29,7 @@ FileTypeMap.set('video', ['mp4', 'mov', 'mpeg', 'mpga'])
 FileTypeMap.set('custom', [])
 
 /**
- * 获取文件扩展名
+ * The file name's extension
  */
 export const getFileExtByName = (filename: string) => {
 	return filename.split('.').pop()
@@ -38,7 +38,7 @@ export const getFileExtByName = (filename: string) => {
 export const getFileTypeByName = (filename: string): FileType => {
 	const ext = filename?.split('.')?.pop()
 
-	// 使用文件扩展名和 FileTypeMap 进行匹配
+	// Matched by the extension against FileTypeMap
 	let fileType: FileType = 'custom'
 	FileTypeMap.forEach((extensions, type) => {
 		if (extensions.indexOf(ext as string) > -1) {
@@ -49,11 +49,11 @@ export const getFileTypeByName = (filename: string): FileType => {
 }
 
 /**
- * 获取文件类型
- * 如果 allowedFileTypes 长度为 1, 则直接返回该类型
- * 否则, 根据文件扩展名进行匹配
- * @param filename 文件名
- * @param allowedFileTypes 允许的文件类型
+ * The file's type
+ * When allowedFileTypes holds one type, that type is returned as it is;
+ * otherwise the type is matched by the file's extension
+ * @param filename the file name
+ * @param allowedFileTypes the allowed file types
  */
 export const getDifyFileType = (filename: string, allowedFileTypes: FileType[]): FileType => {
 	if (allowedFileTypes.length === 1) {
@@ -63,9 +63,9 @@ export const getDifyFileType = (filename: string, allowedFileTypes: FileType[]):
 }
 
 /**
- * 格式化文件大小, 原始单位为 Byte
- * 如果大于 1M, 则显示为 MB, 否则显示为 KB
- * @param size 文件大小
+ * The file size formatted, from bytes
+ * Shown in MB above 1 MB, otherwise in KB
+ * @param size the file size
  */
 export const formatSize = (size: number) => {
 	if (size > 1024 * 1024) {

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 
 import { useAppContext } from '../app-context'
-import { toDifyError } from './dify-errors'
+import { failureText } from './dify-errors'
 import { recordingFile, speechAction, type SpeechPhase } from './speech-recording'
 
 const stopTracks = (stream: MediaStream) => {
@@ -69,7 +69,7 @@ export const useSpeechToText = ({
 				if (mounted.current && text) insert(text)
 			} catch (error) {
 				if (mounted.current) {
-					const reason = toDifyError(error).message || translate('common.request_failed_retry')
+					const reason = failureText(error, translate, translate('common.request_failed_retry'))
 					toast.error(translate('sender.speech_to_text_error', { error: reason }))
 				}
 			} finally {

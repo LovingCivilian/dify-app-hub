@@ -1,7 +1,11 @@
 import type { TFunction } from 'i18next'
 import { describe, expect, it } from 'vitest'
 
-import { humanInputFailureText, toDifyError } from '@/components/chat/hooks/dify-errors'
+import {
+	failureText,
+	humanInputFailureText,
+	toDifyError,
+} from '@/components/chat/hooks/dify-errors'
 import { DifyRequestError } from '@/components/chat/provider/dify-fetch'
 
 const t = ((key: string, options?: Record<string, unknown>) =>
@@ -21,12 +25,53 @@ describe('toDifyError', () => {
 	})
 })
 
+describe('failureText', () => {
+	// The app's own refusals (charter §4.5) carry English messages; the user sees the translated key.
+	it.each([
+		['unauthorized', 401, 'chat.error_unauthorized'],
+		['app_not_found', 404, 'chat.error_app_not_found'],
+		['app_disabled', 403, 'chat.error_app_disabled'],
+		['invalid_param', 400, 'chat.error_invalid_param'],
+		['upstream_error', 502, 'chat.error_upstream_error'],
+		['upstream_unreachable', 502, 'chat.error_upstream_unreachable'],
+	])('gives the key of the app code %s, not its message', (code, status, key) => {
+		expect(failureText(new DifyRequestError(status, code, 'English text.'), t, 'generic')).toBe(key)
+	})
+	it("keeps Dify's own message for Dify's own code (ADR-0017)", () => {
+		const error = new DifyRequestError(415, 'unsupported_file_type', 'File type not allowed.')
+		expect(failureText(error, t, 'generic')).toBe('File type not allowed.')
+	})
+	it('gives the fallback for internal_error, an empty message or a failure that is not an answer', () => {
+		expect(
+			failureText(
+				new DifyRequestError(500, 'internal_error', 'Internal Server Error'),
+				t,
+				'generic',
+			),
+		).toBe('generic')
+		expect(failureText(new DifyRequestError(502, undefined, ''), t, 'generic')).toBe('generic')
+		expect(failureText(new TypeError('fetch failed'), t, 'generic')).toBe('generic')
+	})
+	it('gives an empty text without a fallback', () => {
+		expect(failureText(new DifyRequestError(500, 'internal_error', 'x'), t)).toBe('')
+	})
+})
+
 describe('humanInputFailureText', () => {
 	it("gives Dify's reason for a refused form, or the generic text without one", () => {
 		expect(humanInputFailureText(new DifyRequestError(412, 'x', 'Expired.'), false, t)).toBe(
 			'hitl.submit_failed_reason:Expired.',
 		)
 		expect(humanInputFailureText(new TypeError('net'), false, t)).toBe('hitl.submit_failed')
+	})
+	it("gives the app's own refusal as the translated reason", () => {
+		expect(
+			humanInputFailureText(
+				new DifyRequestError(403, 'app_disabled', 'This app is disabled.'),
+				false,
+				t,
+			),
+		).toBe('hitl.submit_failed_reason:chat.error_app_disabled')
 	})
 	it('says the answer was sent when only the continuation failed', () => {
 		expect(humanInputFailureText(new Error('x'), true, t)).toBe('hitl.resume_failed')
