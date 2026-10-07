@@ -231,7 +231,7 @@ export const useDifyChat = ({
 				() =>
 					new DifyChatProvider({
 						request: XRequest<DifyChatInput, SSEOutput, DifyChatMessage>(
-							`/api/client/dify/${appId}/chat-messages`,
+							`/api/dify/${encodeURIComponent(appId)}/chat-messages`,
 							{
 								manual: true,
 								fetch: createDifyFetch(appId),
