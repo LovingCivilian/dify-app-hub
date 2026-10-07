@@ -1,16 +1,16 @@
 import UserManagement from '@/components/admin/users/user-management'
 import { toUserRows } from '@/components/admin/users/user-row'
+import { requireUser } from '@/lib/auth/session'
 import { listUsers } from '@/lib/data/users'
-import { getCachedServerSession, requireSessionUser } from '@/lib/session-user'
 
-/** Spec §6: the signed-in user's database id (session.user.id; getSessionUserId() is the email) hides their Delete. */
+/** Spec §6 of sub-project 3: the signed-in user's database id hides their own Delete. */
 export default async function UserManagementPage() {
-	await requireSessionUser()
-	const [session, users] = await Promise.all([getCachedServerSession(), listUsers()])
+	const user = await requireUser()
+	const users = await listUsers()
 	return (
 		<UserManagement
 			users={toUserRows(users)}
-			currentUserId={session?.user?.id ?? ''}
+			currentUserId={user.id}
 		/>
 	)
 }

@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AppModeEnums, EIsEnabled } from '@/lib/core'
 
-const { requireSessionUser, listApp, AppManagement, redirectSignal } = vi.hoisted(() => ({
-	requireSessionUser: vi.fn(),
+const { requireUser, listApp, AppManagement, redirectSignal } = vi.hoisted(() => ({
+	requireUser: vi.fn(),
 	listApp: vi.fn(),
 	AppManagement: () => null,
 	redirectSignal: new Error('NEXT_REDIRECT'),
 }))
-vi.mock('@/lib/session-user', () => ({ requireSessionUser }))
+vi.mock('@/lib/auth/session', () => ({ requireUser }))
 vi.mock('@/app/(admin)/app-management/actions', () => ({ listApp }))
 vi.mock('@/components/admin/apps/app-management', () => ({ default: AppManagement }))
 
@@ -16,18 +16,18 @@ import AppManagementPage from '@/app/(admin)/app-management/page'
 
 describe('/app-management page', () => {
 	beforeEach(() => {
-		requireSessionUser.mockReset()
+		requireUser.mockReset()
 		listApp.mockReset()
 	})
 
 	it('checks the session before it lists the apps', async () => {
-		requireSessionUser.mockRejectedValue(redirectSignal)
+		requireUser.mockRejectedValue(redirectSignal)
 		await expect(AppManagementPage()).rejects.toBe(redirectSignal)
 		expect(listApp).not.toHaveBeenCalled()
 	})
 
 	it('lists with masked keys and hands the table rows without requestConfig', async () => {
-		requireSessionUser.mockResolvedValue(undefined)
+		requireUser.mockResolvedValue(undefined)
 		listApp.mockResolvedValue([
 			{
 				id: 'a1',

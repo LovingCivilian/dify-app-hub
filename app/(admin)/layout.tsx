@@ -1,9 +1,9 @@
 import AdminShell from '@/components/shell/admin-shell'
-import { requireSessionUser } from '@/lib/session-user'
+import { requireUser } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-	await requireSessionUser()
+	await requireUser()
 	return <AdminShell>{children}</AdminShell>
 }

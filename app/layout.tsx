@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 
 import AppProviders from '@/components/providers/app-providers'
 import { readLanguageCookie } from '@/lib/i18n/language-cookie'
-import { getCachedServerSession } from '@/lib/session-user'
+import { getCachedServerSession } from '@/lib/auth/session'
 import { ThemeEnum } from '@/lib/theme/constants'
 import { readThemeCookies } from '@/lib/theme/theme-cookie'
 

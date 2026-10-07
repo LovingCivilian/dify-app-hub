@@ -3,17 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppModeEnums, EIsEnabled } from '@/lib/core'
 
 // vi.mock factories are hoisted above imports, so the mocks must be created with vi.hoisted.
-const { requireSessionUser, getAppList, UserShell, AppGallery, redirectSignal } = vi.hoisted(
-	() => ({
-		requireSessionUser: vi.fn(),
-		getAppList: vi.fn(),
-		// Client component trees; the page test only checks the props it hands them.
-		UserShell: () => null,
-		AppGallery: () => null,
-		redirectSignal: new Error('NEXT_REDIRECT'),
-	}),
-)
-vi.mock('@/lib/session-user', () => ({ requireSessionUser }))
+const { requireUser, getAppList, UserShell, AppGallery, redirectSignal } = vi.hoisted(() => ({
+	requireUser: vi.fn(),
+	getAppList: vi.fn(),
+	// Client component trees; the page test only checks the props it hands them.
+	UserShell: () => null,
+	AppGallery: () => null,
+	redirectSignal: new Error('NEXT_REDIRECT'),
+}))
+vi.mock('@/lib/auth/session', () => ({ requireUser }))
 vi.mock('@/repository/app', () => ({ getAppList }))
 vi.mock('@/components/shell/user-shell', () => ({ default: UserShell }))
 vi.mock('@/components/apps/app-gallery', () => ({ default: AppGallery }))
@@ -29,18 +27,18 @@ const app = (id: string, isEnabled: EIsEnabled) => ({
 
 describe('/apps page', () => {
 	beforeEach(() => {
-		requireSessionUser.mockReset()
+		requireUser.mockReset()
 		getAppList.mockReset()
 	})
 
 	it('checks the session before it reads the apps', async () => {
-		requireSessionUser.mockRejectedValue(redirectSignal)
+		requireUser.mockRejectedValue(redirectSignal)
 		await expect(AppListPage()).rejects.toBe(redirectSignal)
 		expect(getAppList).not.toHaveBeenCalled()
 	})
 
 	it('hands the gallery the enabled apps, without their request config', async () => {
-		requireSessionUser.mockResolvedValue(undefined)
+		requireUser.mockResolvedValue(undefined)
 		getAppList.mockResolvedValue([app('a1', EIsEnabled.enabled), app('a2', EIsEnabled.disabled)])
 		const page = await AppListPage()
 		expect(page).toMatchObject({

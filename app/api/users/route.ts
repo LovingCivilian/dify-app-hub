@@ -1,8 +1,8 @@
-import bcrypt from 'bcryptjs'
+import { hashPassword } from '@/lib/auth/password'
 import { getServerSession } from 'next-auth/next'
 import { NextRequest, NextResponse } from 'next/server'
 import { eq, desc } from 'drizzle-orm'
-import { authOptions } from '@/lib/auth'
+import { authOptions } from '@/lib/auth/options'
 import { getDb } from '@/db'
 import { users } from '@/db/schema'
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json({ message: '姓名、邮箱和密码都是必填项' }, { status: 400 })
 		const rows = await db.select().from(users).where(eq(users.email, email)).limit(1)
 		if (rows[0]) return NextResponse.json({ message: '该邮箱已被使用' }, { status: 400 })
-		const hashedPassword = await bcrypt.hash(password, 12)
+		const hashedPassword = await hashPassword(password)
 		await db.insert(users).values({ name, email, password: hashedPassword })
 		const newRows = await db
 			.select({

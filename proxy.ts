@@ -1,4 +1,3 @@
-// @ts-expect-error next-auth v4 jwt type resolution
 import { getToken } from 'next-auth/jwt'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -8,23 +7,29 @@ import { isApiPath, isPublicPath, isUngatedPath } from '@/lib/access'
 export async function proxy(request: NextRequest) {
 	const { pathname, origin } = request.nextUrl
 
-	// 按解码后的路径判断（Next 也会按解码后的路径匹配路由）
+	// Classify by the decoded path (Next matches routes on the decoded path too)
 	let decoded: string
 	try {
 		decoded = decodeURIComponent(pathname)
 	} catch {
-		return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+		return NextResponse.json(
+			{ code: 'invalid_param', message: 'Bad request.', status: 400 },
+			{ status: 400 },
+		)
 	}
 
-	// 跳过公开 API、静态资源和初始化页面本身
+	// Skip the public APIs, static assets and the init page itself
 	if (isUngatedPath(decoded)) return NextResponse.next()
 
-	// 全站鉴权：公开页面以外都需要登录，API 默认拒绝
+	// Site-wide gate: every page but the public ones needs a session; APIs are denied by default
 	if (!isPublicPath(decoded)) {
 		const token = await getToken({ req: request })
 		if (!token) {
 			if (isApiPath(decoded)) {
-				return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+				return NextResponse.json(
+					{ code: 'unauthorized', message: 'Sign in required.', status: 401 },
+					{ status: 401 },
+				)
 			}
 			const loginUrl = new URL('/login', request.url)
 			loginUrl.searchParams.set('callbackUrl', pathname + request.nextUrl.search)
@@ -43,8 +48,8 @@ export async function proxy(request: NextRequest) {
 			return NextResponse.redirect(url)
 		}
 	} catch (error) {
-		console.error('初始化状态检查失败:', error)
-		// 状态检查失败时不阻断访问，允许后续页面处理
+		console.error('Init status check failed:', error)
+		// A failed check must not block the page; the pages handle it
 	}
 
 	return NextResponse.next()

@@ -29,7 +29,11 @@ describe('proxy', () => {
 	it('answers /api/client without a session with a 401 JSON error', async () => {
 		const response = await proxy(request('/api/client/apps'))
 		expect(response.status).toBe(401)
-		await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
+		await expect(response.json()).resolves.toEqual({
+			code: 'unauthorized',
+			message: 'Sign in required.',
+			status: 401,
+		})
 	})
 
 	it('redirects a page without a session to the login page with a callbackUrl', async () => {
@@ -43,7 +47,11 @@ describe('proxy', () => {
 	it('denies other /api paths without a session by default', async () => {
 		const response = await proxy(request('/api/users'))
 		expect(response.status).toBe(401)
-		await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
+		await expect(response.json()).resolves.toEqual({
+			code: 'unauthorized',
+			message: 'Sign in required.',
+			status: 401,
+		})
 	})
 
 	it('lets /login through without a session and still checks the init status', async () => {
@@ -64,12 +72,21 @@ describe('proxy', () => {
 	it('classifies the decoded pathname, so an encoded /api/client still needs a session', async () => {
 		const response = await proxy(request('/api/%63lient/apps'))
 		expect(response.status).toBe(401)
-		await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
+		await expect(response.json()).resolves.toEqual({
+			code: 'unauthorized',
+			message: 'Sign in required.',
+			status: 401,
+		})
 	})
 
 	it('rejects a pathname that does not decode with a 400', async () => {
 		const response = await proxy(request('/api/client/%E0%A4%A'))
 		expect(response.status).toBe(400)
+		await expect(response.json()).resolves.toEqual({
+			code: 'invalid_param',
+			message: 'Bad request.',
+			status: 400,
+		})
 		expect(getToken).not.toHaveBeenCalled()
 	})
 

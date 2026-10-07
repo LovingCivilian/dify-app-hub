@@ -1,4 +1,4 @@
-import { redirectSignedInUser } from '@/lib/session-user'
+import { redirectSignedInUser } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
 

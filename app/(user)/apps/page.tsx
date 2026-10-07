@@ -1,7 +1,7 @@
 import AppGallery from '@/components/apps/app-gallery'
 import { toAppSummaries } from '@/components/apps/app-summary'
 import UserShell from '@/components/shell/user-shell'
-import { requireSessionUser } from '@/lib/session-user'
+import { requireUser } from '@/lib/auth/session'
 import { getAppList } from '@/repository/app'
 
 /**
@@ -9,7 +9,7 @@ import { getAppList } from '@/repository/app'
  * auth checks"), loads, trims and hands plain props to the client gallery.
  */
 export default async function AppListPage() {
-	await requireSessionUser()
+	await requireUser()
 	const apps = toAppSummaries(await getAppList())
 	return (
 		<UserShell>
