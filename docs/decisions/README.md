@@ -30,7 +30,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0006](0006-require-login-everywhere-and-use-the-email-as-dify-end-user-id.md) | Require the app's own login for every page and API, and use the signed-in email as the Dify end-user id | accepted | 2026-10-04 |
 | [0007](0007-leave-the-ant-design-look-as-upstream-has-it.md) | Leave the Ant Design / Ant Design X look as upstream has it | superseded by [ADR-0008](0008-rebuild-frontend-on-ant-design-6-and-x-2.md) | 2026-10-04 |
 | [0008](0008-rebuild-frontend-on-ant-design-6-and-x-2.md) | Rebuild the frontend on Ant Design 6 and Ant Design X 2, following their documentation | accepted | 2026-10-04 |
-| [0009](0009-treat-the-frontend-as-fork-owned.md) | Treat the frontend as fork-owned; upstream syncs take the backend only | accepted | 2026-10-04 |
+| [0009](0009-treat-the-frontend-as-fork-owned.md) | Treat the frontend as fork-owned; upstream syncs take the backend only | superseded by [ADR-0022](0022-treat-the-overhaul-line-as-fully-fork-owned.md) | 2026-10-04 |
 | [0010](0010-verify-the-frontend-with-playwright-and-a-stub-dify-api.md) | Verify the frontend with Playwright against `next dev`, a throwaway MySQL and a stub Dify API | accepted | 2026-10-04 |
 | [0011](0011-bound-the-shells-to-the-viewport.md) | Bound the shells to the viewport and scroll the content region, with the header pinned | accepted | 2026-10-04 |
 | [0012](0012-alias-legacy-theme-variables-to-antd-tokens.md) | Alias the legacy theme variables to Ant Design tokens on the App root until sub-project 4 | superseded by [ADR-0021](0021-finish-on-pure-antd-after-the-tailwind-removal.md) | 2026-10-04 |
@@ -43,6 +43,11 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0019](0019-keep-two-product-lines.md) | Keep two product lines: `fork/main` for the line-level fork, `fork/overhaul` for the frontend overhaul | accepted | 2026-10-06 |
 | [0020](0020-load-page-data-on-the-server.md) | Load a page's first paint on the server and hand trimmed props to client components | accepted | 2026-10-06 |
 | [0021](0021-finish-on-pure-antd-after-the-tailwind-removal.md) | Finish on pure antd after the Tailwind removal: antd's reset, `color-scheme` on `<html>`, pure cleanup | accepted | 2026-10-07 |
+| [0022](0022-treat-the-overhaul-line-as-fully-fork-owned.md) | Treat the `fork/overhaul` line as fully fork-owned; upstream is a cherry-pick source only | proposed | 2026-10-07 |
+| [0023](0023-build-the-dify-layer-as-one-route-per-operation.md) | Build the Dify layer as one Route Handler per Service API operation, a typed server client and a pass-through contract | proposed | 2026-10-07 |
+| [0025](0025-validate-with-zod.md) | Validate request bodies, action inputs and the environment with zod | proposed | 2026-10-07 |
+
+ADR-0024 is reserved for B2 of the backend rework (the Data Access Layer with Server Actions and roles, `docs/superpowers/specs/2026-10-07-backend-rework-charter.md` §6).
 
 ## Inherited from upstream (not fork decisions)
 

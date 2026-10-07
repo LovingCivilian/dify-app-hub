@@ -3,7 +3,7 @@ import { expect, test, type Page, type Request, type Response } from '@playwrigh
 import { APP_ID } from './fixtures/constants'
 
 const pathOf = (url: string) => new URL(url).pathname
-/** GET …/conversation/<id>/messages: a conversation's history (the proxy's route for Dify's GET /messages). */
+/** GET /api/dify/<app>/messages: a conversation's history (Dify's GET /messages, the conversation in the query). */
 const isHistory = (response: Response) =>
 	response.request().method() === 'GET' && pathOf(response.url()).endsWith('/messages')
 /** POST …/chat-messages: a send. */
