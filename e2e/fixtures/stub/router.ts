@@ -279,10 +279,15 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 	if (method === 'POST' && /^\/conversations\/[^/]+\/name$/.test(path)) {
 		const body = await parseJson(req, res)
 		if (!body) return
-		const c = forUser(userOf(url, body), mode).conversations.get(idAt(path, 2))
+		const store = forUser(userOf(url, body), mode)
+		const c = store.conversations.get(idAt(path, 2))
 		if (c) {
 			if (typeof body.name === 'string' && body.name) c.name = body.name
-			else if (body.auto_generate) c.name = 'Generated title'
+			// Like Dify's ConversationService.auto_generate_name: a name from the conversation's first message.
+			else if (body.auto_generate) {
+				const first = store.messages.find(m => m.conversation_id === c.id)
+				c.name = first ? first.query.slice(0, 40) : 'Generated title'
+			}
 		}
 		return json(res, 200, c ? conversationItem(c) : {})
 	}
@@ -533,7 +538,9 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 				? { ...known, updated_at: now() }
 				: {
 						id: conversation_id,
-						name: query.slice(0, 40),
+						// Dify names a new conversation after its first query unless the client opts out with
+						// auto_generate_name false (then the rename API with auto_generate names it).
+						name: body.auto_generate_name === false ? 'New conversation' : query.slice(0, 40),
 						created_at: now(),
 						updated_at: now(),
 						inputs,

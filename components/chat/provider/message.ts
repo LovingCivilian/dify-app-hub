@@ -126,6 +126,8 @@ export interface DifyChatInput {
 	conversation_id?: string
 	user?: string
 	response_mode: 'streaming'
+	/** Sent as false: the app names the conversation itself through the rename API (cosmetic sweep 1, item 3). */
+	auto_generate_name?: boolean
 	resume?: { workflowRunId: string; message: DifyChatMessage }
 }
 

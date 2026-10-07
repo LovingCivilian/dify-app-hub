@@ -6,6 +6,7 @@ import type { IConversationItem } from '@/lib/api'
 import type { DifyApi } from '@/lib/dify-client'
 
 import {
+	DIFY_PLACEHOLDER_NAME,
 	mergeServerList,
 	regroup,
 	toConversationItem,
@@ -189,6 +190,33 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 		[getDifyId, setConversation],
 	)
 
+	/**
+	 * Asks Dify for the name of a conversation that has just been created (its message was sent with
+	 * `auto_generate_name` false): the rename API with `auto_generate` answers the name it generated
+	 * from the first message, and the list shows it. Never rejects: the name is cosmetic, so a failure
+	 * keeps the label and the next refresh shows whatever name the server holds.
+	 */
+	const generateName = useCallback(
+		async (key: string) => {
+			const difyId = getDifyId(key)
+			if (!difyId) return
+			try {
+				const answer: unknown = await latest.current.difyApi.renameConversation({
+					conversation_id: difyId,
+					auto_generate: true,
+				})
+				if (renameError(answer)) return
+				const name = (answer as { data?: { name?: unknown } }).data?.name
+				if (typeof name === 'string' && name && name !== DIFY_PLACEHOLDER_NAME) {
+					setConversation(key, { key, label: name })
+				}
+			} catch {
+				// Kept: the default label, until a refresh brings the server's name.
+			}
+		},
+		[getDifyId, setConversation],
+	)
+
 	/** Deletes on Dify, then locally; rejects with a DifyRequestError and keeps the item on failure. */
 	const remove = useCallback(
 		async (key: string) => {
@@ -224,6 +252,7 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 		getInputs,
 		setInputs,
 		rename,
+		generateName,
 		remove,
 		refresh,
 		getDifyId,

@@ -93,17 +93,18 @@ export default function ChatView() {
 	})
 	// '' until the list has loaded: no conversation, so no provider and no sending (useDifyChat).
 	const activeKey = list.activeKey
-	const { getDifyId, markDifyId, refresh } = list
+	const { getDifyId, markDifyId, refresh, generateName } = list
 	const chat = useDifyChat({
 		appId: app.id,
 		conversationKey: activeKey,
 		getDifyConversationId: () => getDifyId(activeKey),
-		// A new chat's reply named its Dify conversation, whichever conversation is on screen by then; the
-		// server lists it already, so its name shows now rather than when the reply ends.
+		// A new chat's reply created its Dify conversation, whichever conversation is on screen by then:
+		// the app asks Dify for the generated name (the message was sent with auto_generate_name false,
+		// cosmetic sweep 1 item 3), then reloads the list, which the server lists already.
 		onConversationId: (key, difyId) => {
 			if (getDifyId(key) === difyId) return
 			markDifyId(key, difyId)
-			void refresh()
+			void generateName(key).then(refresh)
 		},
 		difyApi,
 		t,
