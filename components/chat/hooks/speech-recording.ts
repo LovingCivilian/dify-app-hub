@@ -21,9 +21,9 @@ export const speechAction = (
 const FALLBACK_TYPE = 'audio/webm'
 
 /**
- * The recorded audio as the file POST /audio2text takes (MDN, MediaRecorder `dataavailable` and `stop`:
+ * The recorded audio as the file POST /audio-to-text takes (MDN, MediaRecorder `dataavailable` and `stop`:
  * the chunks joined into one Blob of the recorder's `mimeType`); undefined when nothing was recorded. The
- * app's proxy hands Dify a type it accepts (app/api/client/dify/[appId]/audio2text).
+ * app's route forwards it to Dify under its real type and name (app/api/dify/[appId]/audio-to-text).
  */
 export const recordingFile = (chunks: Blob[], mimeType: string): File | undefined => {
 	const type = mimeType || FALLBACK_TYPE

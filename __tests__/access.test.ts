@@ -26,7 +26,7 @@ describe('isPublicPath', () => {
 		'/app-management',
 		'/user-management',
 		'/loginx',
-		'/api/client/apps',
+		'/api/dify/app-1/parameters',
 		'/api/users',
 	])('requires a session for %s', pathname => {
 		expect(isPublicPath(pathname)).toBe(false)
@@ -53,7 +53,7 @@ describe('isUngatedPath', () => {
 		'/initx',
 		'/_nextx',
 		'/apps',
-		'/api/client/apps',
+		'/api/dify/app-1/parameters',
 		'/api/users',
 	])('keeps %s behind the session or init-status check', pathname => {
 		expect(isUngatedPath(pathname)).toBe(false)
@@ -64,7 +64,7 @@ describe('isApiPath', () => {
 	it('matches the /api segment only', () => {
 		expect(isApiPath('/api')).toBe(true)
 		expect(isApiPath('/api/users')).toBe(true)
-		expect(isApiPath('/api/client/apps')).toBe(true)
+		expect(isApiPath('/api/dify/app-1/parameters')).toBe(true)
 		expect(isApiPath('/apis')).toBe(false)
 		expect(isApiPath('/apps')).toBe(false)
 		expect(isApiPath('/')).toBe(false)

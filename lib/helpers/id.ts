@@ -1,5 +1,5 @@
 /**
- * 是否为临时 ID
+ * Whether the ID is a temporary one
  */
 export const isTempId = (id: string | undefined) => {
 	if (!id) {
@@ -9,16 +9,16 @@ export const isTempId = (id: string | undefined) => {
 }
 
 /**
- * 生成符合 RFC 4122 标准的 UUID v4
- * 支持浏览器和 Node.js 环境，不依赖第三方库
+ * Generates an RFC 4122 UUID v4
+ * Works in the browser and in Node.js, with no third-party library
  */
 export const generateUuidV4 = (): string => {
-	// 检查是否支持 crypto.getRandomValues (浏览器) 或 crypto.randomBytes (Node.js)
+	// Check for crypto.getRandomValues (browser) or crypto.randomBytes (Node.js)
 	let randomBytes: (size: number) => Uint8Array
 
 	if (typeof crypto !== 'undefined') {
 		if (crypto.getRandomValues) {
-			// 浏览器环境
+			// Browser environment
 			randomBytes = (size: number) => {
 				const array = new Uint8Array(size)
 				crypto.getRandomValues(array)
@@ -28,7 +28,7 @@ export const generateUuidV4 = (): string => {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			randomBytes = (crypto as any).randomBytes
 		} else {
-			// 降级到 Math.random (不推荐，但作为后备方案)
+			// Fall back to Math.random (not recommended, but a last resort)
 			randomBytes = (size: number) => {
 				const array = new Uint8Array(size)
 				for (let i = 0; i < size; i++) {
@@ -38,7 +38,7 @@ export const generateUuidV4 = (): string => {
 			}
 		}
 	} else {
-		// 降级到 Math.random
+		// Fall back to Math.random
 		randomBytes = (size: number) => {
 			const array = new Uint8Array(size)
 			for (let i = 0; i < size; i++) {
@@ -48,17 +48,17 @@ export const generateUuidV4 = (): string => {
 		}
 	}
 
-	// 生成 16 字节的随机数据
+	// Generate 16 random bytes
 	const bytes = randomBytes(16)
 
-	// 设置版本 (4) 和变体位
-	bytes[6] = (bytes[6] & 0x0f) | 0x40 // 版本 4
-	bytes[8] = (bytes[8] & 0x3f) | 0x80 // 变体 1
+	// Set the version (4) and variant bits
+	bytes[6] = (bytes[6] & 0x0f) | 0x40 // version 4
+	bytes[8] = (bytes[8] & 0x3f) | 0x80 // variant 1
 
-	// 转换为十六进制字符串
+	// Convert to a hexadecimal string
 	const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
 
-	// 格式化为 UUID 格式: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+	// Format as a UUID: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
 	return [
 		hex.slice(0, 8),
 		hex.slice(8, 12),
@@ -69,9 +69,9 @@ export const generateUuidV4 = (): string => {
 }
 
 /**
- * 验证 UUID 格式是否正确
- * @param uuid 要验证的 UUID 字符串
- * @returns 是否为有效的 UUID 格式
+ * Checks that a string is a well-formed UUID
+ * @param uuid the UUID string to check
+ * @returns whether it is a valid UUID
  */
 export const isValidUuid = (uuid: string): boolean => {
 	const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i

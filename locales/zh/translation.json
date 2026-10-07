@@ -43,7 +43,6 @@
 		"no_data_default": "暂无应用",
 		"no_description": "暂无描述",
 		"no_config_default_text": "暂无 Dify 应用配置，请联系管理员",
-		"info_missing": "应用信息缺失，请检查",
 		"no_description_user": "该应用暂无描述",
 		"empty_contact_admin": "暂无应用数据，请联系管理员配置",
 		"load_failed": "加载失败",

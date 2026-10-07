@@ -26,8 +26,8 @@ describe('proxy', () => {
 
 	afterEach(() => vi.unstubAllGlobals())
 
-	it('answers /api/client without a session with a 401 JSON error', async () => {
-		const response = await proxy(request('/api/client/apps'))
+	it('answers /api/dify without a session with a 401 JSON error', async () => {
+		const response = await proxy(request('/api/dify/app-1/parameters'))
 		expect(response.status).toBe(401)
 		await expect(response.json()).resolves.toEqual({
 			code: 'unauthorized',
@@ -94,14 +94,14 @@ describe('proxy', () => {
 		expect(fetchMock).toHaveBeenCalledWith(`${ORIGIN}/api/init/status`, { cache: 'no-store' })
 	})
 
-	it('lets /api/client through with a session without checking the init status', async () => {
+	it('lets /api/dify through with a session without checking the init status', async () => {
 		getToken.mockResolvedValue({ id: 'u1', email: 'jane@example.com' })
-		const response = await proxy(request('/api/client/apps'))
+		const response = await proxy(request('/api/dify/app-1/parameters'))
 		expect(isNext(response)).toBe(true)
 		expect(fetchMock).not.toHaveBeenCalled()
 	})
 
-	it('classifies the decoded pathname, so an encoded /api/client still needs a session', async () => {
+	it('classifies the decoded pathname, so an encoded /api/dify still needs a session', async () => {
 		const response = await proxy(request('/api/%63lient/apps'))
 		expect(response.status).toBe(401)
 		await expect(response.json()).resolves.toEqual({
@@ -112,7 +112,7 @@ describe('proxy', () => {
 	})
 
 	it('rejects a pathname that does not decode with a 400', async () => {
-		const response = await proxy(request('/api/client/%E0%A4%A'))
+		const response = await proxy(request('/api/dify/%E0%A4%A'))
 		expect(response.status).toBe(400)
 		await expect(response.json()).resolves.toEqual({
 			code: 'invalid_param',
