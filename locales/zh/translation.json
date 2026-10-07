@@ -289,6 +289,7 @@
 	"app_setting": {
 		"section_request": "请求配置",
 		"api_base_required": "API Base 不能为空",
+		"api_base_invalid": "请输入以 http:// 或 https:// 开头的地址，如 https://api.dify.ai/v1",
 		"api_base_tooltip": "Dify API 的域名+版本号前缀，如 https://api.dify.ai/v1",
 		"api_base_placeholder": "请输入 API BASE",
 		"api_secret_tooltip": "Dify App 的 API Secret (以 app- 开头)",

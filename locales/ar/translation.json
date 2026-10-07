@@ -289,6 +289,7 @@
 	"app_setting": {
 		"section_request": "إعدادات الطلب",
 		"api_base_required": "عنوان API الأساسي مطلوب",
+		"api_base_invalid": "أدخل عنوانًا يبدأ بـ http:// أو https://، مثال: https://api.dify.ai/v1",
 		"api_base_tooltip": "النطاق مع بادئة الإصدار لواجهة Dify API، مثال: https://api.dify.ai/v1",
 		"api_base_placeholder": "أدخل عنوان API الأساسي",
 		"api_secret_tooltip": "مفتاح API السري لتطبيق Dify (يبدأ بـ app-)",

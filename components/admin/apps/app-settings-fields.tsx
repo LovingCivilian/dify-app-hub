@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next'
 import { APP_MODE_OPTION_KEYS, APP_MODE_OPTIONS } from '@/components/apps/app-modes'
 import type { AppDto } from '@/lib/data/apps'
 
+import { validateApiBase } from './api-base-rule'
+
 /** The settings form's fields; `record` shows the app's Dify info above them when editing. */
 export default function AppSettingsFields({ record }: { record?: AppDto }) {
 	const { t } = useTranslation()
@@ -50,7 +52,10 @@ export default function AppSettingsFields({ record }: { record?: AppDto }) {
 				label="API Base"
 				name="apiBase"
 				tooltip={t('app_setting.api_base_tooltip')}
-				rules={[{ required: true, message: t('app_setting.api_base_required') }]}
+				rules={[
+					{ required: true, message: t('app_setting.api_base_required') },
+					{ validator: validateApiBase(t('app_setting.api_base_invalid')) },
+				]}
 			>
 				<Input placeholder={t('app_setting.api_base_placeholder')} />
 			</Form.Item>
