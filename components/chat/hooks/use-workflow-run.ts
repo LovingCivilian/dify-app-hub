@@ -2,7 +2,7 @@
 
 import { XStream } from '@ant-design/x-sdk'
 import { App } from 'antd'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAppContext } from '../app-context'
@@ -26,11 +26,10 @@ export const useWorkflowRun = () => {
 	const { app, parameters, difyApi } = useAppContext()
 	const [state, setState] = useState<RunState>(initialRunState)
 	const controller = useRef<AbortController | null>(null)
-	// The committed run, read by stop() (React: refs are written in effects, read in event handlers).
-	const latest = useRef(state)
-	useLayoutEffect(() => {
-		latest.current = state
-	})
+	// The running task's id, written where the stream's events are parsed and read by stop() (react.dev useRef: refs
+	// are read and written in event handlers and effects, not during render), so a Stop between an event and its
+	// commit still reaches Dify. Unset before the first event and once the run's stream has ended.
+	const taskIdRef = useRef<string | undefined>(undefined)
 	const mode = app.mode
 	const form = parameters.user_input_form
 
@@ -52,6 +51,7 @@ export const useWorkflowRun = () => {
 			controller.current?.abort()
 			const current = new AbortController()
 			controller.current = current
+			taskIdRef.current = undefined
 			const { signal } = current
 			const update = (next: (state: RunState) => RunState) => {
 				if (!signal.aborted) setState(next)
@@ -85,7 +85,9 @@ export const useWorkflowRun = () => {
 						if (done || signal.aborted) break
 						// `event: ping` parts carry no data; `[DONE]` and junk parse to null.
 						const event = parseEvent(value?.data)
-						if (event) update(s => reduceRunEvent(s, event))
+						if (!event) continue
+						if (event.task_id) taskIdRef.current = event.task_id
+						update(s => reduceRunEvent(s, event))
 					}
 				} finally {
 					signal.removeEventListener('abort', cancel)
@@ -96,6 +98,8 @@ export const useWorkflowRun = () => {
 				// The failure's text; '' for a network failure or the like (the view shows the generic one).
 				update(s => ({ ...s, status: 'failed', error: failureText(error, t) }))
 			}
+			// The stream has ended; an aborted run no longer owns the ref (a newer run, stop or reset does).
+			if (!signal.aborted) taskIdRef.current = undefined
 			return true
 		},
 		[difyApi, form, mode, t, toast],
@@ -109,11 +113,11 @@ export const useWorkflowRun = () => {
 	const stop = useCallback(() => {
 		const current = controller.current
 		if (!current || current.signal.aborted) return
+		const taskId = taskIdRef.current
 		current.abort()
-		const { status, taskId } = latest.current
 		setState(s => (s.status === 'running' ? { ...s, status: 'stopped' } : s))
-		// A run that has not received its first event has no task id yet: nothing runs on Dify to stop.
-		if (status !== 'running' || !taskId) return
+		// Before the first event, the run exists on Dify, but its task id is not known to the client yet.
+		if (!taskId) return
 		const stopOnDify =
 			mode === 'workflow' ? difyApi.stopWorkflow(taskId) : difyApi.stopCompletion(taskId)
 		void stopOnDify.catch(() => undefined)

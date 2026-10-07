@@ -1,6 +1,6 @@
 'use client'
 
-import { startTransition, useTransition } from 'react'
+import { useTransition } from 'react'
 
 /**
  * Runs a Server Action from an event handler inside a transition (Next, Server Actions: invoke from an event
@@ -23,5 +23,3 @@ export const useActionTransition = () => {
 		})
 	return { pending, run }
 }
-
-export { startTransition }

@@ -48,7 +48,7 @@ export function AppAvatar({ size, alt }: Pick<AvatarProps, 'size' | 'alt'>) {
 	return (
 		<Avatar
 			size={size}
-			alt={alt}
+			alt={alt ?? name}
 			shape="square"
 			src={icon?.kind === 'image' ? `/api/apps/${encodeURIComponent(app.id)}/icon` : undefined}
 			style={

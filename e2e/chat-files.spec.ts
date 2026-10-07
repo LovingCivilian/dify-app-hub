@@ -302,7 +302,11 @@ test('the app icon image loads through the icon route, never from the Dify host'
 			const icons = page.locator(`img[src="/api/apps/${app.id}/icon"]`).visible()
 			// The welcome panel's, and on a desktop the sider's (hidden below md).
 			await expect(icons).toHaveCount(isMobile ? 1 : 2)
+			// Each image is named after the app, the sider's too (its alt defaults to the name the welcome panel shows).
+			const name = await icons.first().getAttribute('alt')
+			expect(name).toBeTruthy()
 			for (const icon of await icons.all()) {
+				await expect(icon).toHaveAttribute('alt', name ?? '')
 				await expect
 					.poll(() => icon.evaluate(element => (element as HTMLImageElement).naturalWidth))
 					.toBeGreaterThan(0)

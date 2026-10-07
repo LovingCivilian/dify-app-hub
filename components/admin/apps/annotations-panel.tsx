@@ -96,7 +96,7 @@ export default function AnnotationsPanel({ appId }: { appId: string }) {
 			reload()
 		} catch (error) {
 			console.error('Failed to delete the annotation', error)
-			message.error(t('common.delete_failed'))
+			message.error(failureText(error, t, t('common.delete_failed')))
 		}
 	}
 
