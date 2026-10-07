@@ -54,4 +54,5 @@ What B1 leaves open, by area: every FOLLOW-UP verdict of the whole-branch review
 - A separate user-content host for the files the routes serve (OWASP's first-choice control for uploads); B1 serves them on the app's origin with `nosniff`, forced attachment outside an inline list and a sandbox CSP (ADR-0023).
 - Behind a buffering reverse proxy such as nginx, the SSE answers need `X-Accel-Buffering: no` (ADR-0023).
 - `db/migrations/**/snapshot.json` are not oxfmt-clean; add them to `.oxfmtrc.json`'s `ignorePatterns` ([245]).
+- Several Markdown records under `docs/` are not oxfmt-clean, including pre-B1 specs and plans. They were committed without the lint-staged hook, which is not installed in this checkout, and oxfmt is not idempotent on the B1 plan. Install the hooks (`pnpm prepare`/husky) or add `docs/superpowers/**` to `ignorePatterns`. Decided 2026-10-08 not to reformat the approved records in B1.
 - Arabic RTL layout as a whole (ADR-0005; CLAUDE.md "i18n").

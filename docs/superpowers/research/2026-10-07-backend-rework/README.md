@@ -16,3 +16,4 @@ B1 execution (subagent-driven run of `docs/superpowers/plans/2026-10-07-backend-
 - `b1-execution/doc-verification.md` — the controller's rulings checked against official docs and standards.
 - `b1-execution/reference-check.md` — the architectural rulings compared with well-known projects on the same stack.
 - `b1-execution/follow-ups.md` — what B1 leaves open after the final review and its fix wave, by area, one line each.
+- `b1-execution/final-review-report.md` — the whole-branch review (most capable model): findings, the triage of every deferred item, the verdict.
