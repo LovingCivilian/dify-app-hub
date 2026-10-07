@@ -21,7 +21,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AdminPageHeader from '@/components/admin/admin-page-header'
+import PageHeader from '@/components/shell/page-header'
 import ClientDateTime from '@/components/admin/client-date-time'
 import SearchInput from '@/components/shell/search-input'
 import { matchesQuery } from '@/lib/match-query'
@@ -139,7 +139,7 @@ export default function UserManagement({
 			vertical
 			gap={token.margin}
 		>
-			<AdminPageHeader
+			<PageHeader
 				title={t('admin.menu_users')}
 				subtitle={t('admin_users.subtitle')}
 				action={

@@ -39,6 +39,7 @@
 	},
 	"app": {
 		"list": "التطبيقات",
+		"list_subtitle": "اختر تطبيقًا لبدء محادثة",
 		"no_data_default": "لا توجد تطبيقات",
 		"no_description": "لا يوجد وصف",
 		"no_config_default_text": "لم يتم العثور على إعدادات تطبيق Dify. تواصل مع المسؤول.",
@@ -248,6 +249,7 @@
 		"cannot_delete_self": "لا يمكنك حذف حسابك الخاص"
 	},
 	"admin_apps": {
+		"subtitle": "إدارة تطبيقات Dify المنشورة في المنصة",
 		"title": "إعدادات التطبيقات",
 		"more_actions": "إجراءات أخرى",
 		"column_name": "الاسم",

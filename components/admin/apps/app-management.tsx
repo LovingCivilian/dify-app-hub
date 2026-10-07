@@ -5,7 +5,7 @@ import { Button, Col, Empty, Flex, Row, Table, type TableProps, Tag, Typography,
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AdminPageHeader from '@/components/admin/admin-page-header'
+import PageHeader from '@/components/shell/page-header'
 import AppIcon from '@/components/apps/app-icon'
 import SearchInput from '@/components/shell/search-input'
 import { AppModeNames, AppModeOptions, EIsEnabled } from '@/lib/core'
@@ -153,8 +153,9 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 			vertical
 			gap={token.margin}
 		>
-			<AdminPageHeader
+			<PageHeader
 				title={t('admin_apps.title')}
+				subtitle={t('admin_apps.subtitle')}
 				action={
 					<Button
 						type="primary"

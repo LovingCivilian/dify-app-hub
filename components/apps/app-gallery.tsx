@@ -1,9 +1,10 @@
 'use client'
 
-import { Col, Empty, Flex, Row, Typography, theme } from 'antd'
+import { Col, Empty, Flex, Row, theme } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import PageHeader from '@/components/shell/page-header'
 import SearchInput from '@/components/shell/search-input'
 import { matchesQuery } from '@/lib/match-query'
 
@@ -28,12 +29,10 @@ export default function AppGallery({ apps }: { apps: AppSummary[] }) {
 				vertical
 				gap={token.margin}
 			>
-				<Typography.Title
-					level={4}
-					style={{ margin: 0 }}
-				>
-					{t('app.list')}
-				</Typography.Title>
+				<PageHeader
+					title={t('app.list')}
+					subtitle={t('app.list_subtitle')}
+				/>
 				{apps.length === 0 ? (
 					<Empty description={t('app.empty_contact_admin')} />
 				) : (
