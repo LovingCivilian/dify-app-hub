@@ -136,23 +136,43 @@ describe('syncApp and the icon (Review Focus 4)', () => {
 		expect(db.set).toStrictEqual(infoColumns)
 	})
 
-	// Dify builds icon_url from FILES_URL, which may be another origin than the API's (Dify Cloud: upload.dify.ai).
-	it("fetches an icon_url on another origin than the API's, without the bearer", async () => {
-		const elsewhere = 'https://files.dify.example/files/x/file-preview?sign=1'
+	// Dify builds icon_url from FILES_URL: empty on a default self-hosted install, so the link is relative and resolves
+	// against the API base's origin (as the remote-file route resolves relative links); set, it may name another origin
+	// than the API's (Dify Cloud: upload.dify.ai), and the link is fetched as given.
+	const SIGNED = '?timestamp=1&nonce=n&sign=s'
+	it.each([
+		[
+			'a relative icon_url at the API base origin',
+			`/files/f1/file-preview${SIGNED}`,
+			`https://dify.example/files/f1/file-preview${SIGNED}`,
+		],
+		[
+			'an absolute icon_url on another origin as given',
+			`https://files.dify.example/files/f1/file-preview${SIGNED}`,
+			`https://files.dify.example/files/f1/file-preview${SIGNED}`,
+		],
+	])('fetches %s, without the bearer', async (_case, iconUrl, fetched) => {
 		fetchMock.mockImplementation(async (url: string) => {
 			if (url === 'https://dify.example/v1/info') return json(INFO)
-			if (url === 'https://dify.example/v1/site')
-				return json({ ...IMAGE_SITE, icon_url: elsewhere })
-			if (url === elsewhere) return png(4)
+			if (url === 'https://dify.example/v1/site') return json({ ...IMAGE_SITE, icon_url: iconUrl })
+			if (url === fetched) return png(4)
 			throw new Error(`unexpected fetch ${url}`)
 		})
 		await expect(syncApp(actor, 'a1')).resolves.toEqual({ id: 'a1', partial: false })
 		expect(db.set).toStrictEqual({ ...infoColumns, ...storedIcon })
-		const [, init] = fetchMock.mock.calls.find(([url]) => url === elsewhere) as [
-			string,
-			RequestInit,
-		]
+		const [, init] = fetchMock.mock.calls.find(([url]) => url === fetched) as [string, RequestInit]
 		expect(new Headers(init.headers).has('authorization')).toBe(false)
+		expect(init.redirect).toBe('error')
+	})
+
+	it('keeps the stored icon when icon_url is not a URL', async () => {
+		dify({ site: async () => json({ ...IMAGE_SITE, icon_url: 'http://[bad' }) })
+		await expect(syncApp(actor, 'a1')).resolves.toEqual({ id: 'a1', partial: true })
+		expect(db.set).toStrictEqual(infoColumns)
+		expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+			'https://dify.example/v1/info',
+			'https://dify.example/v1/site',
+		])
 	})
 
 	it('keeps the stored icon when /site fails (a 500 says nothing about the icon)', async () => {

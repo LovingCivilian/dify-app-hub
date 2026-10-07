@@ -244,6 +244,15 @@ export const iconColumnsFrom = async (
 }
 
 /**
+ * `/site`'s `icon_url` as the URL to fetch. Dify builds it from FILES_URL, which is empty on a default self-hosted
+ * install, so the link is relative (`/files/<id>/file-preview?timestamp=…&nonce=…&sign=…`) and resolves against the
+ * API base's origin, as the remote-file route resolves relative links (WHATWG URL parsing with the origin as base);
+ * an absolute link stays as Dify wrote it. Throws on a link that is not a URL, and the sync keeps the stored icon.
+ */
+const signedIconUrl = (iconUrl: string, apiBase: string): URL =>
+	new URL(iconUrl, new URL(apiBase).origin)
+
+/**
  * Dify's view of the app for the given credentials: info is required (a DifyError propagates), the site and its
  * icon are best effort. Icon columns left undefined mean the row keeps its icon, and `partial` says so.
  */
@@ -264,7 +273,7 @@ const fetchDifyProfile = async (
 	}
 	// icon_url is a signed link from Dify's own answer: fetched without the app key, on whatever origin Dify built it.
 	const { columns, partial } = await iconColumnsFrom(site, async url =>
-		readIconBytes(await client.fetchSignedFile(new URL(url))),
+		readIconBytes(await client.fetchSignedFile(signedIconUrl(url, credentials.apiBase))),
 	)
 	return { info, iconColumns: columns, partial }
 }
