@@ -37,8 +37,7 @@ const row = {
 	iconType: 'emoji',
 	icon: '🍵',
 	iconBackground: '#FFEAD5',
-	iconImage: null,
-	iconMime: null,
+	hasIconImage: false,
 }
 
 describe('parseTags', () => {
@@ -53,10 +52,8 @@ describe('parseTags', () => {
 describe('iconOf and settingsOf', () => {
 	it('maps an emoji icon, an image icon and no icon', () => {
 		expect(iconOf(row)).toEqual({ kind: 'emoji', emoji: '🍵', background: '#FFEAD5' })
-		expect(iconOf({ ...row, iconType: 'image', iconImage: Buffer.from([1]) })).toEqual({
-			kind: 'image',
-		})
-		expect(iconOf({ ...row, iconType: 'image', iconImage: null })).toBeNull()
+		expect(iconOf({ ...row, iconType: 'image', hasIconImage: true })).toEqual({ kind: 'image' })
+		expect(iconOf({ ...row, iconType: 'image', hasIconImage: false })).toBeNull()
 		expect(iconOf({ ...row, iconType: null, icon: null })).toBeNull()
 	})
 	it('maps the settings with defaults for missing values', () => {

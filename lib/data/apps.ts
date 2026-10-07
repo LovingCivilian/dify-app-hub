@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { desc, eq } from 'drizzle-orm'
+import { desc, eq, sql } from 'drizzle-orm'
 
 import { getDb } from '@/db'
 import { difyApps } from '@/db/schema'
@@ -17,6 +17,34 @@ import { isAppMode, type AppInfo, type AppMode, type SiteSettings } from '@/lib/
 
 type AppRow = typeof difyApps.$inferSelect
 type IconColumns = Pick<AppRow, 'iconType' | 'icon' | 'iconBackground' | 'iconImage' | 'iconMime'>
+
+/**
+ * Every column the DTOs read, never the key or the icon bytes (charter §4.2: explicit columns; the image itself is
+ * served through getAppIcon). Whether an image is stored is computed by MySQL.
+ */
+const dtoColumns = {
+	id: difyApps.id,
+	createdAt: difyApps.createdAt,
+	updatedAt: difyApps.updatedAt,
+	name: difyApps.name,
+	mode: difyApps.mode,
+	description: difyApps.description,
+	tags: difyApps.tags,
+	isEnabled: difyApps.isEnabled,
+	apiBase: difyApps.apiBase,
+	enableAnswerForm: difyApps.enableAnswerForm,
+	answerFormFeedbackText: difyApps.answerFormFeedbackText,
+	enableUpdateInputAfterStarts: difyApps.enableUpdateInputAfterStarts,
+	openingStatementDisplayMode: difyApps.openingStatementDisplayMode,
+	enableAnnotation: difyApps.enableAnnotation,
+	iconType: difyApps.iconType,
+	icon: difyApps.icon,
+	iconBackground: difyApps.iconBackground,
+	hasIconImage: sql<boolean>`${difyApps.iconImage} IS NOT NULL`.mapWith(Boolean),
+}
+
+/** A row as the DTOs read it (dtoColumns). */
+type DtoRow = Omit<AppRow, 'apiKey' | 'iconImage' | 'iconMime'> & { hasIconImage: boolean }
 
 export type OpeningStatementDisplayMode = 'default' | 'always'
 
@@ -93,12 +121,12 @@ export const parseTags = (text: string | null): string[] => {
 }
 
 export const iconOf = (
-	row: Pick<AppRow, 'iconType' | 'icon' | 'iconBackground' | 'iconImage'>,
+	row: Pick<DtoRow, 'iconType' | 'icon' | 'iconBackground' | 'hasIconImage'>,
 ): AppIcon => {
 	if (row.iconType === 'emoji' && row.icon) {
 		return { kind: 'emoji', emoji: row.icon, background: row.iconBackground ?? null }
 	}
-	if (row.iconType === 'image' && row.iconImage) return { kind: 'image' }
+	if (row.iconType === 'image' && row.hasIconImage) return { kind: 'image' }
 	return null
 }
 
@@ -120,7 +148,7 @@ export const settingsOf = (
 
 const modeOf = (mode: string | null): AppMode | null => (isAppMode(mode) ? mode : null)
 
-export const toAppDto = (row: AppRow): AppDto => ({
+export const toAppDto = (row: DtoRow): AppDto => ({
 	id: row.id,
 	name: row.name,
 	mode: modeOf(row.mode),
@@ -134,7 +162,7 @@ export const toAppDto = (row: AppRow): AppDto => ({
 	updatedAt: row.updatedAt.toISOString(),
 })
 
-export const toChatAppDto = (row: AppRow): ChatAppDto => ({
+export const toChatAppDto = (row: DtoRow): ChatAppDto => ({
 	id: row.id,
 	name: row.name,
 	mode: modeOf(row.mode),
@@ -215,16 +243,24 @@ export const iconColumnsFrom = async (
 	return { columns: none, partial: false }
 }
 
-/** Dify's view of the app for the given credentials: info is required (a DifyError propagates), the site and its icon are best effort. */
-const fetchDifyProfile = async (credentials: DifyCredentials) => {
+/**
+ * Dify's view of the app for the given credentials: info is required (a DifyError propagates), the site and its
+ * icon are best effort. Icon columns left undefined mean the row keeps its icon, and `partial` says so.
+ */
+const fetchDifyProfile = async (
+	credentials: DifyCredentials,
+): Promise<{ info: AppInfo; iconColumns: IconColumns | undefined; partial: boolean }> => {
 	const client = difyClient(credentials)
 	const info = await client.getInfo()
-	let site: SiteSettings | null = null
+	let site: SiteSettings | null
 	try {
 		site = await client.getSite()
 	} catch (error) {
-		// 403 forbidden: the app has no site (endpoint map §1.1). Anything else is best effort too.
 		if (!(error instanceof DifyError)) throw error
+		// Any other failure (a 5xx, Dify unreachable, an unreadable body) says nothing about the icon: keep it.
+		if (error.status !== 403) return { info, iconColumns: undefined, partial: true }
+		// 403: the app has no site (no site row, or the workspace is archived; endpoint map §1.1), so no icon.
+		site = null
 	}
 	const { columns, partial } = await iconColumnsFrom(site, async url =>
 		readIconBytes(await client.fetchRemoteFile(new URL(url))),
@@ -232,9 +268,13 @@ const fetchDifyProfile = async (credentials: DifyCredentials) => {
 	return { info, iconColumns: columns, partial }
 }
 
+/**
+ * Name, description and tags from Dify, and the mode only when it is one of the six known modes (charter §4.4:
+ * writes are validated; `AppInfo.mode` is only a type), so an unknown one leaves the stored mode alone.
+ */
 const infoColumns = (info: AppInfo) => ({
 	name: info.name,
-	mode: info.mode,
+	...(isAppMode(info.mode) && { mode: info.mode }),
 	description: info.description ?? null,
 	tags: info.tags?.length ? JSON.stringify(info.tags) : null,
 })
@@ -247,28 +287,13 @@ const settingsColumns = (settings: AppSettings) => ({
 	enableAnnotation: settings.annotationEnabled,
 })
 
-const selectRow = async (id: string): Promise<AppRow | undefined> => {
-	const [row] = await getDb().select().from(difyApps).where(eq(difyApps.id, id)).limit(1)
+const selectDtoRow = async (id: string): Promise<DtoRow | undefined> => {
+	const [row] = await getDb().select(dtoColumns).from(difyApps).where(eq(difyApps.id, id)).limit(1)
 	return row
 }
 
-export async function listApps(_actor: SessionUser): Promise<AppDto[]> {
-	const rows = await getDb().select().from(difyApps).orderBy(desc(difyApps.createdAt))
-	return rows.map(toAppDto)
-}
-
-export async function getApp(_actor: SessionUser, id: string): Promise<AppDto | null> {
-	const row = await selectRow(id)
-	return row ? toAppDto(row) : null
-}
-
-export async function getChatApp(_actor: SessionUser, id: string): Promise<ChatAppDto | null> {
-	const row = await selectRow(id)
-	return row ? toChatAppDto(row) : null
-}
-
-/** For the Dify routes: the credentials never leave the server. */
-export async function getAppAccess(_actor: SessionUser, id: string): Promise<AppAccess | null> {
+/** The access columns only: the Dify routes, and the writes that re-read Dify with the stored key. */
+const readAccess = async (id: string): Promise<AppAccess | null> => {
 	const [row] = await getDb()
 		.select({
 			id: difyApps.id,
@@ -286,6 +311,26 @@ export async function getAppAccess(_actor: SessionUser, id: string): Promise<App
 				credentials: { apiBase: row.apiBase, apiKey: row.apiKey },
 			}
 		: null
+}
+
+export async function listApps(_actor: SessionUser): Promise<AppDto[]> {
+	const rows = await getDb().select(dtoColumns).from(difyApps).orderBy(desc(difyApps.createdAt))
+	return rows.map(toAppDto)
+}
+
+export async function getApp(_actor: SessionUser, id: string): Promise<AppDto | null> {
+	const row = await selectDtoRow(id)
+	return row ? toAppDto(row) : null
+}
+
+export async function getChatApp(_actor: SessionUser, id: string): Promise<ChatAppDto | null> {
+	const row = await selectDtoRow(id)
+	return row ? toChatAppDto(row) : null
+}
+
+/** For the Dify routes: the credentials never leave the server. */
+export async function getAppAccess(_actor: SessionUser, id: string): Promise<AppAccess | null> {
+	return readAccess(id)
 }
 
 export async function getAppIcon(
@@ -313,8 +358,8 @@ export async function createApp(
 		.values({
 			id,
 			...infoColumns(info),
-			// Dify reports the mode; the form's choice only decides when Dify reports none.
-			mode: info.mode || input.mode,
+			// Dify reports the mode; the form's choice only decides when Dify's is not one of the known six.
+			mode: isAppMode(info.mode) ? info.mode : input.mode,
 			isEnabled: input.enabled,
 			apiBase: input.apiBase,
 			apiKey: input.apiKey,
@@ -330,15 +375,15 @@ export async function updateApp(
 	id: string,
 	input: AppInput,
 ): Promise<SyncResult | null> {
-	const current = await selectRow(id)
-	if (!current) return null
-	const credentials = { apiBase: input.apiBase, apiKey: input.apiKey || current.apiKey }
+	const access = await readAccess(id)
+	if (!access) return null
+	const credentials = { apiBase: input.apiBase, apiKey: input.apiKey || access.credentials.apiKey }
 	const { info, iconColumns, partial } = await fetchDifyProfile(credentials)
 	await getDb()
 		.update(difyApps)
 		.set({
 			...infoColumns(info),
-			mode: info.mode || input.mode,
+			mode: isAppMode(info.mode) ? info.mode : input.mode,
 			isEnabled: input.enabled,
 			apiBase: credentials.apiBase,
 			apiKey: credentials.apiKey,
@@ -354,14 +399,11 @@ export async function deleteApp(_actor: SessionUser, id: string): Promise<boolea
 	return result.affectedRows > 0
 }
 
-/** Refreshes name, mode, description, tags and the icon from Dify; null when the app is gone. */
+/** Refreshes name, description, tags, a known mode and the icon from Dify; null when the app is gone. */
 export async function syncApp(_actor: SessionUser, id: string): Promise<SyncResult | null> {
-	const current = await selectRow(id)
-	if (!current) return null
-	const { info, iconColumns, partial } = await fetchDifyProfile({
-		apiBase: current.apiBase,
-		apiKey: current.apiKey,
-	})
+	const access = await readAccess(id)
+	if (!access) return null
+	const { info, iconColumns, partial } = await fetchDifyProfile(access.credentials)
 	await getDb()
 		.update(difyApps)
 		.set({ ...infoColumns(info), ...iconColumns })
