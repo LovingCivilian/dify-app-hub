@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { passthrough } from '@/lib/dify/client'
+import { filePassthrough } from '@/lib/dify/client'
 import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
 import { parseJsonBody, textToAudioBody } from '@/lib/dify/schemas'
 
@@ -14,7 +14,7 @@ export async function POST(
 	const body = await parseJsonBody(request, textToAudioBody)
 	if (!body.ok) return body.response
 	try {
-		return passthrough(await resolved.ctx.dify.textToAudio(body.data, resolved.ctx.user))
+		return filePassthrough(await resolved.ctx.dify.textToAudio(body.data, resolved.ctx.user))
 	} catch (error) {
 		return errorResponseFrom(error, 'POST /api/dify/[appId]/text-to-audio')
 	}

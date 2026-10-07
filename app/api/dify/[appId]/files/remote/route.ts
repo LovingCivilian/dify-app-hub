@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { passthrough } from '@/lib/dify/client'
+import { filePassthrough } from '@/lib/dify/client'
 import { difyErrorResponse } from '@/lib/dify/errors'
 import { resolveRemoteFileUrl } from '@/lib/dify/remote-file'
 import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
@@ -26,7 +26,7 @@ export async function GET(
 			400,
 		)
 	try {
-		return passthrough(await resolved.ctx.dify.fetchRemoteFile(target))
+		return filePassthrough(await resolved.ctx.dify.fetchRemoteFile(target))
 	} catch (error) {
 		return errorResponseFrom(error, 'GET /api/dify/[appId]/files/remote')
 	}

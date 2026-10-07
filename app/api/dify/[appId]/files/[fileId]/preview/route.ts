@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { passthrough } from '@/lib/dify/client'
+import { filePassthrough } from '@/lib/dify/client'
 import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
 import { filePreviewQuery, parsePathParams, parseQuery } from '@/lib/dify/schemas'
 
@@ -16,7 +16,7 @@ export async function GET(
 	const query = parseQuery(request.nextUrl.searchParams, filePreviewQuery)
 	if (!query.ok) return query.response
 	try {
-		return passthrough(
+		return filePassthrough(
 			await resolved.ctx.dify.filePreview(
 				segments.data.fileId,
 				query.data.as_attachment ?? false,

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 
 import { DifyError } from '@/lib/dify/errors'
-import { difyClient, passthrough, type DifyClient } from '@/lib/dify/client'
+import { difyClient, filePassthrough, passthrough, type DifyClient } from '@/lib/dify/client'
 import type { ChatMessageRequest, MessagesQuery, WorkflowEventsQuery } from '@/lib/dify/types'
 
 const credentials = { apiBase: 'http://dify.local/v1/', apiKey: 'app-key' }
@@ -373,6 +373,24 @@ describe('difyClient: errors', () => {
 		expect(lastCall().url).toBe('http://dify.local/files/tools/x.png?sign=1')
 		expect(lastCall().headers.get('authorization')).toBe('Bearer app-key')
 		expect(response.headers.get('content-type')).toBe('image/png')
+	})
+	// A redirect from a /files/ answer must never make the route serve (or send the key to) another origin.
+	it('fetches a remote file with redirects refused', async () => {
+		reply(() => new Response(new Uint8Array([1]), { status: 200 }))
+		await difyClient(credentials).fetchRemoteFile(new URL('http://dify.local/files/x.png'))
+		expect(lastCall().init.redirect).toBe('error')
+	})
+	it('answers a refused redirect on a remote file as upstream_unreachable', async () => {
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+		// What undici throws for `redirect: 'error'` on a 3xx.
+		fetchMock.mockRejectedValue(
+			new TypeError('fetch failed', { cause: new Error('unexpected redirect') }),
+		)
+		await expect(
+			difyClient(credentials).fetchRemoteFile(new URL('http://dify.local/files/x.png')),
+		).rejects.toMatchObject({ status: 502, code: 'upstream_unreachable' })
+		expect(errorSpy).toHaveBeenCalledOnce()
+		errorSpy.mockRestore()
 	})
 })
 
@@ -749,6 +767,88 @@ describe('difyClient: one case per operation', () => {
 		expect(out.headers.get('content-disposition')).toBe("attachment; filename*=UTF-8''a.mp3")
 		expect(out.headers.get('content-length')).toBe('3')
 		expect(out.headers.get('accept-ranges')).toBe('bytes')
+		expect(new Uint8Array(await out.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
+	})
+})
+
+// I-2: a file answer is served on the hub's own origin, so a type that can carry script (SVG, XML, HTML) downloads on
+// navigation instead of rendering, and nothing is sniffed; an <img> or <audio> still renders it (Content-Disposition
+// does not apply to subresources).
+describe('filePassthrough', () => {
+	const file = (headers: Record<string, string>) =>
+		new Response(new Uint8Array([1, 2, 3]), { status: 200, headers })
+
+	it.each([
+		'image/svg+xml',
+		'application/xml',
+		'text/html; charset=utf-8',
+		'application/xhtml+xml',
+	])('%s downloads as an attachment, with nosniff', type => {
+		const out = filePassthrough(file({ 'content-type': type }))
+		expect(out.headers.get('content-type')).toBe(type)
+		expect(out.headers.get('content-disposition')).toBe('attachment')
+		expect(out.headers.get('x-content-type-options')).toBe('nosniff')
+	})
+	it("keeps Dify's filename when it forces the download", () => {
+		const inline = filePassthrough(
+			file({ 'content-type': 'image/svg+xml', 'content-disposition': 'inline; filename="a.svg"' }),
+		)
+		expect(inline.headers.get('content-disposition')).toBe('attachment; filename="a.svg"')
+		const encoded = filePassthrough(
+			file({
+				'content-type': 'application/xml',
+				'content-disposition': "attachment; filename*=UTF-8''a.xml",
+			}),
+		)
+		expect(encoded.headers.get('content-disposition')).toBe("attachment; filename*=UTF-8''a.xml")
+	})
+	it('downloads an answer without a type', () => {
+		const out = filePassthrough(new Response(new Uint8Array([1]), { status: 200, headers: {} }))
+		expect(out.headers.get('content-disposition')).toBe('attachment')
+	})
+	it.each([
+		'image/png',
+		'image/jpeg',
+		'image/gif',
+		'image/webp',
+		'audio/mpeg',
+		'video/mp4',
+		'application/pdf',
+		'text/plain; charset=utf-8',
+		'IMAGE/PNG',
+	])('%s stays inline, with nosniff', type => {
+		const out = filePassthrough(file({ 'content-type': type }))
+		expect(out.headers.get('content-disposition')).toBeNull()
+		expect(out.headers.get('x-content-type-options')).toBe('nosniff')
+	})
+	it("leaves an allowed type's own disposition as Dify sent it", () => {
+		const out = filePassthrough(
+			file({
+				'content-type': 'application/pdf',
+				'content-disposition': 'attachment; filename="a.pdf"',
+			}),
+		)
+		expect(out.headers.get('content-disposition')).toBe('attachment; filename="a.pdf"')
+	})
+	it('keeps the four charter headers, the status and the body, and adds nothing else', async () => {
+		const out = filePassthrough(
+			file({
+				'content-type': 'audio/mpeg',
+				'content-disposition': "attachment; filename*=UTF-8''a.mp3",
+				'content-length': '3',
+				'accept-ranges': 'bytes',
+				'cache-control': 'public, max-age=3600',
+				'x-version': '1.17.1',
+			}),
+		)
+		expect(out.status).toBe(200)
+		expect(Object.fromEntries(out.headers)).toEqual({
+			'content-type': 'audio/mpeg',
+			'content-disposition': "attachment; filename*=UTF-8''a.mp3",
+			'content-length': '3',
+			'accept-ranges': 'bytes',
+			'x-content-type-options': 'nosniff',
+		})
 		expect(new Uint8Array(await out.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
 	})
 })

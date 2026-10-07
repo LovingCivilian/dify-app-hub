@@ -68,18 +68,64 @@ const jsonInit = (method: 'POST' | 'PUT' | 'DELETE', body: unknown): RequestInit
 })
 
 /**
- * The upstream Response as the route answers it: Dify's status, the body as it is (a stream stays a stream),
- * and the headers that carry meaning. No re-pumping through a hand-written ReadableStream (Backend for
- * Frontend guide, "Proxying to a backend"). Node's fetch decodes a gzip/br body but keeps the upstream headers,
- * so a Content-Length next to a Content-Encoding no longer fits the body and is dropped (it would truncate it).
+ * The headers that carry meaning. Node's fetch decodes a gzip/br body but keeps the upstream headers, so a
+ * Content-Length next to a Content-Encoding no longer fits the body and is dropped (it would truncate it).
  */
-export const passthrough = (upstream: Response): Response => {
+const forwardedHeaders = (upstream: Response): Headers => {
 	const encoded = upstream.headers.has('content-encoding')
 	const headers = new Headers()
 	for (const name of PASSTHROUGH_HEADERS) {
 		if (encoded && name === 'content-length') continue
 		const value = upstream.headers.get(name)
 		if (value) headers.set(name, value)
+	}
+	return headers
+}
+
+/**
+ * The upstream Response as the route answers it: Dify's status, the body as it is (a stream stays a stream),
+ * and the headers that carry meaning. No re-pumping through a hand-written ReadableStream (Backend for
+ * Frontend guide, "Proxying to a backend").
+ */
+export const passthrough = (upstream: Response): Response =>
+	new Response(upstream.body, { status: upstream.status, headers: forwardedHeaders(upstream) })
+
+/**
+ * Media types a file answer may render inline when opened on its own; they cannot run script on the hub's
+ * origin. `audio/*` and `video/*` are matched by their top-level type.
+ */
+const INLINE_FILE_TYPES = new Set([
+	'image/png',
+	'image/jpeg',
+	'image/gif',
+	'image/webp',
+	'application/pdf',
+	'text/plain',
+])
+
+/**
+ * A file answer (preview, remote file, text-to-audio) as the route answers it: `passthrough`, plus
+ * `X-Content-Type-Options: nosniff`, and `Content-Disposition: attachment` (Dify's filename kept) for any type
+ * outside the inline list. The bytes are served on the hub's own origin with the uploader's type, so an SVG or XML
+ * file opened on its own would run its scripts there; as an attachment it downloads, while an `<img>` or `<audio>`
+ * still renders it (Content-Disposition does not apply to subresources). Streams (SSE) stay on `passthrough`.
+ */
+export const filePassthrough = (upstream: Response): Response => {
+	const headers = forwardedHeaders(upstream)
+	headers.set('x-content-type-options', 'nosniff')
+	const mediaType = (headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
+	const inline =
+		INLINE_FILE_TYPES.has(mediaType) ||
+		mediaType.startsWith('audio/') ||
+		mediaType.startsWith('video/')
+	if (!inline) {
+		// The disposition type is the token before the first `;`; the parameters (the filename) follow it.
+		const disposition = headers.get('content-disposition') ?? ''
+		const separator = disposition.indexOf(';')
+		headers.set(
+			'content-disposition',
+			`attachment${separator === -1 ? '' : disposition.slice(separator)}`,
+		)
 	}
 	return new Response(upstream.body, { status: upstream.status, headers })
 }
@@ -210,8 +256,12 @@ export const difyClient = (credentials: DifyCredentials) => {
 			send(
 				`/files/${segment(fileId)}/preview${queryString({ as_attachment: asAttachment || undefined, user })}`,
 			),
-		/** A file link Dify handed out (message files, generated images, icons): the route checks the origin first. */
-		fetchRemoteFile: (url: URL) => request(url.toString()),
+		/**
+		 * A file link Dify handed out (message files, generated images, icons): the route checks the origin first.
+		 * A redirect is refused (it fails as upstream_unreachable), so a `/files/` answer can never lead the route
+		 * to serve another origin.
+		 */
+		fetchRemoteFile: (url: URL) => request(url.toString(), { redirect: 'error' }),
 		audioToText: (file: File, user: string) =>
 			send('/audio-to-text', multipart(file, user)).then(json<{ text: string }>),
 		textToAudio: (body: TextToAudioRequest, user: string) =>

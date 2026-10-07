@@ -34,4 +34,27 @@ describe('resolveRemoteFileUrl', () => {
 		expect(resolveRemoteFileUrl('//evil.example/files/x', BASE)).toBeNull()
 		expect(resolveRemoteFileUrl('/files/%2e%2e/console/x', BASE)).toBeNull()
 	})
+	// The parser keeps %2F, %5C and %25 encoded, so these keep a literal /files/ prefix; a reverse proxy that decodes
+	// and normalises before forwarding would turn them into another endpoint called with the app's key.
+	it.each([
+		'https://dify.example/v1/files/..%2fconversations?user=other@x',
+		'https://dify.example/v1/files/..%2F..%2Fv1%2Fconversations?user=v',
+		'/files/%2e%2e%2fv1/conversations?user=v',
+		'/files/..%5cconsole',
+		'/files/..%252fconsole',
+	])('refuses an encoded slash, backslash or percent in the path: %s', raw => {
+		expect(resolveRemoteFileUrl(raw, BASE)).toBeNull()
+	})
+	it('refuses a link with userinfo', () => {
+		expect(resolveRemoteFileUrl('https://user:pw@dify.example/files/x.png', BASE)).toBeNull()
+		expect(resolveRemoteFileUrl('https://user@dify.example/files/x.png', BASE)).toBeNull()
+	})
+	it('checks the path only: an encoded slash in the query string stays allowed', () => {
+		expect(
+			resolveRemoteFileUrl(
+				'https://dify.example/files/x/file-preview?sign=a%2Fb%3D',
+				BASE,
+			)?.toString(),
+		).toBe('https://dify.example/files/x/file-preview?sign=a%2Fb%3D')
+	})
 })

@@ -94,6 +94,7 @@ describe('files', () => {
 	it('upload refuses a body without a file part', async () => {
 		const response = await upload(multipart([['user', 'x']]), params())
 		expect(response.status).toBe(400)
+		await expect(response.json()).resolves.toMatchObject({ code: 'invalid_param', status: 400 })
 		expect(client.uploadFile).not.toHaveBeenCalled()
 	})
 	it('preview passes the binary through with its disposition', async () => {
@@ -110,7 +111,21 @@ describe('files', () => {
 		expect(client.filePreview).toHaveBeenCalledWith('f1', true, USER)
 		expect(response.headers.get('content-type')).toBe('image/png')
 		expect(response.headers.get('content-disposition')).toBe('attachment; filename="a.png"')
+		expect(response.headers.get('x-content-type-options')).toBe('nosniff')
 		expect(response.headers.get('x-version')).toBeNull()
+	})
+	// An uploaded SVG opened top-level on the hub's origin would run its scripts there: it downloads instead.
+	it('preview makes an SVG download under its own name, with nosniff', async () => {
+		client.filePreview.mockResolvedValue(
+			binary('image/svg+xml', { 'content-disposition': 'inline; filename="a.svg"' }),
+		)
+		const response = await preview(
+			new NextRequest(`${base}/files/f1/preview`),
+			params({ fileId: 'f1' }),
+		)
+		expect(response.headers.get('content-type')).toBe('image/svg+xml')
+		expect(response.headers.get('content-disposition')).toBe('attachment; filename="a.svg"')
+		expect(response.headers.get('x-content-type-options')).toBe('nosniff')
 	})
 	it('preview accepts a stub-style id that is not a UUID', async () => {
 		const fileId = 'file-3b241101-e2bb-4255-8caf-4136c566a962'
@@ -134,6 +149,7 @@ describe('files', () => {
 			new URL('https://dify.example/files/tools/x.png?sign=1'),
 		)
 		expect(ok.headers.get('content-type')).toBe('image/png')
+		expect(ok.headers.get('x-content-type-options')).toBe('nosniff')
 		const bad = await remote(
 			new NextRequest(
 				`${base}/files/remote?url=${encodeURIComponent('https://evil.example/files/x.png')}`,
@@ -141,6 +157,7 @@ describe('files', () => {
 			params(),
 		)
 		expect(bad.status).toBe(400)
+		await expect(bad.json()).resolves.toMatchObject({ code: 'invalid_param', status: 400 })
 		expect(client.fetchRemoteFile).toHaveBeenCalledTimes(1)
 	})
 })
@@ -155,6 +172,19 @@ describe('audio', () => {
 		expect(sent.type).toBe('audio/webm;codecs=opus')
 		await expect(response.json()).resolves.toEqual({ text: 'hello' })
 	})
+	// Review Focus 2
+	it('audio-to-text refuses a second file part', async () => {
+		const response = await audioToText(
+			multipart([
+				['file', new File(['x'], 'a.webm', { type: 'audio/webm' })],
+				['file', new File(['y'], 'b.webm', { type: 'audio/webm' })],
+			]),
+			params(),
+		)
+		expect(response.status).toBe(400)
+		await expect(response.json()).resolves.toMatchObject({ code: 'invalid_param', status: 400 })
+		expect(client.audioToText).not.toHaveBeenCalled()
+	})
 	it('text-to-audio validates and passes the audio through', async () => {
 		client.textToAudio.mockResolvedValue(binary('audio/wav'))
 		const response = await textToAudio(
@@ -163,6 +193,7 @@ describe('audio', () => {
 		)
 		expect(client.textToAudio).toHaveBeenCalledWith({ text: 'hi' }, USER)
 		expect(response.headers.get('content-type')).toBe('audio/wav')
+		expect(response.headers.get('x-content-type-options')).toBe('nosniff')
 		expect(
 			(await textToAudio(json('/text-to-audio', 'POST', { voice: 'x' }), params())).status,
 		).toBe(400)

@@ -19,7 +19,10 @@ export async function GET(
 	}
 }
 
-/** POST /apps/annotations: any signed-in user may annotate when the app enables it; Dify answers 201. */
+/**
+ * POST /apps/annotations: Dify answers 201. B1 requires a signed-in user only; the role gate and the app's
+ * annotation setting are B2's to decide.
+ */
 export async function POST(
 	request: NextRequest,
 	ctx: RouteContext<'/api/dify/[appId]/apps/annotations'>,
