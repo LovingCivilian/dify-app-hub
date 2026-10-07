@@ -1,6 +1,9 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 
 import { APP_ID, APP_IDS } from './fixtures/constants'
+import { withDb } from './fixtures/db'
+import { stubApiBase } from './fixtures/env'
+import { STUB_PNG } from './fixtures/stub/assets'
 
 const senderBox = (page: Page) => page.getByPlaceholder('Type a message')
 
@@ -8,6 +11,12 @@ const senderBox = (page: Page) => page.getByPlaceholder('Type a message')
 // assistant produced; the stub serves the PNG itself.
 test('an image the assistant produced renders with a preview', async ({ page }, testInfo) => {
 	const text = `send files please ${testInfo.project.name} ${testInfo.repeatEachIndex}.${testInfo.retry}`
+	// Charter §4.1: nothing the page loads comes from the Dify host (the stub's origin here).
+	const difyOrigin = new URL(stubApiBase).origin
+	const fromDify: string[] = []
+	page.on('request', request => {
+		if (new URL(request.url()).origin === difyOrigin) fromDify.push(request.url())
+	})
 	await page.goto(`/chat/${APP_ID}?isNewCvst=1`)
 	await senderBox(page).fill(text)
 	await page.keyboard.press('Enter')
@@ -16,6 +25,12 @@ test('an image the assistant produced renders with a preview', async ({ page }, 
 	const files = page.getByRole('group', { name: 'Files' })
 	const image = files.getByRole('img', { name: 'Image from the answer' })
 	await expect(image).toBeVisible()
+	// The browser loads Dify's file through the app's remote-file route, never from the Dify host.
+	await expect(image).toHaveAttribute('src', /\/api\/dify\/[^/]+\/files\/remote\?url=/)
+	await expect
+		.poll(() => image.evaluate(element => (element as HTMLImageElement).naturalWidth))
+		.toBeGreaterThan(0)
+	expect(fromDify).toEqual([])
 	// A thumbnail three control heights square (antd's default controlHeight is 32), not the 1×1 PNG's size.
 	await expect(image).toHaveCSS('width', '96px')
 	await expect(image).toHaveCSS('height', '96px')
@@ -221,4 +236,78 @@ test('attachments and speech input are offered only when the app enables them', 
 	await expect(senderBox(page)).toBeVisible()
 	await expect(voiceButton).toHaveCount(0)
 	await expect(attachButton(page)).toHaveCount(0)
+})
+
+/**
+ * A chat app row of its own with a stored Dify icon (what a sync keeps, charter §4.4), removed afterwards: the
+ * seeded apps carry none. Its Dify side is the stub's plain chat app.
+ */
+const withIconApp = async (
+	testInfo: TestInfo,
+	icon: Record<string, string | Buffer>,
+	run: (app: { id: string; name: string }) => Promise<void>,
+) => {
+	const app = { id: crypto.randomUUID(), name: `Icon app ${runOf(testInfo)}` }
+	const columns = ['id', 'name', 'mode', 'description', 'api_base', 'api_key', ...Object.keys(icon)]
+	const values = [app.id, app.name, 'chat', 'icon', stubApiBase, 'app-e2e', ...Object.values(icon)]
+	await withDb(db =>
+		db.execute(
+			`INSERT INTO dify_apps (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
+			values,
+		),
+	)
+	try {
+		await run(app)
+	} finally {
+		await withDb(db => db.execute('DELETE FROM dify_apps WHERE id = ?', [app.id]))
+	}
+}
+
+test('the app icon is the stored emoji on its colour, in the welcome panel and the sider', async ({
+	page,
+	isMobile,
+}, testInfo) => {
+	await withIconApp(
+		testInfo,
+		{ icon_type: 'emoji', icon: '🦊', icon_background: '#FFEAD5' },
+		async app => {
+			await page.goto(`/chat/${app.id}?isNewCvst=1`)
+			// The welcome panel's avatar and, on a desktop, the sider's (it is in the page below md but hidden).
+			const avatars = page.locator('.ant-avatar', { hasText: '🦊' }).visible()
+			await expect(avatars).toHaveCount(isMobile ? 1 : 2)
+			// Dify's icon colour (#FFEAD5) is the background.
+			for (const avatar of await avatars.all()) {
+				await expect(avatar).toHaveCSS('background-color', 'rgb(255, 234, 213)')
+			}
+			// Not the emoji of the stub's /site (a Dify answer the avatar no longer reads).
+			await expect(page.getByText('🤖', { exact: true })).toHaveCount(0)
+		},
+	)
+})
+
+test('the app icon image loads through the icon route, never from the Dify host', async ({
+	page,
+	isMobile,
+}, testInfo) => {
+	await withIconApp(
+		testInfo,
+		{ icon_type: 'image', icon: 'stub-icon-file', icon_image: STUB_PNG, icon_mime: 'image/png' },
+		async app => {
+			const difyOrigin = new URL(stubApiBase).origin
+			const fromDify: string[] = []
+			page.on('request', request => {
+				if (new URL(request.url()).origin === difyOrigin) fromDify.push(request.url())
+			})
+			await page.goto(`/chat/${app.id}?isNewCvst=1`)
+			const icons = page.locator(`img[src="/api/apps/${app.id}/icon"]`).visible()
+			// The welcome panel's, and on a desktop the sider's (hidden below md).
+			await expect(icons).toHaveCount(isMobile ? 1 : 2)
+			for (const icon of await icons.all()) {
+				await expect
+					.poll(() => icon.evaluate(element => (element as HTMLImageElement).naturalWidth))
+					.toBeGreaterThan(0)
+			}
+			expect(fromDify).toEqual([])
+		},
+	)
 })

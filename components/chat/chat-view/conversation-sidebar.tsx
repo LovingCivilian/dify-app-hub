@@ -1,7 +1,7 @@
 'use client'
 
 import { Conversations, type ConversationsProps } from '@ant-design/x'
-import { Avatar, Flex, Typography } from 'antd'
+import { Avatar, Flex, Typography, type AvatarProps } from 'antd'
 import { memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -37,16 +37,25 @@ export interface ConversationSidebarProps extends Omit<ConversationListProps, 'c
 	action?: React.ReactNode
 }
 
-/** The app's icon: the site's image or emoji, else the first letter of its name. */
-export function AppAvatar() {
+/**
+ * The app's icon: the stored Dify icon (an emoji, or the image through the icon route, so the Dify host never
+ * reaches the browser; charter §4.1, §4.4), else the first letter of its name (also while the image loads or fails).
+ */
+export function AppAvatar({ size, alt }: Pick<AvatarProps, 'size' | 'alt'>) {
 	const { app, site } = useAppContext()
 	const name = site.title || app.name
+	const icon = app.icon
 	return (
 		<Avatar
+			size={size}
+			alt={alt}
 			shape="square"
-			src={site.icon_type === 'image' ? site.icon_url || site.icon : undefined}
+			src={icon?.kind === 'image' ? `/api/apps/${encodeURIComponent(app.id)}/icon` : undefined}
+			style={
+				icon?.kind === 'emoji' && icon.background ? { backgroundColor: icon.background } : undefined
+			}
 		>
-			{site.icon_type === 'emoji' ? site.icon : name.slice(0, 1)}
+			{icon?.kind === 'emoji' ? icon.emoji : name.slice(0, 1)}
 		</Avatar>
 	)
 }

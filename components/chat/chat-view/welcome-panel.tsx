@@ -1,11 +1,12 @@
 'use client'
 
 import { Prompts, Welcome } from '@ant-design/x'
-import { Avatar, Flex } from 'antd'
+import { Flex } from 'antd'
 
 import { useAppContext } from '../app-context'
 import MessageMarkdown from '../message/message-markdown'
 import styles from './chat-view.module.css'
+import { AppAvatar } from './conversation-sidebar'
 
 export interface WelcomePanelProps {
 	visible: boolean
@@ -29,14 +30,10 @@ export default function WelcomePanel({ visible, disabled, onPrompt }: WelcomePan
 				<Welcome
 					variant="borderless"
 					icon={
-						<Avatar
+						<AppAvatar
 							size="large"
-							shape="square"
 							alt={name}
-							src={site.icon_type === 'image' ? site.icon_url || site.icon : undefined}
-						>
-							{site.icon_type === 'emoji' ? site.icon : name.slice(0, 1)}
-						</Avatar>
+						/>
 					}
 					title={name}
 					description={

@@ -39,24 +39,6 @@ export const validateAndGenErrMsgs = (
 	})
 }
 
-/**
- * 填充文件的完整 URL，返回全路径
- * @param url 原始 URL
- * @param apiBase 应用的 API Base
- * @returns 完整的文件 URL
- */
-export const completeFileUrl = (url: string, apiBase: string) => {
-	let result = url
-	if (!url) {
-		return ''
-	}
-	if (!url.startsWith('http://') && !url.startsWith('https://')) {
-		const apiDomain = apiBase.slice(0, apiBase.lastIndexOf('/v1'))
-		result = `${apiDomain}${url}`
-	}
-	return result
-}
-
 /** Chat-like apps (chat, agent-chat, advanced-chat, agent): the conversation view. */
 export const isChatLikeApp = (mode: AppMode | null) => mode !== null && CHAT_MODES.includes(mode)
 

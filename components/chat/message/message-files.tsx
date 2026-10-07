@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useAppContext } from '../app-context'
 import type { MessageFile } from '../provider/message'
-import { completeFileUrl } from '../utils-index'
+import { fileLink } from './file-link'
 import styles from './message-files.module.css'
 
 const IMAGE_CLASS_NAMES = { image: styles.image }
@@ -50,19 +50,17 @@ export default function MessageFiles({ files }: { files?: MessageFile[] }) {
 	// Thumbnails three control heights square. antd sizes an Image through its width/height props: its own
 	// rule for the <img> outranks a class on the `image` slot.
 	const thumbnail = token.controlHeight * 3
-	// The DTO carries no API base: stored file links stay relative until they go through the proxy (Task 15).
-	const apiBase = ''
 
 	const { images, others } = useMemo(() => {
 		const withUrls = (files ?? []).map(file => ({
 			...file,
-			url: completeFileUrl(file.url, apiBase),
+			url: fileLink(file.url, difyApi),
 		}))
 		return {
 			images: withUrls.filter(file => file.type === 'image' && file.url),
 			others: withUrls.filter(file => !(file.type === 'image' && file.url)),
 		}
-	}, [files, apiBase])
+	}, [files, difyApi])
 
 	if (!images.length && !others.length) return null
 

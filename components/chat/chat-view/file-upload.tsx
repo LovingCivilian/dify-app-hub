@@ -7,8 +7,9 @@ import { useTranslation } from 'react-i18next'
 
 import type { FileType } from '@/lib/dify/types'
 
+import { useAppContext } from '../app-context'
 import { useDifyUpload } from '../hooks/use-dify-upload'
-import { completeFileUrl } from '../utils-index'
+import { fileLink, withGivenLinks } from '../message/file-link'
 import { allowsLocalUpload, fileTypeFor, type FileRules } from './file-types'
 
 export interface IUploadFileItem extends UploadFile {
@@ -69,6 +70,7 @@ export default function FileUpload(props: IFileUploadProps) {
 		value,
 	} = props
 	const { t } = useTranslation()
+	const { difyApi } = useAppContext()
 	const single = mode === 'single'
 	const items = useMemo(
 		() =>
@@ -85,17 +87,15 @@ export default function FileUpload(props: IFileUploadProps) {
 	)
 	const local = allowsLocalUpload(allowed_file_upload_methods)
 
-	// Stored files link to Dify's file preview; the DTO carries no API base, so the links stay relative
-	// until they go through the proxy (Task 15).
-	const apiBase = ''
+	// A stored file's link is one Dify handed out: it loads through the app's remote-file route.
 	const fileList = useMemo(
-		() =>
-			items.map(item => ({ ...item, url: completeFileUrl(item.url || '', apiBase) || undefined })),
-		[items, apiBase],
+		() => items.map(item => ({ ...item, url: fileLink(item.url || '', difyApi) || undefined })),
+		[items, difyApi],
 	)
 
 	const handleChange: NonNullable<UploadProps['onChange']> = ({ fileList: next }) => {
-		const files = next.map((item): IUploadFileItem => {
+		// The value keeps the links Dify gave; `fileList` above shows them proxied.
+		const files = withGivenLinks(next, items).map((item): IUploadFileItem => {
 			const id = (item.response as { id?: unknown } | undefined)?.id
 			return item.status === 'done' && typeof id === 'string'
 				? {
