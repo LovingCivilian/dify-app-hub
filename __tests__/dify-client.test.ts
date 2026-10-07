@@ -783,6 +783,10 @@ describe('filePassthrough', () => {
 		'application/xml',
 		'text/html; charset=utf-8',
 		'application/xhtml+xml',
+		// A browser extracts the MIME type from a comma list and keeps the last valid one (Fetch Standard), so
+		// these render as HTML and SVG; a single media type has no unquoted comma.
+		'text/plain; charset=utf-8, text/html',
+		'image/png;a=b, image/svg+xml',
 	])('%s downloads as an attachment, with nosniff', type => {
 		const out = filePassthrough(file({ 'content-type': type }))
 		expect(out.headers.get('content-type')).toBe(type)

@@ -113,11 +113,16 @@ const INLINE_FILE_TYPES = new Set([
 export const filePassthrough = (upstream: Response): Response => {
 	const headers = forwardedHeaders(upstream)
 	headers.set('x-content-type-options', 'nosniff')
-	const mediaType = (headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
+	const contentType = headers.get('content-type') ?? ''
+	const mediaType = contentType.split(';')[0].trim().toLowerCase()
+	// A browser reads a comma list (or two joined upstream headers) as several types and keeps the last valid one
+	// (Fetch Standard, "extract a MIME type"), so `text/plain, text/html` renders as HTML: a single media type has
+	// no unquoted comma, and a list is never inline.
 	const inline =
-		INLINE_FILE_TYPES.has(mediaType) ||
-		mediaType.startsWith('audio/') ||
-		mediaType.startsWith('video/')
+		!contentType.includes(',') &&
+		(INLINE_FILE_TYPES.has(mediaType) ||
+			mediaType.startsWith('audio/') ||
+			mediaType.startsWith('video/'))
 	if (!inline) {
 		// The disposition type is the token before the first `;`; the parameters (the filename) follow it.
 		const disposition = headers.get('content-disposition') ?? ''
