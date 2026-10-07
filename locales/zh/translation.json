@@ -39,6 +39,7 @@
 	},
 	"app": {
 		"list": "应用列表",
+		"list_subtitle": "选择一个应用开始对话",
 		"no_data_default": "暂无应用",
 		"no_description": "暂无描述",
 		"no_config_default_text": "暂无 Dify 应用配置，请联系管理员",
@@ -248,6 +249,8 @@
 		"cannot_delete_self": "不能删除自己的账户"
 	},
 	"admin_apps": {
+		"subtitle": "管理在应用中心发布的 Dify 应用",
+		"total": "共 {{total}} 个应用",
 		"title": "应用配置",
 		"more_actions": "更多操作",
 		"column_name": "名称",

@@ -19,7 +19,7 @@ export default function AppGallerySkeleton() {
 				<Skeleton
 					active
 					title
-					paragraph={false}
+					paragraph={{ rows: 1 }}
 				/>
 				<Row gutter={[token.margin, token.margin]}>
 					{Array.from({ length: PLACEHOLDER_CARDS }, (_, index) => (

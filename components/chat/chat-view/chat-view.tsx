@@ -93,17 +93,18 @@ export default function ChatView() {
 	})
 	// '' until the list has loaded: no conversation, so no provider and no sending (useDifyChat).
 	const activeKey = list.activeKey
-	const { getDifyId, markDifyId, refresh } = list
+	const { getDifyId, markDifyId, refresh, generateName } = list
 	const chat = useDifyChat({
 		appId: app.id,
 		conversationKey: activeKey,
 		getDifyConversationId: () => getDifyId(activeKey),
-		// A new chat's reply named its Dify conversation, whichever conversation is on screen by then; the
-		// server lists it already, so its name shows now rather than when the reply ends.
+		// A new chat's reply created its Dify conversation, whichever conversation is on screen by then:
+		// the app asks Dify for the generated name (the message was sent with auto_generate_name false,
+		// cosmetic sweep 1 item 3), then reloads the list, which the server lists already.
 		onConversationId: (key, difyId) => {
 			if (getDifyId(key) === difyId) return
 			markDifyId(key, difyId)
-			void refresh()
+			void generateName(key).then(refresh)
 		},
 		difyApi,
 		t,
@@ -166,7 +167,9 @@ export default function ChatView() {
 		if (activeKey && hasInputs) openInputs(activeKey)
 	}, [activeKey, hasInputs])
 
-	// When a reply ends the list is reloaded for the name Dify generated meanwhile (spec §4.4).
+	// When a reply ends the list is reloaded for its `updated_at` order (spec §4.4); the name arrives
+	// through `generateName` when the conversation id does, and this reload is the fallback that shows
+	// the server's name if that call failed (ADR-0017 note of 2026-10-07).
 	const wasRequesting = useRef(false)
 	useEffect(() => {
 		if (wasRequesting.current && !chat.isRequesting) void refresh()
@@ -510,6 +513,15 @@ export default function ChatView() {
 	}
 	const createDisabled = list.hasEmptyTemp || locked
 
+	// The reading width (spec §5.1): antd's screenMD token, unbounded when wide; the column itself spans
+	// the content region so the message list scrolls at its edge (cosmetic sweep 1, item 1). The wrappers
+	// are border-box (antd's reset) with the column's old inline padding, so their content is the token
+	// minus the two paddings; X's scroll content insets every bubble by paddingXS on each side
+	// (es/bubble/style/list.js), so a bubble gets that content width minus the inset and keeps the same
+	// 8 px inside the Sender's edges in every width, as before the sweep.
+	const readingStyle = { maxWidth: wide ? 'none' : token.screenMD }
+	const bubbleWidth = wide ? 'none' : token.screenMD - 2 * token.padding - 2 * token.paddingXS
+
 	return (
 		<UserShell
 			title={
@@ -573,14 +585,13 @@ export default function ChatView() {
 					)}
 				</Layout.Sider>
 				<Layout.Content>
-					<div
-						className={styles.column}
-						// The reading width is antd's screenMD token, unbounded when wide (spec §5.1).
-						style={{ maxWidth: wide ? 'none' : token.screenMD }}
-					>
+					<div className={styles.column}>
 						{chat.historyError && (
 							// The spacing sits on a wrapper: antd's Alert resets its own margin.
-							<div className={styles.historyAlert}>
+							<div
+								className={`${styles.historyAlert} ${styles.reading}`}
+								style={readingStyle}
+							>
 								<Alert
 									type="error"
 									showIcon
@@ -597,7 +608,10 @@ export default function ChatView() {
 								/>
 							</div>
 						)}
-						<div className={styles.top}>
+						<div
+							className={`${styles.top} ${styles.reading}`}
+							style={readingStyle}
+						>
 							<WelcomePanel
 								visible={showWelcome}
 								disabled={chat.isRequesting}
@@ -614,11 +628,15 @@ export default function ChatView() {
 						<MessageList
 							chat={chat}
 							conversationKey={activeKey}
+							maxWidth={bubbleWidth}
 							renderAssistant={renderAssistant}
 							renderFooter={renderFooter}
 						/>
 						{suggestions.suggestions.length > 0 && !chat.isRequesting && (
-							<div className={styles.suggestions}>
+							<div
+								className={`${styles.suggestions} ${styles.reading}`}
+								style={readingStyle}
+							>
 								<Prompts
 									wrap
 									title={t('chat.suggested_questions')}
@@ -630,7 +648,10 @@ export default function ChatView() {
 								/>
 							</div>
 						)}
-						<div className={styles.composer}>
+						<div
+							className={`${styles.composer} ${styles.reading}`}
+							style={readingStyle}
+						>
 							<ChatSender
 								loading={chat.isRequesting}
 								// The deep link's `sender_text` prefills the box (spec §4.7).
@@ -648,12 +669,17 @@ export default function ChatView() {
 								transcribing={speech.transcribing}
 							/>
 						</div>
-						<Typography.Text
-							type="secondary"
-							className={styles.disclaimer}
+						<div
+							className={styles.reading}
+							style={readingStyle}
 						>
-							{site.custom_disclaimer || t('system.default_disclaimer_content')}
-						</Typography.Text>
+							<Typography.Text
+								type="secondary"
+								className={styles.disclaimer}
+							>
+								{site.custom_disclaimer || t('system.default_disclaimer_content')}
+							</Typography.Text>
+						</div>
 					</div>
 				</Layout.Content>
 			</Layout>

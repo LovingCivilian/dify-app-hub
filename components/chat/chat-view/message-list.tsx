@@ -1,12 +1,10 @@
 'use client'
 
-import { RobotOutlined, UserOutlined } from '@ant-design/icons'
 import { Bubble, type BubbleListProps } from '@ant-design/x'
-import { App, Avatar, Button, Skeleton } from 'antd'
+import { App, Button, Skeleton } from 'antd'
 import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useAppContext } from '../app-context'
 import { toBubbleItems } from '../hooks/bubble-items'
 import type { useDifyChat } from '../hooks/use-dify-chat'
 import type { DifyChatMessage } from '../provider/message'
@@ -26,6 +24,8 @@ export interface MessageListProps {
 	chat: ReturnType<typeof useDifyChat>
 	/** The conversation shown, '' while there is none yet; each one opens at its latest message. */
 	conversationKey: string
+	/** The bubbles' reading width (the chat column's `readingStyle`); the scroll box itself spans the region. */
+	maxWidth: React.CSSProperties['maxWidth']
 	/** An assistant bubble's content; keep it stable (useCallback): the role map, and so every bubble, follows it. */
 	renderAssistant: (message: DifyChatMessage, info: BubbleInfo) => React.ReactNode
 	/** An assistant bubble's footer (Bubble's `footer` slot); keep it stable for the same reason. */
@@ -36,29 +36,19 @@ export interface MessageListProps {
 export default function MessageList({
 	chat,
 	conversationKey,
+	maxWidth,
 	renderAssistant,
 	renderFooter,
 }: MessageListProps) {
 	const { t } = useTranslation()
 	const { message: toast } = App.useApp()
-	const { site } = useAppContext()
 	const listRef = useRef<BubbleListRef>(null)
 
-	// Stable role map (x-components: "keep roles stable"); the avatar follows the site setting.
+	// Stable role map (x-components: "keep roles stable"); no avatar slot on either role (cosmetic sweep 1, item 5).
 	const role = useMemo<BubbleListProps['role']>(
 		() => ({
 			assistant: {
 				placement: 'start',
-				avatar: site.use_icon_as_answer_icon ? (
-					<Avatar
-						shape="square"
-						src={site.icon_type === 'image' ? site.icon_url || site.icon : undefined}
-					>
-						{site.icon_type === 'emoji' ? site.icon : null}
-					</Avatar>
-				) : (
-					<Avatar icon={<RobotOutlined />} />
-				),
 				variant: 'borderless',
 				contentRender: (content, info) => renderAssistant(content as DifyChatMessage, info),
 				footer: renderFooter
@@ -67,12 +57,17 @@ export default function MessageList({
 			},
 			user: {
 				placement: 'end',
-				avatar: <Avatar icon={<UserOutlined />} />,
 				contentRender: content => <UserContent message={content as DifyChatMessage} />,
 			},
 		}),
-		[site, renderAssistant, renderFooter],
+		[renderAssistant, renderFooter],
 	)
+
+	// One object per width, like the role map: Bubble.List hands it to every item on each render.
+	const rowStyles = useMemo<BubbleListProps['styles']>(() => {
+		const row = { maxWidth, marginInline: 'auto' }
+		return { bubble: row, system: row, divider: row }
+	}, [maxWidth])
 
 	const items = useMemo(() => toBubbleItems(chat.messages), [chat.messages])
 
@@ -119,6 +114,11 @@ export default function MessageList({
 				role={role}
 				autoScroll
 				className={styles.bubbleList}
+				// Bubble.List's semantic slots (ListSemanticType): `scroll` is the scroll box, which spans the
+				// chat column and carries the inline padding; `bubble`, `system` and `divider` are the roots of
+				// the three bubble kinds (BubbleListItem), centred at the reading width (cosmetic sweep 1, item 1).
+				classNames={{ scroll: styles.scrollBox }}
+				styles={rowStyles}
 			/>
 		</div>
 	)

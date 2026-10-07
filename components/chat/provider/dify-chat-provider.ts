@@ -325,6 +325,10 @@ export class DifyChatProvider extends AbstractChatProvider<
 			// Dify's file objects only: the names are for the local bubble.
 			files: (requestParams.files ?? []).map(({ filename: _name, ...file }) => file),
 			response_mode: 'streaming',
+			// Dify would name a new conversation in a background thread it never awaits (1.17.1,
+			// MessageCycleManager.generate_conversation_name); the app asks for the name itself with the
+			// rename API once the conversation exists, the client pattern Dify documents for this flag.
+			auto_generate_name: false,
 			conversation_id: this.getDifyConversationId() ?? '',
 		} as DifyChatInput
 	}
