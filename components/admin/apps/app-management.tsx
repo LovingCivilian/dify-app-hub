@@ -184,6 +184,11 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 				columns={columns}
 				dataSource={shown}
 				scroll={{ x: 'max-content' }}
+				pagination={{
+					showSizeChanger: true,
+					showQuickJumper: true,
+					showTotal: total => t('admin_apps.total', { total }),
+				}}
 				locale={
 					query.trim()
 						? {

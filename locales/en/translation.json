@@ -250,6 +250,7 @@
 	},
 	"admin_apps": {
 		"subtitle": "Manage the Dify apps published in the hub",
+		"total": "Total apps: {{total}}",
 		"title": "App configuration",
 		"more_actions": "More actions",
 		"column_name": "Name",

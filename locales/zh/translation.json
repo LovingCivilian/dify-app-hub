@@ -250,6 +250,7 @@
 	},
 	"admin_apps": {
 		"subtitle": "管理在应用中心发布的 Dify 应用",
+		"total": "共 {{total}} 个应用",
 		"title": "应用配置",
 		"more_actions": "更多操作",
 		"column_name": "名称",
