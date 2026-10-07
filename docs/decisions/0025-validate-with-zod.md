@@ -25,7 +25,7 @@ The backend rework needs per-operation allowlists for the Dify routes (unknown k
 
 ## Decision Outcome
 
-Chosen option: zod 4 (`import * as z from 'zod'`; `z.object` strips unknown keys, `z.strictObject` refuses them; `safeParse`; `z.flattenError` for field errors; `{ error }` messages; `z.url()`, `z.uuid()`, `z.coerce`, `z.discriminatedUnion`). Schemas live in `lib/dify/schemas.ts` (routes), beside each `actions.ts` (actions: `app/(admin)/app-management/schemas.ts`) and in `lib/env.ts` (environment). Next's guide snippets show zod 3 syntax (`invalid_type_error`, `.flatten()`); this line follows the v4 API.
+Chosen option: zod 4 (`import * as z from 'zod'`; `z.object` strips unknown keys, `z.strictObject` refuses them; `safeParse`; `z.flattenError` for field errors; `{ error }` messages; `z.url()`, `z.uuid()`, `z.coerce`, `z.discriminatedUnion`, `z.preprocess`). Schemas live in `lib/dify/schemas.ts` (routes), beside each `actions.ts` (actions: `app/(admin)/app-management/schemas.ts`) and in `lib/env.ts` (environment). Next's guide snippets show zod 3 syntax (`invalid_type_error`, `.flatten()`); this line follows the v4 API. The environment's `'true' | 'false'` flags (`SMTP_ENABLED`, `SMTP_USE_TLS`) go through `z.preprocess` (trimmed, lower-cased, a blank value read as absent, so `.default` applies): a stray `SMTP_ENABLED=` or `TRUE` no longer fails every request, while a required variable or a flag that is neither value still does.
 
 ### Consequences
 
