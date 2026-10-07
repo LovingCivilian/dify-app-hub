@@ -283,7 +283,7 @@
 		"edit_success": "编辑应用配置成功",
 		"save_failed": "保存应用配置失败",
 		"dify_unreachable": "无法连接到 Dify 应用，请检查 API Base 和 API Secret。",
-		"invalid_input": "请检查标出的字段",
+		"invalid_input": "部分取值无效，请检查表单后重试。",
 		"icon_not_stored": "已保存，但无法保存应用图标图片"
 	},
 	"app_setting": {

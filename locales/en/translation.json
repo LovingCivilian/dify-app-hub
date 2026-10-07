@@ -283,7 +283,7 @@
 		"edit_success": "App configuration updated",
 		"save_failed": "Failed to save app configuration",
 		"dify_unreachable": "Could not reach the Dify app. Check the API Base and API Secret.",
-		"invalid_input": "Check the highlighted fields",
+		"invalid_input": "Some values are not valid. Check the form and try again.",
 		"icon_not_stored": "Saved, but the app's icon image could not be stored"
 	},
 	"app_setting": {
