@@ -102,7 +102,7 @@ describe('proxy', () => {
 	})
 
 	it('classifies the decoded pathname, so an encoded /api/dify still needs a session', async () => {
-		const response = await proxy(request('/api/%63lient/apps'))
+		const response = await proxy(request('/api/%64ify/app-1/parameters'))
 		expect(response.status).toBe(401)
 		await expect(response.json()).resolves.toEqual({
 			code: 'unauthorized',

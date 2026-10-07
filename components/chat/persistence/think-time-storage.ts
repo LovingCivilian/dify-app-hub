@@ -14,7 +14,7 @@ const useThinkTimeStore = create<ThinkTimeStore>()(
 		(set, get) => ({
 			data: {},
 			setTime: (key, elapsedTime) => {
-				// 已有值不覆盖（保留首次记录的精确时间）
+				// An existing value is not overwritten (the first recorded, exact time is kept)
 				if (get().data[key] !== undefined) return
 				set(state => ({ data: { ...state.data, [key]: elapsedTime } }))
 			},

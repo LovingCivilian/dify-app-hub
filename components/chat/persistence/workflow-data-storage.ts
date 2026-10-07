@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 
 import { indexedDBStorage } from '@/lib/helpers/indexeddb-storage'
 
-// 定义获取和设置数据时 options 的统一类型
+// The options shared by getting and setting data
 export type IWorkflowDataOptions = {
 	appId: string
 	conversationId: string
@@ -11,7 +11,7 @@ export type IWorkflowDataOptions = {
 	key: string
 }
 
-// 定义设置数据时 options 的类型，继承自 IWorkflowDataOptions
+// The options for setting data: IWorkflowDataOptions plus the value
 export type IWorkflowDataSetOptions = IWorkflowDataOptions & {
 	value: unknown
 }
@@ -53,15 +53,15 @@ export const useWorkflowStore = create<WorkflowStore>()(
 )
 
 /**
- * 工作流数据存储，结合 zustand 状态管理和持久化
- * 优点：
- * 1. 内存读取，响应极快，适合流式输出的高频读写
- * 2. 自动持久化，刷新页面后依然可以获取
- * 3. 简化异步处理
+ * Workflow data storage: zustand state with persistence.
+ * Advantages:
+ * 1. Reads come from memory, so they are fast enough for the frequent reads and writes of streamed output
+ * 2. Persisted automatically, so the data is still there after a page reload
+ * 3. Simpler asynchronous handling
  */
 class WorkflowDataStorage {
 	/**
-	 * 生成存储键
+	 * Builds the storage key
 	 */
 	private generateId(options: IWorkflowDataOptions): string {
 		const { appId, conversationId, messageId, key } = options
@@ -69,9 +69,9 @@ class WorkflowDataStorage {
 	}
 
 	/**
-	 * 获取数据
-	 * @param options 包含应用 ID、对话 ID、消息 ID 和数据键的对象
-	 * @returns 数据
+	 * Gets the data
+	 * @param options the app ID, conversation ID, message ID and data key
+	 * @returns the data
 	 */
 	async get(options: IWorkflowDataOptions): Promise<unknown> {
 		const id = this.generateId(options)
@@ -79,8 +79,8 @@ class WorkflowDataStorage {
 	}
 
 	/**
-	 * 设置数据
-	 * @param options 包含应用 ID、对话 ID、消息 ID、数据键和数据值的对象
+	 * Sets the data
+	 * @param options the app ID, conversation ID, message ID, data key and data value
 	 */
 	async set(options: IWorkflowDataSetOptions): Promise<void> {
 		const { value } = options
@@ -89,8 +89,8 @@ class WorkflowDataStorage {
 	}
 
 	/**
-	 * 获取所有缓存的数据
-	 * @returns 包含所有缓存数据的数组
+	 * Gets all cached data
+	 * @returns an array of every cached entry
 	 */
 	async listAll(): Promise<{ id: string; value: unknown }[]> {
 		return useWorkflowStore.getState().getAllData()

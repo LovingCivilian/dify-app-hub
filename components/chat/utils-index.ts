@@ -3,7 +3,7 @@ import { FormInstance } from 'antd'
 import { CHAT_MODES, RUN_MODES, type AppMode } from '@/lib/dify/types'
 
 /**
- * 校验表单, 如果校验未通过则生成错误信息
+ * Validates the form; when validation fails, builds the error message
  */
 export const validateAndGenErrMsgs = (
 	form: FormInstance<Record<string, unknown>>,

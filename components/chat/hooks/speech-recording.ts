@@ -1,6 +1,6 @@
 /**
  * The capture behind the Sender's speech button (spec §4.7): asking for the microphone, recording with
- * MediaRecorder, then transcribing through POST /audio2text. X's SpeechConfig reports only the recording
+ * MediaRecorder, then transcribing through POST /audio-to-text. X's SpeechConfig reports only the recording
  * state the button asks for (`onRecordingChange(!recording)`); the phase decides what that means.
  */
 export type SpeechPhase = 'idle' | 'requesting' | 'recording' | 'transcribing'

@@ -1,14 +1,4 @@
 /**
- * Whether the ID is a temporary one
- */
-export const isTempId = (id: string | undefined) => {
-	if (!id) {
-		return false
-	}
-	return id.startsWith('temp')
-}
-
-/**
  * Generates an RFC 4122 UUID v4
  * Works in the browser and in Node.js, with no third-party library
  */
@@ -66,14 +56,4 @@ export const generateUuidV4 = (): string => {
 		hex.slice(16, 20),
 		hex.slice(20, 32),
 	].join('-')
-}
-
-/**
- * Checks that a string is a well-formed UUID
- * @param uuid the UUID string to check
- * @returns whether it is a valid UUID
- */
-export const isValidUuid = (uuid: string): boolean => {
-	const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-	return uuidRegex.test(uuid)
 }

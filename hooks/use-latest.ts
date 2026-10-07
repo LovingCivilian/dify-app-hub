@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 
-// 可以提取到公共 hooks
+// Could move to the shared hooks
 export function useLatest<T>(value: T) {
 	const ref = useRef(value)
 	ref.current = value

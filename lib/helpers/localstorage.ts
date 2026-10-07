@@ -12,16 +12,15 @@ const LocalStorageKeyList = [
 	'ENABLE_SETTING',
 ] as const
 
-export const LocalStorageKeys = LocalStorageKeyList.reduce(
-	(acc, key) => {
-		// @ts-expect-error known error, to be resolved
-		acc[key] = key
-		return acc
-	},
-	{} as { [key in (typeof LocalStorageKeyList)[number]]: key },
-)
-
 type ILocalStorageKey = (typeof LocalStorageKeyList)[number]
+
+/**
+ * Each key mapped to itself. `Object.fromEntries` builds the object; its result type is a plain record, so the
+ * mapped type is asserted once (writing `acc[key] = key` into that type is the unsound write TypeScript 3.5 refuses).
+ */
+export const LocalStorageKeys = Object.fromEntries(LocalStorageKeyList.map(key => [key, key])) as {
+	[K in ILocalStorageKey]: K
+}
 
 /**
  * Builds a localStorage key
