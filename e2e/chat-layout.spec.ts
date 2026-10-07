@@ -3,19 +3,21 @@ import { expect, test, type Page } from '@playwright/test'
 import { APP_ID } from './fixtures/constants'
 
 // Cosmetic sweep 1, item 1: the message list's scroll box spans the chat's content region, so its scrollbar
-// sits at the region's edge in both reading widths, while the bubbles keep the reading width.
+// sits at the region's edge in both reading widths, while the bubbles share the Sender's width.
 
 const senderBox = (page: Page) => page.getByPlaceholder('Type a message')
 /** The chat's own Layout.Content (the region beside the sider), the innermost content of the nested layouts. */
 const contentRegion = (page: Page) => page.locator('.ant-layout-content').last()
 const scrollBox = (page: Page) => page.locator('.ant-bubble-list-scroll-box')
 
-const rightEdge = async (locator: ReturnType<Page['locator']>) => {
+const edges = async (locator: ReturnType<Page['locator']>) => {
 	const box = await locator.boundingBox()
-	return Math.round(box!.x + box!.width)
+	return { left: Math.round(box!.x), right: Math.round(box!.x + box!.width) }
 }
+/** X's scroll content insets every bubble by `paddingXS` on each side (es/bubble/style/list.js). */
+const BUBBLE_INSET = 8
 
-test('the message list scrolls at the content region edge, narrow and wide', async ({
+test('the message list scrolls at the content region edge and the bubbles share the Sender width, narrow and wide', async ({
 	page,
 	isMobile,
 }) => {
@@ -23,15 +25,24 @@ test('the message list scrolls at the content region edge, narrow and wide', asy
 	await senderBox(page).fill('layout probe')
 	await page.keyboard.press('Enter')
 	await expect(page.getByText('Echo: layout probe')).toBeVisible()
-	expect(await rightEdge(scrollBox(page))).toBe(await rightEdge(contentRegion(page)))
-	// The bubbles keep the reading width (screenMD = 768) in the narrow mode on a desktop.
 	const bubble = page.locator('.ant-bubble').last()
-	if (!isMobile) expect((await bubble.boundingBox())!.width).toBeLessThanOrEqual(768)
+	const sender = page.locator('.ant-sender')
+	const check = async () => {
+		expect((await edges(scrollBox(page))).right).toBe((await edges(contentRegion(page))).right)
+		const [bubbleEdges, senderEdges] = await Promise.all([edges(bubble), edges(sender)])
+		expect(bubbleEdges).toEqual({
+			left: senderEdges.left + BUBBLE_INSET,
+			right: senderEdges.right - BUBBLE_INSET,
+		})
+	}
+	await check()
 	if (isMobile) return
-	const toggle = page
+	// Narrow mode on a desktop: the reading width (screenMD 768) bounds the bubbles.
+	expect((await bubble.boundingBox())!.width).toBeLessThanOrEqual(768)
+	await page
 		.locator('header.ant-layout-header')
 		.getByRole('button', { name: /wide|narrow/i })
-	await toggle.click()
+		.click()
 	await expect.poll(async () => (await bubble.boundingBox())!.width).toBeGreaterThan(768)
-	expect(await rightEdge(scrollBox(page))).toBe(await rightEdge(contentRegion(page)))
+	await check()
 })

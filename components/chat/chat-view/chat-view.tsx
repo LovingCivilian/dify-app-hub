@@ -167,7 +167,9 @@ export default function ChatView() {
 		if (activeKey && hasInputs) openInputs(activeKey)
 	}, [activeKey, hasInputs])
 
-	// When a reply ends the list is reloaded for the name Dify generated meanwhile (spec §4.4).
+	// When a reply ends the list is reloaded for its `updated_at` order (spec §4.4); the name arrives
+	// through `generateName` when the conversation id does, and this reload is the fallback that shows
+	// the server's name if that call failed (ADR-0017 note of 2026-10-07).
 	const wasRequesting = useRef(false)
 	useEffect(() => {
 		if (wasRequesting.current && !chat.isRequesting) void refresh()
@@ -512,8 +514,13 @@ export default function ChatView() {
 	const createDisabled = list.hasEmptyTemp || locked
 
 	// The reading width (spec §5.1): antd's screenMD token, unbounded when wide; the column itself spans
-	// the content region so the message list scrolls at its edge (cosmetic sweep 1, item 1).
+	// the content region so the message list scrolls at its edge (cosmetic sweep 1, item 1). The wrappers
+	// are border-box (antd's reset) with the column's old inline padding, so their content is the token
+	// minus the two paddings; X's scroll content insets every bubble by paddingXS on each side
+	// (es/bubble/style/list.js), so a bubble gets that content width minus the inset and keeps the same
+	// 8 px inside the Sender's edges in every width, as before the sweep.
 	const readingStyle = { maxWidth: wide ? 'none' : token.screenMD }
+	const bubbleWidth = wide ? 'none' : token.screenMD - 2 * token.padding - 2 * token.paddingXS
 
 	return (
 		<UserShell
@@ -621,7 +628,7 @@ export default function ChatView() {
 						<MessageList
 							chat={chat}
 							conversationKey={activeKey}
-							maxWidth={readingStyle.maxWidth}
+							maxWidth={bubbleWidth}
 							renderAssistant={renderAssistant}
 							renderFooter={renderFooter}
 						/>

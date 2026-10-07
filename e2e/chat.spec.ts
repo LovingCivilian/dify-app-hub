@@ -505,8 +505,12 @@ test('the bubbles show no avatar', async ({ page }) => {
 // Cosmetic sweep 1, item 3: the app asks Dify for the name itself (auto_generate_name false on the message,
 // the rename API with auto_generate afterwards), so the sidebar shows the generated name once it exists
 // instead of Dify's placeholder until a later reload.
-test('a new conversation takes the name Dify generates for it', async ({ page, isMobile }, testInfo) => {
-	const text = `named ${testInfo.project.name}`
+test('a new conversation takes the name Dify generates for it', async ({
+	page,
+	isMobile,
+}, testInfo) => {
+	// Longer than 20 characters: Dify names a new conversation after the first 20 (plus an ellipsis) at creation.
+	const text = `named conversation ${testInfo.project.name} ${testInfo.repeatEachIndex}.${testInfo.retry}`
 	await page.goto(`/chat/${APP_ID}?isNewCvst=1`)
 	const sent = page.waitForRequest(r => r.method() === 'POST' && r.url().includes('/chat-messages'))
 	await senderBox(page).fill(text)

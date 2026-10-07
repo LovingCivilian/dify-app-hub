@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { tablePagination } from '@/components/admin/table-pagination'
 import PageHeader from '@/components/shell/page-header'
 import ClientDateTime from '@/components/admin/client-date-time'
 import SearchInput from '@/components/shell/search-input'
@@ -182,11 +183,7 @@ export default function UserManagement({
 							}
 						: undefined
 				}
-				pagination={{
-					showSizeChanger: true,
-					showQuickJumper: true,
-					showTotal: total => t('admin_users.total', { total }),
-				}}
+				pagination={tablePagination(total => t('admin_users.total', { total }))}
 			/>
 			<UserFormDrawer
 				open={drawerOpen}

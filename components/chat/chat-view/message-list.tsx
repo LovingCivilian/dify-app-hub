@@ -63,6 +63,12 @@ export default function MessageList({
 		[renderAssistant, renderFooter],
 	)
 
+	// One object per width, like the role map: Bubble.List hands it to every item on each render.
+	const rowStyles = useMemo<BubbleListProps['styles']>(() => {
+		const row = { maxWidth, marginInline: 'auto' }
+		return { bubble: row, system: row, divider: row }
+	}, [maxWidth])
+
 	const items = useMemo(() => toBubbleItems(chat.messages), [chat.messages])
 
 	const loadEarlier = async () => {
@@ -109,10 +115,10 @@ export default function MessageList({
 				autoScroll
 				className={styles.bubbleList}
 				// Bubble.List's semantic slots (ListSemanticType): `scroll` is the scroll box, which spans the
-				// chat column and carries the inline padding; `bubble` is every bubble's root, centred at the
-				// reading width (cosmetic sweep 1, item 1).
+				// chat column and carries the inline padding; `bubble`, `system` and `divider` are the roots of
+				// the three bubble kinds (BubbleListItem), centred at the reading width (cosmetic sweep 1, item 1).
 				classNames={{ scroll: styles.scrollBox }}
-				styles={{ bubble: { maxWidth, marginInline: 'auto' } }}
+				styles={rowStyles}
 			/>
 		</div>
 	)

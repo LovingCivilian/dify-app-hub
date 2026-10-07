@@ -654,7 +654,7 @@ describe('DifyChatProvider', () => {
 			).toBe(origin)
 		}
 	})
-	it('sends the conversation id from the getter and the streaming defaults', () => {
+	it('sends the conversation id from the getter, the streaming defaults and no server-side naming', () => {
 		const provider = makeProvider()
 		const params = provider.transformParams({ query: 'hi', inputs: { a: 1 }, files: [] }, {
 			params: { user: 'jane@example.com' },
@@ -665,6 +665,8 @@ describe('DifyChatProvider', () => {
 			inputs: { a: 1 },
 			files: [],
 			response_mode: 'streaming',
+			// The app names the conversation through the rename API (ADR-0017 note of 2026-10-07).
+			auto_generate_name: false,
 			conversation_id: 'conv-1',
 		})
 	})

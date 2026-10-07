@@ -538,9 +538,10 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 				? { ...known, updated_at: now() }
 				: {
 						id: conversation_id,
-						// Dify names a new conversation after its first query unless the client opts out with
-						// auto_generate_name false (then the rename API with auto_generate names it).
-						name: body.auto_generate_name === false ? 'New conversation' : query.slice(0, 40),
+						// Dify 1.17.1 `_init_generate_records`: the query's first 20 characters plus an ellipsis
+						// ('New conversation' for an empty query), whatever `auto_generate_name` says; that flag
+						// only gates the server's own naming thread (the rename API with auto_generate replaces it).
+						name: query.length > 20 ? `${query.slice(0, 20)}…` : query,
 						created_at: now(),
 						updated_at: now(),
 						inputs,

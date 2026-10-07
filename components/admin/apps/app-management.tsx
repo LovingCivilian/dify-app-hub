@@ -5,6 +5,7 @@ import { Button, Col, Empty, Flex, Row, Table, type TableProps, Tag, Typography,
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { tablePagination } from '@/components/admin/table-pagination'
 import PageHeader from '@/components/shell/page-header'
 import AppIcon from '@/components/apps/app-icon'
 import SearchInput from '@/components/shell/search-input'
@@ -184,11 +185,7 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 				columns={columns}
 				dataSource={shown}
 				scroll={{ x: 'max-content' }}
-				pagination={{
-					showSizeChanger: true,
-					showQuickJumper: true,
-					showTotal: total => t('admin_apps.total', { total }),
-				}}
+				pagination={tablePagination(total => t('admin_apps.total', { total }))}
 				locale={
 					query.trim()
 						? {

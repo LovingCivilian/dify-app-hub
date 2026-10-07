@@ -281,10 +281,10 @@ test.describe('annotations', () => {
 	})
 })
 
-// Cosmetic sweep 1, item 6: both admin tables offer items per page and show the total. Table's pagination is responsive:
-// on a phone antd renders it mini and hides the size changer, and the quick jumper shows only above one page.
+// Cosmetic sweep 1, item 6: both admin tables offer items per page and show the total. antd's pagination style hides
+// `.ant-pagination-options` below screenSM (es/pagination/style/index.js), and the quick jumper shows only above one page.
 test('the apps table offers items per page like the users table', async ({ page, isMobile }) => {
-	test.skip(isMobile, 'antd hides the size changer in the mini pagination on phones')
+	test.skip(isMobile, 'antd hides the pagination options below screenSM')
 	for (const path of ['/app-management', '/user-management']) {
 		await page.goto(path)
 		const pagination = page.locator('.ant-table-pagination')

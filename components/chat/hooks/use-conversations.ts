@@ -199,6 +199,7 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 	const generateName = useCallback(
 		async (key: string) => {
 			const difyId = getDifyId(key)
+			const before = (getConversation(key) as ConversationItem | undefined)?.label
 			if (!difyId) return
 			try {
 				const answer: unknown = await latest.current.difyApi.renameConversation({
@@ -207,6 +208,9 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 				})
 				if (renameError(answer)) return
 				const name = (answer as { data?: { name?: unknown } }).data?.name
+				// A name the user set meanwhile (the item menu opens as soon as the id is known) wins.
+				const current = (getConversation(key) as ConversationItem | undefined)?.label
+				if (current !== before) return
 				if (typeof name === 'string' && name && name !== DIFY_PLACEHOLDER_NAME) {
 					setConversation(key, { key, label: name })
 				}
@@ -214,7 +218,7 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 				// Kept: the default label, until a refresh brings the server's name.
 			}
 		},
-		[getDifyId, setConversation],
+		[getConversation, getDifyId, setConversation],
 	)
 
 	/** Deletes on Dify, then locally; rejects with a DifyRequestError and keeps the item on failure. */
