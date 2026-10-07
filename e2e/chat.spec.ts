@@ -490,3 +490,14 @@ test.describe('chat', () => {
 		await expect.poll(width).toBe(expanded)
 	})
 })
+
+// Cosmetic sweep 1, item 5: the bubbles carry no avatar (no robot, user or app icon beside them).
+test('the bubbles show no avatar', async ({ page }) => {
+	await page.goto(`/chat/${APP_ID}?isNewCvst=1`)
+	await senderBox(page).fill('no avatar')
+	await page.keyboard.press('Enter')
+	await expect(page.getByText('Echo: no avatar')).toBeVisible()
+	await expect(page.locator('.ant-bubble-end').first()).toBeVisible()
+	await expect(page.locator('.ant-bubble-start').first()).toBeVisible()
+	await expect(page.locator('.ant-bubble-avatar')).toHaveCount(0)
+})
