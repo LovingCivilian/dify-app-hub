@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
+import { difyJson, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
 import { annotationBody, parseJsonBody, parsePathParams } from '@/lib/dify/schemas'
 
 /** PUT /apps/annotations/{annotation_id}. Admin-only from B2 on. */
@@ -15,9 +15,7 @@ export async function PUT(
 	const body = await parseJsonBody(request, annotationBody)
 	if (!body.ok) return body.response
 	try {
-		return Response.json(
-			await resolved.ctx.dify.updateAnnotation(segments.data.annotationId, body.data),
-		)
+		return difyJson(await resolved.ctx.dify.updateAnnotation(segments.data.annotationId, body.data))
 	} catch (error) {
 		return errorResponseFrom(error, 'PUT /api/dify/[appId]/apps/annotations/[annotationId]')
 	}

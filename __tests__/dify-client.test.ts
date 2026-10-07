@@ -307,9 +307,10 @@ describe('difyClient: errors', () => {
 		expect(out.headers.get('content-type')).toBe('text/event-stream')
 		expect(out.headers.get('x-version')).toBeNull()
 		expect(out.headers.get('set-cookie')).toBeNull()
+		expect(out.headers.get('cache-control')).toBe('no-store')
 		await expect(out.text()).resolves.toBe('data: {}\n\n')
 	})
-	it('keeps exactly the four charter headers of a file answer', async () => {
+	it('keeps exactly the four charter headers of a file answer, and adds no-store', async () => {
 		const upstream = new Response(new Uint8Array([1, 2, 3]), {
 			status: 200,
 			headers: {
@@ -326,6 +327,7 @@ describe('difyClient: errors', () => {
 			'content-disposition': "attachment; filename*=UTF-8''a.txt",
 			'content-length': '3',
 			'accept-ranges': 'bytes',
+			'cache-control': 'no-store',
 		})
 		expect(new Uint8Array(await out.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
 	})
@@ -351,27 +353,61 @@ describe('difyClient: errors', () => {
 		})
 		expect(passthrough(plain).headers.get('content-length')).toBe('5000')
 	})
-	// The preview route is session-gated: a shared cache must not store one user's file for others.
-	it("does not pass on Dify's cache-control", () => {
+	// The routes are session-gated and Next adds no Cache-Control to a dynamic Route Handler's answer: no cache may
+	// keep one user's stream, and Dify's own `public` never reaches the browser.
+	it("answers no-store instead of Dify's cache-control", () => {
 		const upstream = new Response('x', {
 			status: 200,
-			headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=3600' },
+			headers: { 'content-type': 'text/event-stream', 'cache-control': 'public, max-age=3600' },
 		})
-		expect(passthrough(upstream).headers.get('cache-control')).toBeNull()
+		expect(passthrough(upstream).headers.get('cache-control')).toBe('no-store')
 	})
-	it('fetches a remote file on the given URL with the bearer', async () => {
-		reply(
-			() =>
-				new Response(new Uint8Array([1]), {
-					status: 200,
-					headers: { 'content-type': 'image/png', 'content-length': '1' },
-				}),
-		)
+	const image = () =>
+		new Response(new Uint8Array([1]), {
+			status: 200,
+			headers: { 'content-type': 'image/png', 'content-length': '1' },
+		})
+	// Dify's root /files/ links are signed (timestamp, nonce, sign) and checked by signature, not by the app key.
+	it('fetches a signed root /files/ link without the bearer', async () => {
+		reply(image)
 		const response = await difyClient(credentials).fetchRemoteFile(
 			new URL('http://dify.local/files/tools/x.png?sign=1'),
 		)
 		expect(lastCall().url).toBe('http://dify.local/files/tools/x.png?sign=1')
+		expect(lastCall().headers.has('authorization')).toBe(false)
+		expect(response.headers.get('content-type')).toBe('image/png')
+	})
+	// The Service API preview (`<base>/files/<id>/preview`) authenticates with the app key.
+	it('fetches a link under the API base path with the bearer', async () => {
+		reply(image)
+		await difyClient(credentials).fetchRemoteFile(
+			new URL('http://dify.local/v1/files/f1/preview?as_attachment=true'),
+		)
+		expect(lastCall().url).toBe('http://dify.local/v1/files/f1/preview?as_attachment=true')
 		expect(lastCall().headers.get('authorization')).toBe('Bearer app-key')
+	})
+	it.each([
+		'https://evil.example/files/x.png',
+		'http://dify.local:8080/v1/files/f1/preview',
+		'https://dify.local/v1/files/f1/preview',
+	])('refuses %s, another origin, before any fetch', async url => {
+		await expect(difyClient(credentials).fetchRemoteFile(new URL(url))).rejects.toMatchObject({
+			status: 400,
+			code: 'invalid_param',
+		})
+		expect(fetchMock).not.toHaveBeenCalled()
+	})
+	// /site's icon_url is a signed link Dify built from FILES_URL, which may be another origin than the API's.
+	it('fetches a signed file on any origin, without the bearer and with redirects refused', async () => {
+		reply(image)
+		const response = await difyClient(credentials).fetchSignedFile(
+			new URL('https://upload.dify.example/files/f1/file-preview?timestamp=1&nonce=n&sign=s'),
+		)
+		expect(lastCall().url).toBe(
+			'https://upload.dify.example/files/f1/file-preview?timestamp=1&nonce=n&sign=s',
+		)
+		expect(lastCall().headers.has('authorization')).toBe(false)
+		expect(lastCall().init.redirect).toBe('error')
 		expect(response.headers.get('content-type')).toBe('image/png')
 	})
 	// A redirect from a /files/ answer must never make the route serve (or send the key to) another origin.
@@ -406,6 +442,8 @@ interface OperationCase {
 	url: string
 	user: UserPlace
 	result: Result
+	/** false: a signed link, sent without the app key. */
+	bearer?: false
 }
 
 const V1 = 'http://dify.local/v1'
@@ -583,11 +621,20 @@ const operations: OperationCase[] = [
 	},
 	{
 		name: 'fetchRemoteFile',
-		call: c => c.fetchRemoteFile(new URL('http://dify.local/files/tools/x.png?sign=1')),
+		call: c => c.fetchRemoteFile(new URL(`${V1}/files/f1/preview`)),
 		method: 'GET',
-		url: 'http://dify.local/files/tools/x.png?sign=1',
+		url: `${V1}/files/f1/preview`,
 		user: 'none',
 		result: 'binary',
+	},
+	{
+		name: 'fetchSignedFile',
+		call: c => c.fetchSignedFile(new URL('http://dify.local/files/f1/file-preview?sign=1')),
+		method: 'GET',
+		url: 'http://dify.local/files/f1/file-preview?sign=1',
+		user: 'none',
+		result: 'binary',
+		bearer: false,
 	},
 	{
 		name: 'audioToText',
@@ -657,17 +704,17 @@ describe('difyClient: one case per operation', () => {
 	})
 
 	describe.each(operations)('$name', operation => {
-		const { call, method, url, user, result } = operation
+		const { call, method, url, user, result, bearer = true } = operation
 		const run = () => call(difyClient(credentials))
 
-		it(`sends ${method} ${url.replace(V1, '')} with the bearer, \`user\` in the ${user === 'none' ? 'nowhere (no end-user context)' : user}`, async () => {
+		it(`sends ${method} ${url.replace(V1, '')} ${bearer ? 'with' : 'without'} the bearer, \`user\` in the ${user === 'none' ? 'nowhere (no end-user context)' : user}`, async () => {
 			reply(answers[result])
 			await run()
 			expect(fetchMock).toHaveBeenCalledTimes(1)
 			const sent = lastCall()
 			expect(sent.url).toBe(url)
 			expect(sent.init.method ?? 'GET').toBe(method)
-			expect(sent.headers.get('authorization')).toBe('Bearer app-key')
+			expect(sent.headers.get('authorization')).toBe(bearer ? 'Bearer app-key' : null)
 			const body = sent.init.body
 			if (user === 'body') {
 				expect(sent.headers.get('content-type')).toBe('application/json')
@@ -834,7 +881,7 @@ describe('filePassthrough', () => {
 		)
 		expect(out.headers.get('content-disposition')).toBe('attachment; filename="a.pdf"')
 	})
-	it('keeps the four charter headers, the status and the body, and adds nothing else', async () => {
+	it('keeps the four charter headers, the status and the body, and adds only its own three', async () => {
 		const out = filePassthrough(
 			file({
 				'content-type': 'audio/mpeg',
@@ -852,7 +899,38 @@ describe('filePassthrough', () => {
 			'content-length': '3',
 			'accept-ranges': 'bytes',
 			'x-content-type-options': 'nosniff',
+			'cache-control': 'private',
+			'content-security-policy': 'sandbox',
 		})
 		expect(new Uint8Array(await out.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
+	})
+
+	// The file is the user's, behind the session cookie: a browser may keep it, no shared cache may (MDN
+	// Cache-Control, `private`). A document opened on its own runs no script and no form on the hub's origin (CSP
+	// `sandbox`), except a PDF: Chrome's PDF viewer does not render under a sandbox (Outline's split).
+	it.each(['image/png', 'image/svg+xml', 'text/plain; charset=utf-8', 'audio/mpeg', 'video/mp4'])(
+		'%s is private and sandboxed',
+		type => {
+			const out = filePassthrough(file({ 'content-type': type }))
+			expect(out.headers.get('cache-control')).toBe('private')
+			expect(out.headers.get('content-security-policy')).toBe('sandbox')
+		},
+	)
+	it.each(['application/pdf', 'application/pdf; name="a.pdf"', 'APPLICATION/PDF'])(
+		'%s is private but not sandboxed',
+		type => {
+			const out = filePassthrough(file({ 'content-type': type }))
+			expect(out.headers.get('cache-control')).toBe('private')
+			expect(out.headers.get('content-security-policy')).toBeNull()
+		},
+	)
+	it('sandboxes a type list that names a PDF (a list is never one media type)', () => {
+		const out = filePassthrough(file({ 'content-type': 'application/pdf, text/html' }))
+		expect(out.headers.get('content-security-policy')).toBe('sandbox')
+	})
+	it('sandboxes an answer without a type', () => {
+		const out = filePassthrough(new Response(new Uint8Array([1]), { status: 200, headers: {} }))
+		expect(out.headers.get('cache-control')).toBe('private')
+		expect(out.headers.get('content-security-policy')).toBe('sandbox')
 	})
 })

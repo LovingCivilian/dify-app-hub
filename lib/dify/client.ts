@@ -37,9 +37,9 @@ export interface DifyCredentials {
 
 /**
  * The upstream headers a passthrough answer keeps (charter §4.1: Content-Type, Content-Disposition, Content-Length,
- * Accept-Ranges); everything else (cookies, X-Version) stays behind. Cache-Control stays behind too: Dify marks a
- * file preview `public, max-age=3600`, and the route that serves it is session-gated, so a shared cache could hand
- * one user's file to others.
+ * Accept-Ranges); everything else (cookies, X-Version) stays behind. Dify's Cache-Control stays behind too: it marks
+ * a file preview `public, max-age=3600`, and the route that serves it is session-gated, so a shared cache could hand
+ * one user's file to others; each answer sets its own (`passthrough`, `filePassthrough`).
  */
 const PASSTHROUGH_HEADERS = [
 	'content-type',
@@ -85,10 +85,15 @@ const forwardedHeaders = (upstream: Response): Headers => {
 /**
  * The upstream Response as the route answers it: Dify's status, the body as it is (a stream stays a stream),
  * and the headers that carry meaning. No re-pumping through a hand-written ReadableStream (Backend for
- * Frontend guide, "Proxying to a backend").
+ * Frontend guide, "Proxying to a backend"). `Cache-Control: no-store`: a stream is one user's run, and Next adds no
+ * Cache-Control to a dynamic Route Handler's answer (ADR-0023), so no cache of any kind may keep it (MDN
+ * Cache-Control, `no-store`).
  */
-export const passthrough = (upstream: Response): Response =>
-	new Response(upstream.body, { status: upstream.status, headers: forwardedHeaders(upstream) })
+export const passthrough = (upstream: Response): Response => {
+	const headers = forwardedHeaders(upstream)
+	headers.set('cache-control', 'no-store')
+	return new Response(upstream.body, { status: upstream.status, headers })
+}
 
 /**
  * Media types a file answer may render inline when opened on its own; they cannot run script on the hub's
@@ -104,22 +109,31 @@ const INLINE_FILE_TYPES = new Set([
 ])
 
 /**
- * A file answer (preview, remote file, text-to-audio) as the route answers it: `passthrough`, plus
+ * A file answer (preview, remote file, text-to-audio) as the route answers it: the headers `passthrough` keeps, plus
  * `X-Content-Type-Options: nosniff`, and `Content-Disposition: attachment` (Dify's filename kept) for any type
  * outside the inline list. The bytes are served on the hub's own origin with the uploader's type, so an SVG or XML
  * file opened on its own would run its scripts there; as an attachment it downloads, while an `<img>` or `<audio>`
- * still renders it (Content-Disposition does not apply to subresources). Streams (SSE) stay on `passthrough`.
+ * still renders it (Content-Disposition does not apply to subresources). Every answer is also `Cache-Control:
+ * private` (the user's file behind the session cookie: the browser may keep it, a shared cache may not; MDN
+ * Cache-Control) and, except a PDF, `Content-Security-Policy: sandbox` (a document opened on its own runs no script
+ * on the hub's origin; Chrome's PDF viewer does not render under a sandbox, so a PDF goes without, as Outline does).
+ * A CSP on a subresource answer does not affect the `<img>`, `<audio>` or `<video>` that loads it. Streams (SSE) stay
+ * on `passthrough`.
  */
 export const filePassthrough = (upstream: Response): Response => {
 	const headers = forwardedHeaders(upstream)
 	headers.set('x-content-type-options', 'nosniff')
+	headers.set('cache-control', 'private')
 	const contentType = headers.get('content-type') ?? ''
 	const mediaType = contentType.split(';')[0].trim().toLowerCase()
 	// A browser reads a comma list (or two joined upstream headers) as several types and keeps the last valid one
 	// (Fetch Standard, "extract a MIME type"), so `text/plain, text/html` renders as HTML: a single media type has
-	// no unquoted comma, and a list is never inline.
+	// no unquoted comma, and a list is never inline nor exempt from the sandbox.
+	const single = !contentType.includes(',')
+	if (!(single && mediaType === 'application/pdf'))
+		headers.set('content-security-policy', 'sandbox')
 	const inline =
-		!contentType.includes(',') &&
+		single &&
 		(INLINE_FILE_TYPES.has(mediaType) ||
 			mediaType.startsWith('audio/') ||
 			mediaType.startsWith('video/'))
@@ -138,15 +152,18 @@ export const filePassthrough = (upstream: Response): Response => {
 export const difyClient = (credentials: DifyCredentials) => {
 	const base = credentials.apiBase.replace(/\/+$/, '')
 
-	/** One upstream call: the bearer header, a network failure as upstream_unreachable, a non-OK answer as DifyError. */
-	const request = async (url: string, init: RequestInit = {}): Promise<Response> => {
+	/**
+	 * One upstream call: the bearer header (unless `bearer` is false: a signed link authenticates itself), a network
+	 * failure as upstream_unreachable, a non-OK answer as DifyError.
+	 */
+	const request = async (url: string, init: RequestInit = {}, bearer = true): Promise<Response> => {
 		let response: Response
 		try {
 			response = await fetch(url, {
 				...init,
 				headers: {
 					...(init.headers as Record<string, string> | undefined),
-					Authorization: `Bearer ${credentials.apiKey}`,
+					...(bearer && { Authorization: `Bearer ${credentials.apiKey}` }),
 				},
 			})
 		} catch (error) {
@@ -262,11 +279,31 @@ export const difyClient = (credentials: DifyCredentials) => {
 				`/files/${segment(fileId)}/preview${queryString({ as_attachment: asAttachment || undefined, user })}`,
 			),
 		/**
-		 * A file link Dify handed out (message files, generated images, icons): the route checks the origin first.
-		 * A redirect is refused (it fails as upstream_unreachable), so a `/files/` answer can never lead the route
-		 * to serve another origin.
+		 * A file link Dify handed out (message files, generated images), for the remote-file route, which checks the
+		 * link first (`resolveRemoteFileUrl`). This guard is its own: a link on another origin than the API base's is
+		 * refused before any fetch. The app key goes only to links under the API base path (`<base>/files/…`, the
+		 * Service API preview, which needs it); Dify's root `/files/…` links are signed (timestamp, nonce, sign) and
+		 * checked by their signature, so they get no bearer. A redirect is refused (it fails as
+		 * upstream_unreachable), so a `/files/` answer can never lead the route to serve another origin.
 		 */
-		fetchRemoteFile: (url: URL) => request(url.toString(), { redirect: 'error' }),
+		fetchRemoteFile: async (url: URL) => {
+			const api = new URL(base)
+			if (url.origin !== api.origin) {
+				throw new DifyError(
+					400,
+					'invalid_param',
+					'url must be a file link on the app’s Dify server.',
+				)
+			}
+			const underApi = url.pathname.startsWith(`${api.pathname.replace(/\/+$/, '')}/files/`)
+			return request(url.toString(), { redirect: 'error' }, underApi)
+		},
+		/**
+		 * A signed link from Dify's own answer (`/site`'s `icon_url`), for the icon sync: no bearer (the signature
+		 * authenticates it) and no origin check (Dify builds it from FILES_URL, which may be another origin than the
+		 * API's); a redirect is refused.
+		 */
+		fetchSignedFile: (url: URL) => request(url.toString(), { redirect: 'error' }, false),
 		audioToText: (file: File, user: string) =>
 			send('/audio-to-text', multipart(file, user)).then(json<{ text: string }>),
 		textToAudio: (body: TextToAudioRequest, user: string) =>

@@ -109,8 +109,10 @@ describe('syncApp and the icon (Review Focus 4)', () => {
 		dify()
 		await expect(syncApp(actor, 'a1')).resolves.toEqual({ id: 'a1', partial: false })
 		expect(db.set).toStrictEqual({ ...infoColumns, ...storedIcon })
+		// The signed icon_url authenticates itself: the app key never goes with it (it may be on FILES_URL's origin).
 		const [, init] = fetchMock.mock.calls.find(([url]) => url === ICON_URL) as [string, RequestInit]
-		expect(new Headers(init.headers).get('authorization')).toBe('Bearer app-secret')
+		expect(new Headers(init.headers).has('authorization')).toBe(false)
+		expect(init.redirect).toBe('error')
 	})
 
 	it.each([
@@ -132,6 +134,25 @@ describe('syncApp and the icon (Review Focus 4)', () => {
 		await expect(syncApp(actor, 'a1')).resolves.toEqual({ id: 'a1', partial: true })
 		// The info is stored; no icon column is written, so the row keeps its previous icon.
 		expect(db.set).toStrictEqual(infoColumns)
+	})
+
+	// Dify builds icon_url from FILES_URL, which may be another origin than the API's (Dify Cloud: upload.dify.ai).
+	it("fetches an icon_url on another origin than the API's, without the bearer", async () => {
+		const elsewhere = 'https://files.dify.example/files/x/file-preview?sign=1'
+		fetchMock.mockImplementation(async (url: string) => {
+			if (url === 'https://dify.example/v1/info') return json(INFO)
+			if (url === 'https://dify.example/v1/site')
+				return json({ ...IMAGE_SITE, icon_url: elsewhere })
+			if (url === elsewhere) return png(4)
+			throw new Error(`unexpected fetch ${url}`)
+		})
+		await expect(syncApp(actor, 'a1')).resolves.toEqual({ id: 'a1', partial: false })
+		expect(db.set).toStrictEqual({ ...infoColumns, ...storedIcon })
+		const [, init] = fetchMock.mock.calls.find(([url]) => url === elsewhere) as [
+			string,
+			RequestInit,
+		]
+		expect(new Headers(init.headers).has('authorization')).toBe(false)
 	})
 
 	it('keeps the stored icon when /site fails (a 500 says nothing about the icon)', async () => {

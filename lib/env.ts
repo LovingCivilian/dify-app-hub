@@ -2,13 +2,22 @@ import 'server-only'
 
 import * as z from 'zod'
 
-const flag = z.enum(['true', 'false'])
+/**
+ * A `'true' | 'false'` flag, read leniently: blanks around it and its case do not matter, and a blank value counts
+ * as absent, so the default applies (`SMTP_ENABLED=` in a .env file means "not set", not an invalid value). zod 4's
+ * `z.preprocess` runs before the inner schema, and `.default` answers the undefined it leaves.
+ */
+const flag = (fallback: 'true' | 'false') =>
+	z.preprocess(
+		value => (typeof value === 'string' && value.trim() ? value.trim().toLowerCase() : undefined),
+		z.enum(['true', 'false']).default(fallback),
+	)
 
 const baseSchema = z.object({
 	NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 	DATABASE_URL: z.string().min(1),
 	NEXTAUTH_SECRET: z.string().min(1),
-	SMTP_ENABLED: flag.default('false'),
+	SMTP_ENABLED: flag('false'),
 })
 
 /** Required together once SMTP_ENABLED is true (charter §4.5: an all-or-nothing block). */
@@ -17,7 +26,7 @@ const smtpSchema = z.object({
 	SMTP_PORT: z.coerce.number().int().positive(),
 	SMTP_USERNAME: z.string().min(1),
 	SMTP_PASSWORD: z.string().min(1),
-	SMTP_USE_TLS: flag.default('true'),
+	SMTP_USE_TLS: flag('true'),
 	MAIL_DEFAULT_SEND_FROM: z.string().min(1),
 	APP_URL: z.url(),
 })

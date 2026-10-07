@@ -52,6 +52,32 @@ describe('resolveDifyRoute', () => {
 		if (!disabled.ok)
 			await expect(disabled.response.json()).resolves.toMatchObject({ code: 'app_disabled' })
 	})
+	// A database or environment failure (EnvError, a lost MySQL connection) answers the envelope, not Next's empty 500.
+	it.each([
+		['the session read', () => verifySession.mockRejectedValue(new Error('db down'))],
+		[
+			'the app read',
+			() => {
+				verifySession.mockResolvedValue(actor)
+				getAppAccess.mockRejectedValue(new Error('db down'))
+			},
+		],
+	])('answers a logged 500 envelope when %s throws', async (_case, arrange) => {
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+		arrange()
+		const resolved = await resolveDifyRoute(params)
+		expect(resolved.ok).toBe(false)
+		if (resolved.ok) return
+		expect(resolved.response.status).toBe(500)
+		await expect(resolved.response.json()).resolves.toEqual({
+			code: 'internal_error',
+			message: 'Internal Server Error',
+			status: 500,
+		})
+		expect(errorSpy).toHaveBeenCalledWith('resolveDifyRoute:', expect.any(Error))
+		expect(difyClient).not.toHaveBeenCalled()
+		errorSpy.mockRestore()
+	})
 	it('builds the context with the session email as the Dify user and a client for the app', async () => {
 		verifySession.mockResolvedValue(actor)
 		getAppAccess.mockResolvedValue({

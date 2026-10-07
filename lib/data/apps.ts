@@ -262,8 +262,9 @@ const fetchDifyProfile = async (
 		// 403: the app has no site (no site row, or the workspace is archived; endpoint map §1.1), so no icon.
 		site = null
 	}
+	// icon_url is a signed link from Dify's own answer: fetched without the app key, on whatever origin Dify built it.
 	const { columns, partial } = await iconColumnsFrom(site, async url =>
-		readIconBytes(await client.fetchRemoteFile(new URL(url))),
+		readIconBytes(await client.fetchSignedFile(new URL(url))),
 	)
 	return { info, iconColumns: columns, partial }
 }

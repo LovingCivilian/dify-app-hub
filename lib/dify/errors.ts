@@ -2,6 +2,8 @@ import 'server-only'
 
 import { AuthError } from '@/lib/auth/session'
 
+import { difyJson } from './response'
+
 /** Dify's error envelope (endpoint map §4), also the app's own refusal shape (charter §4.1). */
 export interface DifyErrorBody {
 	code: string
@@ -33,9 +35,9 @@ export const isDifyErrorBody = (value: unknown): value is DifyErrorBody =>
 	typeof value.message === 'string' &&
 	typeof value.status === 'number'
 
-/** The app's own refusal in Dify's envelope. */
+/** The app's own refusal in Dify's envelope (no-store, like every JSON answer of the Dify routes). */
 export const difyErrorResponse = (code: string, message: string, status: number): Response =>
-	Response.json({ code, message, status } satisfies DifyErrorBody, { status })
+	difyJson({ code, message, status } satisfies DifyErrorBody, { status })
 
 /**
  * A non-OK upstream answer as a DifyError: Dify's code and message when the body is its envelope (the HTTP

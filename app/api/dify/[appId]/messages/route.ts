@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
+import { difyJson, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
 import { messagesQuery, parseQuery } from '@/lib/dify/schemas'
 
 /** GET /messages?conversation_id=&first_id=&limit= (endpoint map §1.2). */
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest, ctx: RouteContext<'/api/dify/[ap
 	const query = parseQuery(request.nextUrl.searchParams, messagesQuery)
 	if (!query.ok) return query.response
 	try {
-		return Response.json(await resolved.ctx.dify.listMessages(query.data, resolved.ctx.user))
+		return difyJson(await resolved.ctx.dify.listMessages(query.data, resolved.ctx.user))
 	} catch (error) {
 		return errorResponseFrom(error, 'GET /api/dify/[appId]/messages')
 	}

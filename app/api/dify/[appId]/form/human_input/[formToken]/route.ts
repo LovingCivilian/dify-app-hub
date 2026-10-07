@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
+import { difyJson, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
 import { humanInputBody, parseJsonBody, parsePathParams } from '@/lib/dify/schemas'
 
 /** GET /form/human_input/{form_token}: the form definition (a recorded follow-up of ADR-0017). */
@@ -13,7 +13,7 @@ export async function GET(
 	const segments = await parsePathParams(ctx.params, 'formToken')
 	if (!segments.ok) return segments.response
 	try {
-		return Response.json(await resolved.ctx.dify.getHumanInputForm(segments.data.formToken))
+		return difyJson(await resolved.ctx.dify.getHumanInputForm(segments.data.formToken))
 	} catch (error) {
 		return errorResponseFrom(error, 'GET /api/dify/[appId]/form/human_input/[formToken]')
 	}
@@ -31,7 +31,7 @@ export async function POST(
 	const body = await parseJsonBody(request, humanInputBody)
 	if (!body.ok) return body.response
 	try {
-		return Response.json(
+		return difyJson(
 			await resolved.ctx.dify.submitHumanInput(
 				segments.data.formToken,
 				body.data,

@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
+import { difyJson, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
 import { parsePathParams } from '@/lib/dify/schemas'
 
 /** POST /chat-messages/{task_id}/stop: the body carries only `user`, which the route sets. */
@@ -13,7 +13,7 @@ export async function POST(
 	const segments = await parsePathParams(ctx.params, 'taskId')
 	if (!segments.ok) return segments.response
 	try {
-		return Response.json(await resolved.ctx.dify.stopChat(segments.data.taskId, resolved.ctx.user))
+		return difyJson(await resolved.ctx.dify.stopChat(segments.data.taskId, resolved.ctx.user))
 	} catch (error) {
 		return errorResponseFrom(error, 'POST /api/dify/[appId]/chat-messages/[taskId]/stop')
 	}

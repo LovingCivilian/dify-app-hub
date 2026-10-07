@@ -54,6 +54,8 @@ describe.each(routes)('GET /api/dify/[appId]/%s', (path, handler, method, answer
 		method.mockResolvedValue(answer)
 		const response = await handler(get(path), ctx)
 		expect(response.status).toBe(200)
+		// Next adds no Cache-Control to a dynamic Route Handler's answer: the route says no cache may store it.
+		expect(response.headers.get('cache-control')).toBe('private, no-store')
 		await expect(response.json()).resolves.toEqual(answer)
 	})
 	it("answers Dify's error envelope with its status", async () => {
@@ -62,6 +64,7 @@ describe.each(routes)('GET /api/dify/[appId]/%s', (path, handler, method, answer
 		method.mockRejectedValue(new DifyError(403, 'forbidden', 'Site not found.'))
 		const response = await handler(get(path), ctx)
 		expect(response.status).toBe(403)
+		expect(response.headers.get('cache-control')).toBe('private, no-store')
 		await expect(response.json()).resolves.toEqual({
 			code: 'forbidden',
 			message: 'Site not found.',
