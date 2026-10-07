@@ -56,7 +56,7 @@ Chosen: antd's `reset.css`, `color-scheme` on `<html>`, pure cleanup (owner deci
 - [x] `pnpm build` succeeds without a PostCSS config; no `tailwindcss`, `--tw-` or `--theme-` in `.next/static`.
 - [x] `git grep -I -n -i -e '--theme-' -e tailwind -e lucide -e radix -e clsx -e class-variance -e tw-animate -e vaul -e 'components/ui' -e 'lib/utils' -e 'helpers/responsive' -e where-am-i -- . ':!*.md' ':!pnpm-lock.yaml'` prints nothing.
 - [x] Full e2e suite green on the three projects; `npx -y @ant-design/cli lint ./` at zero findings; screenshots of every page in both schemes reviewed against the pre-change set.
-- [ ] Docker image rebuilt from the branch; `/api/health` 200, `/apps` signed out 307 → `/login?callbackUrl=%2Fapps`, `/api/client/apps` 401, `antd-cssinjs` style count 1 on `/login`.
+- [x] Docker image rebuilt from the branch (the merged head 392fc37c, 2026-10-07); `/api/health` 200, `/apps` signed out 307 → `/login?callbackUrl=%2Fapps`, `/api/client/apps` 401, `antd-cssinjs` style count 1 on `/login`; the served `<html>` carries `style="color-scheme:only light"` without cookies and `color-scheme:dark` under the dark cookies; the served CSS chunks contain no Tailwind marker.
 
 ## Pros and Cons of the Options
 
