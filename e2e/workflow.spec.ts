@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Request } from '@playwright/test'
 import { gzipSync } from 'node:zlib'
 
 import { APP_IDS } from './fixtures/constants'
@@ -47,8 +47,18 @@ test.describe('workflow app', () => {
 		const cancelled = page.waitForEvent('requestfailed', request =>
 			new URL(request.url()).pathname.endsWith('/workflows/run'),
 		)
+		// Charter §4.1: the stop also reaches Dify for the run's task, once per click.
+		const isStop = (request: Request) =>
+			request.method() === 'POST' &&
+			/\/workflows\/tasks\/[^/]+\/stop$/.test(new URL(request.url()).pathname)
+		const stops: string[] = []
+		page.on('request', request => {
+			if (isStop(request)) stops.push(request.url())
+		})
+		const stopped = page.waitForRequest(isStop)
 		await page.getByRole('button', { name: 'Stop', exact: true }).click()
 		await cancelled
+		await stopped
 		await expect(page.getByText('Stopped', { exact: true })).toBeVisible()
 		await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
 		// The logs no longer spin: the unfinished run shows as failed (Task 12's displayWorkflow).
@@ -61,6 +71,7 @@ test.describe('workflow app', () => {
 		await expect(page.getByText('A short note about tea.')).toBeVisible()
 		await expect(page.getByText('Stopped', { exact: true })).toHaveCount(0)
 		await expect(page.getByText(/^0 1 2/)).toHaveCount(0)
+		expect(stops).toHaveLength(1)
 	})
 
 	test('a failed run shows the error with the failed node', async ({ page }) => {

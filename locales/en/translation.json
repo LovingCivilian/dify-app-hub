@@ -386,6 +386,7 @@
 		"time_left": "Time left",
 		"no_token": "This form was delivered by email or to the Dify console and can only be answered there.",
 		"submit_failed_reason": "Submission failed: {{error}}",
-		"resume_failed": "Your answer was sent, but the rest of the reply could not be loaded. Reopen the conversation to see it."
+		"resume_failed": "Your answer was sent, but the rest of the reply could not be loaded. Reopen the conversation to see it.",
+		"already_submitted": "This form was already submitted."
 	}
 }

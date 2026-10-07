@@ -135,6 +135,32 @@ test.describe('human input', () => {
 		await expect(lastAnswer(page).getByLabel('feedback')).toHaveValue('Looks good')
 	})
 
+	test('the form definition is read from Dify when the form arrives and when it is reopened', async ({
+		page,
+	}, testInfo) => {
+		const forms = page.waitForRequest(
+			request =>
+				request.method() === 'GET' &&
+				/\/form\/human_input\/[^/]+$/.test(new URL(request.url()).pathname),
+		)
+		await pauseRun(page, `please hitl definition ${unique(testInfo)}`)
+		await forms
+		// The stub's definition lists the select options; the form shows them.
+		await lastAnswer(page).getByLabel('priority').click()
+		await expect(page.getByTitle('high', { exact: true })).toBeVisible()
+		await page.keyboard.press('Escape')
+		// Reopened from the history (workers: 1, as above; a reload would keep ?isNewCvst=1 and open a new
+		// chat): read again.
+		const again = page.waitForRequest(
+			request =>
+				request.method() === 'GET' &&
+				/\/form\/human_input\/[^/]+$/.test(new URL(request.url()).pathname),
+		)
+		await page.goto(CHATFLOW)
+		await again
+		await expect(lastAnswer(page).getByRole('button', { name: 'Approve' })).toBeVisible()
+	})
+
 	// Review Focus 5: a form already past its expiration_time renders expired, never as a countdown.
 	test('a form that arrives expired shows the expired state with its controls disabled', async ({
 		page,

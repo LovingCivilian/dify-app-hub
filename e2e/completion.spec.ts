@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Request } from '@playwright/test'
 
 import { APP_IDS } from './fixtures/constants'
 
@@ -40,10 +40,21 @@ test.describe('completion app', () => {
 		const cancelled = page.waitForEvent('requestfailed', request =>
 			new URL(request.url()).pathname.endsWith('/completion-messages'),
 		)
+		// Charter §4.1: the stop also reaches Dify for the run's task, once per click.
+		const isStop = (request: Request) =>
+			request.method() === 'POST' &&
+			/\/completion-messages\/[^/]+\/stop$/.test(new URL(request.url()).pathname)
+		const stops: string[] = []
+		page.on('request', request => {
+			if (isStop(request)) stops.push(request.url())
+		})
+		const stopped = page.waitForRequest(isStop)
 		await page.getByRole('button', { name: 'Stop', exact: true }).click()
 		await cancelled
+		await stopped
 		await expect(page.getByText('Stopped', { exact: true })).toBeVisible()
 		await expect(partial).not.toContainText('37 38 39')
+		expect(stops).toHaveLength(1)
 	})
 
 	test('a stream error shows the failed run with its message', async ({ page }) => {

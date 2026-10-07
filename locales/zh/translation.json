@@ -386,6 +386,7 @@
 		"time_left": "剩余时间",
 		"no_token": "此表单已通过邮件或 Dify 控制台发送，只能在那里填写。",
 		"submit_failed_reason": "提交失败：{{error}}",
-		"resume_failed": "您的回答已提交，但未能加载后续回复。请重新打开对话查看。"
+		"resume_failed": "您的回答已提交，但未能加载后续回复。请重新打开对话查看。",
+		"already_submitted": "此表单已提交。"
 	}
 }

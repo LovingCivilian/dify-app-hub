@@ -2,7 +2,7 @@
 
 import { XStream } from '@ant-design/x-sdk'
 import { App } from 'antd'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAppContext } from '../app-context'
@@ -17,8 +17,8 @@ import { initialRunState, reduceRunEvent, type RunState } from './run-reducer'
  * is not a conversation.
  *
  * Each run has its own AbortController: stop(), a new run and unmounting abort it, which cancels the
- * response body (and so the fetch) and keeps anything of that run from reaching the state. The Dify run
- * itself goes on: the workflow and completion stop endpoints have no proxy route (spec §4.8, §12).
+ * response body (and so the fetch) and keeps anything of that run from reaching the state. stop() also
+ * posts Dify's stop for the run's task, so the run ends on the server too (charter §4.1).
  */
 export const useWorkflowRun = () => {
 	const { t } = useTranslation()
@@ -26,6 +26,11 @@ export const useWorkflowRun = () => {
 	const { app, parameters, difyApi } = useAppContext()
 	const [state, setState] = useState<RunState>(initialRunState)
 	const controller = useRef<AbortController | null>(null)
+	// The committed run, read by stop() (React: refs are written in effects, read in event handlers).
+	const latest = useRef(state)
+	useLayoutEffect(() => {
+		latest.current = state
+	})
 	const mode = app.mode
 	const form = parameters.user_input_form
 
@@ -96,13 +101,23 @@ export const useWorkflowRun = () => {
 		[difyApi, form, mode, t, toast],
 	)
 
-	/** Cancels the response body and marks the run stopped; what arrived so far stays. */
+	/**
+	 * Cancels the response body, marks the run stopped, and tells Dify to stop the task (its answer is not
+	 * needed). The stop is posted here, once per click, never inside the state updater: React calls updaters
+	 * twice in Strict Mode, and they must stay pure.
+	 */
 	const stop = useCallback(() => {
 		const current = controller.current
 		if (!current || current.signal.aborted) return
 		current.abort()
+		const { status, taskId } = latest.current
 		setState(s => (s.status === 'running' ? { ...s, status: 'stopped' } : s))
-	}, [])
+		// A run that has not received its first event has no task id yet: nothing runs on Dify to stop.
+		if (status !== 'running' || !taskId) return
+		const stopOnDify =
+			mode === 'workflow' ? difyApi.stopWorkflow(taskId) : difyApi.stopCompletion(taskId)
+		void stopOnDify.catch(() => undefined)
+	}, [difyApi, mode])
 
 	const reset = useCallback(() => {
 		controller.current?.abort()

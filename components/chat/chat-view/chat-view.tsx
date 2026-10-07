@@ -342,13 +342,16 @@ export default function ChatView() {
 									hitlSubmitting === key || info.status === 'loading' || info.status === 'updating'
 								}
 								onSubmit={(inputs, actionId) => submitHumanInput(key, message, inputs, actionId)}
+								loadForm={
+									form.formToken ? () => difyApi.getHumanInputForm(form.formToken) : undefined
+								}
 							/>
 						) : undefined
 					}
 				/>
 			)
 		},
-		[answerSend, hitlSubmitting, submitHumanInput],
+		[answerSend, difyApi, hitlSubmitting, submitHumanInput],
 	)
 
 	// The footer's callbacks stay stable while a reply streams (a new one would rebuild Bubble.List's role
