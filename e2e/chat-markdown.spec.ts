@@ -53,7 +53,7 @@ test.describe('Markdown in the chat bubble', () => {
 		await page.goto(`/chat/${APP_ID}?isNewCvst=1`)
 		await expect(senderBox(page)).toBeVisible()
 		if (testInfo.project.use.colorScheme === 'dark')
-			await expect(page.locator('body')).toHaveClass(/\bdark\b/)
+			await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark')
 	})
 
 	test('2 fenced code: highlighter, mermaid, echarts and svg each render', async ({ page }) => {

@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by [ADR-0021](0021-finish-on-pure-antd-after-the-tailwind-removal.md)
 date: 2026-10-04
 decision-makers: LovingCivilian (fork owner)
 consulted: Claude Code session (Task 11 implementation and review)
@@ -45,7 +45,7 @@ Chosen option: the alias block in `app/globals.css` on `.ant-app` (text → `col
 
 - [x] `e2e/theme-aliases.spec.ts` passes in light and dark; screenshots show no lost colour on `/apps`, `/chat`, `/app-management`.
 - [x] All 16 `--ant-*` names used resolve on `.ant-app` (antd 6.6.5, `theme.getDesignToken()` → `token2CSSVar`).
-- [ ] Sub-project 4 removes the block and its consumers; `git grep -- "--theme-"` is empty.
+- [x] Sub-project 4 removed the block and its consumers (2026-10-07, [ADR-0021](0021-finish-on-pure-antd-after-the-tailwind-removal.md)); `git grep -- "--theme-"` over the code is empty.
 
 ## More Information
 

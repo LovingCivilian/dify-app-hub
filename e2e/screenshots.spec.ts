@@ -113,13 +113,13 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 
 /**
  * The server renders the light theme and the client applies the preferred scheme after hydration
- * (the `dark` class on `<body>`), so dark projects wait for that class; `animations: 'disabled'`
+ * (`color-scheme: dark` on `<html>`), so dark projects wait for that style; `animations: 'disabled'`
  * then fast-forwards the antd colour transitions that hydration starts
  * (https://playwright.dev/docs/api/class-page#page-screenshot, option `animations`).
  */
 async function capture(page: Page, name: string, testInfo: TestInfo) {
 	if (testInfo.project.use.colorScheme === 'dark') {
-		await expect(page.locator('body')).toHaveClass(/\bdark\b/)
+		await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark')
 	}
 	await page.screenshot({
 		path: `e2e/screenshots/${name}-${testInfo.project.name}.png`,

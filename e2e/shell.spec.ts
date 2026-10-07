@@ -39,9 +39,13 @@ test('the theme dropdown switches to dark and the shell surface follows', async 
 	await page.goto('/app-management')
 	// The starting surface is not black, so the final assertion proves a switch rather than a state.
 	await expect.poll(shellBackground).not.toBe('rgb(0, 0, 0)')
+	// Chrome serialises the computed value with the keyword after the scheme: "light only".
+	await expect(page.locator('html')).toHaveCSS('color-scheme', 'light only')
 	await page.getByRole('button', { name: 'Theme' }).click()
 	await page.getByRole('menuitem', { name: 'Dark' }).click()
 	await expect.poll(shellBackground).toBe('rgb(0, 0, 0)')
+	// The browser's scheme follows the antd algorithm (ADR-0021): the html style flips with the toggle.
+	await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark')
 })
 
 test('the account dropdown shows the email and logs out', async ({ page }) => {
