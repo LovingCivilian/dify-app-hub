@@ -1,33 +1,19 @@
-import {
-	DEFAULT_APP_SITE_SETTING,
-	type IDifyAppParameters,
-	type IDifyAppSiteSetting,
-} from '@/lib/core'
+import type { SiteSettings } from '@/lib/dify/types'
 
-import { envelopeError } from './hooks/dify-errors'
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	Boolean(value) && typeof value === 'object'
-
-/**
- * GET /parameters as `DifyApi` resolves it. BaseRequest throws only on a 401 and resolves every other
- * answer's JSON, so Dify's error body (documented: 400 `app_unavailable`, `agent_not_published`) or the
- * proxy's `{ error }` arrives as a value. A parameters answer always carries the `user_input_form` list
- * (OpenAPI AppParametersResponse); anything else is thrown as `{ status, code?, message }` (envelopeError).
- */
-export const toAppParameters = (answer: unknown): IDifyAppParameters => {
-	if (isRecord(answer) && Array.isArray(answer.user_input_form)) {
-		return answer as unknown as IDifyAppParameters
-	}
-	throw envelopeError(answer)
+/** The site settings used when GET /site fails (Dify's 403 for an app without a site, or a Dify before 1.4). */
+export const DEFAULT_SITE_SETTINGS: SiteSettings = {
+	title: '',
+	chat_color_theme: '',
+	chat_color_theme_inverted: false,
+	icon_type: 'emoji',
+	icon: '🤖',
+	icon_background: '#1C64F2',
+	icon_url: null,
+	description: '',
+	copyright: '',
+	privacy_policy: '',
+	custom_disclaimer: '',
+	default_language: 'en-US',
+	show_workflow_steps: false,
+	use_icon_as_answer_icon: false,
 }
-
-/**
- * GET /site (the `data` of the proxy's envelope): the WebApp settings, or the defaults for an error body
- * (documented: 403 `forbidden`; Dify before 1.4 has no /site). A settings answer carries its `title`.
- */
-export const toSiteSetting = (answer: unknown): IDifyAppSiteSetting =>
-	isRecord(answer) && typeof answer.title === 'string'
-		? (answer as unknown as IDifyAppSiteSetting)
-		: // IDifyAppSiteSetting types `show_workflow_steps` as the literal `false`; the default holds a boolean.
-			(DEFAULT_APP_SITE_SETTING as IDifyAppSiteSetting)

@@ -73,7 +73,7 @@ export default function ChatView() {
 	const { t } = useTranslation()
 	const { token } = theme.useToken()
 	const { message: toast } = App.useApp()
-	const { app, site, parameters, difyApi, userId } = useAppContext()
+	const { app, site, parameters, difyApi } = useAppContext()
 	const searchParams = useSearchParams()
 	const [keptParams] = useState(() => keptParamsOf(searchParams))
 	const [inputsForm] = Form.useForm<Record<string, unknown>>()
@@ -114,7 +114,7 @@ export default function ChatView() {
 	// the same); its parameters can be edited until then, and afterwards only when the app allows it.
 	const activeItem = list.conversations.find(c => c.key === activeKey)
 	const hasInputs = inputFields(parameters.user_input_form).length > 0
-	const allowUpdate = Boolean(app.inputParams?.enableUpdateAfterCvstStarts)
+	const allowUpdate = app.settings.enableUpdateAfterConversationStarts
 	const unsent = !activeKey || (parseConversationKey(activeKey).temp && !activeItem?.difyId)
 	const inputsLocked = !unsent && !allowUpdate
 	// A locked form cannot be fixed by the user, so only an editable one holds sending back.
@@ -312,11 +312,12 @@ export default function ChatView() {
 			let accepted = false
 			try {
 				// DifyApi resolves an HTTP error with the proxy's answer instead of rejecting. Its body type
-				// predates file inputs, which take file mappings (OpenAPI, POST /form/human_input).
+				// predates file inputs, which take file mappings (OpenAPI, POST /form/human_input), and still
+				// requires `user`, which the proxy route replaces with the session's (Task 13 drops the old type).
 				const answer: unknown = await difyApi.submitHumanInput(form.formToken, {
 					inputs: inputs as Record<string, string>,
 					action: actionId,
-					user: userId,
+					user: '',
 				})
 				const refused = humanInputSubmitError(answer)
 				if (refused) throw refused
@@ -328,7 +329,7 @@ export default function ChatView() {
 				setHitlSubmitting(undefined)
 			}
 		},
-		[difyApi, resume, t, toast, userId],
+		[difyApi, resume, t, toast],
 	)
 
 	// Stable between renders: Bubble.List's role map follows it, and a new map re-renders every bubble.
@@ -462,8 +463,7 @@ export default function ChatView() {
 		Boolean(activeKey) &&
 		!historyPending &&
 		!chat.historyError &&
-		(app.extConfig?.conversation?.openingStatement?.displayMode === 'always' ||
-			chat.messages.length === 0)
+		(app.settings.openingStatementDisplayMode === 'always' || chat.messages.length === 0)
 
 	// The list's callbacks and menu are stable, so the memoised sidebar does not re-render per streamed chunk.
 	const { setActiveKey, createTemp, rename, remove } = list
@@ -529,7 +529,7 @@ export default function ChatView() {
 					strong
 					ellipsis
 				>
-					{site.title || app.info.name}
+					{site.title || app.name}
 				</Typography.Text>
 			}
 			extra={
@@ -693,7 +693,7 @@ export default function ChatView() {
 					createDisabled={createDisabled}
 				/>
 			</ConversationDrawer>
-			{app.extConfig?.annotation?.enabled && (
+			{app.settings.annotationEnabled && (
 				<AnnotationDrawer
 					open={annotation.open}
 					question={annotation.question}

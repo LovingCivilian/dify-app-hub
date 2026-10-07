@@ -5,8 +5,6 @@ import { App } from 'antd'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { AppModeEnums } from '@/lib/core'
-
 import { useAppContext } from '../app-context'
 import { apiInputs, pendingFileInputs } from '../chat-view/inputs-values'
 import { parseEvent } from '../provider/dify-chat-provider'
@@ -28,7 +26,7 @@ export const useWorkflowRun = () => {
 	const { app, parameters, difyApi } = useAppContext()
 	const [state, setState] = useState<RunState>(initialRunState)
 	const controller = useRef<AbortController | null>(null)
-	const mode = app.info.mode
+	const mode = app.mode
 	const form = parameters.user_input_form
 
 	useEffect(() => () => controller.current?.abort(), [])
@@ -58,7 +56,7 @@ export const useWorkflowRun = () => {
 			const inputs = apiInputs(form, values)
 			try {
 				const response =
-					mode === AppModeEnums.WORKFLOW
+					mode === 'workflow'
 						? await difyApi.runWorkflow({ inputs })
 						: await difyApi.completion({ inputs })
 				if (signal.aborted) {

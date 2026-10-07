@@ -40,7 +40,7 @@ export interface ConversationSidebarProps extends Omit<ConversationListProps, 'c
 /** The app's icon: the site's image or emoji, else the first letter of its name. */
 export function AppAvatar() {
 	const { app, site } = useAppContext()
-	const name = site.title || app.info.name
+	const name = site.title || app.name
 	return (
 		<Avatar
 			shape="square"
@@ -54,8 +54,8 @@ export function AppAvatar() {
 /** The app's icon, name and description (site settings first, the app record second), then `action`. */
 export function AppInfoBlock({ action }: { action?: React.ReactNode }) {
 	const { app, site } = useAppContext()
-	const name = site.title || app.info.name
-	const description = site.description || app.info.description
+	const name = site.title || app.name
+	const description = site.description || app.description
 	// The padding sits on a wrapper: antd's Flex resets its own padding (flex style: `padding: 0`).
 	return (
 		<div className={styles.appInfo}>

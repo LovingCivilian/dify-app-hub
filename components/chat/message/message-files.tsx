@@ -46,11 +46,12 @@ export default function MessageFiles({ files }: { files?: MessageFile[] }) {
 	const { t } = useTranslation()
 	const { message: toast } = App.useApp()
 	const { token } = theme.useToken()
-	const { app, difyApi } = useAppContext()
+	const { difyApi } = useAppContext()
 	// Thumbnails three control heights square. antd sizes an Image through its width/height props: its own
 	// rule for the <img> outranks a class on the `image` slot.
 	const thumbnail = token.controlHeight * 3
-	const apiBase = app.requestConfig.apiBase
+	// The DTO carries no API base: stored file links stay relative until they go through the proxy (Task 15).
+	const apiBase = ''
 
 	const { images, others } = useMemo(() => {
 		const withUrls = (files ?? []).map(file => ({

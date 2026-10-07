@@ -76,7 +76,7 @@ function MessageFooter({
 	const [dislikeOpen, setDislikeOpen] = useState(false)
 
 	const actions = footerActions(message, status, {
-		annotation: Boolean(app.extConfig?.annotation?.enabled),
+		annotation: app.settings.annotationEnabled,
 		tts: Boolean(parameters.text_to_speech?.enabled),
 		hasQuestion,
 	})

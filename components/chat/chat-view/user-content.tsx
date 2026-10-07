@@ -33,7 +33,11 @@ export default function UserContent({ message }: { message: DifyChatMessage }) {
 		>
 			<MessageFiles files={userFiles} />
 			<Typography.Text className={styles.text}>
-				{displayText(message.content, app.answerForm?.feedbackText, app.answerForm?.enabled)}
+				{displayText(
+					message.content,
+					app.settings.answerForm.feedbackText,
+					app.settings.answerForm.enabled,
+				)}
 			</Typography.Text>
 		</Flex>
 	)

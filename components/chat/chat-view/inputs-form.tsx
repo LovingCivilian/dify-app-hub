@@ -55,7 +55,7 @@ export default function InputsForm({
 						<Input.TextArea
 							disabled={disabled}
 							placeholder={t('form.input_placeholder')}
-							maxLength={field.max_length}
+							maxLength={field.max_length ?? undefined}
 						/>
 					) : field.type === 'number' ? (
 						<InputNumber
@@ -75,7 +75,7 @@ export default function InputsForm({
 					) : field.type === 'file-list' ? (
 						<FileUpload
 							disabled={disabled}
-							maxCount={field.max_length}
+							maxCount={field.max_length ?? undefined}
 							allowed_file_types={field.allowed_file_types ?? []}
 							allowed_file_extensions={field.allowed_file_extensions}
 							allowed_file_upload_methods={field.allowed_file_upload_methods}
@@ -85,7 +85,7 @@ export default function InputsForm({
 						<Input
 							disabled={disabled}
 							placeholder={t('form.input_placeholder')}
-							maxLength={field.max_length}
+							maxLength={field.max_length ?? undefined}
 						/>
 					)}
 				</Form.Item>

@@ -56,7 +56,7 @@ export default function InputsCollapse({
 						label: (
 							<>
 								<Typography.Text strong>{t('chat.input_params_setting')}</Typography.Text>
-								{!app.inputParams?.enableUpdateAfterCvstStarts && (
+								{!app.settings.enableUpdateAfterConversationStarts && (
 									<Typography.Text type="secondary">
 										{' '}
 										{t('chat.input_disabled_between_chats')}

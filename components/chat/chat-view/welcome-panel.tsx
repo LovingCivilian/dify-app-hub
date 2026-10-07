@@ -18,7 +18,7 @@ export interface WelcomePanelProps {
 export default function WelcomePanel({ visible, disabled, onPrompt }: WelcomePanelProps) {
 	const { app, site, parameters } = useAppContext()
 	if (!visible) return null
-	const name = site.title || app.info.name
+	const name = site.title || app.name
 	const questions = parameters.suggested_questions ?? []
 	return (
 		<div className={styles.welcome}>

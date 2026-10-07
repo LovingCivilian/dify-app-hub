@@ -50,7 +50,9 @@
 		"reload_page": "刷新页面",
 		"loading": "应用加载中...",
 		"search_placeholder": "搜索应用",
-		"no_match": "没有符合搜索条件的应用"
+		"no_match": "没有符合搜索条件的应用",
+		"disabled": "此应用已停用",
+		"back_to_apps": "返回应用列表"
 	},
 	"app_mode": {
 		"name": {

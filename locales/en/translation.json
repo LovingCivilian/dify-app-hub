@@ -50,7 +50,9 @@
 		"reload_page": "Reload page",
 		"loading": "Loading app...",
 		"search_placeholder": "Search apps",
-		"no_match": "No apps match your search"
+		"no_match": "No apps match your search",
+		"disabled": "This app is disabled",
+		"back_to_apps": "Back to the app list"
 	},
 	"app_mode": {
 		"name": {

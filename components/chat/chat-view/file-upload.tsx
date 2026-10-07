@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next'
 
 import type { IFileType } from '@/lib/api'
 
-import { useAppContext } from '../app-context'
 import { useDifyUpload } from '../hooks/use-dify-upload'
 import { completeFileUrl } from '../utils-index'
 import { allowsLocalUpload, fileTypeFor, type FileRules } from './file-types'
@@ -69,7 +68,6 @@ export default function FileUpload(props: IFileUploadProps) {
 		required,
 		value,
 	} = props
-	const { app } = useAppContext()
 	const { t } = useTranslation()
 	const single = mode === 'single'
 	const items = useMemo(
@@ -87,8 +85,9 @@ export default function FileUpload(props: IFileUploadProps) {
 	)
 	const local = allowsLocalUpload(allowed_file_upload_methods)
 
-	// Stored files link to Dify's file preview, relative to the app's API base.
-	const apiBase = app.requestConfig.apiBase || ''
+	// Stored files link to Dify's file preview; the DTO carries no API base, so the links stay relative
+	// until they go through the proxy (Task 15).
+	const apiBase = ''
 	const fileList = useMemo(
 		() =>
 			items.map(item => ({ ...item, url: completeFileUrl(item.url || '', apiBase) || undefined })),

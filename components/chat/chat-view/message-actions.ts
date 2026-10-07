@@ -16,7 +16,7 @@ export interface FooterActions {
 
 /** What the footer depends on beyond the message: the app's switches and the answer's place in the list. */
 export interface FooterContext {
-	/** `extConfig.annotation.enabled` */
+	/** The app's `settings.annotationEnabled` */
 	annotation: boolean
 	/** `parameters.text_to_speech.enabled` */
 	tts: boolean

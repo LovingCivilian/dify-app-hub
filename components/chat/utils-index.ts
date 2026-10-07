@@ -1,5 +1,6 @@
-import { AppModeEnums } from '@/lib/core'
 import { FormInstance } from 'antd'
+
+import { CHAT_MODES, RUN_MODES, type AppMode } from '@/lib/dify/types'
 
 /**
  * 校验表单, 如果校验未通过则生成错误信息
@@ -56,18 +57,8 @@ export const completeFileUrl = (url: string, apiBase: string) => {
 	return result
 }
 
-/**
- * 判断应用是否是 Chat 模式的应用，包括 Chatbot、Chatflow、Agent
- * @param appMode 应用模式
- */
-export const isChatLikeApp = (appMode: AppModeEnums) => {
-	return [AppModeEnums.CHATBOT, AppModeEnums.CHATFLOW, AppModeEnums.AGENT].includes(appMode)
-}
+/** Chat-like apps (chat, agent-chat, advanced-chat, agent): the conversation view. */
+export const isChatLikeApp = (mode: AppMode | null) => mode !== null && CHAT_MODES.includes(mode)
 
-/**
- * 判断应用是否是 Workflow 模式的应用，包括 Workflow、Text Generator
- * @param appMode 应用模式
- */
-export const isWorkflowLikeApp = (appMode: AppModeEnums) => {
-	return [AppModeEnums.WORKFLOW, AppModeEnums.TEXT_GENERATOR].includes(appMode)
-}
+/** Run-like apps (workflow, completion): the runner view. */
+export const isWorkflowLikeApp = (mode: AppMode | null) => mode !== null && RUN_MODES.includes(mode)

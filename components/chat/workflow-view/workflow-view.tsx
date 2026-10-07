@@ -6,7 +6,6 @@ import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import UserShell from '@/components/shell/user-shell'
-import { AppModeEnums } from '@/lib/core'
 
 import { useAppContext } from '../app-context'
 import { AppInfoBlock } from '../chat-view/conversation-sidebar'
@@ -78,7 +77,7 @@ export default function WorkflowView() {
 					strong
 					ellipsis
 				>
-					{site.title || app.info.name}
+					{site.title || app.name}
 				</Typography.Text>
 			}
 		>
@@ -123,7 +122,7 @@ export default function WorkflowView() {
 						<div className={styles.pane}>
 							<RunResult
 								state={state}
-								workflowApp={app.info.mode === AppModeEnums.WORKFLOW}
+								workflowApp={app.mode === 'workflow'}
 							/>
 						</div>
 					</Col>
