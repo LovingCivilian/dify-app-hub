@@ -1,3 +1,8 @@
+import { stubPort } from './env'
+
+/** Dify's file host in the e2e environment: the stub, which serves `/files/stub-image.png` whatever the query. */
+const DIFY_FILES = `http://127.0.0.1:${stubPort}/files`
+
 /** Recorded-style Dify answers used by the Markdown spike and by the stub's `markdown` scenario. */
 export const MARKDOWN_SAMPLES = {
 	streaming: [
@@ -77,6 +82,12 @@ export const MARKDOWN_SAMPLES = {
 	].join('\n'),
 	imageFirst: '![leading image](/files/stub-image.png)\n\nText after the image.',
 	links: 'See [Ant Design](https://ant.design) and <https://x.ant.design>.',
+	/** A file Dify wrote into the answer (graphon `File.markdown`): an image and a document as signed links on its host. */
+	signedFile: [
+		`![signed chart](${DIFY_FILES}/stub-image.png?timestamp=1&nonce=a&sign=b)`,
+		'',
+		`[report.pdf](${DIFY_FILES}/tools/report.pdf?timestamp=1&nonce=a&sign=b)`,
+	].join('\n'),
 	theme: [
 		'| Key | Value |',
 		'| --- | --- |',

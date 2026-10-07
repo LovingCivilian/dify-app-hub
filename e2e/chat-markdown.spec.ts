@@ -1,16 +1,14 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { APP_ID } from './fixtures/constants'
+import { stubApiBase } from './fixtures/env'
 import type { SampleName } from './fixtures/markdown-samples'
 
 // The Markdown spike's criteria 2–8 (spec §6), kept on the real chat bubble: the stub streams a sample of
 // e2e/fixtures/markdown-samples.ts for the query `md:<name>` (40-character `message` chunks).
 
-/** 120×60 PNG for the samples' `/files/stub-image.png`, which resolves against the app's origin (test-only route). */
-const PNG = Buffer.from(
-	'iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAhUlEQVR4nO3QAQkAIADAMFNY1fjaQuEOHuBszLV1ofH84JNAg24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K1Ag24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K1Ag24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K1Ag24FGnQr0KBbgQbdCjToVgcM2YQGU1Zk5AAAAABJRU5ErkJggg==',
-	'base64',
-)
+/** The app's route for a file link Dify handed out (`/api/dify/<appId>/files/remote?url=`). */
+const REMOTE_FILE = /^\/api\/dify\/[^/]+\/files\/remote\?url=/
 
 const senderBox = (page: Page) => page.getByPlaceholder('Type a message')
 /** Assistant bubbles (placement start), oldest first. */
@@ -46,9 +44,6 @@ const recordedListText = (page: Page) =>
 
 test.describe('Markdown in the chat bubble', () => {
 	test.beforeEach(async ({ page }, testInfo) => {
-		await page.route('**/files/stub-image.png', route =>
-			route.fulfill({ body: PNG, contentType: 'image/png' }),
-		)
 		await page.route('https://example.com/**', route => route.fulfill({ status: 204 }))
 		await page.goto(`/chat/${APP_ID}?isNewCvst=1`)
 		await expect(senderBox(page)).toBeVisible()
@@ -131,7 +126,11 @@ test.describe('Markdown in the chat bubble', () => {
 		await expect(answer.locator('details summary')).toHaveText('Raw data')
 		const image = answer.getByRole('img', { name: 'chart' })
 		await expect(image).toBeVisible()
-		await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(120)
+		// The sample's `/files/stub-image.png` is Dify's file: the page loads it through the app's remote-file route.
+		await expect(image).toHaveAttribute('src', REMOTE_FILE)
+		await expect
+			.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth))
+			.toBeGreaterThan(0)
 		// Both forms of <video> Dify writes play: a `src` attribute, and <source> children (VideoBlock).
 		const videos = answer.locator('video')
 		await expect(videos).toHaveCount(2)
@@ -160,17 +159,27 @@ test.describe('Markdown in the chat bubble', () => {
 		const answer = answers(page).last()
 		const image = answer.getByRole('img', { name: 'leading image' })
 		await expect(image).toBeVisible()
-		await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(120)
+		// The sample's `/files/stub-image.png` is Dify's file: the page loads it through the app's remote-file route.
+		await expect(image).toHaveAttribute('src', REMOTE_FILE)
+		await expect
+			.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth))
+			.toBeGreaterThan(0)
 		await expect(answer.getByText('Text after the image.')).toBeVisible()
 		await image.click()
 		await expect(page.locator('.ant-image-preview')).toBeVisible()
 	})
 
-	test('7 links open in a new tab', async ({ page }) => {
+	test("7 links open in a new tab, and a link that is not Dify's file stays as written", async ({
+		page,
+	}) => {
 		await sendSample(page, 'links')
 		const answer = answers(page).last()
-		for (const name of ['Ant Design', 'https://x.ant.design']) {
+		for (const [name, href] of [
+			['Ant Design', 'https://ant.design'],
+			['https://x.ant.design', 'https://x.ant.design'],
+		]) {
 			const link = answer.getByRole('link', { name })
+			await expect(link).toHaveAttribute('href', href)
 			await expect(link).toHaveAttribute('target', '_blank')
 			await expect(link).toHaveAttribute('rel', /noopener/)
 		}
@@ -226,5 +235,29 @@ test.describe('Markdown in the chat bubble', () => {
 			expect(dark ? bg < 0.2 : bg > 0.6, `${part} background follows the scheme`).toBe(true)
 			expect(contrast, `${part} text contrast`).toBeGreaterThanOrEqual(4.5)
 		}
+	})
+
+	// Dify writes its own signed file links into the answer text (graphon File.markdown); like every other file
+	// link in the chat they load through the app, never from the Dify host (charter §4.1).
+	test('9 Dify file links in an answer go through the remote-file route', async ({ page }) => {
+		const difyOrigin = new URL(stubApiBase).origin
+		const fromDify: string[] = []
+		page.on('request', request => {
+			if (new URL(request.url()).origin === difyOrigin) fromDify.push(request.url())
+		})
+		await sendSample(page, 'signedFile')
+		const answer = answers(page).last()
+		const image = answer.getByRole('img', { name: 'signed chart' })
+		await expect(image).toBeVisible()
+		await expect(image).toHaveAttribute('src', REMOTE_FILE)
+		await expect
+			.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth))
+			.toBeGreaterThan(0)
+		// The document link keeps opening in a new tab; only its href is the app's.
+		const link = answer.getByRole('link', { name: 'report.pdf' })
+		await expect(link).toHaveAttribute('href', REMOTE_FILE)
+		await expect(link).toHaveAttribute('target', '_blank')
+		await expect(link).toHaveAttribute('rel', /noopener/)
+		expect(fromDify).toEqual([])
 	})
 })

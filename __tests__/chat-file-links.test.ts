@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { fileLink, withGivenLinks } from '@/components/chat/message/file-link'
+import {
+	answerLink,
+	fileLink,
+	isDifyFileLink,
+	withGivenLinks,
+} from '@/components/chat/message/file-link'
 
 const api = {
 	remoteFileUrl: (url: string) => `/api/dify/a1/files/remote?url=${encodeURIComponent(url)}`,
@@ -34,5 +39,59 @@ describe('withGivenLinks', () => {
 			{ uid: 'b', url: undefined, status: 'done' },
 			{ uid: 'c', status: 'uploading' },
 		])
+	})
+})
+
+// The links Dify writes into an answer's text (graphon File.markdown: `![name](url)` / `[name](url)`, the url from
+// api/core/tools/signature.py): `/files/tools/<id><ext>?timestamp=&nonce=&sign=` on FILES_URL, or the upload preview
+// `<FILES_URL>/files/<id>/image-preview?timestamp=&nonce=&sign=`.
+describe('isDifyFileLink', () => {
+	it.each([
+		['a relative /files/ link', '/files/tools/x.png?timestamp=1&nonce=a&sign=b'],
+		['a relative /files/ link without a signature', '/files/stub-image.png'],
+		[
+			'an absolute signed link',
+			'https://dify.example/files/abc/image-preview?timestamp=1&nonce=a&sign=b',
+		],
+		[
+			'an absolute signed link under a base path',
+			'http://dify.example:8080/dify/files/tools/x.png?timestamp=1&nonce=a&sign=b%3D',
+		],
+	])('takes %s', (_name, url) => {
+		expect(isDifyFileLink(url)).toBe(true)
+	})
+	it.each([
+		['an absolute /files/ link without a signature', 'https://example.com/files/cat.png'],
+		[
+			'an absolute link with part of the signature',
+			'https://example.com/files/x?timestamp=1&sign=b',
+		],
+		[
+			'an absolute link with an empty signature',
+			'https://example.com/files/x?timestamp=1&nonce=&sign=',
+		],
+		['a signed link outside /files/', 'https://example.com/img.png?timestamp=1&nonce=a&sign=b'],
+		['an external image', 'https://example.com/img.png'],
+		['a relative path outside /files/', '/images/x.png'],
+		['a relative path without the leading slash', 'files/x.png'],
+		['a protocol-relative link', '//example.com/files/x.png?timestamp=1&nonce=a&sign=b'],
+		['a data URL', 'data:image/png;base64,iVBORw0KGgo='],
+		['an anchor', '#anchor'],
+		['a mailto link', 'mailto:a@example.com'],
+		['a javascript URL', 'javascript:alert(1)'],
+		['an empty string', ''],
+	])('leaves %s alone', (_name, url) => {
+		expect(isDifyFileLink(url)).toBe(false)
+	})
+})
+
+describe('answerLink', () => {
+	it('routes a Dify file link through the remote-file route and keeps every other link as written', () => {
+		expect(answerLink('/files/stub-image.png', api)).toBe(
+			'/api/dify/a1/files/remote?url=%2Ffiles%2Fstub-image.png',
+		)
+		expect(answerLink('https://example.com/cat.png', api)).toBe('https://example.com/cat.png')
+		expect(answerLink('#anchor', api)).toBe('#anchor')
+		expect(answerLink(undefined, api)).toBeUndefined()
 	})
 })
