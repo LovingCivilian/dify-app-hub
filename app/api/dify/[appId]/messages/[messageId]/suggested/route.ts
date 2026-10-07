@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
 
 import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
+import { parsePathParams } from '@/lib/dify/schemas'
 
 /** GET /messages/{message_id}/suggested. */
 export async function GET(
@@ -9,9 +10,12 @@ export async function GET(
 ) {
 	const resolved = await resolveDifyRoute(ctx.params)
 	if (!resolved.ok) return resolved.response
+	const segments = await parsePathParams(ctx.params, 'messageId')
+	if (!segments.ok) return segments.response
 	try {
-		const { messageId } = await ctx.params
-		return Response.json(await resolved.ctx.dify.getSuggested(messageId, resolved.ctx.user))
+		return Response.json(
+			await resolved.ctx.dify.getSuggested(segments.data.messageId, resolved.ctx.user),
+		)
 	} catch (error) {
 		return errorResponseFrom(error, 'GET /api/dify/[appId]/messages/[messageId]/suggested')
 	}

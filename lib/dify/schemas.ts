@@ -16,6 +16,14 @@ const invalid = (issues: z.core.$ZodIssue[]): Parsed<never> => {
 }
 
 const uuid = z.uuid()
+/**
+ * A dynamic path segment forwarded to Dify (task id, message id, conversation id, file id, form token): RFC 3986
+ * unreserved characters, 1-256 long, never a bare `.` or `..` (fetch's URL parser collapses those, so encoding the
+ * segment cannot stop `..` from rewriting the upstream path). Not UUID-strict on purpose: the e2e stub's
+ * message-file ids (`file-<uuid>`) and form tokens (`ft-<uuid>`) are not UUIDs, and the map does not define the
+ * form-token format.
+ */
+export const pathSegment = z.string().regex(/^(?!\.{1,2}$)[A-Za-z0-9._~-]{1,256}$/)
 const limit = z.coerce.number().int().min(1).max(100)
 /** A query flag: Dify's booleans arrive as the strings true/false. */
 const flag = z.enum(['true', 'false']).transform(value => value === 'true')
@@ -168,6 +176,23 @@ export const parseJsonBody = async <S extends z.ZodType>(
 	}
 	const result = schema.safeParse(raw)
 	return result.success ? { ok: true, data: result.data } : invalid(result.error.issues)
+}
+
+/**
+ * A route's extra dynamic segments (everything but `appId`, which `resolveDifyRoute` has checked) against
+ * `pathSegment`. Run it right after `resolveDifyRoute`, before the body or any client call. Answers
+ * `400 invalid_param` naming each param that failed; on success `data` carries just the named params:
+ * `const segments = await parsePathParams(ctx.params, 'taskId')`.
+ */
+export const parsePathParams = async <P extends Record<string, string>, K extends keyof P & string>(
+	params: Promise<P>,
+	...names: K[]
+): Promise<Parsed<Pick<P, K>>> => {
+	const schema = z.object(Object.fromEntries(names.map(name => [name, pathSegment])))
+	const result = schema.safeParse(await params)
+	return result.success
+		? { ok: true, data: result.data as Pick<P, K> }
+		: invalid(result.error.issues)
 }
 
 /** The query string against a schema (every value arrives as a string; the schemas coerce). */

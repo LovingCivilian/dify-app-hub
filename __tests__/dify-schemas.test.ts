@@ -14,6 +14,7 @@ import {
 	messagesQuery,
 	parseFilePart,
 	parseJsonBody,
+	parsePathParams,
 	parseQuery,
 	renameConversationBody,
 	textToAudioBody,
@@ -273,5 +274,53 @@ describe('parseFilePart', () => {
 				await expect(parsed.response.json()).resolves.toMatchObject({ code: 'invalid_param' })
 			}
 		}
+	})
+})
+
+describe('parsePathParams', () => {
+	const parse = (value: string) =>
+		parsePathParams(Promise.resolve({ appId: 'app-1', taskId: value }), 'taskId')
+	it.each([
+		['a UUID', UUID],
+		['a short id', 't1'],
+		['a message-file id', `file-${UUID}`],
+		['a form token', `ft-${UUID}`],
+		['every unreserved character', 'a.b_c~d-E9'],
+		['256 characters', 'a'.repeat(256)],
+	])('accepts %s and returns only the named params', async (_label, value) => {
+		expect(await parse(value)).toEqual({ ok: true, data: { taskId: value } })
+	})
+	it.each([
+		['a single dot', '.'],
+		['two dots', '..'],
+		['a slash', 'a/b'],
+		['an empty segment', ''],
+		['257 characters', 'a'.repeat(257)],
+		['an encoded dot-dot', '%2E%2E'],
+		['a space', 'a b'],
+	])('refuses %s with 400 invalid_param naming the param', async (_label, value) => {
+		const parsed = await parse(value)
+		expect(parsed.ok).toBe(false)
+		if (parsed.ok) return
+		expect(parsed.response.status).toBe(400)
+		const body = await parsed.response.json()
+		expect(body).toMatchObject({ code: 'invalid_param', status: 400 })
+		expect(body.message).toContain('taskId')
+	})
+	it('checks every named param and names each one that fails', async () => {
+		const parsed = await parsePathParams(
+			Promise.resolve({ appId: 'app-1', messageId: '..', conversationId: '.' }),
+			'messageId',
+			'conversationId',
+		)
+		expect(parsed.ok).toBe(false)
+		if (parsed.ok) return
+		const { message } = await parsed.response.json()
+		expect(message).toContain('messageId')
+		expect(message).toContain('conversationId')
+	})
+	it('does not check params it was not asked about', async () => {
+		const parsed = await parsePathParams(Promise.resolve({ appId: '..', taskId: 't1' }), 'taskId')
+		expect(parsed).toEqual({ ok: true, data: { taskId: 't1' } })
 	})
 })

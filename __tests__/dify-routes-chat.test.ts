@@ -201,3 +201,59 @@ describe('conversations', () => {
 		).toBe(400)
 	})
 })
+
+describe('path segments', () => {
+	// A bare `.` or `..` collapses in fetch's URL parser (`/chat-messages/../stop` becomes `/stop`), so encoding is not
+	// enough: every route with a segment refuses it before the body is read or Dify is called.
+	const dotDot = '..'
+	const refusals = [
+		[
+			'taskId',
+			() => stopChat(json('/chat-messages/../stop', 'POST', {}), params({ taskId: dotDot })),
+		],
+		['messageId', () => suggested(get('/messages/../suggested'), params({ messageId: dotDot }))],
+		[
+			'messageId',
+			() =>
+				feedback(
+					json('/messages/../feedbacks', 'POST', { rating: 'like' }),
+					params({ messageId: dotDot }),
+				),
+		],
+		[
+			'conversationId',
+			() =>
+				deleteConversation(
+					new NextRequest(`${base}/conversations/..`, { method: 'DELETE' }),
+					params({ conversationId: dotDot }),
+				),
+		],
+		[
+			'conversationId',
+			() =>
+				renameConversation(
+					json('/conversations/../name', 'POST', { name: 'Tea' }),
+					params({ conversationId: dotDot }),
+				),
+		],
+	] as const
+	it.each(refusals)(
+		'answers 400 invalid_param naming %s for ".." without calling Dify',
+		async (name, call) => {
+			const response = await call()
+			expect(response.status).toBe(400)
+			const body = await response.json()
+			expect(body).toMatchObject({ code: 'invalid_param', status: 400 })
+			expect(body.message).toContain(name)
+			for (const fn of Object.values(client)) expect(fn).not.toHaveBeenCalled()
+		},
+	)
+	it('validates the segment before the body is read: a malformed body behind a bad segment names the segment', async () => {
+		const request = new NextRequest(`${base}/messages/../feedbacks`, {
+			method: 'POST',
+			body: 'not json',
+		})
+		const response = await feedback(request, params({ messageId: dotDot }))
+		expect((await response.json()).message).toContain('messageId')
+	})
+})
