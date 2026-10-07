@@ -54,6 +54,38 @@ describe('proxy', () => {
 		})
 	})
 
+	// ADR-0018: on a sessionVersion mismatch the jwt callback strips id from the token; the cookie still decodes.
+	describe('with a revoked token (no id)', () => {
+		const revoked = { email: 'jane@example.com', name: 'Jane' }
+
+		it('answers an API path with the 401 envelope', async () => {
+			getToken.mockResolvedValue(revoked)
+			const response = await proxy(request('/api/users'))
+			expect(response.status).toBe(401)
+			await expect(response.json()).resolves.toEqual({
+				code: 'unauthorized',
+				message: 'Sign in required.',
+				status: 401,
+			})
+		})
+
+		it('redirects a page to the login page with a callbackUrl', async () => {
+			getToken.mockResolvedValue(revoked)
+			const response = await proxy(request('/apps'))
+			expect(response.status).toBe(307)
+			expect(response.headers.get('location')).toBe(`${ORIGIN}/login?callbackUrl=%2Fapps`)
+		})
+
+		it('still lets /login and the ungated paths through, so the redirect does not loop', async () => {
+			getToken.mockResolvedValue(revoked)
+			for (const path of ['/login', '/forgot-password', '/api/auth/session', '/init']) {
+				const response = await proxy(request(path))
+				expect(isNext(response)).toBe(true)
+				expect(response.headers.get('location')).toBeNull()
+			}
+		})
+	})
+
 	it('lets /login through without a session and still checks the init status', async () => {
 		const response = await proxy(request('/login'))
 		expect(isNext(response)).toBe(true)

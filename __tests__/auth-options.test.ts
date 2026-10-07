@@ -51,10 +51,17 @@ describe('authOptions', () => {
 	// ADR-0018's revocation rule: a password reset bumps sessionVersion; the token loses its id and the session
 	// callback then sets none, which verifySession reads as "no live session".
 	it('strips id and sessionVersion from a token whose version no longer matches, or whose user is gone', async () => {
+		const signedIn = { id: 'u1', sessionVersion: 3, email: 'j@e.com', name: 'Jane' } as JWT
 		rows.value = [{ sessionVersion: 4 }]
-		expect(await jwt({ token: { id: 'u1', sessionVersion: 3 } as JWT } as never)).toEqual({})
+		expect(await jwt({ token: { ...signedIn } } as never)).toEqual({
+			email: 'j@e.com',
+			name: 'Jane',
+		})
 		rows.value = []
-		expect(await jwt({ token: { id: 'u1', sessionVersion: 3 } as JWT } as never)).toEqual({})
+		expect(await jwt({ token: { ...signedIn } } as never)).toEqual({
+			email: 'j@e.com',
+			name: 'Jane',
+		})
 	})
 
 	it('sets session.user.id only from a token that has one', async () => {

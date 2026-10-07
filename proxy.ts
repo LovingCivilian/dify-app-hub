@@ -24,7 +24,8 @@ export async function proxy(request: NextRequest) {
 	// Site-wide gate: every page but the public ones needs a session; APIs are denied by default
 	if (!isPublicPath(decoded)) {
 		const token = await getToken({ req: request })
-		if (!token) {
+		// A token without id is one the jwt callback stripped on a sessionVersion mismatch (ADR-0018): no session.
+		if (!token?.id) {
 			if (isApiPath(decoded)) {
 				return NextResponse.json(
 					{ code: 'unauthorized', message: 'Sign in required.', status: 401 },
