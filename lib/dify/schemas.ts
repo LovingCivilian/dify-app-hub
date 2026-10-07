@@ -56,6 +56,7 @@ const fileMapping = z.discriminatedUnion('transfer_method', [
 
 // z.object strips unknown keys (zod 4), which is what keeps `user` and the tracing fields out.
 
+// `workflow_id` (run a published version) is deliberately not accepted: no screen sends it (charter §4.1 defers it).
 export const chatMessagesBody = z.object({
 	query: z.string(),
 	inputs,
@@ -63,7 +64,6 @@ export const chatMessagesBody = z.object({
 	response_mode: responseMode.optional(),
 	conversation_id: z.union([uuid, z.literal('')]).optional(),
 	auto_generate_name: z.boolean().optional(),
-	workflow_id: uuid.optional(),
 })
 
 export const messagesQuery = z.object({

@@ -31,7 +31,7 @@ const jsonRequest = (body: unknown) =>
 const query = (text: string) => new URLSearchParams(text)
 
 describe('parseJsonBody with chatMessagesBody', () => {
-	it('keeps the documented fields and strips the rest (user, trace ids)', async () => {
+	it('keeps the documented fields and strips the rest (user, trace ids, workflow_id)', async () => {
 		const parsed = await parseJsonBody(
 			jsonRequest({
 				query: 'hi',
@@ -39,6 +39,7 @@ describe('parseJsonBody with chatMessagesBody', () => {
 				response_mode: 'streaming',
 				user: 'evil',
 				trace_id: 'x',
+				workflow_id: UUID,
 				auto_generate_name: false,
 			}),
 			chatMessagesBody,
@@ -221,6 +222,37 @@ describe('parseFilePart', () => {
 				['user', 'evil'],
 			]),
 		)
+		expect(parsed.ok).toBe(true)
+		if (parsed.ok) expect(parsed.data.name).toBe('a.txt')
+	})
+	// FormData cannot build these (it names a Blob "blob"), so the body is written out with a fixed boundary.
+	const rawMultipart = (disposition: string) =>
+		new Request('http://app/x', {
+			method: 'POST',
+			headers: { 'content-type': 'multipart/form-data; boundary=testboundary' },
+			body: [
+				'--testboundary',
+				`Content-Disposition: ${disposition}`,
+				'',
+				'content',
+				'--testboundary--',
+				'',
+			].join('\r\n'),
+		})
+	it.each([
+		['a part without a filename attribute', 'form-data; name="file"'],
+		['a part with an empty filename', 'form-data; name="file"; filename=""'],
+	])('refuses %s with 400 invalid_param naming the file part', async (_label, disposition) => {
+		const parsed = await parseFilePart(rawMultipart(disposition))
+		expect(parsed.ok).toBe(false)
+		if (parsed.ok) return
+		expect(parsed.response.status).toBe(400)
+		const body = await parsed.response.json()
+		expect(body).toMatchObject({ code: 'invalid_param', status: 400 })
+		expect(body.message).toContain('file part named file')
+	})
+	it('accepts the same raw body when the part carries a filename (the helper builds a valid request)', async () => {
+		const parsed = await parseFilePart(rawMultipart('form-data; name="file"; filename="a.txt"'))
 		expect(parsed.ok).toBe(true)
 		if (parsed.ok) expect(parsed.data.name).toBe('a.txt')
 	})
