@@ -1,5 +1,6 @@
-import { mysqlTable, varchar, datetime, int, boolean, text } from 'drizzle-orm/mysql-core'
 import { sql } from 'drizzle-orm'
+import { boolean, datetime, mediumblob, mysqlTable, text, varchar } from 'drizzle-orm/mysql-core'
+
 import { generateUuidV4 } from '@/lib/helpers'
 
 export const difyApps = mysqlTable('dify_apps', {
@@ -11,12 +12,15 @@ export const difyApps = mysqlTable('dify_apps', {
 		.notNull(),
 	updatedAt: datetime('updated_at', { fsp: 3 })
 		.default(sql`CURRENT_TIMESTAMP(3)`)
-		.notNull(),
+		.notNull()
+		.$onUpdate(() => new Date()),
 	name: varchar({ length: 255 }).notNull(),
+	/** A Dify app mode (lib/dify/types APP_MODES); kept free so a future mode does not break the row (charter §4.4). */
 	mode: varchar({ length: 255 }),
 	description: text(),
+	/** JSON array of strings. */
 	tags: text(),
-	isEnabled: int('is_enabled').default(1),
+	isEnabled: boolean('is_enabled').default(true).notNull(),
 	apiBase: varchar('api_base', { length: 500 }).notNull(),
 	apiKey: varchar('api_key', { length: 255 }).notNull(),
 	enableAnswerForm: boolean('enable_answer_form').default(false).notNull(),
@@ -26,4 +30,10 @@ export const difyApps = mysqlTable('dify_apps', {
 		.notNull(),
 	openingStatementDisplayMode: varchar('opening_statement_display_mode', { length: 20 }),
 	enableAnnotation: boolean('enable_annotation').default(false).notNull(),
+	// The Dify site icon, stored at create and sync time (charter §4.4): Dify's icon_url for an image expires.
+	iconType: varchar('icon_type', { length: 16 }),
+	icon: text('icon'),
+	iconBackground: varchar('icon_background', { length: 32 }),
+	iconImage: mediumblob('icon_image', { mode: 'buffer' }),
+	iconMime: varchar('icon_mime', { length: 64 }),
 })

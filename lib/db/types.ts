@@ -16,7 +16,7 @@ export function dbAppToAppItem(dbApp: DifyApp): IDifyAppItem {
 			description: dbApp.description || '',
 			tags: dbApp.tags ? JSON.parse(dbApp.tags) : [],
 		},
-		isEnabled: (dbApp.isEnabled || 1) as 1 | 2,
+		isEnabled: dbApp.isEnabled ? 1 : 2,
 		requestConfig: {
 			apiBase: dbApp.apiBase,
 			apiKey: dbApp.apiKey,
@@ -52,7 +52,7 @@ export function appItemToDbApp(appItem: Omit<IDifyAppItem, 'id'>): Omit<DifyAppI
 		mode: appItem.info.mode || null,
 		description: appItem.info.description || null,
 		tags: appItem.info.tags.length > 0 ? JSON.stringify(appItem.info.tags) : null,
-		isEnabled: appItem.isEnabled,
+		isEnabled: appItem.isEnabled !== 2,
 		apiBase: appItem.requestConfig.apiBase,
 		apiKey: appItem.requestConfig.apiKey,
 		enableAnswerForm: appItem.answerForm?.enabled || false,
