@@ -49,6 +49,7 @@
 		"react-i18next": "^16.5.1",
 		"react-syntax-highlighter": "^15.6.1",
 		"tsx": "^4.22.3",
+		"zod": "^4.6.5",
 		"zustand": "^5.0.6"
 	},
 	"devDependencies": {
