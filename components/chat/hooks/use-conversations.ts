@@ -2,8 +2,8 @@ import { useXConversations } from '@ant-design/x-sdk'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { IConversationItem } from '@/lib/api'
-import type { DifyApi } from '@/lib/dify-client'
+import type { DifyApi } from '@/lib/dify/browser'
+import type { ConversationItem as DifyConversationItem } from '@/lib/dify/types'
 
 import {
 	DIFY_PLACEHOLDER_NAME,
@@ -14,7 +14,7 @@ import {
 } from '../provider/conversations'
 import type { DifyRequestError } from '../provider/dify-fetch'
 import { conversationKeyFor, newTempConversationKey, parseConversationKey } from '../provider/keys'
-import { envelopeError, renameError, toDifyError } from './dify-errors'
+import { toDifyError } from './dify-errors'
 
 /** The newest conversations the sidebar lists (Dify's maximum `limit` for GET /conversations). */
 const LIST_LIMIT = 100
@@ -24,11 +24,6 @@ interface Options {
 	difyApi: DifyApi
 	/** `?isNewCvst=1`: start on a new conversation instead of the latest one. */
 	startNew?: boolean
-}
-
-/** GET /conversations as `DifyApi.listConversations` returns it: the page, or Dify's error body. */
-interface ConversationsAnswer {
-	data?: IConversationItem[]
 }
 
 const isUnsentTemp = (item: ConversationItem) => parseConversationKey(item.key).temp && !item.difyId
@@ -87,15 +82,16 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 	 */
 	const refresh = useCallback(async (): Promise<ConversationItem[] | null> => {
 		try {
-			const answer = (await latest.current.difyApi.listConversations({
+			const answer = await latest.current.difyApi.listConversations({
 				limit: LIST_LIMIT,
 				sort_by: '-updated_at',
-			})) as ConversationsAnswer | undefined
+			})
 			// An answer for an app the page has since left changes nothing.
 			if (latest.current.appId !== appId) return null
-			if (!Array.isArray(answer?.data)) throw envelopeError(answer)
 			const now = Date.now()
-			const server = answer.data.map(item => toConversationItem(appId, item, now))
+			const server = answer.data.map((item: DifyConversationItem) =>
+				toConversationItem(appId, item, now),
+			)
 			const current = latest.current.conversations.filter(
 				c => parseConversationKey(c.key).appId === appId,
 			)
@@ -174,13 +170,8 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 			const difyId = getDifyId(key)
 			if (difyId) {
 				try {
-					// The proxy wraps Dify's answer as { code, data }: the renamed conversation or Dify's error body.
-					const answer: unknown = await latest.current.difyApi.renameConversation({
-						conversation_id: difyId,
-						name,
-					})
-					const refused = renameError(answer)
-					if (refused) throw refused
+					// The browser client rejects with DifyRequestError when Dify refuses the name.
+					await latest.current.difyApi.renameConversation(difyId, { name })
 				} catch (e) {
 					throw toDifyError(e)
 				}
@@ -202,12 +193,10 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 			const before = (getConversation(key) as ConversationItem | undefined)?.label
 			if (!difyId) return
 			try {
-				const answer: unknown = await latest.current.difyApi.renameConversation({
-					conversation_id: difyId,
+				const answer = await latest.current.difyApi.renameConversation(difyId, {
 					auto_generate: true,
 				})
-				if (renameError(answer)) return
-				const name = (answer as { data?: { name?: unknown } }).data?.name
+				const name = answer.name
 				// A name the user set meanwhile (the item menu opens as soon as the id is known) wins.
 				const current = (getConversation(key) as ConversationItem | undefined)?.label
 				if (current !== before) return
@@ -227,10 +216,7 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 			const difyId = getDifyId(key)
 			if (difyId) {
 				try {
-					const response = await latest.current.difyApi.deleteConversation(difyId)
-					if (!response.ok) {
-						throw envelopeError(await response.json().catch(() => null), response.status)
-					}
+					await latest.current.difyApi.deleteConversation(difyId)
 				} catch (e) {
 					throw toDifyError(e)
 				}

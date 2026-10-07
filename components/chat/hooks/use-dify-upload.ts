@@ -13,7 +13,7 @@ import {
 	type FileRules,
 } from '../chat-view/file-types'
 import { formatCount } from '../message/workflow-summary'
-import { toDifyError, uploadAnswerError } from './dify-errors'
+import { toDifyError } from './dify-errors'
 
 export interface UploadRules extends FileRules {
 	/** The most files the list may hold; none for a single file, which antd's `maxCount: 1` replaces. */
@@ -29,7 +29,7 @@ const TOO_MANY_KEY = 'dify-upload-too-many-files'
  * - `beforeUpload` refuses a file of another type, or one past the limit, with a message; `Upload.LIST_IGNORE`
  *   keeps it out of the list (antd Upload, beforeUpload);
  * - `customRequest` uploads it and reports the answer to the list: Dify's file as the item's `response`, or
- *   the failure with Dify's text (the item shows it) — DifyApi resolves an HTTP error with Dify's body;
+ *   the failure with Dify's text (the item shows it) — the browser client rejects with Dify's text;
  * - `accept` narrows the browser's file picker; `filter: 'native'` leaves dropped and pasted files to
  *   `beforeUpload`, which explains a refusal (antd Upload, AcceptObject).
  * `count` is the number of files the list holds now.
@@ -74,11 +74,7 @@ export const useDifyUpload = ({ types, extensions, limit }: UploadRules, count: 
 			// The list shows a string `response` as the failed item's text.
 			onError?.(failure, failure.message || t('common.request_failed_retry'))
 		}
-		difyApi.uploadFile(file as File).then(answer => {
-			const refused = uploadAnswerError(answer)
-			if (refused) fail(refused)
-			else onSuccess?.(answer)
-		}, fail)
+		difyApi.uploadFile(file as File).then(answer => onSuccess?.(answer), fail)
 	}
 
 	return { accept, beforeUpload, customRequest }

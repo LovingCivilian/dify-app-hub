@@ -18,14 +18,10 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import UserShell from '@/components/shell/user-shell'
+import type { HumanInputSubmission } from '@/lib/dify/types'
 
 import { useAppContext } from '../app-context'
-import {
-	feedbackError,
-	humanInputFailureText,
-	humanInputSubmitError,
-	toDifyError,
-} from '../hooks/dify-errors'
+import { humanInputFailureText, toDifyError } from '../hooks/dify-errors'
 import { useConversations } from '../hooks/use-conversations'
 import { useDifyChat, type SendParams } from '../hooks/use-dify-chat'
 import { useSpeechToText } from '../hooks/use-speech-to-text'
@@ -311,16 +307,10 @@ export default function ChatView() {
 			setHitlSubmitting(key)
 			let accepted = false
 			try {
-				// DifyApi resolves an HTTP error with the proxy's answer instead of rejecting. Its body type
-				// predates file inputs, which take file mappings (OpenAPI, POST /form/human_input), and still
-				// requires `user`, which the proxy route replaces with the session's (Task 13 drops the old type).
-				const answer: unknown = await difyApi.submitHumanInput(form.formToken, {
-					inputs: inputs as Record<string, string>,
+				await difyApi.submitHumanInput(form.formToken, {
+					inputs: inputs as HumanInputSubmission['inputs'],
 					action: actionId,
-					user: '',
 				})
-				const refused = humanInputSubmitError(answer)
-				if (refused) throw refused
 				accepted = true
 				resume(key, form.workflowRunId, message)
 			} catch (error) {
@@ -381,7 +371,7 @@ export default function ChatView() {
 
 	/**
 	 * Rates an answer by its Dify message id (spec §4.7): shown at once, taken back if Dify refuses
-	 * (DifyApi resolves the refusal; feedbackError reads it) with Dify's text or the generic one.
+	 * (the browser client rejects with DifyRequestError) with Dify's text or the generic one.
 	 */
 	const feedback = useCallback(
 		async (
@@ -397,14 +387,8 @@ export default function ChatView() {
 			const previous = message.feedback ?? null
 			setMessage(key, info => ({ message: { ...info.message, feedback: rating } }))
 			try {
-				const answer: unknown = await difyApi.createMessageFeedback({
-					messageId,
-					rating,
-					content: reason ?? '',
-				})
 				// The button's state is the confirmation (spec §4.7): no toast on success.
-				const refused = feedbackError(answer)
-				if (refused) throw refused
+				await difyApi.createFeedback(messageId, { rating, content: reason ?? '' })
 			} catch (error) {
 				// Unless another rating replaced this one meanwhile.
 				setMessage(key, info => ({

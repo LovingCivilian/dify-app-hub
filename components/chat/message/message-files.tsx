@@ -72,11 +72,7 @@ export default function MessageFiles({ files }: { files?: MessageFile[] }) {
 			return
 		}
 		try {
-			const response = await difyApi.filePreview({
-				file_id: file.uploadFileId,
-				as_attachment: true,
-			})
-			if (!response.ok) throw new Error(response.statusText)
+			const response = await difyApi.filePreview(file.uploadFileId, { asAttachment: true })
 			saveBlob(
 				await response.blob(),
 				filenameFromDisposition(

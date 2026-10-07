@@ -6,7 +6,7 @@ import { Card, Flex, Tag, Typography } from 'antd'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { IRetrieverResource } from '@/lib/api'
+import type { RetrieverResource } from '@/lib/dify/types'
 
 import { citationKey, citationTitle } from './citations'
 import { formatCount, formatDecimal } from './workflow-summary'
@@ -18,7 +18,7 @@ const EXCERPT_ELLIPSIS = { rows: 6, expandable: true } as const
  * URL, and Sources shows an item's `description` only in its inline mode, so the excerpt of the item
  * picked (Sources `onClick`) is shown below the list with its retrieval figures.
  */
-export default function MessageSources({ citations }: { citations?: IRetrieverResource[] }) {
+export default function MessageSources({ citations }: { citations?: RetrieverResource[] }) {
 	const { t, i18n } = useTranslation()
 	const language = i18n.resolvedLanguage
 	const [expanded, setExpanded] = useState(false)

@@ -147,7 +147,8 @@ describe('mapHistoryPage', () => {
 	it.each([
 		[{ rating: 'like' }, 'like'],
 		[{ rating: 'dislike' }, 'dislike'],
-		[{ rating: 'unexpected' }, null],
+		// Outside the contract's 'like' | 'dislike': the mapper still drops it.
+		[{ rating: 'unexpected' } as never, null],
 		[null, null],
 		[undefined, null],
 	] as const)('maps the feedback %j to %j', async (feedback, expected) => {

@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
 import { citationKey, citationTitle } from '@/components/chat/message/citations'
-import type { IRetrieverResource } from '@/lib/api'
+import type { RetrieverResource } from '@/lib/dify/types'
 
 /** As streamed in message_end (OpenAPI example): no `id`, and `segment_position` may be missing too. */
-const streamed = (fields: Partial<IRetrieverResource>) =>
+const streamed = (fields: Partial<RetrieverResource>) =>
 	({
 		position: 1,
 		document_name: 'iPhone List',
 		segment_id: 'seg-1',
 		...fields,
-	}) as IRetrieverResource
+	}) as RetrieverResource
 
 describe('citationKey', () => {
 	it('keys a citation by its segment, else by its position in the list', () => {

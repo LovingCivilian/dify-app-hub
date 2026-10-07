@@ -115,20 +115,15 @@ test.describe('human input', () => {
 		page,
 	}, testInfo) => {
 		await pauseRun(page, `please hitl refused ${unique(testInfo)}`)
-		// Dify refuses the form (OpenAPI: 412); the proxy route answers { code, data: { error: <Dify's body> } }.
+		// Dify refuses the form (OpenAPI: 412); the route passes the envelope through.
 		await page.route('**/form/human_input/**', route =>
 			route.fulfill({
 				status: 412,
 				contentType: 'application/json',
 				body: JSON.stringify({
-					code: 412,
-					data: {
-						error: JSON.stringify({
-							code: 'human_input_form_expired',
-							message: 'This form has expired.',
-							status: 412,
-						}),
-					},
+					code: 'human_input_form_expired',
+					message: 'This form has expired.',
+					status: 412,
 				}),
 			}),
 		)

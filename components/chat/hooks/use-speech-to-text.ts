@@ -6,7 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 
 import { useAppContext } from '../app-context'
-import { toDifyError, transcriptionError } from './dify-errors'
+import { toDifyError } from './dify-errors'
 import { recordingFile, speechAction, type SpeechPhase } from './speech-recording'
 
 const stopTracks = (stream: MediaStream) => {
@@ -16,7 +16,7 @@ const stopTracks = (stream: MediaStream) => {
 /**
  * Speech to text for the Sender (spec §4.7): X's documented `SpeechConfig` (`allowSpeech={{ recording,
  * onRecordingChange }}`; a set `recording` turns X's built-in browser recognition off) around a
- * MediaRecorder capture (MDN: getUserMedia, MediaRecorder `dataavailable`/`stop`) and POST /audio2text. The
+ * MediaRecorder capture (MDN: getUserMedia, MediaRecorder `dataavailable`/`stop`) and POST /audio-to-text. The
  * transcript goes to `onText`. The microphone is released when a recording stops and when the view
  * unmounts; a transcript that arrives after that is dropped. `transcribing` is true while the audio is
  * with Dify. Off (`allowSpeech: false`) unless the app enables `parameters.speech_to_text`.
@@ -65,10 +65,7 @@ export const useSpeechToText = ({
 		async (file: File) => {
 			const { difyApi: api, t: translate, message: toast, onText: insert } = latest.current
 			try {
-				const answer: unknown = await api.audio2Text(file)
-				const refused = transcriptionError(answer)
-				if (refused) throw refused
-				const { text } = answer as { text: string }
+				const { text } = await api.audioToText(file)
 				if (mounted.current && text) insert(text)
 			} catch (error) {
 				if (mounted.current) {

@@ -51,7 +51,7 @@ const chooseFile = async (page: Page, file: { name: string; mimeType: string; bu
 	await (await chooser).setFiles(file)
 }
 
-/** The app's proxy answer to POST /files/upload: `{ code, data }`, `data` being Dify's file. */
+/** The route's answer to POST /files/upload: Dify's file, passed through. */
 const uploadAnswered = (page: Page) =>
 	page.waitForResponse(
 		response =>
@@ -87,7 +87,7 @@ test('a file attached through the prefix button is sent with the message and lis
 		mimeType: 'text/plain',
 		buffer: Buffer.from('hello stub'),
 	})
-	const fileId = ((await (await uploaded).json()) as { data: { id: string } }).data.id
+	const fileId = ((await (await uploaded).json()) as { id: string }).id
 	await expect(page.getByText('note.txt', { exact: true })).toBeVisible()
 	const sent = chatRequested(page)
 	await senderBox(page).fill(text)
@@ -115,7 +115,7 @@ test('a file pasted into the Sender is attached and uploaded', async ({ page }, 
 			new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }),
 		)
 	})
-	const fileId = ((await (await uploaded).json()) as { data: { id: string } }).data.id
+	const fileId = ((await (await uploaded).json()) as { id: string }).id
 	// The header opens on its own with the pasted file.
 	await expect(page.getByText('pasted.txt', { exact: true })).toBeVisible()
 	const sent = chatRequested(page)
@@ -181,14 +181,15 @@ test('a send waits for an attachment that is still uploading', async ({ page }, 
 test('a send is refused while an attachment failed to upload', async ({ page }, testInfo) => {
 	const text = `after a failed upload ${runOf(testInfo)}`
 	await openAgentChat(page, testInfo)
-	// The proxy's answer to a Dify refusal: `{ code, data }` with Dify's error body (createDifyApiResponse).
+	// Dify's refusal as the route passes it through: the envelope with its status.
 	await page.route('**/files/upload', route =>
 		route.fulfill({
 			status: 415,
 			contentType: 'application/json',
 			body: JSON.stringify({
-				code: 415,
-				data: { code: 'unsupported_file_type', message: 'File type not allowed.', status: 415 },
+				code: 'unsupported_file_type',
+				message: 'File type not allowed.',
+				status: 415,
 			}),
 		}),
 	)

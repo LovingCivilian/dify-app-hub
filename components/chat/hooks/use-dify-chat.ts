@@ -15,12 +15,12 @@ import {
 	useSyncExternalStore,
 } from 'react'
 
-import type { DifyApi } from '@/lib/dify-client'
+import type { DifyApi } from '@/lib/dify/browser'
 
 import workflowDataStorage, { useWorkflowStore } from '../persistence/workflow-data-storage'
 import { DifyChatProvider } from '../provider/dify-chat-provider'
 import { createDifyFetch, DifyRequestError } from '../provider/dify-fetch'
-import { mapHistoryPage, type HistoryMessage } from '../provider/history'
+import { mapHistoryPage } from '../provider/history'
 import { parseConversationKey } from '../provider/keys'
 import {
 	emptyAssistant,
@@ -31,7 +31,7 @@ import {
 	type WorkflowState,
 } from '../provider/message'
 import { getProvider } from '../provider/provider-cache'
-import { envelopeError, toDifyError } from './dify-errors'
+import { toDifyError } from './dify-errors'
 import { nextPaging, prependLatestPage, prependOlder, type HistoryPaging } from './history-paging'
 
 export const HISTORY_PAGE = 20
@@ -51,12 +51,6 @@ interface Options {
 	onConversationId?: (key: string, difyId: string) => void
 	difyApi: DifyApi
 	t: TFunction
-}
-
-/** GET /messages as `DifyApi.listMessages` returns it: the page, or Dify's error body on an HTTP error. */
-interface MessagesAnswer {
-	data?: HistoryMessage[]
-	has_more?: boolean
 }
 
 // Per conversation key and module-global, like the SDK's message store they serve (use-x-chat:
@@ -91,14 +85,9 @@ const difyIdReaders = new Map<string, () => string | undefined>()
 /** The latest `onConversationId` given for each key; the key's cached provider calls it from its stream. */
 const conversationIdSinks = new Map<string, (key: string, difyId: string) => void>()
 
-/** A page without `data` is Dify's error body (DifyApi does not reject on an HTTP error). */
-const fetchPage = async (difyApi: DifyApi, difyId: string, firstId?: string) => {
-	const answer = (await difyApi.listMessages(difyId, { first_id: firstId, limit: HISTORY_PAGE })) as
-		| MessagesAnswer
-		| undefined
-	if (!Array.isArray(answer?.data)) throw envelopeError(answer)
-	return { ...answer, data: answer.data }
-}
+/** One page of GET /messages; the browser client rejects with DifyRequestError on an HTTP error. */
+const fetchPage = (difyApi: DifyApi, difyId: string, firstId?: string) =>
+	difyApi.listMessages({ conversation_id: difyId, first_id: firstId, limit: HISTORY_PAGE })
 
 /** The zustand persist API the history loader waits on (zustand docs, "Persisting store data": API). */
 interface PersistHydration {
@@ -339,7 +328,7 @@ export const useDifyChat = ({
 		)
 		chat.abort()
 		const taskId = reply?.message.ids.taskId
-		if (taskId) await api.stopTask(taskId).catch(() => undefined)
+		if (taskId) await api.stopChat(taskId).catch(() => undefined)
 	}, [])
 
 	/** HITL continuation (spec §4.6): onReload updates the paused message from the resumed stream. */

@@ -1,6 +1,6 @@
 import type { ConversationData } from '@ant-design/x-sdk'
 
-import type { IConversationItem } from '@/lib/api'
+import type { ConversationItem as DifyConversationItem } from '@/lib/dify/types'
 
 import { conversationKeyFor, parseConversationKey } from './keys'
 
@@ -37,7 +37,7 @@ export const groupFor = (updatedAtSeconds: number, nowMs: number): ConversationG
 
 export const toConversationItem = (
 	appId: string,
-	dify: IConversationItem,
+	dify: DifyConversationItem,
 	nowMs: number,
 ): ConversationItem => ({
 	key: conversationKeyFor(appId, dify.id),

@@ -5,13 +5,13 @@ import { Typography } from 'antd'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { IAgentThought } from '@/lib/api'
+import type { AgentThought } from '@/lib/dify/types'
 
 import { thoughtStatus } from './thought-status'
 import styles from './workflow-logs.module.css'
 
 export interface AgentThoughtsProps {
-	thoughts?: IAgentThought[]
+	thoughts?: AgentThought[]
 	streaming: boolean
 	/** How the reply was cut short, if it was (a stream error or the user's stop). */
 	interrupted?: 'error' | 'abort'

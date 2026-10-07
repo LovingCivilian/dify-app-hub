@@ -6,7 +6,7 @@ import type {
 	XRequestOptions,
 } from '@ant-design/x-sdk'
 
-import type { IAgentThought, IRetrieverResource } from '@/lib/api'
+import type { AgentThought, RetrieverResource } from '@/lib/dify/types'
 
 import {
 	emptyAssistant,
@@ -109,7 +109,7 @@ export const applyEvent = (origin: DifyChatMessage, event: DifyStreamEvent): Dif
 			}
 		case 'agent_thought': {
 			const { event: _event, ...fields } = event
-			const thought = fields as unknown as IAgentThought
+			const thought = fields as unknown as AgentThought
 			const thoughts = [...(message.thoughts ?? [])]
 			const index = thoughts.findIndex(t => t.position === thought.position)
 			if (index === -1) thoughts.push(thought)
@@ -133,7 +133,7 @@ export const applyEvent = (origin: DifyChatMessage, event: DifyStreamEvent): Dif
 			// The answer is complete: agentAnswer is stream bookkeeping and never stays on a finished
 			// message (Legacy Agent apps send no closing `message` that would clear it).
 			const { agentAnswer: _agentAnswer, ...ended } = message
-			const metadata = (event.metadata ?? {}) as { retriever_resources?: IRetrieverResource[] }
+			const metadata = (event.metadata ?? {}) as { retriever_resources?: RetrieverResource[] }
 			return metadata.retriever_resources?.length
 				? { ...ended, citations: metadata.retriever_resources }
 				: ended

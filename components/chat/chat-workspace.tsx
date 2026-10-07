@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 
 import UserShell from '@/components/shell/user-shell'
 import type { ChatAppDto } from '@/lib/data/apps'
-import { createDifyApiInstance, type DifyApi } from '@/lib/dify-client'
 import { createDifyApi } from '@/lib/dify/browser'
 
 import { DEFAULT_SITE_SETTINGS } from './app-answers'
@@ -29,20 +28,13 @@ export default function ChatWorkspace({ app }: { app: ChatAppDto }) {
 
 	useEffect(() => {
 		let cancelled = false
-		const api = createDifyApi(app.id)
+		const difyApi = createDifyApi(app.id)
 		;(async () => {
 			try {
 				const [parameters, site] = await Promise.all([
-					api.getParameters(),
-					api.getSite().catch(() => DEFAULT_SITE_SETTINGS),
+					difyApi.getParameters(),
+					difyApi.getSite().catch(() => DEFAULT_SITE_SETTINGS),
 				])
-				// Until Task 13 the hooks still use the old DifyApi; its base and key are unused by the proxy.
-				const difyApi = createDifyApiInstance({
-					appId: app.id,
-					user: '',
-					apiBase: '',
-					apiKey: '',
-				}) as DifyApi
 				if (!cancelled) setState({ status: 'ready', value: { app, parameters, site, difyApi } })
 			} catch (error) {
 				// Dify's text, or '' for anything else (the Result then shows the generic key).

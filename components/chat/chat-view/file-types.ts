@@ -1,9 +1,9 @@
-import type { IFile, IFileType } from '@/lib/api'
+import type { FileInput, FileType } from '@/lib/dify/types'
 
 /**
  * Dify 支持的文件类型和对应的格式
  */
-export const FileTypeMap: Map<IFileType, string[]> = new Map()
+export const FileTypeMap: Map<FileType, string[]> = new Map()
 
 FileTypeMap.set('document', [
 	'txt',
@@ -35,11 +35,11 @@ export const getFileExtByName = (filename: string) => {
 	return filename.split('.').pop()
 }
 
-export const getFileTypeByName = (filename: string): IFileType => {
+export const getFileTypeByName = (filename: string): FileType => {
 	const ext = filename?.split('.')?.pop()
 
 	// 使用文件扩展名和 FileTypeMap 进行匹配
-	let fileType: IFileType = 'custom'
+	let fileType: FileType = 'custom'
 	FileTypeMap.forEach((extensions, type) => {
 		if (extensions.indexOf(ext as string) > -1) {
 			fileType = type
@@ -55,7 +55,7 @@ export const getFileTypeByName = (filename: string): IFileType => {
  * @param filename 文件名
  * @param allowedFileTypes 允许的文件类型
  */
-export const getDifyFileType = (filename: string, allowedFileTypes: IFileType[]): IFileType => {
+export const getDifyFileType = (filename: string, allowedFileTypes: FileType[]): FileType => {
 	if (allowedFileTypes.length === 1) {
 		return allowedFileTypes[0]
 	}
@@ -86,7 +86,7 @@ export const extensionOf = (name: string) => {
  * `allowed_file_types` includes `custom`", written "with the leading `.`" (OpenAPI, GET /form/human_input).
  */
 export interface FileRules {
-	types: readonly IFileType[]
+	types: readonly FileType[]
 	extensions: readonly string[]
 }
 
@@ -97,7 +97,7 @@ const customExtensions = ({ types, extensions }: FileRules) =>
  * The Dify type a file goes as (an allowed category its extension belongs to, else `custom` when the custom
  * extensions list it), or undefined when the rules refuse it (Dify checks the same on the server).
  */
-export const fileTypeFor = (name: string, rules: FileRules): IFileType | undefined => {
+export const fileTypeFor = (name: string, rules: FileRules): FileType | undefined => {
 	const ext = extensionOf(name)
 	if (!rules.types.length) return getFileTypeByName(`.${ext}`)
 	const category = rules.types.find(
@@ -145,8 +145,8 @@ export interface UploadedFile {
  * upload_file_id }` or `{ type, transfer_method: remote_url, url }`); undefined while it has neither, e.g.
  * while it uploads.
  */
-export const toFileMapping = (file: UploadedFile): IFile | undefined => {
-	const type = file.type as IFileType
+export const toFileMapping = (file: UploadedFile): FileInput | undefined => {
+	const type = file.type as FileType
 	if (file.transfer_method === 'remote_url') {
 		const url = file.remote_url || file.url
 		return url ? { type, transfer_method: 'remote_url', url } : undefined

@@ -214,7 +214,7 @@ test.describe('text to speech and annotation', () => {
 		await expect(read).toHaveAttribute('aria-pressed', 'false')
 		const requested = page.waitForRequest(
 			request =>
-				request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/text2audio'),
+				request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/text-to-audio'),
 		)
 		await read.click()
 		expect((await requested).postDataJSON()).toMatchObject({ text: `Echo: ${text}` })

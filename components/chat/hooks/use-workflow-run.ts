@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { useAppContext } from '../app-context'
 import { apiInputs, pendingFileInputs } from '../chat-view/inputs-values'
 import { parseEvent } from '../provider/dify-chat-provider'
-import { envelopeError, toDifyError } from './dify-errors'
+import { toDifyError } from './dify-errors'
 import { initialRunState, reduceRunEvent, type RunState } from './run-reducer'
 
 /**
@@ -63,15 +63,10 @@ export const useWorkflowRun = () => {
 					await response.body?.cancel().catch(() => {})
 					return true
 				}
-				// The proxy passes Dify's status and error body through (`{ code, message, status }`); its own
-				// failures answer `{ error }`, which has no text to show (the view uses the generic one).
-				if (!response.ok || !response.body) {
-					const body: unknown = await response.json().catch(() => null)
-					update(s => ({
-						...s,
-						status: 'failed',
-						error: envelopeError(body, response.status).message,
-					}))
+				// The browser client rejects a non-OK answer with DifyRequestError (caught below); an answer
+				// without a body has no text to show (the view uses the generic one).
+				if (!response.body) {
+					update(s => ({ ...s, status: 'failed', error: '' }))
 					return true
 				}
 				// XStream yields the SSE parts as `{ event?, data? }`; its reader is a standard ReadableStream

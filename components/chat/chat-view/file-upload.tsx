@@ -5,7 +5,7 @@ import { Alert, Button, Upload, type UploadFile, type UploadProps } from 'antd'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { IFileType } from '@/lib/api'
+import type { FileType } from '@/lib/dify/types'
 
 import { useDifyUpload } from '../hooks/use-dify-upload'
 import { completeFileUrl } from '../utils-index'
@@ -22,7 +22,7 @@ export interface IUploadFileItem extends UploadFile {
 
 interface IFileUploadCommonProps {
 	/** Dify's file categories (none: any file). */
-	allowed_file_types: IFileType[]
+	allowed_file_types: FileType[]
 	/** The extensions a `custom` file may have ("with the leading `.`"). */
 	allowed_file_extensions?: string[]
 	/** The upload methods the input takes; this control uploads local files only. */
