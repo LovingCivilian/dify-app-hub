@@ -24,6 +24,8 @@ export interface MessageListProps {
 	chat: ReturnType<typeof useDifyChat>
 	/** The conversation shown, '' while there is none yet; each one opens at its latest message. */
 	conversationKey: string
+	/** The bubbles' reading width (the chat column's `readingStyle`); the scroll box itself spans the region. */
+	maxWidth: React.CSSProperties['maxWidth']
 	/** An assistant bubble's content; keep it stable (useCallback): the role map, and so every bubble, follows it. */
 	renderAssistant: (message: DifyChatMessage, info: BubbleInfo) => React.ReactNode
 	/** An assistant bubble's footer (Bubble's `footer` slot); keep it stable for the same reason. */
@@ -34,6 +36,7 @@ export interface MessageListProps {
 export default function MessageList({
 	chat,
 	conversationKey,
+	maxWidth,
 	renderAssistant,
 	renderFooter,
 }: MessageListProps) {
@@ -105,6 +108,11 @@ export default function MessageList({
 				role={role}
 				autoScroll
 				className={styles.bubbleList}
+				// Bubble.List's semantic slots (ListSemanticType): `scroll` is the scroll box, which spans the
+				// chat column and carries the inline padding; `bubble` is every bubble's root, centred at the
+				// reading width (cosmetic sweep 1, item 1).
+				classNames={{ scroll: styles.scrollBox }}
+				styles={{ bubble: { maxWidth, marginInline: 'auto' } }}
 			/>
 		</div>
 	)

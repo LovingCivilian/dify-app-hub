@@ -511,6 +511,10 @@ export default function ChatView() {
 	}
 	const createDisabled = list.hasEmptyTemp || locked
 
+	// The reading width (spec §5.1): antd's screenMD token, unbounded when wide; the column itself spans
+	// the content region so the message list scrolls at its edge (cosmetic sweep 1, item 1).
+	const readingStyle = { maxWidth: wide ? 'none' : token.screenMD }
+
 	return (
 		<UserShell
 			title={
@@ -574,14 +578,13 @@ export default function ChatView() {
 					)}
 				</Layout.Sider>
 				<Layout.Content>
-					<div
-						className={styles.column}
-						// The reading width is antd's screenMD token, unbounded when wide (spec §5.1).
-						style={{ maxWidth: wide ? 'none' : token.screenMD }}
-					>
+					<div className={styles.column}>
 						{chat.historyError && (
 							// The spacing sits on a wrapper: antd's Alert resets its own margin.
-							<div className={styles.historyAlert}>
+							<div
+								className={`${styles.historyAlert} ${styles.reading}`}
+								style={readingStyle}
+							>
 								<Alert
 									type="error"
 									showIcon
@@ -598,7 +601,10 @@ export default function ChatView() {
 								/>
 							</div>
 						)}
-						<div className={styles.top}>
+						<div
+							className={`${styles.top} ${styles.reading}`}
+							style={readingStyle}
+						>
 							<WelcomePanel
 								visible={showWelcome}
 								disabled={chat.isRequesting}
@@ -615,11 +621,15 @@ export default function ChatView() {
 						<MessageList
 							chat={chat}
 							conversationKey={activeKey}
+							maxWidth={readingStyle.maxWidth}
 							renderAssistant={renderAssistant}
 							renderFooter={renderFooter}
 						/>
 						{suggestions.suggestions.length > 0 && !chat.isRequesting && (
-							<div className={styles.suggestions}>
+							<div
+								className={`${styles.suggestions} ${styles.reading}`}
+								style={readingStyle}
+							>
 								<Prompts
 									wrap
 									title={t('chat.suggested_questions')}
@@ -631,7 +641,10 @@ export default function ChatView() {
 								/>
 							</div>
 						)}
-						<div className={styles.composer}>
+						<div
+							className={`${styles.composer} ${styles.reading}`}
+							style={readingStyle}
+						>
 							<ChatSender
 								loading={chat.isRequesting}
 								// The deep link's `sender_text` prefills the box (spec §4.7).
@@ -649,12 +662,17 @@ export default function ChatView() {
 								transcribing={speech.transcribing}
 							/>
 						</div>
-						<Typography.Text
-							type="secondary"
-							className={styles.disclaimer}
+						<div
+							className={styles.reading}
+							style={readingStyle}
 						>
-							{site.custom_disclaimer || t('system.default_disclaimer_content')}
-						</Typography.Text>
+							<Typography.Text
+								type="secondary"
+								className={styles.disclaimer}
+							>
+								{site.custom_disclaimer || t('system.default_disclaimer_content')}
+							</Typography.Text>
+						</div>
 					</div>
 				</Layout.Content>
 			</Layout>
