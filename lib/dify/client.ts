@@ -35,13 +35,17 @@ export interface DifyCredentials {
 	apiKey: string
 }
 
-/** The upstream headers a passthrough answer keeps (charter §4.1); everything else (cookies, X-Version) stays behind. */
+/**
+ * The upstream headers a passthrough answer keeps (charter §4.1: Content-Type, Content-Disposition, Content-Length,
+ * Accept-Ranges); everything else (cookies, X-Version) stays behind. Cache-Control stays behind too: Dify marks a
+ * file preview `public, max-age=3600`, and the route that serves it is session-gated, so a shared cache could hand
+ * one user's file to others.
+ */
 const PASSTHROUGH_HEADERS = [
 	'content-type',
 	'content-disposition',
 	'content-length',
 	'accept-ranges',
-	'cache-control',
 ] as const
 
 type QueryValue = string | number | boolean | undefined
@@ -66,11 +70,14 @@ const jsonInit = (method: 'POST' | 'PUT' | 'DELETE', body: unknown): RequestInit
 /**
  * The upstream Response as the route answers it: Dify's status, the body as it is (a stream stays a stream),
  * and the headers that carry meaning. No re-pumping through a hand-written ReadableStream (Backend for
- * Frontend guide, "Proxying to a backend").
+ * Frontend guide, "Proxying to a backend"). Node's fetch decodes a gzip/br body but keeps the upstream headers,
+ * so a Content-Length next to a Content-Encoding no longer fits the body and is dropped (it would truncate it).
  */
 export const passthrough = (upstream: Response): Response => {
+	const encoded = upstream.headers.has('content-encoding')
 	const headers = new Headers()
 	for (const name of PASSTHROUGH_HEADERS) {
+		if (encoded && name === 'content-length') continue
 		const value = upstream.headers.get(name)
 		if (value) headers.set(name, value)
 	}
@@ -103,15 +110,19 @@ export const difyClient = (credentials: DifyCredentials) => {
 
 	const send = (path: string, init?: RequestInit) => request(`${base}${path}`, init)
 
-	/** A JSON body, or upstream_error when an OK answer is not JSON (Review Focus 1). */
+	/**
+	 * A JSON body, or a 502 upstream_error when an OK answer cannot be read as JSON (an HTML page, an empty or
+	 * truncated body, a read that fails mid-answer; Review Focus 1). The status is 502, not Dify's 2xx: the route
+	 * answers with it, and a 2xx carrying an error envelope would be taken as data by the browser client.
+	 */
 	const json = async <T>(response: Response): Promise<T> => {
 		try {
 			return (await response.json()) as T
 		} catch {
 			throw new DifyError(
-				response.status,
+				502,
 				'upstream_error',
-				'Dify answered a body that is not JSON',
+				`Dify answered ${response.status} with an unreadable body.`,
 			)
 		}
 	}
@@ -180,7 +191,7 @@ export const difyClient = (credentials: DifyCredentials) => {
 			query: WorkflowEventsQuery,
 			signal?: AbortSignal,
 		) =>
-			send(`/workflow/${segment(workflowRunId)}/events${queryString({ user, ...query })}`, {
+			send(`/workflow/${segment(workflowRunId)}/events${queryString({ ...query, user })}`, {
 				signal,
 			}),
 
