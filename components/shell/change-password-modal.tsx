@@ -102,8 +102,9 @@ function ChangePasswordForm({ run }: { run: (work: () => Promise<void>) => Promi
 				rules={[
 					{ required: true, message: t('auth.password_required') },
 					({ getFieldValue }) => ({
+						// An empty field shows only the required message (antd Form "register" demo).
 						validator: (_, value) =>
-							value === getFieldValue('newPassword')
+							!value || value === getFieldValue('newPassword')
 								? Promise.resolve()
 								: Promise.reject(new Error(t('auth.password_mismatch'))),
 					}),

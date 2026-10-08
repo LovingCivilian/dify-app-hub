@@ -216,6 +216,12 @@ export async function deleteUser(actor: SessionUser, id: string): Promise<Action
  * The account menu's password change (charter §4.2): the current password is checked with bcrypt, the new one is
  * hashed, and sessionVersion is bumped, which revokes every session including this one; the client then signs
  * out. Any role, for the actor's own account only (no target id comes from the client).
+ *
+ * The check is tied to the row it overwrites (decision d). A wrong password is refused on the plain read, before any
+ * lock. The write then reads the row again with a locking read on its primary key (MySQL 8.4 "Locking Reads": "the
+ * regular SELECT statement does not give enough protection. Other transactions can update or delete the same rows
+ * you just queried") and goes ahead only while the row still holds the hash that was verified. A password the owner
+ * or an admin set in between is not overwritten: the change is refused as a wrong current password.
  */
 export async function changeOwnPassword(
 	actor: SessionUser,
@@ -231,12 +237,23 @@ export async function changeOwnPassword(
 	if (!(await verifyPassword(input.currentPassword, row.password))) {
 		return fail('invalid_input', { currentPassword: ['incorrect'] })
 	}
-	await db
-		.update(users)
-		.set({
-			password: await hashPassword(input.newPassword),
-			sessionVersion: sql`${users.sessionVersion} + 1`,
-		})
-		.where(eq(users.id, actor.id))
-	return ok(undefined)
+	// Hashed before the transaction so the row lock is held for the queries only.
+	const passwordHash = await hashPassword(input.newPassword)
+	return db.transaction(async tx => {
+		const [locked] = await tx
+			.select({ password: users.password })
+			.from(users)
+			.where(eq(users.id, actor.id))
+			.limit(1)
+			.for('update')
+		if (!locked) return fail('not_found')
+		if (locked.password !== row.password) {
+			return fail('invalid_input', { currentPassword: ['incorrect'] })
+		}
+		await tx
+			.update(users)
+			.set({ password: passwordHash, sessionVersion: sql`${users.sessionVersion} + 1` })
+			.where(eq(users.id, actor.id))
+		return ok(undefined)
+	})
 }
