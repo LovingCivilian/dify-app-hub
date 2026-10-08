@@ -17,18 +17,36 @@ describe('users schema', () => {
 	})
 })
 
-describe('the B2 migration', () => {
-	it('adds the column, makes every existing account an admin, then the oldest the owner (ADR-0024: no lock-out on upgrade)', () => {
-		const dir = readdirSync('db/migrations').find(name => name.endsWith('_b2-users-role'))
-		expect(dir).toBeDefined()
-		const sql = readFileSync(path.join('db/migrations', dir!, 'migration.sql'), 'utf8')
-		const add = sql.indexOf("ADD `role` enum('owner','admin','user') DEFAULT 'user' NOT NULL")
-		const backfill = sql.indexOf("UPDATE `users` SET `role` = 'admin';--> statement-breakpoint")
-		const owner = sql.indexOf(
-			"UPDATE `users` SET `role` = 'owner' ORDER BY `created_at`, `id` LIMIT 1;",
+describe('the B2 migrations', () => {
+	const folders = readdirSync('db/migrations')
+	const alter = folders.find(name => name.endsWith('_b2-users-role'))
+	const backfill = folders.find(name => name.endsWith('_b2-users-role-backfill'))
+	const read = (dir: string) =>
+		readFileSync(path.join('db/migrations', dir, 'migration.sql'), 'utf8')
+
+	it('adds the column alone in its own migration', () => {
+		expect(alter).toBeDefined()
+		expect(read(alter!).trim()).toBe(
+			"ALTER TABLE `users` ADD `role` enum('owner','admin','user') DEFAULT 'user' NOT NULL;",
 		)
-		expect(add).toBeGreaterThanOrEqual(0)
-		expect(backfill).toBeGreaterThan(add)
-		expect(owner).toBeGreaterThan(backfill)
+	})
+
+	it('backfills in a later custom migration: every account an admin, then the oldest the owner (ADR-0024: no lock-out on upgrade)', () => {
+		expect(backfill).toBeDefined()
+		// the migrator applies folders in name order
+		expect(backfill! > alter!).toBe(true)
+		const statements = read(backfill!)
+			.split('--> statement-breakpoint')
+			.map(part =>
+				part
+					.split('\n')
+					.filter(line => !line.startsWith('--'))
+					.join('\n')
+					.trim(),
+			)
+		expect(statements).toEqual([
+			"UPDATE `users` SET `role` = 'admin';",
+			"UPDATE `users` SET `role` = 'owner' ORDER BY `created_at`, `id` LIMIT 1;",
+		])
 	})
 })
