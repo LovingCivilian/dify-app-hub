@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { createOwnerAction } from '@/app/init/actions'
 import { useActionTransition } from '@/hooks/use-action-transition'
-import { PASSWORD_MAX, PASSWORD_MIN } from '@/lib/auth/fields'
+import { emailRule, PASSWORD_MIN, passwordBytesRule } from '@/lib/auth/fields'
 
 import { initFailureKey } from './auth-failure'
 
@@ -66,7 +66,7 @@ export default function InitForm() {
 					label={t('init.owner_email')}
 					rules={[
 						{ required: true, message: t('init.owner_email_required') },
-						{ type: 'email', message: t('init.email_invalid') },
+						emailRule(t('init.email_invalid')),
 					]}
 				>
 					<Input placeholder={t('init.owner_email_placeholder')} />
@@ -77,7 +77,7 @@ export default function InitForm() {
 					rules={[
 						{ required: true, message: t('auth.password_required') },
 						{ min: PASSWORD_MIN, message: t('init.password_min_8') },
-						{ max: PASSWORD_MAX, message: t('auth.password_max_128') },
+						passwordBytesRule(t('auth.password_too_long')),
 					]}
 				>
 					<Input.Password
@@ -92,8 +92,9 @@ export default function InitForm() {
 					rules={[
 						{ required: true, message: t('init.confirm_password_required') },
 						({ getFieldValue }) => ({
+							// An empty field shows only the required message (antd Form "register" demo).
 							validator: (_, value) =>
-								value === getFieldValue('password')
+								!value || value === getFieldValue('password')
 									? Promise.resolve()
 									: Promise.reject(new Error(t('auth.password_mismatch'))),
 						}),

@@ -187,7 +187,7 @@
 		"new_password": "新密码",
 		"confirm_password": "确认密码",
 		"password_min_8": "密码至少需要 8 位",
-		"password_max_128": "密码不能超过 128 位",
+		"password_too_long": "密码过长：最多 72 字节（72 个拉丁字母，其他文字更少）",
 		"password_mismatch": "两次密码不一致",
 		"forgot_password_link": "忘记密码？",
 		"forgot_title": "找回密码",

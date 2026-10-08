@@ -4,7 +4,7 @@ import * as z from 'zod'
 
 import { invalidInput, toActionFailure } from '@/lib/action-failure'
 import type { ActionResult } from '@/lib/action-result'
-import { PASSWORD_MAX, passwordField } from '@/lib/auth/fields'
+import { passwordField } from '@/lib/auth/fields'
 import { requireActor } from '@/lib/auth/session'
 import { changeOwnPassword } from '@/lib/data/users'
 
@@ -13,8 +13,13 @@ import { changeOwnPassword } from '@/lib/data/users'
  * own account only.
  */
 
+/**
+ * The current password has no maximum, as at sign-in: one set before the 72-byte cap (the inherited reset form has
+ * none) must still be accepted, and bcrypt reads its first 72 bytes either way (decision f). The request body is
+ * bounded by the Server Action body limit (next.config.js `serverActions.bodySizeLimit`, 1MB by default).
+ */
 const changePasswordInput = z.object({
-	currentPassword: z.string().min(1).max(PASSWORD_MAX),
+	currentPassword: z.string().min(1),
 	newPassword: passwordField,
 })
 

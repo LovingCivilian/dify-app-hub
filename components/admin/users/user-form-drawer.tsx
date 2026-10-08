@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { createUserAction, updateUserAction } from '@/app/(admin)/user-management/actions'
 import type { UserFormInput } from '@/app/(admin)/user-management/schemas'
 import { useActionTransition } from '@/hooks/use-action-transition'
-import { PASSWORD_MAX, PASSWORD_MIN } from '@/lib/auth/fields'
+import { emailRule, PASSWORD_MIN, passwordBytesRule } from '@/lib/auth/fields'
 import { MANAGEABLE_ROLES, type Role } from '@/lib/auth/roles'
 import type { UserDto } from '@/lib/data/users'
 
@@ -111,7 +111,7 @@ export default function UserFormDrawer({
 				<Form.Item
 					name="name"
 					label={t('admin_users.name')}
-					rules={[{ required: true, message: t('admin_users.name_required') }]}
+					rules={[{ required: true, whitespace: true, message: t('admin_users.name_required') }]}
 				>
 					<Input placeholder={t('admin_users.name_placeholder')} />
 				</Form.Item>
@@ -120,7 +120,7 @@ export default function UserFormDrawer({
 					label={t('auth.email')}
 					rules={[
 						{ required: true, message: t('admin_users.email_required') },
-						{ type: 'email', message: t('auth.email_invalid') },
+						emailRule(t('auth.email_invalid')),
 					]}
 				>
 					<Input placeholder={t('admin_users.email_placeholder')} />
@@ -154,7 +154,7 @@ export default function UserFormDrawer({
 						rules={[
 							...(user ? [] : [{ required: true, message: t('admin_users.password_required') }]),
 							{ min: PASSWORD_MIN, message: t('auth.password_min_8') },
-							{ max: PASSWORD_MAX, message: t('auth.password_max_128') },
+							passwordBytesRule(t('auth.password_too_long')),
 						]}
 					>
 						<Input.Password autoComplete="new-password" />

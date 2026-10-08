@@ -9,11 +9,14 @@ import {
 const base = { name: 'Jane', email: 'jane@example.com', role: 'user' }
 
 describe('user input schemas', () => {
-	it('requires a password of 8 to 128 characters on create', () => {
+	it('requires a password of 8 characters to 72 bytes on create (decision f)', () => {
 		expect(createUserInputSchema.safeParse({ ...base, password: 'password-1' }).success).toBe(true)
 		expect(createUserInputSchema.safeParse(base).success).toBe(false)
 		expect(createUserInputSchema.safeParse({ ...base, password: '1234567' }).success).toBe(false)
-		expect(createUserInputSchema.safeParse({ ...base, password: 'x'.repeat(129) }).success).toBe(
+		expect(createUserInputSchema.safeParse({ ...base, password: 'x'.repeat(72) }).success).toBe(
+			true,
+		)
+		expect(createUserInputSchema.safeParse({ ...base, password: 'x'.repeat(73) }).success).toBe(
 			false,
 		)
 	})

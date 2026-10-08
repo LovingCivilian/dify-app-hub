@@ -45,6 +45,22 @@ describe('changePasswordAction', () => {
 		expect(changeOwnPassword).not.toHaveBeenCalled()
 	})
 
+	it('answers invalid_input for a new password past 72 bytes without asking the DAL', async () => {
+		expect(await changePasswordAction({ ...input, newPassword: 'x'.repeat(73) })).toMatchObject({
+			ok: false,
+			code: 'invalid_input',
+			fieldErrors: { newPassword: expect.any(Array) },
+		})
+		expect(changeOwnPassword).not.toHaveBeenCalled()
+	})
+
+	it('takes a current password of any length, as sign-in does (one set before the 72-byte cap)', async () => {
+		changeOwnPassword.mockResolvedValue({ ok: true, data: undefined })
+		const longCurrent = { ...input, currentPassword: 'x'.repeat(129) }
+		expect(await changePasswordAction(longCurrent)).toEqual({ ok: true, data: undefined })
+		expect(changeOwnPassword).toHaveBeenCalledWith(member, longCurrent)
+	})
+
 	it('passes the DAL refusal of a wrong current password through', async () => {
 		const refusal = {
 			ok: false,

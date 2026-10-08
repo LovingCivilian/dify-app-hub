@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { changePasswordAction } from '@/app/actions'
 import { useActionTransition } from '@/hooks/use-action-transition'
-import { PASSWORD_MAX, PASSWORD_MIN } from '@/lib/auth/fields'
+import { PASSWORD_MIN, passwordBytesRule } from '@/lib/auth/fields'
 
 import { changePasswordFailureKey } from './account-errors'
 import { signOutAfterPasswordChange } from './sign-out'
@@ -90,7 +90,7 @@ function ChangePasswordForm({ run }: { run: (work: () => Promise<void>) => Promi
 				rules={[
 					{ required: true, message: t('auth.password_required') },
 					{ min: PASSWORD_MIN, message: t('auth.password_min_8') },
-					{ max: PASSWORD_MAX, message: t('auth.password_max_128') },
+					passwordBytesRule(t('auth.password_too_long')),
 				]}
 			>
 				<Input.Password autoComplete="new-password" />
