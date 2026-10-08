@@ -147,6 +147,40 @@ export const nodeFinished = (
 			finished_at: base.created_at + 1,
 		},
 	})
+/**
+ * A node as Dify's replay for `include_state_snapshot` restates it (1.17.1, services/workflow_event_snapshot_service.py
+ * `_build_node_finished_event`): the stored status and timing, every detail null (`to_ignore_detail_dict`). A Human
+ * Input node waiting on its form is stored `paused`.
+ */
+export const replayedNodeFinished = (
+	base: StreamBase,
+	runId: string,
+	node: StubNode,
+	status: 'succeeded' | 'paused',
+) =>
+	withBase(base, 'node_finished', {
+		workflow_run_id: runId,
+		data: {
+			id: node.id,
+			node_id: node.nodeId,
+			node_type: node.type,
+			title: node.title,
+			index: node.index,
+			predecessor_node_id: null,
+			inputs: null,
+			process_data: null,
+			outputs: null,
+			status,
+			error: null,
+			elapsed_time: 0.42,
+			execution_metadata: null,
+			created_at: base.created_at,
+			finished_at: base.created_at + 1,
+			files: [],
+			iteration_id: null,
+			loop_id: null,
+		},
+	})
 /** StreamEventNodeRetry. */
 export const nodeRetry = (base: StreamBase, runId: string, node: StubNode, attempt: number) =>
 	withBase(base, 'node_retry', {

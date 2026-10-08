@@ -33,8 +33,9 @@ describe('createDifyFetch', () => {
 			resume: { workflowRunId: 'run-9', message: { role: 'assistant', content: 'x', ids: {} } },
 		})
 		await createDifyFetch(APP)('ignored', { body } as never)
+		// Opened before the form is answered: Dify's replay of the run, and one stream across its pauses.
 		expect(fetchMock).toHaveBeenCalledWith(
-			`/api/dify/${APP}/workflow/run-9/events`,
+			`/api/dify/${APP}/workflow/run-9/events?include_state_snapshot=true&continue_on_pause=true`,
 			expect.objectContaining({ method: 'GET' }),
 		)
 		expect(fetchMock.mock.calls[0][1]).not.toHaveProperty('body')

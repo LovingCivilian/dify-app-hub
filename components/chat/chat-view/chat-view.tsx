@@ -21,7 +21,7 @@ import UserShell from '@/components/shell/user-shell'
 import type { HumanInputSubmission } from '@/lib/dify/types'
 
 import { useAppContext } from '../app-context'
-import { failureText, humanInputFailureText } from '../hooks/dify-errors'
+import { ContinuationLostError, failureText, humanInputFailureText } from '../hooks/dify-errors'
 import { useConversations } from '../hooks/use-conversations'
 import { useDifyChat, type SendParams } from '../hooks/use-dify-chat'
 import { useSpeechToText } from '../hooks/use-speech-to-text'
@@ -284,15 +284,20 @@ export default function ChatView() {
 	// Answer buttons and forms post back only between replies (AnswerButton is disabled without it).
 	const answerSend = chat.isRequesting ? undefined : postBack
 
-	// The bubble whose human input form is being submitted, until its continuation has started (spec §4.6).
+	// Stable while a reply streams; it changes when one starts or ends (the actions wait meanwhile).
+	const isRequesting = chat.isRequesting
+	// The bubble whose human input form is being answered, until Dify has accepted or refused the answer (spec §4.6).
 	const [hitlSubmitting, setHitlSubmitting] = useState<string | number>()
-	const resume = chat.resume
+	// Forms Dify accepted an answer for in this page session: forms are one-shot (Dify's "Human Input Flow" guide:
+	// "A successful submit is final"), so a second click could only be refused.
+	const [answered, setAnswered] = useState<ReadonlySet<string>>(() => new Set())
+	const answerForm = chat.answerForm
 	/**
-	 * Submits a paused run's form, then resumes the run into the same message (spec §4.6 steps 2–3). A
-	 * refused form (Dify's message, or the generic text) and a resume that cannot start (x-sdk's
-	 * `onReload` throws for a message the store does not hold) are reported here, each in its own words
-	 * (humanInputFailureText); the form stays submittable. A resumed stream that fails keeps the paused
-	 * message with its error (requestFallback, `hitl.resume_failed` without Dify's text).
+	 * Answers a paused run's form; the run goes on in the same message (spec §4.6, in Dify's order: answerInOrder,
+	 * ADR-0017 note of 2026-10-08). An answer that did not go out is reported here in its own words
+	 * (humanInputFailureText), and the form stays as it was filled; an answer Dify accepted after the stream closed
+	 * says so, and a continuation that fails once it started keeps the paused message with its error (requestFallback,
+	 * `hitl.resume_failed` both).
 	 */
 	const submitHumanInput = useCallback(
 		async (
@@ -301,24 +306,25 @@ export default function ChatView() {
 			inputs: Record<string, unknown>,
 			actionId: string,
 		) => {
-			const form = message.humanInput
-			if (!form?.formToken) return
+			const formToken = message.humanInput?.formToken
+			if (!formToken) return
 			setHitlSubmitting(key)
-			let accepted = false
 			try {
-				await difyApi.submitHumanInput(form.formToken, {
+				const accepted = await answerForm(key, message, {
 					inputs: inputs as HumanInputSubmission['inputs'],
 					action: actionId,
 				})
-				accepted = true
-				resume(key, form.workflowRunId, message)
+				if (accepted) setAnswered(previous => new Set(previous).add(formToken))
 			} catch (error) {
-				toast.error(humanInputFailureText(error, accepted, t))
+				if (error instanceof ContinuationLostError)
+					setAnswered(previous => new Set(previous).add(formToken))
+				const text = humanInputFailureText(error, t)
+				if (text) toast.error(text)
 			} finally {
 				setHitlSubmitting(undefined)
 			}
 		},
-		[difyApi, resume, t, toast],
+		[answerForm, t, toast],
 	)
 
 	// Stable between renders: Bubble.List's role map follows it, and a new map re-renders every bubble.
@@ -337,9 +343,13 @@ export default function ChatView() {
 								// One antd Form per form: a later form in the same message starts afresh.
 								key={`${form.workflowRunId}:${form.nodeId ?? ''}:${form.formToken}`}
 								humanInput={form}
-								// Also while the resumed run connects and streams, until the form is filled.
+								// Also once Dify accepted its answer, and while a reply streams, except the resume
+								// stream that waits on this form (Dify kept the run paused after a refused answer).
 								submitting={
-									hitlSubmitting === key || info.status === 'loading' || info.status === 'updating'
+									hitlSubmitting === key ||
+									answered.has(form.formToken) ||
+									(isRequesting &&
+										!(info.status === 'updating' && message.workflow?.status === 'paused'))
 								}
 								onSubmit={(inputs, actionId) => submitHumanInput(key, message, inputs, actionId)}
 								loadForm={
@@ -351,7 +361,7 @@ export default function ChatView() {
 				/>
 			)
 		},
-		[answerSend, difyApi, hitlSubmitting, submitHumanInput],
+		[answerSend, answered, difyApi, hitlSubmitting, isRequesting, submitHumanInput],
 	)
 
 	// The footer's callbacks stay stable while a reply streams (a new one would rebuild Bubble.List's role
@@ -423,8 +433,6 @@ export default function ChatView() {
 		() => new Set(unanswered ? unanswered.split('\n') : []),
 		[unanswered],
 	)
-	// Stable while a reply streams; it changes when one starts or ends (the actions wait meanwhile).
-	const isRequesting = chat.isRequesting
 	const renderFooter = useCallback(
 		(message: DifyChatMessage, info: BubbleInfo) =>
 			info.key === undefined ? null : (

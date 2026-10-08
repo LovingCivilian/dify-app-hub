@@ -1,4 +1,5 @@
 import type { StubMode } from './apps'
+import type { StubNode } from './events'
 
 /** One item of GET /messages (OpenAPI: ConversationMessageItem), as the stub stores it. */
 export interface StoredMessage {
@@ -33,7 +34,12 @@ export interface PendingForm {
 	messageId: string
 	taskId: string
 	expiresAt: number
-	/** Set once the resumed stream has ended: the run is finished and a new /events call answers workflow_finished. */
+	/** The Human Input node of the form (scenarios.ts REVIEW_NODE, or SECOND_REVIEW_NODE in the `chain` scenario). */
+	node: StubNode
+	/** The run's query words: `fast` runs the continuation before the submission is answered, `chain` pauses again. */
+	fast?: boolean
+	chain?: boolean
+	/** Set once the resumed run has finished: a new /events call answers workflow_finished. */
 	finished?: boolean
 	submitted?: { inputs: Record<string, string>; action: string }
 }

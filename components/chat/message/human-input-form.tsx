@@ -28,7 +28,7 @@ import MessageMarkdown from './message-markdown'
 
 export interface HumanInputFormProps {
 	humanInput: HumanInputState
-	/** This form's submission, or the continuation it started, is on its way. */
+	/** The form cannot be answered now: its answer or the continuation is on its way, or another reply streams. */
 	submitting: boolean
 	/**
 	 * Submits the values (OpenAPI, POST /form/human_input `inputs`) with the chosen action. It reports a
@@ -42,6 +42,13 @@ export interface HumanInputFormProps {
 	 */
 	loadForm?: () => Promise<HumanInputFormDefinition>
 }
+
+/**
+ * What was typed into each open form, by token, until the form is filled or expires: x-sdk re-creates a reply whose
+ * stream fails or is stopped (useXChat `onError`), so the bubble and this form mount again, and an answer that did
+ * not go out keeps its values (ADR-0017 note of 2026-10-08).
+ */
+const drafts = new Map<string, Record<string, unknown>>()
 
 /** Every input must be answered, as in Dify's own form (a blank paragraph or an empty file list counts as empty). */
 const fieldRules = (field: HumanInputField, message: string): FormRule[] => {
@@ -109,12 +116,19 @@ export default function HumanInputForm({
 		humanInput.state === 'pending' && expiredNow
 			? 'expired'
 			: humanInputPhase(humanInput, Math.floor(Date.now() / 1000))
+	// A filled or timed-out form takes no more answers: its draft goes.
+	useEffect(() => {
+		if (phase === 'filled' || phase === 'expired') drafts.delete(humanInput.formToken)
+	}, [phase, humanInput.formToken])
 	// A form delivered by email or to the console has no token (OpenAPI: `form_token` is null then).
 	const noToken = !humanInput.formToken
 	const disabled = phase !== 'pending' || noToken || submitting
 	// antd Form reads `initialValues` when it mounts, which is after the definition has loaded (the skeleton
 	// stands in until then); a new form gets a new instance (the caller keys it per form).
-	const initialValues = humanInputInitialValues(humanInput)
+	const initialValues = {
+		...humanInputInitialValues(humanInput),
+		...drafts.get(humanInput.formToken),
+	}
 
 	const submit = async (actionId: string) => {
 		if (inFlight.current) return
@@ -204,6 +218,9 @@ export default function HumanInputForm({
 					size="small"
 					initialValues={initialValues}
 					disabled={disabled}
+					onValuesChange={(_, values) => {
+						if (humanInput.formToken) drafts.set(humanInput.formToken, values)
+					}}
 				>
 					{humanInput.inputs.map(field => (
 						<Form.Item

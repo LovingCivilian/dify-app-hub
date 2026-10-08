@@ -2,7 +2,9 @@ import type { TFunction } from 'i18next'
 import { describe, expect, it } from 'vitest'
 
 import {
+	ContinuationLostError,
 	failureText,
+	FormNotWaitingError,
 	humanInputFailureText,
 	toDifyError,
 } from '@/components/chat/hooks/dify-errors'
@@ -63,21 +65,24 @@ describe('failureText', () => {
 
 describe('humanInputFailureText', () => {
 	it("gives Dify's reason for a refused form, or the generic text without one", () => {
-		expect(humanInputFailureText(new DifyRequestError(412, 'x', 'Expired.'), false, t)).toBe(
-			'hitl.submit_failed_reason:Expired.',
+		expect(humanInputFailureText(new DifyRequestError(400, 'x', 'Invalid.'), t)).toBe(
+			'hitl.submit_failed_reason:Invalid.',
 		)
-		expect(humanInputFailureText(new TypeError('net'), false, t)).toBe('hitl.submit_failed')
+		expect(humanInputFailureText(new TypeError('net'), t)).toBe('hitl.submit_failed')
 	})
 	it("gives the app's own refusal as the translated reason", () => {
 		expect(
-			humanInputFailureText(
-				new DifyRequestError(403, 'app_disabled', 'This app is disabled.'),
-				false,
-				t,
-			),
+			humanInputFailureText(new DifyRequestError(403, 'app_disabled', 'This app is disabled.'), t),
 		).toBe('hitl.submit_failed_reason:chat.error_app_disabled')
 	})
-	it('says the answer was sent when only the continuation failed', () => {
-		expect(humanInputFailureText(new Error('x'), true, t)).toBe('hitl.resume_failed')
+	it('says the run no longer waits when the stream found no pause to answer', () => {
+		expect(humanInputFailureText(new FormNotWaitingError(), t)).toBe('hitl.not_waiting')
+	})
+	it('says the answer was sent when its continuation cannot be shown here', () => {
+		expect(humanInputFailureText(new ContinuationLostError(), t)).toBe('hitl.resume_failed')
+	})
+	it("says nothing for the user's own stop", () => {
+		const stopped = Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' })
+		expect(humanInputFailureText(stopped, t)).toBe('')
 	})
 })

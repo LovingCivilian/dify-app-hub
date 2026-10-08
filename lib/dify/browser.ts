@@ -158,8 +158,13 @@ export const createDifyApi = (appId: string) => {
 		remoteFileUrl: (url: string) => `${base}/files/remote?url=${encodeURIComponent(url)}`,
 		/** For x-sdk's XRequest (components/chat/provider/dify-fetch.ts). */
 		chatMessagesUrl: `${base}/chat-messages`,
+		/**
+		 * A paused run's events, opened before its form is answered: Dify's replay of the run first, then one stream
+		 * across its pauses (API guide "Human Input Flow", step 5; Dify's own chat opens it so, ADR-0017 note of
+		 * 2026-10-08).
+		 */
 		workflowEventsUrl: (workflowRunId: string) =>
-			`${base}/workflow/${segment(workflowRunId)}/events`,
+			`${base}/workflow/${segment(workflowRunId)}/events${queryString({ include_state_snapshot: true, continue_on_pause: true })}`,
 	}
 }
 

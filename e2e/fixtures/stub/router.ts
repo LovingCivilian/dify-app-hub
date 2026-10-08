@@ -8,11 +8,14 @@ import type { StreamEvent } from './events'
 import {
 	chatScenario,
 	has,
+	hasWord,
 	parametersFor,
 	resumeScenario,
 	REVIEW_NODE,
 	runDelay,
 	runScenario,
+	SECOND_REVIEW_NODE,
+	snapshotScenario,
 	streamDelay,
 } from './scenarios'
 import {
@@ -102,6 +105,98 @@ const sse = (
 		timer = setTimeout(tick, delayMs)
 	}
 	tick()
+}
+
+/**
+ * The listeners of each paused or resumed run, by run id. Dify publishes a run's events to a Redis pub/sub topic
+ * (1.17.1, MessageGenerator.retrieve_events): a listener gets the events published while it listens, and nothing is
+ * kept for one that comes later.
+ */
+const runListeners = new Map<string, Set<(event: StreamEvent) => void>>()
+const listen = (runId: string, listener: (event: StreamEvent) => void) => {
+	const listeners = runListeners.get(runId) ?? new Set()
+	runListeners.set(runId, listeners)
+	listeners.add(listener)
+	return () => listeners.delete(listener)
+}
+const publish = (runId: string, event: StreamEvent) => {
+	// A listener may leave while it is called (the end of its stream); a Set's iteration allows that.
+	for (const listener of runListeners.get(runId) ?? []) listener(event)
+}
+
+/** The run's latest form: its state is the run's (paused while unanswered, resumed once answered, then finished). */
+const latestFormOf = (runId: string) =>
+	[...pendingForms.values()].filter(form => form.workflowRunId === runId).at(-1)
+
+const baseOf = (form: PendingForm) => ({
+	task_id: form.taskId,
+	message_id: form.messageId,
+	conversation_id: form.conversationId,
+	created_at: now(),
+})
+
+/**
+ * Runs the continuation of an answered form the way Dify does: at once, in a worker (1.17.1,
+ * HumanInputService.enqueue_resume), whoever listens. `fast` publishes the whole continuation before the submission
+ * is answered (a run with nothing slow after its form); otherwise one event every 20 ms from the next tick. A
+ * `chain` run pauses again at a second form, which is registered as the run's latest form.
+ */
+const resumeRun = (form: PendingForm, mode: StubMode, fileUrl: string) => {
+	const submitted = form.submitted
+	if (!submitted) return
+	const runId = form.workflowRunId
+	const base = baseOf(form)
+	const next = form.chain ? { formToken: randomUUID(), expiresAt: form.expiresAt } : undefined
+	const events = resumeScenario(
+		{ base, runId, formToken: form.formToken, fileUrl },
+		submitted.action,
+		submitted.inputs,
+		{ node: form.node, next },
+	)
+	const store = forUser(form.user, mode)
+	const message = () => store.messages.find(m => m.id === form.messageId)
+	const onEvent = (event: StreamEvent) => {
+		if (event.event !== 'human_input_required' || !next) return
+		pendingForms.set(next.formToken, {
+			...form,
+			formToken: next.formToken,
+			node: SECOND_REVIEW_NODE,
+			chain: false,
+			submitted: undefined,
+		})
+		// Dify lists a message's contents oldest first: the answered form, then the one the run waits on.
+		const stored = message()
+		if (stored)
+			stored.extra_contents = [...stored.extra_contents, ev.pendingHumanInputContent(event)]
+	}
+	const onDone = () => {
+		if (next) return
+		const stored = message()
+		if (stored) {
+			stored.answer = events
+				.filter(e => e.event === 'message')
+				.map(e => String((e as { answer?: string }).answer ?? ''))
+				.join('')
+		}
+		// The form stays (answering 412 as submitted); the run is finished from now on.
+		form.finished = true
+	}
+	let i = 0
+	const step = () => {
+		while (i < events.length) {
+			const event = events[i++]
+			onEvent(event)
+			// The run's records are written before its last event goes out.
+			if (i === events.length) onDone()
+			publish(runId, event)
+			if (!form.fast && i < events.length) {
+				setTimeout(step, 20)
+				return
+			}
+		}
+	}
+	if (form.fast) step()
+	else setTimeout(step, 0)
 }
 
 const userOf = (url: URL, body: Record<string, unknown> | null) =>
@@ -444,69 +539,70 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 		const message = forUser(form.user, mode).messages.find(m => m.id === form.messageId)
 		if (message) {
 			message.extra_contents = [
+				...message.extra_contents.filter(
+					content =>
+						(content as { form_definition?: { form_token?: string } | null }).form_definition
+							?.form_token !== form.formToken,
+				),
 				ev.submittedHumanInputContent(
 					form.workflowRunId,
-					REVIEW_NODE.nodeId,
+					form.node.nodeId,
 					action,
 					form.submitted.inputs,
 				),
 			]
 		}
+		resumeRun(form, mode, fileUrl)
 		return json(res, 200, {})
 	}
 	if (method === 'GET' && /^\/workflow\/[^/]+\/events$/.test(path)) {
 		const runId = idAt(path, 2)
 		const user = userOf(url, null)
-		const form = [...pendingForms.values()].find(f => f.workflowRunId === runId)
+		const form = latestFormOf(runId)
 		if (form && form.user !== user) {
 			return difyError(res, 404, 'not_found', 'Workflow run not found')
 		}
-		const base = {
-			task_id: form?.taskId ?? randomUUID(),
-			message_id: form?.messageId ?? randomUUID(),
-			conversation_id: form?.conversationId ?? '',
-			created_at: now(),
-		}
-		// A run that is not paused here has finished: "the stream emits a single workflow_finished event and closes".
+		const base = form
+			? baseOf(form)
+			: { task_id: randomUUID(), message_id: randomUUID(), conversation_id: '', created_at: now() }
+		// A finished run: "the stream emits a single workflow_finished event and closes" (no ping on that path).
 		if (!form || form.finished) {
-			return sse(res, [ev.workflowFinished(base, runId, {})], 20, { ping: true })
+			return sse(res, [ev.workflowFinished(base, runId, {})], 20)
 		}
-		// Still waiting for the form: the stream replays the pause and closes (continue_on_pause defaults to false).
-		if (!form.submitted) {
-			const required = ev.humanInputRequired(
-				base,
-				runId,
-				form.formToken,
-				REVIEW_NODE.nodeId,
-				form.expiresAt,
-			)
-			const paused = ev.workflowPaused(
-				base,
-				runId,
-				[REVIEW_NODE.nodeId],
-				[ev.pauseReason(required)],
-			)
-			return sse(res, [paused], 20, { ping: true })
-		}
-		const events = resumeScenario(
-			{ base, runId, formToken: form.formToken, fileUrl },
-			form.submitted.action,
-			form.submitted.inputs,
-		)
-		return sse(res, events, 20, {
-			ping: true,
-			onDone: () => {
-				const msg = forUser(form.user, mode).messages.find(m => m.id === form.messageId)
-				if (msg) {
-					msg.answer = events
-						.filter(e => e.event === 'message')
-						.map(e => String((e as { answer?: string }).answer ?? ''))
-						.join('')
-				}
-				// The form stays (answering 412 as submitted); the run is finished from now on.
-				form.finished = true
-			},
+		const snapshot = url.searchParams.get('include_state_snapshot') === 'true'
+		const continueOnPause = url.searchParams.get('continue_on_pause') === 'true'
+		res.writeHead(200, {
+			'content-type': 'text/event-stream',
+			'cache-control': 'no-cache',
+			connection: 'keep-alive',
 		})
+		res.write(ev.PING_FRAME)
+		const write = (event: StreamEvent) => res.write(`data: ${JSON.stringify(event)}\n\n`)
+		// Each pause closes the stream unless `continue_on_pause` (stream_topic_events' terminal events).
+		const terminal = (event: StreamEvent) =>
+			event.event === 'workflow_finished' || (event.event === 'workflow_paused' && !continueOnPause)
+		if (snapshot) {
+			const waiting = !form.submitted
+			const replay = snapshotScenario(
+				{ base, runId, formToken: form.formToken, fileUrl },
+				forUser(form.user, mode).messages.find(m => m.id === form.messageId)?.answer ?? '',
+				form.node === SECOND_REVIEW_NODE || !waiting ? [REVIEW_NODE] : [],
+				waiting
+					? { node: form.node, formToken: form.formToken, expiresAt: form.expiresAt }
+					: undefined,
+			)
+			for (const event of replay) write(event)
+			if (replay.some(terminal)) return res.end()
+		}
+		const stop = listen(runId, event => {
+			write(event)
+			if (terminal(event)) {
+				stop()
+				res.end()
+			}
+		})
+		res.on('close', stop)
+		return
 	}
 
 	if (method === 'POST' && path === '/chat-messages') {
@@ -617,6 +713,9 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 				messageId: base.message_id,
 				taskId: base.task_id,
 				expiresAt: form.expiration_time,
+				node: REVIEW_NODE,
+				fast: hasWord(query, 'fast'),
+				chain: hasWord(query, 'chain'),
 			})
 		}
 		return sse(res, events, streamDelay(query, events), { ping: mode === 'advanced-chat' })

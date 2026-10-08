@@ -41,6 +41,47 @@ const readStream = async (response: Response) => {
 	}
 }
 
+/**
+ * An SSE response read frame by frame: `until` reads on until a condition holds for the `data:` events so far, or
+ * the stream ends (`ended`), so a stream that stays open can be read while requests are made beside it.
+ */
+const openStream = async (url: string) => {
+	const response = await fetch(url)
+	const reader = response.body!.getReader()
+	const decoder = new TextDecoder()
+	const frames: string[] = []
+	const events: Frame[] = []
+	let buffer = ''
+	let ended = false
+	const until = async (done: (events: Frame[]) => boolean = () => false) => {
+		while (!ended && !done(events)) {
+			const chunk = await reader.read()
+			if (chunk.done) {
+				ended = true
+				break
+			}
+			buffer += decoder.decode(chunk.value, { stream: true })
+			for (let at = buffer.indexOf('\n\n'); at >= 0; at = buffer.indexOf('\n\n')) {
+				const frame = buffer.slice(0, at)
+				buffer = buffer.slice(at + 2)
+				frames.push(frame)
+				if (frame.startsWith('data: ')) events.push(JSON.parse(frame.slice(6)) as Frame)
+			}
+		}
+		return events.map(e => e.event)
+	}
+	return {
+		response,
+		frames,
+		events,
+		until,
+		ended: () => ended,
+		close: () => reader.cancel(),
+	}
+}
+const pausedAgain = (count: number) => (events: Frame[]) =>
+	events.filter(e => e.event === 'workflow_paused').length >= count
+
 const chat = async (prefix: string, user: string, query: string, conversationId?: string) =>
 	readStream(
 		await post(`/v1${prefix}/chat-messages`, {
@@ -341,6 +382,15 @@ describe('stub router', () => {
 		})
 		expect(invalid.status).toBe(400)
 		expect(await invalid.json()).toMatchObject({ code: 'invalid_form_data' })
+		const wrongUser = await fetch(
+			`${base}/v1/chatflow/workflow/${required.workflow_run_id}/events?user=bob`,
+		)
+		expect(wrongUser.status).toBe(404)
+		// Listening before the submission, as Dify's own chat does: the stream opens with a ping and waits (the
+		// stub registers the listener before its first byte goes out, so the open response means it listens).
+		const resumed = await openStream(
+			`${base}/v1/chatflow/workflow/${required.workflow_run_id}/events?user=alice`,
+		)
 		const submitted = await post(`/v1/chatflow/form/human_input/${token}`, {
 			action: 'approve',
 			inputs: { feedback: 'ship it', priority: 'high' },
@@ -370,16 +420,8 @@ describe('stub router', () => {
 		})
 		expect(again.status).toBe(412)
 		expect(await again.json()).toMatchObject({ code: 'human_input_form_submitted' })
-
-		const wrongUser = await fetch(
-			`${base}/v1/chatflow/workflow/${required.workflow_run_id}/events?user=bob`,
-		)
-		expect(wrongUser.status).toBe(404)
-		const resumed = await readStream(
-			await fetch(`${base}/v1/chatflow/workflow/${required.workflow_run_id}/events?user=alice`),
-		)
-		expect(resumed.openedWithPing).toBe(true)
-		expect(resumed.events.map(e => e.event)).toEqual([
+		// The listener opened before the submission gets the whole continuation (the next test has the replay).
+		expect(await resumed.until()).toEqual([
 			'workflow_started',
 			'human_input_form_filled',
 			'node_finished',
@@ -390,6 +432,7 @@ describe('stub router', () => {
 			'message_end',
 			'workflow_finished',
 		])
+		expect(resumed.frames[0]).toBe('event: ping')
 		expect((await messages())[0].answer).toBe('Approved: ship it')
 		// Forms are one-shot: after the resume the form stays and answers 412 as submitted.
 		const submittedAgain = await fetch(`${base}/v1/chatflow/form/human_input/${token}`)
@@ -399,10 +442,140 @@ describe('stub router', () => {
 			status: 412,
 		})
 		// A finished run answers a single workflow_finished instead of replaying the resumed stream.
-		const finished = await readStream(
-			await fetch(`${base}/v1/chatflow/workflow/${required.workflow_run_id}/events?user=alice`),
+		const finished = await openStream(
+			`${base}/v1/chatflow/workflow/${required.workflow_run_id}/events?user=alice`,
 		)
-		expect(finished.events.map(e => e.event)).toEqual(['workflow_finished'])
+		expect(await finished.until()).toEqual(['workflow_finished'])
+		expect(finished.frames).toHaveLength(1)
+	})
+
+	// Dify 1.17.1: the submission resumes the run in a worker at once (HumanInputService.enqueue_resume), and the run's
+	// events go to the listeners of its pub/sub topic (MessageGenerator.retrieve_events); `include_state_snapshot`
+	// replays the run first (services/workflow_event_snapshot_service.py), `continue_on_pause` keeps the stream across
+	// pauses.
+	it("sends a resumed run's events only to its listeners, and replays the run on request", async () => {
+		const pause = async (query: string) => {
+			const run = await chat('/chatflow', 'alice', query)
+			const required = run.events.find(e => e.event === 'human_input_required') as unknown as {
+				workflow_run_id: string
+				data: { form_token: string }
+			}
+			return { runId: required.workflow_run_id, token: required.data.form_token }
+		}
+		const answer = (token: string) =>
+			post(`/v1/chatflow/form/human_input/${token}`, {
+				action: 'approve',
+				inputs: { feedback: 'ok', priority: 'low' },
+				user: 'alice',
+			})
+		const events = (runId: string, query = '') =>
+			openStream(`${base}/v1/chatflow/workflow/${runId}/events?user=alice${query}`)
+
+		// `fast`: the run has finished by the time the submission is answered; a listener that comes after it gets
+		// the finished run's single event, nothing of the continuation.
+		const fast = await pause('please hitl fast')
+		expect((await answer(fast.token)).status).toBe(200)
+		expect(await (await events(fast.runId)).until()).toEqual(['workflow_finished'])
+
+		// The replay of a paused run: the nodes without details (the waiting Human Input node `paused`), the form,
+		// the pause; with continue_on_pause the stream stays open for the continuation.
+		const paused = await pause('please hitl')
+		const stream = await events(paused.runId, '&include_state_snapshot=true&continue_on_pause=true')
+		expect(await stream.until(pausedAgain(1))).toEqual([
+			'workflow_started',
+			'message_replace',
+			'node_started',
+			'node_finished',
+			'node_started',
+			'node_finished',
+			'human_input_required',
+			'workflow_paused',
+		])
+		expect(stream.events[0]).toMatchObject({ data: { reason: 'initial' } })
+		expect(stream.events[5]).toMatchObject({
+			data: { node_id: 'review', status: 'paused', inputs: null, outputs: null },
+		})
+		expect(stream.events[6]).toMatchObject({ data: { form_token: paused.token } })
+		expect((await answer(paused.token)).status).toBe(200)
+		expect((await stream.until()).slice(8)).toEqual([
+			'workflow_started',
+			'human_input_form_filled',
+			'node_finished',
+			'node_started',
+			'message',
+			'node_finished',
+			'message_end',
+			'workflow_finished',
+		])
+
+		// Without continue_on_pause the replayed pause ends the stream.
+		const closing = await pause('please hitl')
+		const replayOnly = await events(closing.runId, '&include_state_snapshot=true')
+		expect((await replayOnly.until()).at(-1)).toBe('workflow_paused')
+		expect(replayOnly.ended()).toBe(true)
+	})
+
+	it('pauses a `chain` run again at a second form that gets its own submission', async () => {
+		const run = await chat('/chatflow', 'alice', 'please hitl chain')
+		const required = run.events.find(e => e.event === 'human_input_required') as unknown as {
+			workflow_run_id: string
+			data: { form_token: string }
+		}
+		const runId = required.workflow_run_id
+		const stream = await openStream(
+			`${base}/v1/chatflow/workflow/${runId}/events?user=alice&include_state_snapshot=true&continue_on_pause=true`,
+		)
+		await stream.until(pausedAgain(1))
+		await post(`/v1/chatflow/form/human_input/${required.data.form_token}`, {
+			action: 'approve',
+			inputs: { feedback: 'first', priority: 'low' },
+			user: 'alice',
+		})
+		expect((await stream.until(pausedAgain(2))).slice(8)).toEqual([
+			'workflow_started',
+			'human_input_form_filled',
+			'node_finished',
+			'node_started',
+			'human_input_required',
+			'workflow_paused',
+		])
+		const second = (
+			stream.events[12] as unknown as { data: { form_token: string; node_id: string } }
+		).data
+		expect(second.node_id).toBe('review-2')
+		expect(second.form_token).not.toBe(required.data.form_token)
+		await stream.close()
+		const history = await (
+			await fetch(
+				`${base}/v1/chatflow/messages?conversation_id=${run.events[0].conversation_id}&user=alice`,
+			)
+		).json()
+		expect(
+			(history.data[0].extra_contents as { submitted: boolean }[]).map(c => c.submitted),
+		).toEqual([true, false])
+		expect((await fetch(`${base}/v1/chatflow/form/human_input/${second.form_token}`)).status).toBe(
+			200,
+		)
+
+		const again = await openStream(
+			`${base}/v1/chatflow/workflow/${runId}/events?user=alice&include_state_snapshot=true&continue_on_pause=true`,
+		)
+		await again.until(pausedAgain(1))
+		expect(again.events.find(e => e.event === 'human_input_required')).toMatchObject({
+			data: { form_token: second.form_token, node_id: 'review-2' },
+		})
+		await post(`/v1/chatflow/form/human_input/${second.form_token}`, {
+			action: 'approve',
+			inputs: { feedback: 'second', priority: 'high' },
+			user: 'alice',
+		})
+		expect((await again.until()).at(-1)).toBe('workflow_finished')
+		const answered = await (
+			await fetch(
+				`${base}/v1/chatflow/messages?conversation_id=${run.events[0].conversation_id}&user=alice`,
+			)
+		).json()
+		expect(answered.data[0].answer).toBe('Approved: second')
 	})
 
 	it('describes an uploaded file back with 201 and answers an empty upload with Dify 400', async () => {

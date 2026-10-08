@@ -64,6 +64,17 @@ const nodeFrom = (data: NodeData, status: WorkflowNode['status']): WorkflowNode 
 	status,
 })
 
+/**
+ * A finished node's status. Dify's replay also lists the nodes that have not finished: a Human Input node waiting
+ * on its form is stored `paused` (graphon 0.7.0 `WorkflowNodeExecutionStatus`, Dify 1.17.1's pin), and it is
+ * still running for the chat. `failed`, `exception` and `stopped` are errors.
+ */
+const nodeStatus = (status: string | undefined): WorkflowNode['status'] => {
+	if (status === 'succeeded') return 'success'
+	if (status === 'paused' || status === 'running' || status === 'pending') return 'running'
+	return 'error'
+}
+
 const workflowOf = (message: DifyChatMessage): WorkflowState =>
 	message.workflow ?? { status: 'running', nodes: [] }
 
@@ -140,38 +151,44 @@ export const applyEvent = (origin: DifyChatMessage, event: DifyStreamEvent): Dif
 		}
 		case 'workflow_started': {
 			const workflow = workflowOf(message)
-			const resumption = data.reason === 'resumption'
+			const runId = event.workflow_run_id ?? String(data.id ?? workflow.runId ?? '')
+			// A resumed run goes on with its nodes, and so does the run Dify replays for a resume stream
+			// (`include_state_snapshot`: a `workflow_started` with reason `initial` for the run the message shows).
+			const known =
+				data.reason === 'resumption' || (workflow.runId !== undefined && workflow.runId === runId)
 			return {
 				...message,
-				workflow: {
-					runId: event.workflow_run_id ?? String(data.id ?? workflow.runId ?? ''),
-					status: 'running',
-					nodes: resumption ? workflow.nodes : [],
-				},
+				workflow: { runId, status: 'running', nodes: known ? workflow.nodes : [] },
 			}
 		}
 		case 'node_started':
+			// A node execution starts once (the id is the execution's): a new one runs, and one the message already
+			// shows (retrying, or finished in Dify's replay) stays as it is.
 			return {
 				...message,
-				workflow: updateNode(workflowOf(message), data as NodeData, node => ({
-					...node,
-					status: node.status === 'retrying' ? 'retrying' : 'running',
-				})),
+				workflow: updateNode(workflowOf(message), data as NodeData, node => node),
 			}
 		case 'node_finished': {
+			// Dify's replay for a resume stream sends the run's nodes without their details (the snapshot's
+			// `to_ignore_detail_dict`): what the message already shows of a node stays.
 			const d = data as NodeData
 			return {
 				...message,
-				workflow: updateNode(workflowOf(message), d, node => ({
-					...node,
-					status: d.status === 'succeeded' ? 'success' : 'error',
-					inputs: d.inputs ?? null,
-					outputs: d.outputs ?? null,
-					processData: d.process_data ?? null,
-					elapsedTime: d.elapsed_time,
-					totalTokens: d.execution_metadata?.total_tokens,
-					error: d.error ?? null,
-				})),
+				workflow: updateNode(workflowOf(message), d, node => {
+					const status = nodeStatus(d.status)
+					// A replayed node that has not finished (a Human Input node waiting on its form) has nothing to add.
+					if (status === 'running') return { ...node, status }
+					return {
+						...node,
+						status,
+						inputs: d.inputs ?? node.inputs ?? null,
+						outputs: d.outputs ?? node.outputs ?? null,
+						processData: d.process_data ?? node.processData ?? null,
+						elapsedTime: d.elapsed_time ?? node.elapsedTime,
+						totalTokens: d.execution_metadata?.total_tokens ?? node.totalTokens,
+						error: d.error ?? (status === 'error' ? (node.error ?? null) : null),
+					}
+				}),
 			}
 		}
 		case 'node_retry': {
@@ -274,6 +291,9 @@ export interface DifyChatProviderOptions {
 	onConversationId?: (difyId: string) => void
 }
 
+/** How a resume stream's wait for its pause ended (DifyChatProvider.waitForPause). */
+export type PauseWait = { paused: true } | { paused: false; error?: Error }
+
 // ADR-0017: the one Dify provider; only the three AbstractChatProvider transforms — docs/decisions/0017-build-the-chat-on-ant-design-x.md
 export class DifyChatProvider extends AbstractChatProvider<
 	DifyChatMessage,
@@ -281,6 +301,22 @@ export class DifyChatProvider extends AbstractChatProvider<
 	SSEOutput
 > {
 	private resumeBase: DifyChatMessage | null = null
+	/**
+	 * Where the resume stream of a human input form is (spec §4.6, ADR-0017 note of 2026-10-08): `opening` until
+	 * Dify's replay reaches the pause, `paused` while the run waits on the form, `running` once the run goes on.
+	 */
+	private resumeStage: 'opening' | 'paused' | 'running' | null = null
+	private resumeRunId = ''
+	/** The form the replayed pause waits on (its `human_input_required`). */
+	private pausedToken = ''
+	/** The resume stream carried the run on after its pause. */
+	private wentOn = false
+	private pauseWaiter: ((result: PauseWait) => void) | null = null
+	/**
+	 * The form answered on the current resume stream (accepted by Dify, or the one the run went on from): it no
+	 * longer waits, even before its human_input_form_filled.
+	 */
+	answeredToken: string | undefined
 	private readonly getDifyConversationId: () => string | undefined
 	private readonly onWorkflowUpdate?: (message: DifyChatMessage) => void
 	private readonly onConversationId?: (difyId: string) => void
@@ -297,6 +333,69 @@ export class DifyChatProvider extends AbstractChatProvider<
 		this.onConversationId = onConversationId
 	}
 
+	/**
+	 * Resolves once the resume stream that the next request starts has replayed its pause. Dify builds that replay
+	 * after it subscribed to the run's events (1.17.1, services/workflow_event_snapshot_service.py), and it sends a
+	 * resumed run's events only to the listeners it has (Redis pub/sub), so a form answered from then on loses no
+	 * event; Dify's own chat waits for this pause before it submits a form. Resolves `paused: false` when the stream
+	 * ends first (a finished run answers one `workflow_finished`) or another request starts.
+	 */
+	waitForPause(): Promise<PauseWait> {
+		this.settlePause({ paused: false })
+		return new Promise(resolve => {
+			this.pauseWaiter = resolve
+		})
+	}
+
+	/**
+	 * The resume stream is open and its run waits on the form `formToken` (Dify keeps the run paused after a refused
+	 * answer). A run answered elsewhere may wait on its next form already: the replay names it.
+	 */
+	isPausedOn(workflowRunId: string, formToken?: string): boolean {
+		return (
+			this.resumeStage === 'paused' &&
+			this.resumeRunId === workflowRunId &&
+			(formToken === undefined || this.pausedToken === formToken)
+		)
+	}
+
+	/** The resume stream ended with its run still at the pause: an answer Dify accepted then has no continuation here. */
+	continuationLost(): boolean {
+		return this.resumeStage === null && !this.wentOn
+	}
+
+	/** Dify accepted the answer to `formToken` on the current resume stream. */
+	markAnswered(formToken: string) {
+		this.answeredToken = formToken
+	}
+
+	/** The request ended (XRequest's onSuccess or onError callback): a wait for its pause ends without one. */
+	endResume(error?: Error) {
+		this.resumeStage = null
+		this.settlePause(error ? { paused: false, error } : { paused: false })
+	}
+
+	private settlePause(result: PauseWait) {
+		const resolve = this.pauseWaiter
+		this.pauseWaiter = null
+		resolve?.(result)
+	}
+
+	/**
+	 * A `workflow_paused` on the resume stream: the replayed one opens the way for the answer. A later one is the run
+	 * waiting on its next form; the stream stops there, as a stream without `continue_on_pause` would, so the chat is
+	 * idle while that form waits and its answer opens a stream of its own (XRequest's documented `abort`).
+	 */
+	private onResumePaused() {
+		if (this.resumeStage === 'opening') {
+			this.resumeStage = 'paused'
+			this.settlePause({ paused: true })
+		} else if (this.resumeStage === 'running') {
+			this.resumeStage = null
+			this.request.abort()
+		}
+	}
+
 	transformParams(
 		requestParams: Partial<DifyChatInput>,
 		options: XRequestOptions<DifyChatInput, SSEOutput, DifyChatMessage>,
@@ -306,6 +405,11 @@ export class DifyChatProvider extends AbstractChatProvider<
 		if (requestParams.resume) {
 			// The SDK passes no originMessage on a reload's first chunk; keep the paused message to extend it.
 			this.resumeBase = requestParams.resume.message
+			this.resumeRunId = requestParams.resume.workflowRunId
+			this.resumeStage = 'opening'
+			this.pausedToken = ''
+			this.wentOn = false
+			this.answeredToken = undefined
 			return {
 				...base,
 				user,
@@ -317,6 +421,7 @@ export class DifyChatProvider extends AbstractChatProvider<
 			} as DifyChatInput
 		}
 		this.resumeBase = null
+		this.endResume()
 		return {
 			...base,
 			user,
@@ -358,6 +463,19 @@ export class DifyChatProvider extends AbstractChatProvider<
 		const event = parseEvent(info.chunk?.data)
 		if (!event) return origin
 		const next = applyEvent(origin, event)
+		if (this.resumeStage === 'opening' && event.event === 'human_input_required') {
+			this.pausedToken = String(
+				(event.data as { form_token?: unknown } | undefined)?.form_token ?? '',
+			)
+		}
+		if (this.resumeStage && event.event === 'workflow_paused') this.onResumePaused()
+		else if (this.resumeStage === 'paused') {
+			// The run went on from the form it waited on: that form is answered, here or elsewhere, even before the
+			// submission's own answer is read.
+			this.resumeStage = 'running'
+			this.wentOn = true
+			this.answeredToken ??= this.pausedToken
+		}
 		const difyId = next.ids.conversationId
 		if (difyId && !origin.ids.conversationId) {
 			try {

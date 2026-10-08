@@ -91,7 +91,10 @@ describe('createDifyApi: paths on the app route tree, Dify’s verbs', () => {
 			'/api/dify/app%201/files/remote?url=https%3A%2F%2Fdify.example%2Ffiles%2Fx.png%3Fsign%3D1',
 		)
 		expect(api.chatMessagesUrl).toBe('/api/dify/app%201/chat-messages')
-		expect(api.workflowEventsUrl('run/1')).toBe('/api/dify/app%201/workflow/run%2F1/events')
+		// Dify's replay and one stream across pauses, as its own chat opens it (API guide "Human Input Flow", step 5).
+		expect(api.workflowEventsUrl('run/1')).toBe(
+			'/api/dify/app%201/workflow/run%2F1/events?include_state_snapshot=true&continue_on_pause=true',
+		)
 	})
 })
 

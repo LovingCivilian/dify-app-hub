@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { applyEvent, DifyChatProvider } from '@/components/chat/provider/dify-chat-provider'
 import {
@@ -635,6 +635,130 @@ describe('applyEvent', () => {
 		expect(origin.content).toBe('a')
 		expect(origin.workflow?.nodes[0].status).toBe('running')
 	})
+	// Dify's replay (`include_state_snapshot`) restates the run without the node details
+	// (`to_ignore_detail_dict`) and stores a waiting Human Input node as `paused`.
+	it('keeps the nodes and their details when Dify replays the run the message already shows', () => {
+		const start = { id: 'exec-1', node_id: 'start', node_type: 'start', title: 'Start', index: 1 }
+		const review = {
+			id: 'exec-2',
+			node_id: 'review',
+			node_type: 'human-input',
+			title: 'Review',
+			index: 2,
+		}
+		const shown: DifyChatMessage = {
+			...emptyAssistant(),
+			workflow: {
+				runId: 'run-1',
+				status: 'paused',
+				nodes: [
+					{
+						id: 'exec-1',
+						nodeId: 'start',
+						type: 'start',
+						title: 'Start',
+						index: 1,
+						status: 'success',
+						inputs: { q: 1 },
+						outputs: { text: 'x' },
+						processData: { prompt: 'system' },
+						elapsedTime: 0.5,
+						totalTokens: 7,
+						error: null,
+					},
+					{
+						id: 'exec-2',
+						nodeId: 'review',
+						type: 'human-input',
+						title: 'Review',
+						index: 2,
+						status: 'running',
+					},
+				],
+			},
+		}
+		const replayed = (data: Record<string, unknown>, status: string) => ({
+			...data,
+			status,
+			inputs: null,
+			process_data: null,
+			outputs: null,
+			error: null,
+			elapsed_time: 0.5,
+			execution_metadata: null,
+			files: [],
+		})
+		const m = [
+			ev('workflow_started', {
+				workflow_run_id: 'run-1',
+				data: { id: 'run-1', reason: 'initial' },
+			}),
+			ev('node_started', { workflow_run_id: 'run-1', data: { ...start, inputs: null } }),
+			ev('node_finished', { workflow_run_id: 'run-1', data: replayed(start, 'succeeded') }),
+			ev('node_started', { workflow_run_id: 'run-1', data: { ...review, inputs: null } }),
+			ev('node_finished', { workflow_run_id: 'run-1', data: replayed(review, 'paused') }),
+			ev('workflow_paused', { workflow_run_id: 'run-1', data: { status: 'paused' } }),
+		].reduce(applyEvent, shown)
+		expect(m.workflow).toEqual(shown.workflow)
+	})
+	it('keeps a finished node finished when the replay starts it again', () => {
+		const node = { id: 'exec-1', node_id: 'tool', node_type: 'tool', title: 'Tool', index: 1 }
+		for (const status of ['success', 'error'] as const) {
+			const finished: DifyChatMessage = {
+				...emptyAssistant(),
+				workflow: {
+					runId: 'run-1',
+					status: 'paused',
+					nodes: [{ id: 'exec-1', nodeId: 'tool', type: 'tool', title: 'Tool', status }],
+				},
+			}
+			const m = applyEvent(finished, ev('node_started', { workflow_run_id: 'run-1', data: node }))
+			expect(m.workflow?.nodes[0].status).toBe(status)
+		}
+	})
+	it('keeps a failed node’s error through a replay and drops a retry’s error once the node succeeds', () => {
+		const node = { id: 'exec-1', node_id: 'tool', node_type: 'tool', title: 'Tool', index: 1 }
+		const failed: DifyChatMessage = {
+			...emptyAssistant(),
+			workflow: {
+				runId: 'run-1',
+				status: 'running',
+				nodes: [
+					{
+						id: 'exec-1',
+						nodeId: 'tool',
+						type: 'tool',
+						title: 'Tool',
+						status: 'error',
+						error: 'boom',
+					},
+				],
+			},
+		}
+		const replay = applyEvent(
+			failed,
+			ev('node_finished', {
+				workflow_run_id: 'run-1',
+				data: { ...node, status: 'exception', error: null, elapsed_time: 1 },
+			}),
+		)
+		expect(replay.workflow?.nodes[0]).toMatchObject({ status: 'error', error: 'boom' })
+		const retried: DifyChatMessage = {
+			...failed,
+			workflow: {
+				...failed.workflow!,
+				nodes: [{ ...failed.workflow!.nodes[0], status: 'retrying', error: 'timeout' }],
+			},
+		}
+		const succeeded = applyEvent(
+			retried,
+			ev('node_finished', {
+				workflow_run_id: 'run-1',
+				data: { ...node, status: 'succeeded', error: null, outputs: { ok: true } },
+			}),
+		)
+		expect(succeeded.workflow?.nodes[0]).toMatchObject({ status: 'success', error: null })
+	})
 })
 
 describe('DifyChatProvider', () => {
@@ -917,5 +1041,177 @@ describe('DifyChatProvider', () => {
 			ids: { messageId: 'msg-1', conversationId: 'conv-1', taskId: 'task-1' },
 			createdAt: 1_700_000_000,
 		})
+	})
+})
+
+// Dify's own order for a form (web/app/components/base/chat/chat/hooks.ts, 1.17.1): open the events stream with
+// the replay, wait for the replayed `workflow_paused` (Dify builds the replay after it subscribed to the run), then
+// submit; the run's events after the submission reach the open stream.
+describe('DifyChatProvider: the resume stream of a human input form', () => {
+	const abort = vi.fn()
+	const resumable = () =>
+		new DifyChatProvider({
+			request: { manual: true, options: { params: {} }, abort } as never,
+			getDifyConversationId: () => 'conv-1',
+		})
+	const pausedMessage: DifyChatMessage = {
+		...emptyAssistant(),
+		workflow: { runId: 'run-1', status: 'paused', nodes: [] },
+	}
+	const resume = (provider: DifyChatProvider) =>
+		provider.transformParams({ resume: { workflowRunId: 'run-1', message: pausedMessage } }, {
+			params: {},
+		} as never)
+	const required = (token: string) =>
+		ev('human_input_required', {
+			workflow_run_id: 'run-1',
+			data: { form_token: token, node_id: 'review', expiration_time: 1 },
+		})
+	const replay = [
+		ev('workflow_started', { workflow_run_id: 'run-1', data: { id: 'run-1', reason: 'initial' } }),
+		required('ft-1'),
+		ev('workflow_paused', { workflow_run_id: 'run-1', data: { status: 'paused' } }),
+	]
+	afterEach(() => abort.mockClear())
+
+	it('reports the replayed pause, and the stream as paused on its run until the run goes on', async () => {
+		const provider = resumable()
+		const paused = provider.waitForPause()
+		resume(provider)
+		expect(provider.isPausedOn('run-1')).toBe(false)
+		const m = feed(provider, replay)
+		await expect(paused).resolves.toEqual({ paused: true })
+		expect(provider.isPausedOn('run-1')).toBe(true)
+		expect(provider.isPausedOn('run-2')).toBe(false)
+		feed(
+			provider,
+			[
+				ev('workflow_started', {
+					workflow_run_id: 'run-1',
+					data: { id: 'run-1', reason: 'resumption' },
+				}),
+			],
+			m,
+		)
+		expect(provider.isPausedOn('run-1')).toBe(false)
+		expect(abort).not.toHaveBeenCalled()
+	})
+	it('reports no pause when the stream ends first: a finished run answers one workflow_finished', async () => {
+		const provider = resumable()
+		const paused = provider.waitForPause()
+		resume(provider)
+		feed(provider, [
+			ev('workflow_finished', { workflow_run_id: 'run-1', data: { status: 'succeeded' } }),
+		])
+		// XRequest's onSuccess callback (use-dify-chat) reports the end of the stream.
+		provider.endResume()
+		await expect(paused).resolves.toEqual({ paused: false })
+		expect(provider.isPausedOn('run-1')).toBe(false)
+	})
+	it('reports a failed or stopped stream with its error', async () => {
+		const provider = resumable()
+		const paused = provider.waitForPause()
+		resume(provider)
+		const error = new TypeError('network error')
+		provider.endResume(error)
+		await expect(paused).resolves.toEqual({ paused: false, error })
+	})
+	it('settles an earlier wait when a new one starts', async () => {
+		const provider = resumable()
+		const first = provider.waitForPause()
+		provider.waitForPause()
+		await expect(first).resolves.toEqual({ paused: false })
+	})
+	it('ends the stream at the next form, which then gets a stream of its own', () => {
+		const provider = resumable()
+		void provider.waitForPause()
+		resume(provider)
+		const m = feed(provider, replay)
+		feed(
+			provider,
+			[
+				ev('workflow_started', {
+					workflow_run_id: 'run-1',
+					data: { id: 'run-1', reason: 'resumption' },
+				}),
+				ev('human_input_form_filled', {
+					workflow_run_id: 'run-1',
+					data: { action_text: 'Approve' },
+				}),
+				required('ft-2'),
+				ev('workflow_paused', { workflow_run_id: 'run-1', data: { status: 'paused' } }),
+			],
+			m,
+		)
+		expect(abort).toHaveBeenCalledTimes(1)
+		expect(provider.isPausedOn('run-1')).toBe(false)
+	})
+	it('never waits on a pause of an ordinary reply', async () => {
+		const provider = resumable()
+		const paused = provider.waitForPause()
+		provider.transformParams({ query: 'hi' }, { params: {} } as never)
+		await expect(paused).resolves.toEqual({ paused: false })
+		feed(provider, replay)
+		expect(provider.isPausedOn('run-1')).toBe(false)
+		expect(abort).not.toHaveBeenCalled()
+	})
+	// A run answered elsewhere may already wait on its next form: the replay names that form, and the old one must not
+	// go out (Dify would refuse it with 412).
+	it('reports the stream as paused on the form the replay names', async () => {
+		const provider = resumable()
+		const paused = provider.waitForPause()
+		resume(provider)
+		feed(provider, [
+			ev('workflow_started', { workflow_run_id: 'run-1', data: { id: 'run-1' } }),
+			required('ft-9'),
+			ev('workflow_paused', { workflow_run_id: 'run-1', data: { status: 'paused' } }),
+		])
+		await expect(paused).resolves.toEqual({ paused: true })
+		expect(provider.isPausedOn('run-1', 'ft-9')).toBe(true)
+		expect(provider.isPausedOn('run-1', 'ft-1')).toBe(false)
+	})
+	it('tells a stream that ended at its pause from one that carried the run on', () => {
+		const provider = resumable()
+		resume(provider)
+		const m = feed(provider, replay)
+		expect(provider.continuationLost()).toBe(false)
+		provider.endResume()
+		expect(provider.continuationLost()).toBe(true)
+		resume(provider)
+		feed(provider, replay)
+		feed(
+			provider,
+			[
+				ev('workflow_started', {
+					workflow_run_id: 'run-1',
+					data: { id: 'run-1', reason: 'resumption' },
+				}),
+			],
+			m,
+		)
+		provider.endResume()
+		expect(provider.continuationLost()).toBe(false)
+	})
+	// The run went on from the form it waited on, so that form is answered (here or elsewhere) even before the
+	// submission's own answer is read: a stream that ends now is a lost continuation, not a form still open.
+	it('counts the form the run went on from as answered', () => {
+		const provider = resumable()
+		resume(provider)
+		const m = feed(provider, replay)
+		expect(provider.answeredToken).toBeUndefined()
+		feed(
+			provider,
+			[ev('workflow_started', { workflow_run_id: 'run-1', data: { id: 'run-1', reason: 'resumption' } })],
+			m,
+		)
+		expect(provider.answeredToken).toBe('ft-1')
+	})
+	it('remembers the form answered on the stream until the next resume', () => {
+		const provider = resumable()
+		resume(provider)
+		provider.markAnswered('ft-1')
+		expect(provider.answeredToken).toBe('ft-1')
+		resume(provider)
+		expect(provider.answeredToken).toBeUndefined()
 	})
 })

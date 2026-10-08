@@ -23,6 +23,15 @@ export const REVIEW_NODE: StubNode = {
 	index: 2,
 }
 
+/** The `chain` scenario's second Human Input node: answering the first form pauses the run here. */
+export const SECOND_REVIEW_NODE: StubNode = {
+	id: 'exec-review-2',
+	nodeId: 'review-2',
+	type: 'human-input',
+	title: 'Second review',
+	index: 3,
+}
+
 /** The chatflow's reasoning, one `reasoning_chunk` each (the last is final). */
 export const REASONING = [
 	'The user greets me. ',
@@ -174,26 +183,86 @@ export const streamDelay = (query: string, events: StreamEvent[]) =>
 		? 100
 		: 20
 
-/** The resumed stream for GET /workflow/{run_id}/events after a HITL submission. */
+/**
+ * The resumed run after a HITL submission, as Dify publishes it to the run's listeners (GET
+ * /workflow/{run_id}/events). `node` is the answered form's node; with `next` (the `chain` scenario) the run
+ * pauses again at SECOND_REVIEW_NODE on that form instead of answering.
+ */
 export const resumeScenario = (
 	ctx: ScenarioContext,
 	action: string,
 	inputs: Record<string, string>,
+	options: { node?: StubNode; next?: { formToken: string; expiresAt: number } } = {},
 ): StreamEvent[] => {
 	const { base, runId } = ctx
+	const node = options.node ?? REVIEW_NODE
+	const opening = [
+		ev.workflowStarted(base, runId, 'resumption'),
+		ev.humanInputFormFilled(base, runId, node.nodeId, action, inputs),
+		ev.nodeFinished(base, runId, node, inputs),
+	]
+	if (options.next) {
+		const required = ev.humanInputRequired(
+			base,
+			runId,
+			options.next.formToken,
+			SECOND_REVIEW_NODE.nodeId,
+			options.next.expiresAt,
+		)
+		return [
+			...opening,
+			ev.nodeStarted(base, runId, SECOND_REVIEW_NODE),
+			required,
+			ev.workflowPaused(base, runId, [SECOND_REVIEW_NODE.nodeId], [ev.pauseReason(required)]),
+		]
+	}
 	const text =
 		action === 'approve'
 			? `Approved: ${inputs.feedback ?? ''}`.trim()
 			: `Changes requested: ${inputs.feedback ?? ''}`.trim()
 	return [
-		ev.workflowStarted(base, runId, 'resumption'),
-		ev.humanInputFormFilled(base, runId, REVIEW_NODE.nodeId, action, inputs),
-		ev.nodeFinished(base, runId, REVIEW_NODE, inputs),
+		...opening,
 		ev.nodeStarted(base, runId, NODES[1]),
 		...chunks(text, 12).map(c => ev.message(base, c)),
 		ev.nodeFinished(base, runId, NODES[1], { text }),
 		ev.messageEnd(base),
 		ev.workflowFinished(base, runId, { answer: text }),
+	]
+}
+
+/**
+ * Dify's replay of a chatflow run for `include_state_snapshot=true` (1.17.1,
+ * services/workflow_event_snapshot_service.py `_build_snapshot_events`): workflow_started with reason `initial`,
+ * message_replace with the stored answer, each stored node's started and finished events without details, and for a
+ * paused run the form's human_input_required and workflow_paused. `paused` is the form the run waits on (its node is
+ * stored `paused`); without it the run goes on and the replay stops at the nodes.
+ */
+export const snapshotScenario = (
+	ctx: ScenarioContext,
+	answer: string,
+	passed: StubNode[],
+	paused?: { node: StubNode; formToken: string; expiresAt: number },
+): StreamEvent[] => {
+	const { base, runId } = ctx
+	const nodes = [NODES[0], ...passed].flatMap(node => [
+		ev.nodeStarted(base, runId, node),
+		ev.replayedNodeFinished(base, runId, node, 'succeeded'),
+	])
+	const replay = [ev.workflowStarted(base, runId), ev.messageReplace(base, answer), ...nodes]
+	if (!paused) return replay
+	const required = ev.humanInputRequired(
+		base,
+		runId,
+		paused.formToken,
+		paused.node.nodeId,
+		paused.expiresAt,
+	)
+	return [
+		...replay,
+		ev.nodeStarted(base, runId, paused.node),
+		ev.replayedNodeFinished(base, runId, paused.node, 'paused'),
+		required,
+		ev.workflowPaused(base, runId, [paused.node.nodeId], [ev.pauseReason(required)]),
 	]
 }
 

@@ -310,7 +310,7 @@ describe('difyClient: errors', () => {
 		expect(out.headers.get('cache-control')).toBe('no-store')
 		await expect(out.text()).resolves.toBe('data: {}\n\n')
 	})
-	it('keeps exactly the four charter headers of a file answer, and adds no-store', async () => {
+	it('keeps exactly the four charter headers of a file answer, and adds its own two', async () => {
 		const upstream = new Response(new Uint8Array([1, 2, 3]), {
 			status: 200,
 			headers: {
@@ -328,6 +328,7 @@ describe('difyClient: errors', () => {
 			'content-length': '3',
 			'accept-ranges': 'bytes',
 			'cache-control': 'no-store',
+			'x-accel-buffering': 'no',
 		})
 		expect(new Uint8Array(await out.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
 	})
@@ -361,6 +362,12 @@ describe('difyClient: errors', () => {
 			headers: { 'content-type': 'text/event-stream', 'cache-control': 'public, max-age=3600' },
 		})
 		expect(passthrough(upstream).headers.get('cache-control')).toBe('no-store')
+	})
+	// Next's streaming guide ("Reverse proxies"): nginx and similar proxies buffer by default, and a buffered replay
+	// would hold a human input answer back until Dify closes the stream.
+	it('asks a reverse proxy in front of the hub not to buffer the stream', () => {
+		const upstream = new Response('x', { headers: { 'content-type': 'text/event-stream' } })
+		expect(passthrough(upstream).headers.get('x-accel-buffering')).toBe('no')
 	})
 	const image = () =>
 		new Response(new Uint8Array([1]), {

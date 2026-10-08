@@ -16,6 +16,7 @@ import {
 } from 'react'
 
 import type { DifyApi } from '@/lib/dify/browser'
+import type { HumanInputSubmission } from '@/lib/dify/types'
 
 import workflowDataStorage, { useWorkflowStore } from '../persistence/workflow-data-storage'
 import { DifyChatProvider } from '../provider/dify-chat-provider'
@@ -31,7 +32,7 @@ import {
 	type WorkflowState,
 } from '../provider/message'
 import { getProvider } from '../provider/provider-cache'
-import { failureText, toDifyError } from './dify-errors'
+import { ContinuationLostError, failureText, FormNotWaitingError, toDifyError } from './dify-errors'
 import { nextPaging, prependLatestPage, prependOlder, type HistoryPaging } from './history-paging'
 
 export const HISTORY_PAGE = 20
@@ -173,24 +174,90 @@ const toMessageError = (error: Error, t: TFunction, fallback: string): MessageEr
 		? { code: error.code, message: failureText(error, t, fallback), status: error.status }
 		: { message: fallback }
 
+/** The run waits on a form not answered on the resume stream: nothing failed, and the form is still open. */
+const waitsOnForm = (message: DifyChatMessage, answeredToken: string | undefined) =>
+	message.humanInput?.state === 'pending' && message.humanInput.formToken !== answeredToken
+
 /**
  * useXChat's requestFallback (spec §4.5). A stopped reply keeps what it showed and is marked
  * `aborted` (use-x-chat skill, "Abort Request"); a failed one keeps it too (a streamed part, or the
  * paused HITL message of a resume, spec §4.6) and carries the error: Dify's text, or the generic one.
- * A failed resume (`resumed`) follows a form Dify already accepted, so its generic text says the
- * answer was sent rather than inviting a retry. `agentAnswer` is stream bookkeeping and never stays
- * on a finished message.
+ * A resume (`resume`) that ends while its run waits on a form not answered on it (before the answer went out,
+ * after Dify refused it, or at the next form) leaves the message as it is. A failed resume after Dify accepted
+ * the answer (`answeredToken`) says the answer was sent rather than inviting a retry. `agentAnswer` is stream
+ * bookkeeping and never stays on a finished message.
  */
 export const fallbackMessage = (
 	error: Error,
 	current: DifyChatMessage | undefined,
 	t: TFunction,
-	resumed = false,
+	resume?: { answeredToken?: string },
 ): DifyChatMessage => {
 	const { agentAnswer: _agentAnswer, ...base } = current ?? emptyAssistant()
+	if (resume && waitsOnForm(base, resume.answeredToken)) return base
 	if (error.name === 'AbortError') return { ...base, aborted: true }
-	const fallback = resumed ? t('hitl.resume_failed') : t('common.request_failed_retry')
+	const fallback = resume ? t('hitl.resume_failed') : t('common.request_failed_retry')
 	return { ...base, error: toMessageError(error, t, fallback) }
+}
+
+/**
+ * The Dify task a Stop ends (spec §4.5): none for a run that waits on a form, where only the stream closes. Nothing
+ * runs on Dify then, and Dify's own chat posts no stop while paused (handleStop: `!pausedStateRef.current`).
+ */
+export const taskToStop = (message: DifyChatMessage | undefined): string | undefined =>
+	message?.workflow?.status === 'paused' ? undefined : message?.ids.taskId
+
+/** What answerInOrder takes from the hook: the conversation's state, its provider and the browser client. */
+export interface AnswerDeps {
+	/** A reply of this conversation streams (the key's provider has one XRequest). */
+	isRequesting: boolean
+	/** x-sdk's onReload with a resume: the paused message goes on from the run's events stream. */
+	reload: (assistantId: string | number, resume: NonNullable<DifyChatInput['resume']>) => void
+	provider: Pick<
+		DifyChatProvider,
+		'isPausedOn' | 'waitForPause' | 'endResume' | 'markAnswered' | 'continuationLost'
+	>
+	submit: (formToken: string, answer: HumanInputSubmission) => Promise<unknown>
+}
+
+/**
+ * Answers a paused run's form (spec §4.6; the order is the ADR-0017 note of 2026-10-08) as Dify's own chat does
+ * (web/app/components/base/chat/chat/hooks.ts in 1.17.1): the run's events stream opens first and the answer goes
+ * out once Dify's replay reached the pause. Dify resumes the run as soon as it accepts the answer and sends the
+ * events only to the listeners it has then, so a stream opened after the answer can miss them: the form then looks
+ * unanswered and the node keeps running. When Dify refused an earlier answer the run still waits on the open stream
+ * and this answer goes out on it. Resolves true once Dify accepted the answer, false when nothing was sent (no
+ * token, or another reply streams). Rejects with the stream's failure, FormNotWaitingError when the replay shows no
+ * pause on this form, Dify's refusal, or ContinuationLostError when Dify accepted the answer after the stream closed.
+ */
+export const answerInOrder = async (
+	deps: AnswerDeps,
+	assistantId: string | number,
+	message: DifyChatMessage,
+	answer: HumanInputSubmission,
+): Promise<boolean> => {
+	const form = message.humanInput
+	const { provider } = deps
+	if (!form?.formToken) return false
+	if (!provider.isPausedOn(form.workflowRunId, form.formToken)) {
+		if (deps.isRequesting) return false
+		const paused = provider.waitForPause()
+		try {
+			deps.reload(assistantId, { workflowRunId: form.workflowRunId, message })
+		} catch (error) {
+			// x-sdk throws for a message its store no longer holds; nothing was requested.
+			provider.endResume()
+			throw error
+		}
+		const opened = await paused
+		if (!opened.paused) throw opened.error ?? new FormNotWaitingError()
+		// A run answered elsewhere may wait on its next form already: the replay put that one on screen.
+		if (!provider.isPausedOn(form.workflowRunId, form.formToken)) throw new FormNotWaitingError()
+	}
+	await deps.submit(form.formToken, answer)
+	provider.markAnswered(form.formToken)
+	if (provider.continuationLost()) throw new ContinuationLostError()
+	return true
 }
 
 /**
@@ -210,35 +277,40 @@ export const useDifyChat = ({
 	// cached for a placeholder key, and a send without one is ignored.
 	const provider = !conversationKey
 		? undefined
-		: getProvider(
-				conversationKey,
-				() =>
-					new DifyChatProvider({
-						request: XRequest<DifyChatInput, SSEOutput, DifyChatMessage>(
-							`/api/dify/${encodeURIComponent(appId)}/chat-messages`,
-							{
-								manual: true,
-								fetch: createDifyFetch(appId),
-								params: { response_mode: 'streaming' },
+		: getProvider(conversationKey, () => {
+				const created: DifyChatProvider = new DifyChatProvider({
+					request: XRequest<DifyChatInput, SSEOutput, DifyChatMessage>(
+						`/api/dify/${encodeURIComponent(appId)}/chat-messages`,
+						{
+							manual: true,
+							fetch: createDifyFetch(appId),
+							params: { response_mode: 'streaming' },
+							// The end of every request, whatever ended it (x-chat-provider skill, "callbacks": onError
+							// includes AbortError); a resume stream's wait for its pause ends with it.
+							callbacks: {
+								onSuccess: () => created.endResume(),
+								onError: error => created.endResume(error),
 							},
-						),
-						getDifyConversationId: () => difyIdReaders.get(conversationKey)?.(),
-						onConversationId: difyId =>
-							conversationIdSinks.get(conversationKey)?.(conversationKey, difyId),
-						onWorkflowUpdate: message => {
-							const { conversationId, messageId } = message.ids
-							if (conversationId && messageId && message.workflow) {
-								void workflowDataStorage.set({
-									appId,
-									conversationId,
-									messageId,
-									key: 'workflows',
-									value: message.workflow,
-								})
-							}
 						},
-					}),
-			)
+					),
+					getDifyConversationId: () => difyIdReaders.get(conversationKey)?.(),
+					onConversationId: difyId =>
+						conversationIdSinks.get(conversationKey)?.(conversationKey, difyId),
+					onWorkflowUpdate: message => {
+						const { conversationId, messageId } = message.ids
+						if (conversationId && messageId && message.workflow) {
+							void workflowDataStorage.set({
+								appId,
+								conversationId,
+								messageId,
+								key: 'workflows',
+								value: message.workflow,
+							})
+						}
+					},
+				})
+				return created
+			})
 
 	const chat = useXChat<DifyChatMessage, DifyChatMessage, DifyChatInput, SSEOutput>({
 		provider,
@@ -259,14 +331,19 @@ export const useDifyChat = ({
 		requestPlaceholder: params => (params.resume ? params.resume.message : emptyAssistant()),
 		// The SDK passes the request's params (use-x-chat API: requestFallback), so a resume is known here.
 		requestFallback: (params, { error, messageInfo }) =>
-			fallbackMessage(error, messageInfo?.message, t, Boolean(params.resume)),
+			fallbackMessage(
+				error,
+				messageInfo?.message ?? params.resume?.message,
+				t,
+				params.resume ? { answeredToken: provider?.answeredToken } : undefined,
+			),
 	})
 
 	// The callbacks below stay stable and read the committed render's values here (React: refs are
 	// written in effects, not during rendering).
-	const latest = useRef({ chat, conversationKey, difyApi, appId })
+	const latest = useRef({ chat, provider, conversationKey, difyApi, appId })
 	useLayoutEffect(() => {
-		latest.current = { chat, conversationKey, difyApi, appId }
+		latest.current = { chat, provider, conversationKey, difyApi, appId }
 		if (!conversationKey) return
 		difyIdReaders.set(conversationKey, getDifyConversationId)
 		if (onConversationId) conversationIdSinks.set(conversationKey, onConversationId)
@@ -322,14 +399,27 @@ export const useDifyChat = ({
 			m => m.message.role === 'assistant' && (m.status === 'loading' || m.status === 'updating'),
 		)
 		chat.abort()
-		const taskId = reply?.message.ids.taskId
+		const taskId = taskToStop(reply?.message)
 		if (taskId) await api.stopChat(taskId).catch(() => undefined)
 	}, [])
 
-	/** HITL continuation (spec §4.6): onReload updates the paused message from the resumed stream. */
-	const resume = useCallback(
-		(assistantId: string | number, workflowRunId: string, message: DifyChatMessage) =>
-			latest.current.chat.onReload(assistantId, { resume: { workflowRunId, message } }),
+	/** Answers a paused run's form in Dify's order (answerInOrder), on this conversation's chat and provider. */
+	const answerForm = useCallback(
+		(assistantId: string | number, message: DifyChatMessage, answer: HumanInputSubmission) => {
+			const { chat, provider: current, difyApi: api } = latest.current
+			if (!current) return Promise.resolve(false)
+			return answerInOrder(
+				{
+					isRequesting: chat.isRequesting,
+					reload: (id, resume) => chat.onReload(id, { resume }),
+					provider: current,
+					submit: (formToken, body) => api.submitHumanInput(formToken, body),
+				},
+				assistantId,
+				message,
+				answer,
+			)
+		},
 		[],
 	)
 
@@ -399,7 +489,7 @@ export const useDifyChat = ({
 		abort,
 		send,
 		stop,
-		resume,
+		answerForm,
 		loadEarlier,
 		hasMore,
 		historyError,

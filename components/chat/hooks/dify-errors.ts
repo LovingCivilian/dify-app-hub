@@ -42,13 +42,37 @@ export const failureText = (error: unknown, t: TFunction, fallback = ''): string
 }
 
 /**
- * The toast for a human input form that could not go on (ADR-0017). Once Dify has accepted the form only the
- * continuation failed (x-sdk's onReload throws for a message the store does not hold) and a second submission
- * would be refused (412), so the text says the answer was sent; otherwise the reason (failureText), or the
- * generic text.
+ * The resume stream ended without the pause it opened for: the run no longer waits on the form (it was answered
+ * elsewhere, or it expired and the run went on), so the answer is not sent.
  */
-export const humanInputFailureText = (error: unknown, accepted: boolean, t: TFunction): string => {
-	if (accepted) return t('hitl.resume_failed')
+export class FormNotWaitingError extends Error {
+	constructor() {
+		super('The run no longer waits on this form.')
+		this.name = 'FormNotWaitingError'
+	}
+}
+
+/**
+ * Dify accepted the answer, but the resume stream had already closed with the run at its pause (Stop during the
+ * submission, a dropped connection, Dify's idle close): the continuation goes on in Dify without this page.
+ */
+export class ContinuationLostError extends Error {
+	constructor() {
+		super('The answer was accepted after the run stream closed.')
+		this.name = 'ContinuationLostError'
+	}
+}
+
+/**
+ * The toast for a human input answer that did not go out, or whose continuation cannot be shown (ADR-0017): nothing
+ * for the user's own stop; `hitl.not_waiting` for a run that no longer waits; `hitl.resume_failed` for an answer
+ * Dify accepted after the stream closed; otherwise the reason (failureText), or the generic text. A continuation
+ * that fails after it started is shown on the message (`hitl.resume_failed` too).
+ */
+export const humanInputFailureText = (error: unknown, t: TFunction): string => {
+	if (error instanceof Error && error.name === 'AbortError') return ''
+	if (error instanceof FormNotWaitingError) return t('hitl.not_waiting')
+	if (error instanceof ContinuationLostError) return t('hitl.resume_failed')
 	const reason = failureText(error, t)
 	return reason ? t('hitl.submit_failed_reason', { error: reason }) : t('hitl.submit_failed')
 }

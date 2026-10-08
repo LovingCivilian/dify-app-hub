@@ -87,11 +87,14 @@ const forwardedHeaders = (upstream: Response): Headers => {
  * and the headers that carry meaning. No re-pumping through a hand-written ReadableStream (Backend for
  * Frontend guide, "Proxying to a backend"). `Cache-Control: no-store`: a stream is one user's run, and Next adds no
  * Cache-Control to a dynamic Route Handler's answer (ADR-0023), so no cache of any kind may keep it (MDN
- * Cache-Control, `no-store`).
+ * Cache-Control, `no-store`). `X-Accel-Buffering: no`: a reverse proxy such as nginx buffers by default (Next's
+ * streaming guide, "Reverse proxies"), and a human input answer waits for Dify's replay to arrive (ADR-0017 note of
+ * 2026-10-08).
  */
 export const passthrough = (upstream: Response): Response => {
 	const headers = forwardedHeaders(upstream)
 	headers.set('cache-control', 'no-store')
+	headers.set('x-accel-buffering', 'no')
 	return new Response(upstream.body, { status: upstream.status, headers })
 }
 
