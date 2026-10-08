@@ -3,21 +3,10 @@ import type { TFunction } from 'i18next'
 import { DifyRequestError } from '../provider/dify-fetch'
 
 /**
- * `DifyApi` (lib/dify-client.ts on BaseRequest) resolves an HTTP error with Dify's error body
- * (`{ code, message, status }`) instead of rejecting. This turns such a body into the error the chat
- * hooks report: `{ status, code?, message }`, where `message` is Dify's text or '' (the view then shows
- * its i18n text). Hooks never make up English text of their own.
+ * Any failure as the error the chat hooks report: the browser client's DifyRequestError as it is (the code and
+ * message of the answer's envelope, or no message); a network failure or the like keeps no text and is kept as
+ * `cause`. What the user reads comes from `failureText`; hooks never make up English text of their own.
  */
-export const envelopeError = (answer: unknown, fallbackStatus = 0): DifyRequestError => {
-	const body = (answer && typeof answer === 'object' ? answer : {}) as Record<string, unknown>
-	return new DifyRequestError(
-		typeof body.status === 'number' ? body.status : fallbackStatus,
-		typeof body.code === 'string' ? body.code : undefined,
-		typeof body.message === 'string' ? body.message : '',
-	)
-}
-
-/** Any failure in that same shape: a network error or the like keeps no text and is kept as `cause`. */
 export const toDifyError = (error: unknown): DifyRequestError => {
 	if (error instanceof DifyRequestError) return error
 	const wrapped = new DifyRequestError(0, undefined, '')
@@ -26,117 +15,64 @@ export const toDifyError = (error: unknown): DifyRequestError => {
 }
 
 /**
- * The answer of POST /api/client/dify/<app>/form/human_input/<token> (DifyApi.submitHumanInput resolves
- * it whatever the status): the proxy route wraps Dify's answer as `{ code: <HTTP status>, data }`
- * (createDifyApiResponse), with Dify's `{}` on success (OpenAPI: "The response body is an empty object")
- * and `{ error: <Dify's error body as text> }` otherwise; its own failures (session, server) answer
- * `{ error }`. Undefined when the form was accepted, else the error with Dify's message or ''.
+ * The app's own refusal codes (charter §4.5): their English messages are never shown, these keys are. Not
+ * `invalid_param`: Dify refuses a missing or bad field with it too, and its message is the reason (endpoint map: legend, §4).
  */
-export const humanInputSubmitError = (answer: unknown): DifyRequestError | undefined => {
-	const body = (answer && typeof answer === 'object' ? answer : {}) as Record<string, unknown>
-	const status = typeof body.code === 'number' ? body.code : 0
-	const data = (body.data && typeof body.data === 'object' ? body.data : {}) as Record<
-		string,
-		unknown
-	>
-	if (status >= 200 && status < 300 && data.error === undefined && body.error === undefined) return
-	let difyBody: unknown = null
-	if (typeof data.error === 'string') {
-		try {
-			difyBody = JSON.parse(data.error)
-		} catch {
-			difyBody = null
-		}
-	}
-	return envelopeError(difyBody, status)
+const APP_CODE_KEYS = {
+	unauthorized: 'chat.error_unauthorized',
+	app_not_found: 'chat.error_app_not_found',
+	app_disabled: 'chat.error_app_disabled',
+	upstream_error: 'chat.error_upstream_error',
+	upstream_unreachable: 'chat.error_upstream_unreachable',
+} as const
+
+const isAppCode = (code: string | undefined): code is keyof typeof APP_CODE_KEYS =>
+	code !== undefined && Object.hasOwn(APP_CODE_KEYS, code)
+
+/**
+ * The text a user reads for a failure: an app code through its i18n key; Dify's own code with Dify's message
+ * (ADR-0017); `fallback` (the consumer's generic text) for `internal_error`, an answer without a message, or a
+ * failure that is not an answer at all.
+ */
+export const failureText = (error: unknown, t: TFunction, fallback = ''): string => {
+	const { code, message } = toDifyError(error)
+	if (isAppCode(code)) return t(APP_CODE_KEYS[code])
+	if (code === 'internal_error') return fallback
+	return message || fallback
 }
 
 /**
- * The toast for a human input form that could not go on (spec §4.6). Once Dify has accepted the form
- * only the continuation failed (x-sdk's onReload throws for a message the store does not hold) and a
- * second submission would be refused (412), so the text says the answer was sent; otherwise Dify's
- * reason, or the generic text.
+ * The resume stream ended without the pause it opened for: the run no longer waits on the form (it was answered
+ * elsewhere, or it expired and the run went on), so the answer is not sent.
  */
-export const humanInputFailureText = (error: unknown, accepted: boolean, t: TFunction): string => {
-	if (accepted) return t('hitl.resume_failed')
-	const { message } = toDifyError(error)
-	return message ? t('hitl.submit_failed_reason', { error: message }) : t('hitl.submit_failed')
-}
-
-const recordOf = (value: unknown) =>
-	(value && typeof value === 'object' ? value : {}) as Record<string, unknown>
-
-const parseJsonText = (text: unknown): unknown => {
-	if (typeof text !== 'string') return null
-	try {
-		return JSON.parse(text)
-	} catch {
-		return null
+export class FormNotWaitingError extends Error {
+	constructor() {
+		super('The run no longer waits on this form.')
+		this.name = 'FormNotWaitingError'
 	}
 }
 
 /**
- * The answer of POST /api/client/dify/<app>/messages/<id>/feedbacks (DifyApi.createMessageFeedback
- * resolves it whatever the status): `{ code: <HTTP status>, data }` (createDifyApiResponse) with Dify's
- * `{ result: 'success' }`; on a Dify error `data` is `{ error, detail }`, `detail` being Dify's error body
- * as text (cut at 200 characters); the proxy's own failures answer `{ error }`. Undefined when Dify took
- * the rating, else the error with Dify's message or ''.
+ * Dify accepted the answer, but the resume stream had already closed with the run at its pause (Stop during the
+ * submission, a dropped connection, Dify's idle close): the continuation goes on in Dify without this page.
  */
-export const feedbackError = (answer: unknown): DifyRequestError | undefined => {
-	const body = recordOf(answer)
-	const status = typeof body.code === 'number' ? body.code : 0
-	const data = recordOf(body.data)
-	if (status >= 200 && status < 300 && data.result === 'success') return
-	return envelopeError(parseJsonText(data.detail), status)
-}
-
-/** `{ code: <HTTP status>, data }` (createDifyApiResponse) whose `data` is Dify's body: undefined when it has an `id`. */
-const wrappedIdError = (answer: unknown): DifyRequestError | undefined => {
-	const body = recordOf(answer)
-	const status = typeof body.code === 'number' ? body.code : 0
-	const data = recordOf(body.data)
-	if (status >= 200 && status < 300 && typeof data.id === 'string') return
-	return envelopeError(data, status)
+export class ContinuationLostError extends Error {
+	constructor() {
+		super('The answer was accepted after the run stream closed.')
+		this.name = 'ContinuationLostError'
+	}
 }
 
 /**
- * The answer of POST /api/client/dify/<app>/annotations (DifyApi.createAnnotation resolves it whatever the
- * status): `{ code: <HTTP status>, data }` with Dify's body as `data`, the new annotation (its `id`) or
- * Dify's error body; the proxy's own failures answer `{ error }`.
+ * The toast for a human input answer that did not go out, or whose continuation cannot be shown (ADR-0017): nothing
+ * for the user's own stop; `hitl.not_waiting` for a run that no longer waits; `hitl.resume_failed` for an answer
+ * Dify accepted after the stream closed; otherwise the reason (failureText), or the generic text. A continuation
+ * that fails after it started is shown on the message (`hitl.resume_failed` too).
  */
-export const annotationError = wrappedIdError
-
-/**
- * The answer of POST /api/client/dify/<app>/conversation/<id>/name (DifyApi.renameConversation resolves it
- * whatever the status): the same `{ code: <HTTP status>, data }` shape, `data` being Dify's renamed
- * conversation (its `id`) or Dify's error body; the proxy's own failures answer `{ error }`.
- */
-export const renameError = wrappedIdError
-
-/**
- * The answer of POST /api/client/dify/<app>/text2audio (DifyApi.text2Audio resolves the Response): the
- * proxy passes Dify's answer through (createDifyResponseProxy), audio when it worked, Dify's JSON error
- * body otherwise; its own failures answer `{ error }`. A JSON answer is never audio, whatever its status.
- */
-export const audioAnswerError = async (
-	response: Response,
-): Promise<DifyRequestError | undefined> => {
-	if (response.ok && !(response.headers.get('content-type') ?? '').includes('json')) return
-	return envelopeError(await response.json().catch(() => null), response.status)
+export const humanInputFailureText = (error: unknown, t: TFunction): string => {
+	if (error instanceof Error && error.name === 'AbortError') return ''
+	if (error instanceof FormNotWaitingError) return t('hitl.not_waiting')
+	if (error instanceof ContinuationLostError) return t('hitl.resume_failed')
+	const reason = failureText(error, t)
+	return reason ? t('hitl.submit_failed_reason', { error: reason }) : t('hitl.submit_failed')
 }
-
-/**
- * The answer of POST /api/client/dify/<app>/files/upload as DifyApi.uploadFile resolves it: the proxy's
- * `data` (createDifyApiResponse wraps Dify's answer as `{ code, data }`), so Dify's file (OpenAPI
- * FileUploadResponse, with its `id`), Dify's error body, or nothing for the proxy's own failures (`{ error }`).
- * Undefined when the file was taken, else the error with Dify's message or ''.
- */
-export const uploadAnswerError = (answer: unknown): DifyRequestError | undefined =>
-	typeof recordOf(answer).id === 'string' ? undefined : envelopeError(answer)
-
-/**
- * The answer of POST /api/client/dify/<app>/audio2text as DifyApi.audio2Text resolves it, the same way:
- * Dify's transcript (OpenAPI AudioToTextResponse, `text`), Dify's error body, or nothing.
- */
-export const transcriptionError = (answer: unknown): DifyRequestError | undefined =>
-	typeof recordOf(answer).text === 'string' ? undefined : envelopeError(answer)

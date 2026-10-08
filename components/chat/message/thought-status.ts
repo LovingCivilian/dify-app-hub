@@ -1,6 +1,6 @@
 import type { ThoughtChainItemType } from '@ant-design/x'
 
-import type { IAgentThought } from '@/lib/api'
+import type { AgentThought } from '@/lib/dify/types'
 
 export interface ThoughtStatusContext {
 	/** The step is the reply's latest one: only that one can still be running. */
@@ -16,7 +16,7 @@ export interface ThoughtStatusContext {
  * error or the stop that ended the reply. Any other step finished with nothing to observe.
  */
 export const thoughtStatus = (
-	thought: Pick<IAgentThought, 'observation'>,
+	thought: Pick<AgentThought, 'observation'>,
 	{ last, streaming, interrupted }: ThoughtStatusContext,
 ): NonNullable<ThoughtChainItemType['status']> => {
 	if (thought.observation || !last) return 'success'

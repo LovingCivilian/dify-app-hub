@@ -1,6 +1,6 @@
 /**
  * The capture behind the Sender's speech button (spec §4.7): asking for the microphone, recording with
- * MediaRecorder, then transcribing through POST /audio2text. X's SpeechConfig reports only the recording
+ * MediaRecorder, then transcribing through POST /audio-to-text. X's SpeechConfig reports only the recording
  * state the button asks for (`onRecordingChange(!recording)`); the phase decides what that means.
  */
 export type SpeechPhase = 'idle' | 'requesting' | 'recording' | 'transcribing'
@@ -21,9 +21,9 @@ export const speechAction = (
 const FALLBACK_TYPE = 'audio/webm'
 
 /**
- * The recorded audio as the file POST /audio2text takes (MDN, MediaRecorder `dataavailable` and `stop`:
+ * The recorded audio as the file POST /audio-to-text takes (MDN, MediaRecorder `dataavailable` and `stop`:
  * the chunks joined into one Blob of the recorder's `mimeType`); undefined when nothing was recorded. The
- * app's proxy hands Dify a type it accepts (app/api/client/dify/[appId]/audio2text).
+ * app's route forwards it to Dify under its real type and name (app/api/dify/[appId]/audio-to-text).
  */
 export const recordingFile = (chunks: Blob[], mimeType: string): File | undefined => {
 	const type = mimeType || FALLBACK_TYPE

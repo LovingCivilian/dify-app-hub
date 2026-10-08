@@ -1,10 +1,9 @@
-import bcrypt from 'bcryptjs'
 import { and, eq, gt, isNull, sql } from 'drizzle-orm'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getDb } from '@/db'
 import { passwordResetTokens, users } from '@/db/schema'
-import { hashPasswordResetToken } from '@/lib/password-reset'
+import { hashPassword, hashPasswordResetToken } from '@/lib/auth/password'
 
 export async function POST(request: NextRequest) {
 	try {
@@ -33,7 +32,7 @@ export async function POST(request: NextRequest) {
 			.limit(1)
 		if (!tokenRows[0]) return NextResponse.json({ message: '重置链接已失效' }, { status: 400 })
 
-		const passwordHash = await bcrypt.hash(password, 12)
+		const passwordHash = await hashPassword(password)
 
 		// 事务，防止并发请求
 		try {

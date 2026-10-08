@@ -11,7 +11,7 @@ const { getServerSession, redirect, redirectSignal, AdminShell } = vi.hoisted(()
 }))
 vi.mock('next-auth/next', () => ({ getServerSession }))
 vi.mock('next/navigation', () => ({ redirect }))
-vi.mock('@/lib/auth', () => ({ authOptions: {} }))
+vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 vi.mock('@/components/shell/admin-shell', () => ({ default: AdminShell }))
 
 import AdminLayout from '@/app/(admin)/layout'

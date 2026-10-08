@@ -7,7 +7,7 @@ const { getServerSession, redirect } = vi.hoisted(() => ({
 }))
 vi.mock('next-auth/next', () => ({ getServerSession }))
 vi.mock('next/navigation', () => ({ redirect }))
-vi.mock('@/lib/auth', () => ({ authOptions: {} }))
+vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 
 import ForgotPasswordLayout from '@/app/(auth)/forgot-password/layout'
 import LoginLayout from '@/app/(auth)/login/layout'

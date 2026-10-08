@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { DifyApi } from '@/lib/dify-client'
+import type { DifyApi } from '@/lib/dify/browser'
 
 interface Options {
 	enabled: boolean
@@ -37,15 +37,12 @@ export const useSuggestions = ({
 		previous.current = { conversationKey, isRequesting }
 		if (!replyEnded || !enabled || !lastMessageId) return
 		const messageId = lastMessageId
-		// DifyApi resolves Dify's error bodies as values (no `data`): they and a thrown 401 both mean none.
 		difyApi
-			.getNextSuggestions({ message_id: messageId })
-			.then(result => {
-				const items = Array.isArray(result?.data)
-					? result.data.filter(item => typeof item === 'string')
-					: []
-				setLoaded({ messageId, items })
-			})
+			.getSuggested(messageId)
+			.then(result =>
+				setLoaded({ messageId, items: result.data.filter(item => typeof item === 'string') }),
+			)
+			// A refused request (Dify's 400 when suggestions are off, a 404) means none.
 			.catch(() => setLoaded(null))
 	}, [enabled, difyApi, conversationKey, lastMessageId, isRequesting])
 	const clear = useCallback(() => setLoaded(null), [])

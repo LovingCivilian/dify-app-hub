@@ -1,44 +1,15 @@
 import { drizzle } from 'drizzle-orm/mysql2'
-import { isNextBuild } from '@/lib/is-next-build'
-import * as schema from './schema'
 
-const createThrowingProxy = () =>
-	new Proxy(() => undefined, {
-		get(_target, prop) {
-			if (prop === 'then') return undefined
-			return createThrowingProxy()
-		},
-		apply() {
-			throw new Error('DATABASE_URL 环境变量缺失, 请检查')
-		},
-	})
+import { env } from '@/lib/env'
 
-const createDb = () => {
-	const databaseUrl = process.env.DATABASE_URL
-	if (!databaseUrl) {
-		throw new Error('DATABASE_URL 环境变量缺失, 请检查')
-	}
+// drizzle-orm 1.0.0-rc.3: the mysql2 driver takes a connection string; its config has no `schema` option (the
+// relational API is typed over defineRelations), and the DAL uses the query builder with explicit columns.
+const createDb = () => drizzle(env().databaseUrl, { logger: env().nodeEnv === 'development' })
 
-	return drizzle(databaseUrl, { schema, logger: true } as any) as ReturnType<typeof drizzle>
-}
+export type Db = ReturnType<typeof createDb>
 
-const globalForDb = globalThis as unknown as {
-	db: ReturnType<typeof createDb> | undefined
-}
+// One pool per process. In development the module is re-evaluated on edits, so the instance lives on globalThis
+// (the inherited code did the same); in production the module loads once anyway.
+const globalForDb = globalThis as unknown as { difyAppHubDb?: Db }
 
-let dbInstance: ReturnType<typeof createDb> | undefined
-
-export const getDb = () => {
-	if (!process.env.DATABASE_URL && isNextBuild()) {
-		if (!dbInstance) dbInstance = createThrowingProxy() as unknown as ReturnType<typeof createDb>
-		return dbInstance
-	}
-
-	if (process.env.NODE_ENV !== 'production') {
-		if (!globalForDb.db) globalForDb.db = createDb()
-		return globalForDb.db
-	}
-
-	if (!dbInstance) dbInstance = createDb()
-	return dbInstance
-}
+export const getDb = (): Db => (globalForDb.difyAppHubDb ??= createDb())

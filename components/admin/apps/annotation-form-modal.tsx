@@ -4,7 +4,7 @@ import { Form, Input, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { IAnnotationItem } from '@/lib/api'
+import type { AnnotationItem } from '@/lib/dify/types'
 
 export interface AnnotationFormValues {
 	question: string
@@ -24,7 +24,7 @@ export default function AnnotationFormModal({
 	onCancel,
 }: {
 	open: boolean
-	initial?: Pick<IAnnotationItem, 'question' | 'answer'>
+	initial?: Pick<AnnotationItem, 'question' | 'answer'>
 	onSubmit: (values: AnnotationFormValues) => Promise<void>
 	onCancel: () => void
 }) {

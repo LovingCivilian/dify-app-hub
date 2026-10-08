@@ -1,5 +1,5 @@
 /**
- * 主题枚举
+ * Theme enum
  */
 export enum ThemeEnum {
 	LIGHT = 'light',
@@ -7,7 +7,7 @@ export enum ThemeEnum {
 }
 
 /**
- * 主题模式枚举
+ * Theme mode enum
  */
 export enum ThemeModeEnum {
 	SYSTEM = 'system',
@@ -16,7 +16,7 @@ export enum ThemeModeEnum {
 }
 
 /**
- * 主题模式文本枚举
+ * Theme mode label keys
  */
 export const ThemeModeLabelEnum = {
 	SYSTEM: 'system.theme_mode_system',
@@ -25,7 +25,7 @@ export const ThemeModeLabelEnum = {
 } as const
 
 /**
- * 主题模式常量对应的选项
+ * The options for the theme mode constants
  */
 export const ThemeModeOptions = [
 	{

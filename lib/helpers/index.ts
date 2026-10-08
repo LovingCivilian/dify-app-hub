@@ -1,5 +1,3 @@
-export * from './base-request'
-export * from './id'
 export * from './gzip'
+export * from './id'
 export * from './localstorage'
-export * from './vars'

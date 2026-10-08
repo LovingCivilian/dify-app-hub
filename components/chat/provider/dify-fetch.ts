@@ -1,37 +1,16 @@
 import type { SSEOutput, XRequestOptions } from '@ant-design/x-sdk'
 
+import { createDifyApi, readDifyError } from '@/lib/dify/browser'
+
 import type { DifyChatInput, DifyChatMessage } from './message'
 
-/** Dify's error body ({ code, message, status }) as a thrown error, so XRequest's catch → onError → requestFallback. */
-export class DifyRequestError extends Error {
-	constructor(
-		public readonly status: number,
-		public readonly code: string | undefined,
-		message: string,
-	) {
-		super(message)
-		this.name = 'DifyRequestError'
-	}
-}
-
-export const readDifyError = async (response: Response): Promise<DifyRequestError> => {
-	let body: { code?: string; message?: string; error?: string } | null = null
-	try {
-		body = await response.json()
-	} catch {
-		body = null
-	}
-	return new DifyRequestError(
-		response.status,
-		body?.code,
-		body?.message ?? body?.error ?? response.statusText,
-	)
-}
+// The chat's importers keep these names; the classes live with the browser client (lib/dify/browser.ts).
+export { DifyRequestError, readDifyError } from '@/lib/dify/browser'
 
 /**
  * The documented XRequest `fetch` option (x-request skill). XRequest hands us its RequestInit
  * (JSON body, abort signal); we route by payload: a `resume` request reads the workflow events
- * endpoint (HITL continuation, spec §4.6), everything else posts to chat-messages. Non-OK answers
+ * route (HITL continuation, ADR-0017), everything else posts to chat-messages. Non-OK answers
  * become DifyRequestError because XRequest's own JSON handler only recognises `success === false`.
  */
 export const createDifyFetch =
@@ -39,17 +18,15 @@ export const createDifyFetch =
 		appId: string,
 	): NonNullable<XRequestOptions<DifyChatInput, SSEOutput, DifyChatMessage>['fetch']> =>
 	async (_baseURL, options) => {
+		const api = createDifyApi(appId)
 		const init = (options ?? {}) as RequestInit & { body?: string }
 		const body = init.body ? (JSON.parse(init.body) as DifyChatInput) : ({} as DifyChatInput)
 		const response = body.resume
-			? await fetch(
-					`/api/client/dify/${appId}/workflow/${encodeURIComponent(body.resume.workflowRunId)}/events`,
-					{
-						method: 'GET',
-						signal: init.signal ?? undefined,
-					},
-				)
-			: await fetch(`/api/client/dify/${appId}/chat-messages`, {
+			? await fetch(api.workflowEventsUrl(body.resume.workflowRunId), {
+					method: 'GET',
+					signal: init.signal ?? undefined,
+				})
+			: await fetch(api.chatMessagesUrl, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: init.body,

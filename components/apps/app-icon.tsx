@@ -8,57 +8,36 @@ import {
 	MessageOutlined,
 	RobotOutlined,
 } from '@ant-design/icons'
-import { Avatar, Skeleton } from 'antd'
-import { useEffect, useState } from 'react'
+import { Avatar } from 'antd'
 
-import { AppModeEnums } from '@/lib/core'
+import type { AppIcon as AppIconData } from '@/lib/data/apps'
+import type { AppMode } from '@/lib/dify/types'
 
-import { type AppIconKind, toAppIconKind } from './app-icon-kind'
-
-const MODE_ICONS: Record<AppModeEnums, React.ReactNode> = {
-	[AppModeEnums.CHATBOT]: <MessageOutlined />,
-	[AppModeEnums.AGENT]: <RobotOutlined />,
-	[AppModeEnums.CHATFLOW]: <ApartmentOutlined />,
-	[AppModeEnums.WORKFLOW]: <DeploymentUnitOutlined />,
-	[AppModeEnums.TEXT_GENERATOR]: <FileTextOutlined />,
+const MODE_ICONS: Record<AppMode, React.ReactNode> = {
+	chat: <MessageOutlined />,
+	'agent-chat': <RobotOutlined />,
+	'advanced-chat': <ApartmentOutlined />,
+	workflow: <DeploymentUnitOutlined />,
+	completion: <FileTextOutlined />,
+	agent: <RobotOutlined />,
 }
 
-/**
- * The app's Dify icon from its site settings through the existing proxy route, or its mode icon when the app
- * has none (spec §4.3). One request per rendered icon (spec §12 records the sync-time alternative).
- */
+/** The stored icon image's URL (charter §4.4). */
+export const appIconUrl = (appId: string) => `/api/apps/${encodeURIComponent(appId)}/icon`
+
+/** The app's stored Dify icon (an emoji, or the image through the icon route), or its mode icon when it has none. */
 export default function AppIcon({
 	appId,
+	icon,
 	mode,
 	size = 'large',
 }: {
 	appId: string
-	mode?: AppModeEnums
+	icon: AppIconData
+	mode: AppMode | null
 	size?: 'large' | 'small'
 }) {
-	const [icon, setIcon] = useState<AppIconKind>()
-
-	useEffect(() => {
-		const controller = new AbortController()
-		fetch(`/api/client/dify/${appId}/site`, { signal: controller.signal })
-			.then(response => response.json())
-			.then(answer => setIcon(toAppIconKind(answer)))
-			.catch(() => {
-				if (!controller.signal.aborted) setIcon({ kind: 'mode' })
-			})
-		return () => controller.abort()
-	}, [appId])
-
-	if (!icon) {
-		return (
-			<Skeleton.Avatar
-				active
-				shape="square"
-				size={size}
-			/>
-		)
-	}
-	if (icon.kind === 'emoji') {
+	if (icon?.kind === 'emoji') {
 		// icon_background is Dify data (the colour the admin picked), passed through style, not a literal here.
 		return (
 			<Avatar
@@ -70,12 +49,12 @@ export default function AppIcon({
 			</Avatar>
 		)
 	}
-	if (icon.kind === 'image') {
+	if (icon?.kind === 'image') {
 		return (
 			<Avatar
 				shape="square"
 				size={size}
-				src={icon.src}
+				src={appIconUrl(appId)}
 				alt=""
 			/>
 		)

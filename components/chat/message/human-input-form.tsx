@@ -1,26 +1,54 @@
 'use client'
 
-import { Alert, Button, Flex, Form, Input, Select, Statistic, Typography, theme } from 'antd'
+import {
+	Alert,
+	Button,
+	Flex,
+	Form,
+	Input,
+	Select,
+	Skeleton,
+	Statistic,
+	Typography,
+	theme,
+} from 'antd'
 import type { FormRule } from 'antd'
-import { useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { HumanInputForm as HumanInputFormDefinition } from '@/lib/dify/types'
+
 import FileUpload from '../chat-view/file-upload'
+import { DifyRequestError } from '../provider/dify-fetch'
 import type { HumanInputField, HumanInputState } from '../provider/message'
+import { applyFormDefinition } from './human-input-definition'
 import styles from './human-input-form.module.css'
 import { humanInputInitialValues, humanInputPhase, humanInputSubmission } from './human-input-phase'
 import MessageMarkdown from './message-markdown'
 
 export interface HumanInputFormProps {
 	humanInput: HumanInputState
-	/** This form's submission, or the continuation it started, is on its way. */
+	/** The form cannot be answered now: its answer or the continuation is on its way, or another reply streams. */
 	submitting: boolean
 	/**
 	 * Submits the values (OpenAPI, POST /form/human_input `inputs`) with the chosen action. It reports a
 	 * failure itself and settles either way; the form is submittable again afterwards.
 	 */
 	onSubmit: (inputs: Record<string, unknown>, actionId: string) => Promise<void>
+	/**
+	 * Reads the form's definition (GET /form/human_input/{form_token}); given for a pending form with a token. Until
+	 * it answers the form shows a skeleton; a 412 means the form was submitted or expired meanwhile; any other
+	 * failure keeps the stream's fields (the documented fallback).
+	 */
+	loadForm?: () => Promise<HumanInputFormDefinition>
 }
+
+/**
+ * What was typed into each open form, by token, until the form is filled or expires: x-sdk re-creates a reply whose
+ * stream fails or is stopped (useXChat `onError`), so the bubble and this form mount again, and an answer that did
+ * not go out keeps its values (ADR-0017 note of 2026-10-08).
+ */
+const drafts = new Map<string, Record<string, unknown>>()
 
 /** Every input must be answered, as in Dify's own form (a blank paragraph or an empty file list counts as empty). */
 const fieldRules = (field: HumanInputField, message: string): FormRule[] => {
@@ -30,26 +58,77 @@ const fieldRules = (field: HumanInputField, message: string): FormRule[] => {
 }
 
 /** Dify's Human Input node form inside the bubble flow, on antd primitives (spec §4.6, §5.3). */
-export default function HumanInputForm({ humanInput, submitting, onSubmit }: HumanInputFormProps) {
+export default function HumanInputForm({
+	humanInput: given,
+	submitting,
+	onSubmit,
+	loadForm,
+}: HumanInputFormProps) {
 	const { t } = useTranslation()
 	const { token } = theme.useToken()
 	const [form] = Form.useForm<Record<string, unknown>>()
-	// antd Form reads `initialValues` once; a new form gets a new instance (the caller keys it per form).
-	const [initialValues] = useState(() => humanInputInitialValues(humanInput))
 	const [expiredNow, setExpiredNow] = useState(false)
 	const [action, setAction] = useState<string>()
 	// Set at once on a click: `submitting` only arrives with a re-render, after the validation's microtasks,
 	// so a double click could otherwise post the form twice.
 	const inFlight = useRef(false)
+	// A pending form with a token reads its definition when it mounts: when it arrives, and when it is reopened
+	// from the history (the caller keys this component per form, so the token never changes).
+	const pendingToken = loadForm && given.state === 'pending' ? given.formToken : ''
+	const [definition, setDefinition] = useState<
+		| { status: 'loading' }
+		| { status: 'ready'; form?: HumanInputFormDefinition }
+		| { status: 'submitted' }
+	>(() => (pendingToken ? { status: 'loading' } : { status: 'ready' }))
+	// The caller passes a new function on every render; the read follows the token only (React: an Effect
+	// Event wraps an event handler from the props, so the Effect does not re-run when it changes).
+	const readForm = useEffectEvent(() => loadForm?.())
+	useEffect(() => {
+		if (!pendingToken) return
+		let ignore = false
+		readForm()?.then(
+			loaded => {
+				if (!ignore) setDefinition({ status: 'ready', form: loaded })
+			},
+			(error: unknown) => {
+				if (ignore) return
+				if (error instanceof DifyRequestError && error.code === 'human_input_form_submitted') {
+					setDefinition({ status: 'submitted' })
+					return
+				}
+				if (error instanceof DifyRequestError && error.code === 'human_input_form_expired')
+					setExpiredNow(true)
+				setDefinition({ status: 'ready' })
+			},
+		)
+		return () => {
+			ignore = true
+		}
+	}, [pendingToken])
+	// The definition holds while the form waits; a filled or timed-out form is the stream's (or the history's).
+	const humanInput =
+		given.state === 'pending' && definition.status === 'ready' && definition.form
+			? applyFormDefinition(given, definition.form)
+			: given
 	// The clock is read while rendering so that a form already past its expiry renders expired from its
 	// first paint, never as a countdown (Review Focus 5); the phase only moves from pending to expired.
 	const phase =
 		humanInput.state === 'pending' && expiredNow
 			? 'expired'
 			: humanInputPhase(humanInput, Math.floor(Date.now() / 1000))
+	// A filled or timed-out form takes no more answers: its draft goes.
+	useEffect(() => {
+		if (phase === 'filled' || phase === 'expired') drafts.delete(humanInput.formToken)
+	}, [phase, humanInput.formToken])
 	// A form delivered by email or to the console has no token (OpenAPI: `form_token` is null then).
 	const noToken = !humanInput.formToken
 	const disabled = phase !== 'pending' || noToken || submitting
+	// antd Form reads `initialValues` when it mounts, which is after the definition has loaded (the skeleton
+	// stands in until then); a new form gets a new instance (the caller keys it per form).
+	const initialValues = {
+		...humanInputInitialValues(humanInput),
+		...drafts.get(humanInput.formToken),
+	}
 
 	const submit = async (actionId: string) => {
 		if (inFlight.current) return
@@ -67,6 +146,25 @@ export default function HumanInputForm({ humanInput, submitting, onSubmit }: Hum
 		} finally {
 			inFlight.current = false
 		}
+	}
+
+	if (pendingToken && definition.status === 'loading') {
+		return (
+			<Skeleton
+				active
+				paragraph={{ rows: 3 }}
+			/>
+		)
+	}
+	if (pendingToken && definition.status === 'submitted') {
+		return (
+			<Alert
+				type="info"
+				showIcon
+				title={t('hitl.title')}
+				description={t('hitl.already_submitted')}
+			/>
+		)
 	}
 
 	// The box sits on a wrapper: antd's Flex resets its own padding (`.ant-flex { padding: 0 }`).
@@ -120,6 +218,9 @@ export default function HumanInputForm({ humanInput, submitting, onSubmit }: Hum
 					size="small"
 					initialValues={initialValues}
 					disabled={disabled}
+					onValuesChange={(_, values) => {
+						if (humanInput.formToken) drafts.set(humanInput.formToken, values)
+					}}
 				>
 					{humanInput.inputs.map(field => (
 						<Form.Item

@@ -4,6 +4,8 @@ import AnswerButton from './answer-button'
 import AnswerForm from './answer-form'
 import CodeBlock from './code-block'
 import MarkdownImage from './markdown-image'
+import MarkdownLink from './markdown-link'
+import MarkdownSource from './markdown-source'
 import ThinkBlock from './think-block'
 import VideoBlock from './video-block'
 
@@ -18,4 +20,7 @@ export const markdownComponents = {
 	button: AnswerButton,
 	img: MarkdownImage,
 	video: VideoBlock,
+	// Dify's file links in an answer go through the remote-file route (charter §4.1): `a` (href), `img` and `video`/`source` (src).
+	a: MarkdownLink,
+	source: MarkdownSource,
 } as unknown as NonNullable<XMarkdownProps['components']>

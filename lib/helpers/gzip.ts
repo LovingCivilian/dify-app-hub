@@ -1,18 +1,18 @@
 import pako from 'pako'
 
 /**
- * 解压缩 gzip 字符串
- * @param encodedStr gzip 压缩后的字符串
+ * Decompresses a gzip string
+ * @param encodedStr the gzip-compressed string (Base64-encoded)
  */
 export const unParseGzipString = (encodedStr: string) => {
 	try {
-		// Base64 解码
+		// Base64 decode
 		const binaryString = atob(encodedStr)
 		const bytes = new Uint8Array(binaryString.length)
 		for (let i = 0; i < binaryString.length; i++) {
 			bytes[i] = binaryString.charCodeAt(i)
 		}
-		// gzip 解压缩
+		// gzip decompress
 		const decompressedData = pako.inflate(bytes, { to: 'string' })
 		return {
 			error: false,

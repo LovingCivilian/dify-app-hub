@@ -2,17 +2,16 @@
 
 import { createContext, useContext } from 'react'
 
-import type { IDifyAppParameters, IDifyAppSiteSetting } from '@/lib/core'
-import type { DifyApi } from '@/lib/dify-client'
-import type { IDifyAppItem } from '@/types'
+import type { ChatAppDto } from '@/lib/data/apps'
+import type { DifyApi } from '@/lib/dify/browser'
+import type { AppParameters, SiteSettings } from '@/lib/dify/types'
 
-/** The open app and what was loaded for it (spec §4.9): one value per page, provided by ChatWorkspace. */
+/** The open app and what was loaded for it: one value per page, provided by ChatWorkspace. */
 export interface AppContextValue {
-	app: IDifyAppItem
-	parameters: IDifyAppParameters
-	site: IDifyAppSiteSetting
+	app: ChatAppDto
+	parameters: AppParameters
+	site: SiteSettings
 	difyApi: DifyApi
-	userId: string
 }
 
 export const AppContext = createContext<AppContextValue | null>(null)

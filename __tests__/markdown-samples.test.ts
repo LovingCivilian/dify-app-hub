@@ -5,7 +5,18 @@ import { MARKDOWN_SAMPLES } from '@/e2e/fixtures/markdown-samples'
 describe('markdown samples', () => {
 	it('cover every spike criterion', () => {
 		expect(Object.keys(MARKDOWN_SAMPLES).sort()).toEqual(
-			['code', 'html', 'imageFirst', 'links', 'long', 'math', 'streaming', 'theme', 'think'].sort(),
+			[
+				'code',
+				'html',
+				'imageFirst',
+				'links',
+				'long',
+				'math',
+				'signedFile',
+				'streaming',
+				'theme',
+				'think',
+			].sort(),
 		)
 	})
 	it('stream the think sample reasoning over several 40-character chunks', () => {

@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { gzipSync } from 'node:zlib'
 
-import { APP_ID, APP_IDS } from './fixtures/constants'
+import { APP_ID, APP_IDS, DISABLED_APP } from './fixtures/constants'
 import { baseURL } from './fixtures/env'
 
 /** The Sender's box by its placeholder: an app's parameter fields above it are textboxes too. */
@@ -519,4 +519,11 @@ test('a new conversation takes the name Dify generates for it', async ({
 	await expect(page.getByText(`Echo: ${text}`)).toBeVisible()
 	const first = (await conversationList(page, isMobile)).locator('.ant-conversations-item').first()
 	await expect(first).toHaveAttribute('title', text)
+})
+
+test("a disabled app's chat page shows the disabled state and the way back", async ({ page }) => {
+	await page.goto(`/chat/${DISABLED_APP.id}`)
+	await expect(page.getByText('This app is disabled', { exact: true })).toBeVisible()
+	await page.getByRole('link', { name: 'Back to the app list' }).click()
+	await expect(page).toHaveURL(/\/apps$/)
 })

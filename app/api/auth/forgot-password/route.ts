@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { getDb } from '@/db'
 import { passwordResetTokens, users } from '@/db/schema'
-import { createPasswordResetToken } from '@/lib/password-reset'
+import { createPasswordResetToken } from '@/lib/auth/password'
 import { isMailConfigured, sendPasswordResetEmail } from '@/lib/mail'
 import { generateUuidV4 } from '@/lib/helpers'
 

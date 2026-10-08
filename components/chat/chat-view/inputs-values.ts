@@ -1,17 +1,14 @@
 import type {
-	IUserInputForm,
-	IUserInputFormItemType,
-	IUserInputFormItemValueBase,
-} from '@/lib/core'
+	UserInputControlType,
+	UserInputFieldConfig,
+	UserInputFormItem,
+} from '@/lib/dify/types'
 import { unParseGzipString } from '@/lib/helpers'
 
 import { toControlFile, toFileMapping, type UploadedFile } from './file-types'
 
-/**
- * Dify lists each input as `{ [controlType]: field }` with only the one key present, which the
- * generated `IUserInputForm` (a total Record) does not express.
- */
-export type InputDefinition = Partial<IUserInputForm>
+/** Dify lists each input as `{ [controlType]: field }` with only the one key present (a partial record). */
+export type InputDefinition = UserInputFormItem
 
 export interface ResolveArgs {
 	form: InputDefinition[]
@@ -31,7 +28,7 @@ export interface ResolveArgs {
 }
 
 /** The controls the form renders; Dify may list others (external data tools), which are not inputs. */
-export const SUPPORTED_CONTROL_TYPES: readonly IUserInputFormItemType[] = [
+export const SUPPORTED_CONTROL_TYPES: readonly UserInputControlType[] = [
 	'text-input',
 	'select',
 	'number',
@@ -40,13 +37,8 @@ export const SUPPORTED_CONTROL_TYPES: readonly IUserInputFormItemType[] = [
 	'file-list',
 ]
 
-/**
- * One input's definition. Dify's file inputs also name the upload methods they take
- * (`allowed_file_upload_methods`), which the generated item type lacks.
- */
-export type InputField = IUserInputFormItemValueBase & {
-	allowed_file_upload_methods?: Array<'local_file' | 'remote_url'>
-}
+/** One input's definition; `type` is the field's own, or its control key when the field has none. */
+export type InputField = UserInputFieldConfig
 
 /** Field definitions flattened from Dify's `{ [controlType]: field }` list, the supported controls only. */
 export const inputFields = (form: InputDefinition[]): InputField[] =>
@@ -54,8 +46,8 @@ export const inputFields = (form: InputDefinition[]): InputField[] =>
 		const entry = Object.entries(item)[0]
 		if (!entry) return []
 		const [type, field] = entry
-		if (!SUPPORTED_CONTROL_TYPES.includes(type as IUserInputFormItemType)) return []
-		return [{ ...field, type: field.type ?? (type as typeof field.type) }]
+		if (!field || !SUPPORTED_CONTROL_TYPES.includes(type as UserInputControlType)) return []
+		return [{ ...field, type: field.type ?? type }]
 	})
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -66,7 +58,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  * `filename`, `remote_url` and `related_id`, which the file control reads as `name`, `url` and
  * `upload_file_id` (toControlFile, ported from the old form's normalizeFieldValue).
  */
-const controlValueOf = (type: IUserInputFormItemType | undefined, value: unknown) => {
+const controlValueOf = (type: InputField['type'], value: unknown) => {
 	if (type === 'file' && isRecord(value)) return toControlFile(value, 0)
 	if (type === 'file-list' && Array.isArray(value)) {
 		return value.map((file, index) => (isRecord(file) ? toControlFile(file, index) : file))

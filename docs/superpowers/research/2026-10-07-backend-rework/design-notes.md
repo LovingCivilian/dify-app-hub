@@ -1,0 +1,66 @@
+# Backend rework — approved design notes (brainstorm of 2026-10-07)
+
+Status: every section below was approved by the owner in chat on 2026-10-07. Next step: write
+`docs/superpowers/specs/2026-10-07-backend-rework-charter.md` from these notes (plus
+`docs/dify-service-api-1.17.1.md` from `dify-endpoint-map.md`), self-review, then the owner reviews,
+then `writing-plans` for B1. No handoff document unless asked. Commit/push only on the owner's word.
+
+Inputs in this folder: `dify-endpoint-map.md` (36 ops / 32 paths, Dify 1.17.1 = docs), `frontend-consumer-map.md`
+(every frontend call into the backend, envelope expectations, e2e specs per route), `reference-projects.md`
+(saas-starter, T3, platforms, webapp-conversation, documenso; next-auth v4 / Drizzle rc.3 / zod 4 / Next 16 doc facts).
+
+## Q1–Q4 (owner's choices, all "option 1")
+- Slicing: a backend charter + sub-projects B1 (Dify layer), B2 (accounts and admin), B3 (groups, per-app access, LDAP), then frontend phase 2. Each sub-project: spec, plan, PR to fork/overhaul.
+- Dify layer: one Route Handler per Dify operation under `app/api/dify/[appId]/<Dify path>/route.ts`, Dify's paths and verbs, a fork-owned typed server client (official `dify-client` 3.1.0 checked and rejected: JsonObject responses, no HITL/events/logs).
+- App data: `server-only` Data Access Layer + thin Server Actions (useActionState forms), the user/init/password Route Handlers deleted; proxy's HTTP self-fetch of /api/init/status removed.
+- Roadmap: B2 adds minimal role (admin|user) + account-menu change password; B3 groups, per-app access, LDAP (roles before LDAP because LDAP creates accounts on first sign-in).
+
+## Section 1 — Dify layer
+- Handler order: session (401) → app (404; 403 `app_disabled`) → validate (400 `invalid_param`) → client → return. `RouteContext<'/api/dify/[appId]/…'>`. No segment config (GET handlers uncached since Next 15).
+- B1 coverage, 27 operations / 24 files: info, parameters, site, meta (GET); chat-messages, chat-messages/[taskId]/stop (POST); messages (GET), messages/[messageId]/suggested (GET), messages/[messageId]/feedbacks (POST); conversations (GET), conversations/[conversationId] (DELETE), conversations/[conversationId]/name (POST); completion-messages, completion-messages/[taskId]/stop; workflows/run, workflows/tasks/[taskId]/stop; workflow/[workflowRunId]/events (GET); form/human_input/[formToken] (GET, POST); files/upload (POST), files/[fileId]/preview (GET); audio-to-text, text-to-audio; apps/annotations (GET, POST), apps/annotations/[annotationId] (PUT, DELETE).
+- Deferred (no consumer): run by version id, run detail, logs, conversation variables, app feedbacks, end users, annotation-reply settings, GET /. `agent` mode accepted by the backend; chat handling in phase 2.
+- Server client (`lib/dify/client.ts`, server-only): typed per operation from the map; `user` placed per map (JSON/query/form); never reads client `user`; non-OK → `DifyError {status, code, message}` (Dify envelope) or `upstream_error`; network → `upstream_unreachable` 502; streams/binaries returned as upstream Response body + status + headers (Content-Type, Content-Disposition, Content-Length, Accept-Ranges); no re-pumping.
+- Contract to the browser: Dify status/body verbatim (201 upload, 204 delete, {"result":"success"} stops/feedback, {} form submit, SSE, audio). Own refusals in the same `{code,message,status}` envelope: unauthorized, app_not_found, app_disabled, invalid_param, upstream_unreachable. No `{code,data}` wrapper; frontend keeps one parser + DifyRequestError.
+- Chat page loads its app on the server → DTO without apiBase/apiKey (id, name, mode, description, icon, four settings). File links via the preview route. Admin's direct Dify calls (info on create/sync, annotations) move behind routes/actions.
+- Audio: forward the recording under its real type and name; verify WebM against the owner's Dify during B1; decide then (no silent relabelling).
+
+## Section 2 — app data, sessions, roles
+- DAL: server-only modules per aggregate (apps, users, setup, password-reset); each verifies the caller via `verifySession()` (React cache); returns DTOs (no hash, no key except to the Dify client). Apps DAL calls the Dify client for create/sync (/info, /site → name, mode, description, tags, icon).
+- Session: next-auth v4 stays; `types/next-auth.d.ts` becomes a module augmentation (`& DefaultSession['user']`); `authOptions: NextAuthOptions`, typed callbacks; JWT carries id, role, sessionVersion; session.user = {id, email, name, role}; revocation rule unchanged (version mismatch → no user.id). `verifySession()` → {id,email,role}|null; redirecting helper for pages/layouts, throwing helper for actions; Dify handlers answer 401 envelope themselves.
+- Roles: `users.role` enum admin|user default user; /init creates first admin; admin-only: (admin) layout/pages, every admin action, annotation list/update/delete; any user may create an annotation when the app enables it. Users drawer gets role field; last admin cannot be demoted/deleted; nobody deletes themselves.
+- Actions: colocated `actions.ts` per segment; validate input (zod), call DAL, return plain result for useActionState; expected failures never throw; writes end in `refresh()`/`revalidatePath` (refresh() is the documented fit for DB-backed pages without fetch cache). In scope: apps (create/update/delete/sync), users (create/update/delete), createFirstAdmin, requestPasswordReset, resetPassword (same hashing/rate limit/transaction; nodemailer unchanged), changePassword (current checked, new hashed, sessionVersion bumped → client signs out to /login with notice; session update() not used). Account actions in `app/actions.ts`.
+- First run/proxy: proxy.ts keeps only the optimistic token check (401 for APIs, /login?callbackUrl= for pages); /api/init/status deleted; login layout redirects to /init when no admin exists; /init redirects back when one exists. /api/health stays. Session renewal unchanged (no refetchInterval).
+
+## Section 3 — structure
+- app/: api/auth/[...nextauth], api/health, api/dify/[appId]/…, api/apps/[appId]/icon; actions.ts (account); (admin)/{app-management,user-management}/{page,actions}; (auth)/… + actions where a form posts; (user)/chat/[appId]/page.tsx server lookup; init/{page,actions}.
+- db/: unchanged layout. lib/auth/{options,session,password}.ts; lib/data/{apps,users,setup,password-reset}.ts (+ DTO types); lib/dify/{client,errors,schemas}.ts + types/; lib/env.ts (lazy, zod); kept: access, mail, i18n, theme, match-query, search-params. types/next-auth.d.ts augmentation. components/chat/provider/dify-api.ts browser client typed from lib/dify/types.
+- Deleted after grep: lib/dify-client.ts, lib/api/, lib/api-utils.ts, lib/core/, lib/db/types.ts, lib/session-user.ts, lib/is-next-build.ts, lib/password-reset.ts (moves), lib/helpers/ except uuid, repository/, services/, types/index.ts, app/api/apps.ts, app/api/client/**, app/api/users/**, app/api/init/**, app/api/auth/{forgot,reset}-password, app/(admin)/app-management/utils.ts, instrumentation.ts.
+- Config: db/index.ts drops throwing proxy + `as any` (rc.3 mysql2 driver has no schema option; DAL uses query builder), logger dev-only; next.config.ts drops wildcard CORS headers; Docker gate verifies `next build` without DATABASE_URL (force-dynamic where needed). Rules: browser-facing types only from lib/dify/types and DAL DTOs; `server-only` imports (built in); process.env only in lib/env.ts.
+
+## Section 4 — schema and migrations
+- users (B2): role mysqlEnum('admin','user') not null default 'user'; backfill existing rows → admin; /init inserts admin; updated_at $onUpdate.
+- dify_apps (B1): is_enabled → boolean not null default true (map 1→true, 2→false before the type change); icon_type (emoji|image, nullable), icon (emoji or Dify file id), icon_background, icon_image mediumblob + icon_mime (bytes fetched at create/sync via the signed URL on the server, ≤1 MB, failure keeps previous icon and reports partial sync); GET /api/apps/[appId]/icon serves bytes with ETag + Cache-Control: private, max-age=86400, signed-in only. mode stays varchar (DAL validates six modes); tags JSON text; api_base/api_key unchanged (encryption at rest = later note); five settings columns stay; updated_at $onUpdate.
+- password_reset_tokens unchanged. db/seed.ts + db:seed removed. Migrations: pnpm db:generate, hand-edit only for backfills, one per sub-project; verified on the e2e MySQL from empty and on a copy of the local volume.
+- Fact: Dify's /site icon_url for image icons is a signed URL (controllers/common/fields.py Site.icon_url → graphon.file.helpers.get_signed_file_url) expiring per FILES_ACCESS_TIMEOUT (default 300 s).
+
+## Section 5 — validation, contracts, dependencies
+- zod v4 only new dependency (ADR): `import * as z from 'zod'`, z.strictObject/z.object, safeParse, z.flattenError, {error}. Used for Dify route schemas (lib/dify/schemas.ts), action inputs beside actions, lib/env.ts. bcryptjs/nodemailer/mysql2 stay; ldapjs in B3.
+- Dify route input: per-operation allowlist schema (chat-messages: query, inputs, files, response_mode, conversation_id, auto_generate_name); unknown keys stripped; `user` set from session after parsing; failed parse → 400 invalid_param envelope; query/form validated too (limit 1–100, sort_by enum, one file part).
+- Action results: {ok:true,data} | {ok:false, code, fieldErrors?}; codes: unauthorized, forbidden, invalid_input, email_in_use, last_admin, cannot_delete_self, not_found, dify_unreachable, operation_failed; client maps to i18n keys; unauthorized → /login.
+- DTOs from the DAL; dates ISO strings; session.user {id,email,name,role}.
+- lib/env.ts: DATABASE_URL, NEXTAUTH_SECRET, APP_URL, SMTP block all-or-nothing optional (replaces isMailConfigured); lazy; fails at first request not at build.
+- No Chinese strings in backend; logs English; user-facing = codes translated by the frontend (both locales). tsc clean, no @ts-nocheck; @ts-expect-error only with reason (re-check proxy.ts next-auth/jwt one).
+
+## Section 6 — testing
+- Vitest: client with vi.stubGlobal('fetch'); routes table-driven per area (__tests__/dify/*.test.ts) with lib/auth/session + lib/data/apps mocked (401/404/403/400/passthrough); DAL decision rules as pure functions tested; actions tested with DAL mocked; schemas, env, session helpers, access, proxy tests.
+- Playwright: stub to the map (204 delete, {"result":"success"} stops/feedback, {} form submit, 201 upload, bare `event: ping`, image /site variant points at stub asset); setup creates admin via /init form (redirect to /login = exists), apps via DB fixture with new columns, extra users via DB fixture with bcrypt; spec updates (upload .data.id→.id, mocked 412/415 → Dify envelope, reset-token reuse asserts UI, icon from route/DTO).
+- New e2e: workflow/completion stop POSTs; HITL form GET on human_input_required and on reopen; icon route; user-role turned away from /app-management and admin actions; change password → sign-out → login; first-run via form; disabled app chat page.
+- Gates: tsc/oxlint/oxfmt/pnpm test per commit; three Playwright projects per route-touching task; Docker rebuild with updated curl checks (/api/health 200; /apps signed out 307 callbackUrl; /api/dify/<id>/parameters signed out 401 envelope; /api/client/apps 404; antd-cssinjs 1), migrations on the local volume verified by query, build without DATABASE_URL; owner verifies in browser incl. audio format.
+
+## Section 7 — sub-projects, records, docs
+- B1 `feat/backend-b1-dify-layer`: structure move/deletions, lib/env.ts, lib/auth/session.ts (no roles), lib/dify/*, 24 routes, dify_apps migration, icon route + sync via DAL, chat server lookup + DTO, chat browser client/hooks on new contract, admin create/sync/annotations via actions+routes, stub + specs. Annotation list/update/delete: signed-in in B1, admin from B2.
+- B2 `feat/backend-b2-accounts` (after B1 merges): users migration + roles, typed session, users/setup/password-reset DAL, actions + four forms on useActionState, change password, proxy without init fetch, deleted handlers, role gates + e2e, docs/auth-gate.md rewritten.
+- B3: own brainstorm after B2. Phase 2 frontend: agent mode in chat, paused workflow form, meta tool icons (if wanted), chat Flex-spacing audit, Mermaid strict-mode retest, RTL + Arabic review, first-paint language, two @ant-design/icons majors.
+- ADRs (proposed in their PRs): 0022 supersede ADR-0009 (line fully fork-owned, upstream = cherry-pick source); 0023 Dify layer; 0024 DAL + Server Actions + roles (B2); 0025 zod. Dated notes: ADR-0006, 0017, 0018, 0020.
+- Docs: charter at docs/superpowers/specs/2026-10-07-backend-rework-charter.md; endpoint map committed as docs/dify-service-api-1.17.1.md; consumer map + reference survey stay in .superpowers/sdd/ cited by path; CLAUDE.md updated with B1 (backend rule, where-things-are, curl checks, follow-ups); AGENTS.md byte-identical (CLAUDE.md notes its structure section is upstream's); .cii-assessment.md re-checked per PR in its own commit.
+- Process per sub-project: spec → plan → subagent-driven execution with per-task review → whole-branch review on the most capable model → Docker gate → owner browser check → PR.

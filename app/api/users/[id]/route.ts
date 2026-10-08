@@ -1,8 +1,8 @@
-import bcrypt from 'bcryptjs'
+import { hashPassword } from '@/lib/auth/password'
 import { getServerSession } from 'next-auth/next'
 import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
-import { authOptions } from '@/lib/auth'
+import { authOptions } from '@/lib/auth/options'
 import { getDb } from '@/db'
 import { users } from '@/db/schema'
 
@@ -23,7 +23,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 		if (emailRows[0] && emailRows[0].id !== id)
 			return NextResponse.json({ message: '该邮箱已被其他用户使用' }, { status: 400 })
 		const updateData: Record<string, unknown> = { name, email }
-		if (password && password.trim()) updateData.password = await bcrypt.hash(password, 12)
+		if (password && password.trim()) updateData.password = await hashPassword(password)
 		await db.update(users).set(updateData).where(eq(users.id, id))
 		const updated = await db
 			.select({

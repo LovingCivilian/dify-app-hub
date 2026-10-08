@@ -1,6 +1,6 @@
 // Pages and APIs reachable without a session. Everything else needs one,
 // enforced in proxy.ts on the decoded pathname: pages redirect to /login and
-// every other /api path answers 401. The /api/client handlers also check the
+// every other /api path answers 401. The /api/dify handlers also check the
 // session themselves.
 
 // Public pages still go through the init-status check in proxy.ts.

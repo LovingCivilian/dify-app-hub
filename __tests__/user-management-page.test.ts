@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { requireSessionUser, getCachedServerSession, listUsers, UserManagement, redirectSignal } =
-	vi.hoisted(() => ({
-		requireSessionUser: vi.fn(),
-		getCachedServerSession: vi.fn(),
-		listUsers: vi.fn(),
-		UserManagement: () => null,
-		redirectSignal: new Error('NEXT_REDIRECT'),
-	}))
-vi.mock('@/lib/session-user', () => ({ requireSessionUser, getCachedServerSession }))
+const { requireUser, listUsers, UserManagement, redirectSignal } = vi.hoisted(() => ({
+	requireUser: vi.fn(),
+	listUsers: vi.fn(),
+	UserManagement: () => null,
+	redirectSignal: new Error('NEXT_REDIRECT'),
+}))
+vi.mock('@/lib/auth/session', () => ({ requireUser }))
 vi.mock('@/lib/data/users', () => ({ listUsers }))
 vi.mock('@/components/admin/users/user-management', () => ({ default: UserManagement }))
 
@@ -16,20 +14,18 @@ import UserManagementPage from '@/app/(admin)/user-management/page'
 
 describe('/user-management page', () => {
 	beforeEach(() => {
-		requireSessionUser.mockReset()
-		getCachedServerSession.mockReset()
+		requireUser.mockReset()
 		listUsers.mockReset()
 	})
 
 	it('checks the session before it lists the users', async () => {
-		requireSessionUser.mockRejectedValue(redirectSignal)
+		requireUser.mockRejectedValue(redirectSignal)
 		await expect(UserManagementPage()).rejects.toBe(redirectSignal)
 		expect(listUsers).not.toHaveBeenCalled()
 	})
 
 	it('hands the table the rows and the signed-in user id', async () => {
-		requireSessionUser.mockResolvedValue(undefined)
-		getCachedServerSession.mockResolvedValue({ user: { id: 'u1', email: 'admin@e2e.local' } })
+		requireUser.mockResolvedValue({ id: 'u1', email: 'admin@e2e.local', name: 'Admin' })
 		const at = new Date('2026-01-15T09:05:00.000Z')
 		listUsers.mockResolvedValue([
 			{ id: 'u1', name: 'Admin', email: 'admin@e2e.local', createdAt: at, updatedAt: at },

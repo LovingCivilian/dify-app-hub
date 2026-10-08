@@ -5,11 +5,11 @@ import { Alert, Button, Upload, type UploadFile, type UploadProps } from 'antd'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { IFileType } from '@/lib/api'
+import type { FileType } from '@/lib/dify/types'
 
 import { useAppContext } from '../app-context'
 import { useDifyUpload } from '../hooks/use-dify-upload'
-import { completeFileUrl } from '../utils-index'
+import { fileLink, withGivenLinks } from '../message/file-link'
 import { allowsLocalUpload, fileTypeFor, type FileRules } from './file-types'
 
 export interface IUploadFileItem extends UploadFile {
@@ -23,7 +23,7 @@ export interface IUploadFileItem extends UploadFile {
 
 interface IFileUploadCommonProps {
 	/** Dify's file categories (none: any file). */
-	allowed_file_types: IFileType[]
+	allowed_file_types: FileType[]
 	/** The extensions a `custom` file may have ("with the leading `.`"). */
 	allowed_file_extensions?: string[]
 	/** The upload methods the input takes; this control uploads local files only. */
@@ -69,8 +69,8 @@ export default function FileUpload(props: IFileUploadProps) {
 		required,
 		value,
 	} = props
-	const { app } = useAppContext()
 	const { t } = useTranslation()
+	const { difyApi } = useAppContext()
 	const single = mode === 'single'
 	const items = useMemo(
 		() =>
@@ -87,16 +87,15 @@ export default function FileUpload(props: IFileUploadProps) {
 	)
 	const local = allowsLocalUpload(allowed_file_upload_methods)
 
-	// Stored files link to Dify's file preview, relative to the app's API base.
-	const apiBase = app.requestConfig.apiBase || ''
+	// A stored file's link is one Dify handed out: it loads through the app's remote-file route.
 	const fileList = useMemo(
-		() =>
-			items.map(item => ({ ...item, url: completeFileUrl(item.url || '', apiBase) || undefined })),
-		[items, apiBase],
+		() => items.map(item => ({ ...item, url: fileLink(item.url || '', difyApi) || undefined })),
+		[items, difyApi],
 	)
 
 	const handleChange: NonNullable<UploadProps['onChange']> = ({ fileList: next }) => {
-		const files = next.map((item): IUploadFileItem => {
+		// The value keeps the links Dify gave; `fileList` above shows them proxied.
+		const files = withGivenLinks(next, items).map((item): IUploadFileItem => {
 			const id = (item.response as { id?: unknown } | undefined)?.id
 			return item.status === 'done' && typeof id === 'string'
 				? {

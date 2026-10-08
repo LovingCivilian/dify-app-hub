@@ -11,6 +11,9 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			'@': path.resolve(__dirname),
+			// Disable server-only: Next's Jest guide maps it to a project-local empty module (testing/jest.md,
+			// moduleNameMapper); vitest does the same through this alias.
+			'server-only': path.resolve(__dirname, '__mocks__/empty.js'),
 		},
 	},
 })

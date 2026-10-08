@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { DifyApi } from '@/lib/dify-client'
+import type { DifyApi } from '@/lib/dify/browser'
 
 import type { DifyRequestError } from '../provider/dify-fetch'
-import { audioAnswerError, toDifyError } from './dify-errors'
+import { toDifyError } from './dify-errors'
 
 /** X's Actions.Audio statuses (x-components API: `status`). */
 export type TtsStatus = 'default' | 'loading' | 'running' | 'error'
@@ -19,7 +19,7 @@ interface Clip {
 let playing: HTMLAudioElement | null = null
 
 /**
- * Text-to-speech for one answer (spec §4.7): POST /text2audio, the audio as a Blob behind an object URL,
+ * Text-to-speech for one answer (spec §4.7): POST /text-to-audio, the audio as a Blob behind an object URL,
  * played by an `HTMLAudioElement` (MDN: `URL.createObjectURL`, `HTMLMediaElement.play()`). The status runs
  * `loading` → `running` → `default`, `error` on a failure (reported through `onError` with Dify's text or
  * ''). A click while loading or playing stops it; the object URL is revoked whenever a clip stops, ends,
@@ -63,10 +63,8 @@ export const useTts = (difyApi: DifyApi, onError?: (error: DifyRequestError) => 
 			setStatus('loading')
 			let audio: HTMLAudioElement | undefined
 			try {
-				// DifyApi.text2Audio resolves the proxy's Response whatever its status.
-				const response: Response = await difyApi.text2Audio({ text })
-				const failed = await audioAnswerError(response)
-				if (failed) throw failed
+				// The browser client rejects with DifyRequestError on a non-OK answer.
+				const response = await difyApi.textToAudio({ text })
 				const blob = await response.blob()
 				if (id !== generation.current) return
 				const url = URL.createObjectURL(blob)

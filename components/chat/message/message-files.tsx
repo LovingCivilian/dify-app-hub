@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useAppContext } from '../app-context'
 import type { MessageFile } from '../provider/message'
-import { completeFileUrl } from '../utils-index'
+import { fileLink } from './file-link'
 import styles from './message-files.module.css'
 
 const IMAGE_CLASS_NAMES = { image: styles.image }
@@ -46,22 +46,21 @@ export default function MessageFiles({ files }: { files?: MessageFile[] }) {
 	const { t } = useTranslation()
 	const { message: toast } = App.useApp()
 	const { token } = theme.useToken()
-	const { app, difyApi } = useAppContext()
+	const { difyApi } = useAppContext()
 	// Thumbnails three control heights square. antd sizes an Image through its width/height props: its own
 	// rule for the <img> outranks a class on the `image` slot.
 	const thumbnail = token.controlHeight * 3
-	const apiBase = app.requestConfig.apiBase
 
 	const { images, others } = useMemo(() => {
 		const withUrls = (files ?? []).map(file => ({
 			...file,
-			url: completeFileUrl(file.url, apiBase),
+			url: fileLink(file.url, difyApi),
 		}))
 		return {
 			images: withUrls.filter(file => file.type === 'image' && file.url),
 			others: withUrls.filter(file => !(file.type === 'image' && file.url)),
 		}
-	}, [files, apiBase])
+	}, [files, difyApi])
 
 	if (!images.length && !others.length) return null
 
@@ -71,11 +70,7 @@ export default function MessageFiles({ files }: { files?: MessageFile[] }) {
 			return
 		}
 		try {
-			const response = await difyApi.filePreview({
-				file_id: file.uploadFileId,
-				as_attachment: true,
-			})
-			if (!response.ok) throw new Error(response.statusText)
+			const response = await difyApi.filePreview(file.uploadFileId, { asAttachment: true })
 			saveBlob(
 				await response.blob(),
 				filenameFromDisposition(

@@ -62,7 +62,7 @@ test('sync info refreshes the app from Dify', async ({ page }, testInfo) => {
 		await page.goto('/app-management')
 		await moreActions(page, id).click()
 		await page.getByRole('menuitem', { name: 'Sync app info' }).click()
-		// The stub's /info for this prefix answers the created app's name; router.refresh() shows it.
+		// The stub's /info for this prefix answers the created app's name; the action's refresh() shows it.
 		await expect(rowById(page, id)).toContainText(CREATED_APP.name)
 	} finally {
 		await dropApp(id)
@@ -121,8 +121,12 @@ test.describe('create and edit', () => {
 
 		const row = page.getByRole('row', { name: new RegExp(CREATED_APP.name) })
 		await expect(row).toBeVisible()
-		// The created app's stub site names an image icon (Task 1).
-		await expect(row.locator('img')).toHaveAttribute('src', /stub-image\.png/)
+		// The created app's stub site names an image icon; the DAL stored its bytes at create time and the icon route
+		// serves them (charter §4.4).
+		await expect(row.locator('img')).toHaveAttribute('src', /\/api\/apps\/[^/]+\/icon$/)
+		await expect
+			.poll(() => row.locator('img').evaluate(img => (img as HTMLImageElement).naturalWidth))
+			.toBeGreaterThan(0)
 
 		await row.getByRole('button', { name: 'Edit' }).click()
 		const edit = page
@@ -147,7 +151,7 @@ test.describe('create and edit', () => {
 		await page.goto('/app-management')
 		await page.getByRole('button', { name: 'New' }).click()
 		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
-		// An unknown stub path answers Dify's 404 JSON body, which lib/api resolves as a value (Review Focus 1).
+		// An unknown stub path answers Dify's 404 JSON body: the server client throws, the action answers dify_unreachable.
 		await create.getByLabel('API Base').fill(`${stubApiBase}/nope`)
 		await create.getByLabel('API Secret').fill('app-e2e')
 		await create.getByRole('button', { name: 'OK' }).click()
@@ -165,6 +169,9 @@ test.describe('create and edit', () => {
 		await rowById(page, APP_ID).getByRole('button', { name: 'Edit' }).click()
 		const first = page.getByRole('dialog').filter({ hasText: 'Edit app configuration - Stub app' })
 		await expect(first.getByLabel('API Base')).toHaveValue(`${stubApiBase}`)
+		// The stored key never comes back to the browser: a blank field keeps it.
+		await expect(first.getByLabel('API Secret')).toHaveValue('')
+		await expect(first.getByText('Leave blank to keep the current API Secret')).toBeVisible()
 		await drawerOpened(first)
 		await first.getByRole('button', { name: 'Cancel' }).click()
 		// The drawer keeps its title and form while it slides out (cleared in afterOpenChange).

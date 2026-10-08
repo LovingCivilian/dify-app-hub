@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by [ADR-0022](0022-treat-the-overhaul-line-as-fully-fork-owned.md)
 date: 2026-10-04
 decision-makers: LovingCivilian (fork owner)
 ---
@@ -45,3 +45,5 @@ Non-goals: contributing the overhaul upstream; mirroring upstream's UI changes a
 Sources: charter lines on upstream drift ("the frontend becomes fork-owned … syncs take the backend only"), `CLAUDE.md` (PR #12 wording), final review of PR #12. Related: [ADR-0003](0003-run-the-fork-on-a-two-branch-model.md).
 
 Note, 2026-10-06 ([ADR-0019](0019-keep-two-product-lines.md)): this ADR now governs the `fork/overhaul` line. That line takes no routine upstream merges; upstream backend changes reach it by `git cherry-pick -x`, and the merge-friendly backend rule above keeps those picks cheap until the backend rework (scheduled after sub-project 4, `docs/superpowers/specs/2026-10-05-backend-rework-brief.md`) decides otherwise. On `fork/main` the frontend is upstream's with line-level fork edits.
+
+Note, 2026-10-07: superseded on fork/overhaul by ADR-0022 (the whole line is fork-owned). On fork/main this record still governs.

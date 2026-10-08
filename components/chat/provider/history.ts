@@ -1,110 +1,33 @@
 import type { DefaultMessageInfo } from '@ant-design/x-sdk'
 
-import type { IAgentThought, IRetrieverResource } from '@/lib/api'
+import type {
+	AgentThought,
+	HumanInputContent,
+	HumanInputFormDefinition,
+	HumanInputFormSubmission,
+	MessageFileItem,
+	MessageListItem,
+} from '@/lib/dify/types'
 
 import { humanInputPhase } from '../message/human-input-phase'
-import type {
-	DifyChatMessage,
-	HumanInputAction,
-	HumanInputField,
-	HumanInputState,
-	MessageFile,
-	WorkflowState,
-} from './message'
+import type { DifyChatMessage, HumanInputState, MessageFile, WorkflowState } from './message'
 
-/** A `message_files` item of GET /messages (Dify OpenAPI: MessageFileItem; the nullable fields are the document's). */
-export interface HistoryFile {
-	id: string
-	filename: string
-	type: string
-	url: string | null
-	mime_type: string | null
-	size: number | null
-	transfer_method: string
-	belongs_to: string | null
-	upload_file_id: string | null
-}
-
-/** An `agent_thoughts` item of GET /messages (Dify OpenAPI: AgentThoughtItem). */
-export interface HistoryThought {
-	id: string
-	message_id: string
-	position: number
-	thought: string
-	tool: string
-	tool_input: string
-	tool_labels?: Record<string, unknown> | null
-	observation: string
-	/** file ids related to this thought */
-	files?: string[]
-	chain_id?: string | null
-	created_at: number
-}
-
-/** `form_definition` of a human input content (OpenAPI: HumanInputFormDefinition). */
-export interface HistoryFormDefinition {
-	form_id?: string
-	node_id?: string
-	node_title?: string
-	form_content?: string
-	inputs?: HumanInputField[]
-	actions?: HumanInputAction[]
-	display_in_ui?: boolean
-	/** null (or left out) for a form that cannot be answered through the Service API, and once submitted */
-	form_token?: string | null
-	resolved_default_values?: Record<string, string>
-	/** unix seconds */
-	expiration_time?: number
-}
-
-/** `form_submission_data` of a human input content (OpenAPI: HumanInputFormSubmissionData). */
-export interface HistoryFormSubmission {
-	node_id?: string
-	node_title?: string
-	rendered_content?: string
-	action_id?: string
-	action_text?: string
-}
-
-/**
- * An `extra_contents` item of GET /messages (OpenAPI: HumanInputContent): a Human Input node's form.
- * `form_definition` is "`null` when the content represents a submission response";
- * `form_submission_data` is "`null` when the form has not been submitted yet".
- */
-export interface HistoryHumanInputContent {
-	/** `human_input` for human input content */
-	type: string
-	workflow_run_id?: string
-	submitted?: boolean
-	form_definition?: HistoryFormDefinition | null
-	form_submission_data?: HistoryFormSubmission | null
-}
-
-/**
- * One item of Dify's GET /messages (OpenAPI: ConversationMessageItem). `extra_contents` maps to the
- * message's human input form; the token and price fields are not mapped.
- */
-export interface HistoryMessage {
-	id: string
-	conversation_id: string
-	inputs: Record<string, unknown>
-	query: string
-	answer: string
-	message_files?: HistoryFile[]
-	feedback?: { rating: string } | null
-	/** `normal`, or `error` when generation failed */
-	status: string
-	error?: string | null
-	agent_thoughts?: HistoryThought[]
-	retriever_resources?: IRetrieverResource[]
-	extra_contents?: HistoryHumanInputContent[]
-	/** unix seconds */
-	created_at: number
-}
+/** The GET /messages shapes as the mapper reads them: the contract's types under the mapper's names. */
+export type HistoryFile = MessageFileItem
+export type HistoryThought = AgentThought
+export type HistoryFormDefinition = HumanInputFormDefinition
+export type HistoryFormSubmission = HumanInputFormSubmission
+export type HistoryHumanInputContent = HumanInputContent
+export type HistoryMessage = MessageListItem
 
 export interface HistoryContext {
 	/** Workflow nodes are not part of GET /messages; they come from the IndexedDB store (spec §4.10). */
 	loadWorkflow: (messageId: string) => Promise<WorkflowState | undefined>
+	/**
+	 * The streamed `reasoning_chunk` text, kept in the same store: GET /messages has no field for it (Dify 1.17.1
+	 * `MessageListItem`; only the web app's `WebMessageListItem` carries the message `metadata` that holds it).
+	 */
+	loadReasoning?: (messageId: string) => Promise<string | undefined>
 	/** The clock in unix seconds, for a pending form that expired meanwhile (default: the system clock). */
 	now?: () => number
 }
@@ -126,9 +49,9 @@ const toFile = (file: HistoryFile): MessageFile => ({
 	uploadFileId: file.upload_file_id ?? undefined,
 })
 
-// The live thought type is the stream event's. AgentThoughtItem names the file ids `files` and carries
-// neither the task id nor `file_id`; nothing reads those two, so they stay empty.
-const toThought = (thought: HistoryThought, conversationId: string): IAgentThought => ({
+// The live thought type is the stream event's. AgentThoughtItem names the file ids `files` and carries no
+// task id; nothing reads it, so it stays empty.
+const toThought = (thought: HistoryThought, conversationId: string): AgentThought => ({
 	id: thought.id,
 	message_id: thought.message_id,
 	position: thought.position,
@@ -140,7 +63,6 @@ const toThought = (thought: HistoryThought, conversationId: string): IAgentThoug
 	message_files: thought.files ?? [],
 	conversation_id: conversationId,
 	task_id: '',
-	file_id: '',
 })
 
 const toRating = (feedback: HistoryMessage['feedback']): DifyChatMessage['feedback'] =>
@@ -184,10 +106,14 @@ const toHumanInput = (
 	return { ...form, state: humanInputPhase(form, nowSeconds) }
 }
 
-// Workflow nodes are optional enrichment: one failing store read (IndexedDB blocked or full) must not fail the page.
-const loadWorkflowSafely = async (ctx: HistoryContext, messageId: string) => {
+// Workflow nodes and reasoning are optional enrichment: one failing store read (IndexedDB blocked or full) must not
+// fail the page.
+const loadSafely = async <T>(
+	load: ((messageId: string) => Promise<T>) | undefined,
+	messageId: string,
+) => {
 	try {
-		return await ctx.loadWorkflow(messageId)
+		return await load?.(messageId)
 	} catch {
 		return undefined
 	}
@@ -199,6 +125,7 @@ const mapMessage = async (
 ): Promise<DefaultMessageInfo<DifyChatMessage>[]> => {
 	const ids = historyIds(item.id)
 	const files = (item.message_files ?? []).map(toFile)
+	const reasoning = await loadSafely(ctx.loadReasoning, item.id)
 	const common = {
 		ids: { messageId: item.id, conversationId: item.conversation_id },
 		createdAt: item.created_at,
@@ -225,7 +152,8 @@ const mapMessage = async (
 				feedback: toRating(item.feedback),
 				thoughts: (item.agent_thoughts ?? []).map(t => toThought(t, item.conversation_id)),
 				citations: item.retriever_resources ?? [],
-				workflow: await loadWorkflowSafely(ctx, item.id),
+				workflow: await loadSafely(ctx.loadWorkflow, item.id),
+				...(reasoning ? { reasoning, reasoningDone: true } : {}),
 				humanInput: toHumanInput(item.extra_contents, ctx.now?.() ?? Math.floor(Date.now() / 1000)),
 				// A failed turn stays `success` for the SDK and carries its error, like a live `error` event
 				// (spec §4.5); `message` is empty without Dify's text and the UI supplies the i18n fallback.

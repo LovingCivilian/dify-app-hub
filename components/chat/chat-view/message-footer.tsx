@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import { formatDateTime } from '@/libs/format-date'
 
 import { useAppContext } from '../app-context'
+import { failureText } from '../hooks/dify-errors'
 import { useTts } from '../hooks/use-tts'
 import type { DifyRequestError } from '../provider/dify-fetch'
 import type { DifyChatMessage } from '../provider/message'
@@ -69,14 +70,15 @@ function MessageFooter({
 	const { app, parameters, difyApi } = useAppContext()
 	const { message: toast } = App.useApp()
 	const reportTtsError = useCallback(
-		(error: DifyRequestError) => toast.error(error.message || t('common.request_failed_retry')),
+		(error: DifyRequestError) =>
+			toast.error(failureText(error, t, t('common.request_failed_retry'))),
 		[t, toast],
 	)
 	const tts = useTts(difyApi, reportTtsError)
 	const [dislikeOpen, setDislikeOpen] = useState(false)
 
 	const actions = footerActions(message, status, {
-		annotation: Boolean(app.extConfig?.annotation?.enabled),
+		annotation: app.settings.annotationEnabled,
 		tts: Boolean(parameters.text_to_speech?.enabled),
 		hasQuestion,
 	})

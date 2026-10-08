@@ -1,0 +1,101 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { requireActor, createApp, updateApp, deleteApp, syncApp, refresh } = vi.hoisted(() => ({
+	requireActor: vi.fn(),
+	createApp: vi.fn(),
+	updateApp: vi.fn(),
+	deleteApp: vi.fn(),
+	syncApp: vi.fn(),
+	refresh: vi.fn(),
+}))
+vi.mock('@/lib/auth/session', async importOriginal => ({
+	...(await importOriginal<typeof import('@/lib/auth/session')>()),
+	requireActor,
+}))
+vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
+vi.mock('@/lib/data/apps', () => ({ createApp, updateApp, deleteApp, syncApp }))
+vi.mock('next/cache', () => ({ refresh }))
+
+import {
+	createAppAction,
+	deleteAppAction,
+	syncAppAction,
+	updateAppAction,
+} from '@/app/(admin)/app-management/actions'
+import { AuthError } from '@/lib/auth/session'
+import { DifyError } from '@/lib/dify/errors'
+
+const actor = { id: 'u1', email: 'jane@example.com', name: null }
+const UUID = '3b241101-e2bb-4255-8caf-4136c566a962'
+const input = {
+	apiBase: 'https://dify.example/v1',
+	apiKey: 'app-abc',
+	mode: 'chat',
+	enabled: true,
+	settings: {
+		answerForm: { enabled: false, feedbackText: '' },
+		enableUpdateAfterConversationStarts: false,
+		openingStatementDisplayMode: 'default',
+		annotationEnabled: false,
+	},
+}
+
+beforeEach(() => {
+	for (const fn of [requireActor, createApp, updateApp, deleteApp, syncApp, refresh]) fn.mockReset()
+	requireActor.mockResolvedValue(actor)
+})
+// toActionFailure logs a DifyError or an unexpected throw (lib/action-failure.ts); the spy keeps the output clean.
+afterEach(() => {
+	vi.restoreAllMocks()
+})
+
+describe('app actions', () => {
+	it('answers unauthorized without a live session and touches nothing', async () => {
+		requireActor.mockRejectedValue(new AuthError('unauthorized'))
+		expect(await createAppAction(input)).toEqual({ ok: false, code: 'unauthorized' })
+		expect(createApp).not.toHaveBeenCalled()
+	})
+	it('answers invalid_input with field errors for a bad input', async () => {
+		const result = await createAppAction({ ...input, apiBase: 'nope', apiKey: '' })
+		expect(result).toMatchObject({ ok: false, code: 'invalid_input' })
+		if (!result.ok)
+			expect(Object.keys(result.fieldErrors ?? {}).sort()).toEqual(['apiBase', 'apiKey'])
+	})
+	it('creates through the DAL, refreshes the route and answers the result', async () => {
+		createApp.mockResolvedValue({ id: UUID, partial: false })
+		expect(await createAppAction(input)).toEqual({ ok: true, data: { id: UUID, partial: false } })
+		expect(createApp).toHaveBeenCalledWith(actor, input)
+		expect(refresh).toHaveBeenCalled()
+	})
+	it("maps Dify's refusal of the credentials to dify_unreachable", async () => {
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+		createApp.mockRejectedValue(new DifyError(401, 'unauthorized', 'bad key'))
+		expect(await createAppAction(input)).toEqual({ ok: false, code: 'dify_unreachable' })
+		expect(refresh).not.toHaveBeenCalled()
+		expect(errorSpy).toHaveBeenCalledWith('createAppAction:', {
+			status: 401,
+			code: 'unauthorized',
+			message: 'bad key',
+		})
+	})
+	it('updates with a blank key meaning "keep", and answers not_found for a gone app', async () => {
+		updateApp.mockResolvedValue({ id: UUID, partial: true })
+		expect(await updateAppAction(UUID, { ...input, apiKey: '' })).toEqual({
+			ok: true,
+			data: { id: UUID, partial: true },
+		})
+		expect(updateApp).toHaveBeenCalledWith(actor, UUID, { ...input, apiKey: undefined })
+		updateApp.mockResolvedValue(null)
+		expect(await updateAppAction(UUID, input)).toEqual({ ok: false, code: 'not_found' })
+		expect(await updateAppAction('not-a-uuid', input)).toEqual({ ok: false, code: 'not_found' })
+	})
+	it('deletes and syncs, answering not_found when the row is gone', async () => {
+		deleteApp.mockResolvedValue(true)
+		expect(await deleteAppAction(UUID)).toEqual({ ok: true, data: undefined })
+		deleteApp.mockResolvedValue(false)
+		expect(await deleteAppAction(UUID)).toEqual({ ok: false, code: 'not_found' })
+		syncApp.mockResolvedValue({ id: UUID, partial: false })
+		expect(await syncAppAction(UUID)).toEqual({ ok: true, data: { id: UUID, partial: false } })
+		expect(refresh).toHaveBeenCalledTimes(2)
+	})
+})

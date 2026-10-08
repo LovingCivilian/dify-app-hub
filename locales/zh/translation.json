@@ -43,14 +43,15 @@
 		"no_data_default": "暂无应用",
 		"no_description": "暂无描述",
 		"no_config_default_text": "暂无 Dify 应用配置，请联系管理员",
-		"info_missing": "应用信息缺失，请检查",
 		"no_description_user": "该应用暂无描述",
 		"empty_contact_admin": "暂无应用数据，请联系管理员配置",
 		"load_failed": "加载失败",
 		"reload_page": "刷新页面",
 		"loading": "应用加载中...",
 		"search_placeholder": "搜索应用",
-		"no_match": "没有符合搜索条件的应用"
+		"no_match": "没有符合搜索条件的应用",
+		"disabled": "此应用已停用",
+		"back_to_apps": "返回应用列表"
 	},
 	"app_mode": {
 		"name": {
@@ -58,14 +59,16 @@
 			"chatbot": "聊天助手",
 			"workflow": "工作流",
 			"chatflow": "支持工作流编排的聊天助手",
-			"agent": "具备推理和自主调用能力的聊天助手"
+			"agent": "具备推理和自主调用能力的聊天助手",
+			"agent_app": "智能体应用"
 		},
 		"option": {
 			"text_generator": "Text Generator（文本生成）",
 			"chatbot": "Chatbot（聊天助手）",
 			"workflow": "Workflow（工作流）",
 			"chatflow": "Chatflow（支持工作流编排的聊天助手）",
-			"agent": "Agent（具备推理和自主调用能力的聊天助手）"
+			"agent": "Agent（具备推理和自主调用能力的聊天助手）",
+			"agent_app": "智能体应用（新版 Agent，仅流式）"
 		}
 	},
 	"chat": {
@@ -98,6 +101,11 @@
 		"menu_for": "{{name}} 的操作",
 		"sending_queued": "此会话加载完成后将发送你的消息。",
 		"history_load_failed": "无法加载此会话的消息",
+		"error_unauthorized": "未获授权。请重新登录；如果问题仍然存在，请联系管理员检查应用设置。",
+		"error_app_not_found": "找不到此应用。",
+		"error_app_disabled": "此应用已停用。",
+		"error_upstream_error": "Dify 返回了错误，请稍后重试。",
+		"error_upstream_unreachable": "无法连接到 Dify，请稍后重试。",
 		"retry": "重试",
 		"inputs_required": "请先填写对话参数。"
 	},
@@ -273,16 +281,20 @@
 		"create_success": "新增应用配置成功",
 		"edit_success": "编辑应用配置成功",
 		"save_failed": "保存应用配置失败",
-		"dify_unreachable": "无法连接到 Dify 应用，请检查 API Base 和 API Secret。"
+		"dify_unreachable": "无法连接到 Dify 应用，请检查 API Base 和 API Secret。",
+		"invalid_input": "部分取值无效，请检查表单后重试。",
+		"icon_not_stored": "已保存，但无法保存应用图标图片"
 	},
 	"app_setting": {
 		"section_request": "请求配置",
 		"api_base_required": "API Base 不能为空",
+		"api_base_invalid": "请输入以 http:// 或 https:// 开头的地址，如 https://api.dify.ai/v1",
 		"api_base_tooltip": "Dify API 的域名+版本号前缀，如 https://api.dify.ai/v1",
 		"api_base_placeholder": "请输入 API BASE",
 		"api_secret_tooltip": "Dify App 的 API Secret (以 app- 开头)",
 		"api_secret_required": "API Secret 不能为空",
 		"api_secret_placeholder": "请输入 API Secret",
+		"api_secret_keep": "留空则保留当前的 API Secret",
 		"section_basic": "基本信息",
 		"name": "应用名称",
 		"name_placeholder": "请输入应用名称",
@@ -379,6 +391,8 @@
 		"time_left": "剩余时间",
 		"no_token": "此表单已通过邮件或 Dify 控制台发送，只能在那里填写。",
 		"submit_failed_reason": "提交失败：{{error}}",
-		"resume_failed": "您的回答已提交，但未能加载后续回复。请重新打开对话查看。"
+		"resume_failed": "您的回答已提交，但未能加载后续回复。请重新打开对话查看。",
+		"already_submitted": "此表单已提交。",
+		"not_waiting": "此表单已不再等待回答。请重新打开对话查看结果。"
 	}
 }

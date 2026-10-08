@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs'
+import { hashPassword } from '@/lib/auth/password'
 import { NextRequest, NextResponse } from 'next/server'
 import { count } from 'drizzle-orm'
 import { getDb } from '@/db'
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 		if (!name || !email || !password) {
 			return NextResponse.json({ message: '姓名、邮箱和密码都是必填项' }, { status: 400 })
 		}
-		const hashedPassword = await bcrypt.hash(password, 12)
+		const hashedPassword = await hashPassword(password)
 		await db.insert(users).values({ name, email, password: hashedPassword })
 		return NextResponse.json({ message: '初始化成功' }, { status: 201 })
 	} catch (error) {

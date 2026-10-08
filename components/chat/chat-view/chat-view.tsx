@@ -18,14 +18,10 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import UserShell from '@/components/shell/user-shell'
+import type { HumanInputSubmission } from '@/lib/dify/types'
 
 import { useAppContext } from '../app-context'
-import {
-	feedbackError,
-	humanInputFailureText,
-	humanInputSubmitError,
-	toDifyError,
-} from '../hooks/dify-errors'
+import { ContinuationLostError, failureText, humanInputFailureText } from '../hooks/dify-errors'
 import { useConversations } from '../hooks/use-conversations'
 import { useDifyChat, type SendParams } from '../hooks/use-dify-chat'
 import { useSpeechToText } from '../hooks/use-speech-to-text'
@@ -73,7 +69,7 @@ export default function ChatView() {
 	const { t } = useTranslation()
 	const { token } = theme.useToken()
 	const { message: toast } = App.useApp()
-	const { app, site, parameters, difyApi, userId } = useAppContext()
+	const { app, site, parameters, difyApi } = useAppContext()
 	const searchParams = useSearchParams()
 	const [keptParams] = useState(() => keptParamsOf(searchParams))
 	const [inputsForm] = Form.useForm<Record<string, unknown>>()
@@ -114,7 +110,7 @@ export default function ChatView() {
 	// the same); its parameters can be edited until then, and afterwards only when the app allows it.
 	const activeItem = list.conversations.find(c => c.key === activeKey)
 	const hasInputs = inputFields(parameters.user_input_form).length > 0
-	const allowUpdate = Boolean(app.inputParams?.enableUpdateAfterCvstStarts)
+	const allowUpdate = app.settings.enableUpdateAfterConversationStarts
 	const unsent = !activeKey || (parseConversationKey(activeKey).temp && !activeItem?.difyId)
 	const inputsLocked = !unsent && !allowUpdate
 	// A locked form cannot be fixed by the user, so only an editable one holds sending back.
@@ -182,10 +178,9 @@ export default function ChatView() {
 
 	useEffect(() => {
 		if (!list.error) return
+		const reason = failureText(list.error, t)
 		toast.error(
-			list.error.message
-				? t('chat.fetch_list_failed', { error: list.error.message })
-				: t('common.request_failed_retry'),
+			reason ? t('chat.fetch_list_failed', { error: reason }) : t('common.request_failed_retry'),
 		)
 	}, [list.error, t, toast])
 
@@ -289,15 +284,20 @@ export default function ChatView() {
 	// Answer buttons and forms post back only between replies (AnswerButton is disabled without it).
 	const answerSend = chat.isRequesting ? undefined : postBack
 
-	// The bubble whose human input form is being submitted, until its continuation has started (spec §4.6).
+	// Stable while a reply streams; it changes when one starts or ends (the actions wait meanwhile).
+	const isRequesting = chat.isRequesting
+	// The bubble whose human input form is being answered, until Dify has accepted or refused the answer (spec §4.6).
 	const [hitlSubmitting, setHitlSubmitting] = useState<string | number>()
-	const resume = chat.resume
+	// Forms Dify accepted an answer for in this page session: forms are one-shot (Dify's "Human Input Flow" guide:
+	// "A successful submit is final"), so a second click could only be refused.
+	const [answered, setAnswered] = useState<ReadonlySet<string>>(() => new Set())
+	const answerForm = chat.answerForm
 	/**
-	 * Submits a paused run's form, then resumes the run into the same message (spec §4.6 steps 2–3). A
-	 * refused form (Dify's message, or the generic text) and a resume that cannot start (x-sdk's
-	 * `onReload` throws for a message the store does not hold) are reported here, each in its own words
-	 * (humanInputFailureText); the form stays submittable. A resumed stream that fails keeps the paused
-	 * message with its error (requestFallback, `hitl.resume_failed` without Dify's text).
+	 * Answers a paused run's form; the run goes on in the same message (spec §4.6, in Dify's order: answerInOrder,
+	 * ADR-0017 note of 2026-10-08). An answer that did not go out is reported here in its own words
+	 * (humanInputFailureText), and the form stays as it was filled; an answer Dify accepted after the stream closed
+	 * says so, and a continuation that fails once it started keeps the paused message with its error (requestFallback,
+	 * `hitl.resume_failed` both).
 	 */
 	const submitHumanInput = useCallback(
 		async (
@@ -306,29 +306,25 @@ export default function ChatView() {
 			inputs: Record<string, unknown>,
 			actionId: string,
 		) => {
-			const form = message.humanInput
-			if (!form?.formToken) return
+			const formToken = message.humanInput?.formToken
+			if (!formToken) return
 			setHitlSubmitting(key)
-			let accepted = false
 			try {
-				// DifyApi resolves an HTTP error with the proxy's answer instead of rejecting. Its body type
-				// predates file inputs, which take file mappings (OpenAPI, POST /form/human_input).
-				const answer: unknown = await difyApi.submitHumanInput(form.formToken, {
-					inputs: inputs as Record<string, string>,
+				const accepted = await answerForm(key, message, {
+					inputs: inputs as HumanInputSubmission['inputs'],
 					action: actionId,
-					user: userId,
 				})
-				const refused = humanInputSubmitError(answer)
-				if (refused) throw refused
-				accepted = true
-				resume(key, form.workflowRunId, message)
+				if (accepted) setAnswered(previous => new Set(previous).add(formToken))
 			} catch (error) {
-				toast.error(humanInputFailureText(error, accepted, t))
+				if (error instanceof ContinuationLostError)
+					setAnswered(previous => new Set(previous).add(formToken))
+				const text = humanInputFailureText(error, t)
+				if (text) toast.error(text)
 			} finally {
 				setHitlSubmitting(undefined)
 			}
 		},
-		[difyApi, resume, t, toast, userId],
+		[answerForm, t, toast],
 	)
 
 	// Stable between renders: Bubble.List's role map follows it, and a new map re-renders every bubble.
@@ -347,18 +343,25 @@ export default function ChatView() {
 								// One antd Form per form: a later form in the same message starts afresh.
 								key={`${form.workflowRunId}:${form.nodeId ?? ''}:${form.formToken}`}
 								humanInput={form}
-								// Also while the resumed run connects and streams, until the form is filled.
+								// Also once Dify accepted its answer, and while a reply streams, except the resume
+								// stream that waits on this form (Dify kept the run paused after a refused answer).
 								submitting={
-									hitlSubmitting === key || info.status === 'loading' || info.status === 'updating'
+									hitlSubmitting === key ||
+									answered.has(form.formToken) ||
+									(isRequesting &&
+										!(info.status === 'updating' && message.workflow?.status === 'paused'))
 								}
 								onSubmit={(inputs, actionId) => submitHumanInput(key, message, inputs, actionId)}
+								loadForm={
+									form.formToken ? () => difyApi.getHumanInputForm(form.formToken) : undefined
+								}
 							/>
 						) : undefined
 					}
 				/>
 			)
 		},
-		[answerSend, hitlSubmitting, submitHumanInput],
+		[answerSend, answered, difyApi, hitlSubmitting, isRequesting, submitHumanInput],
 	)
 
 	// The footer's callbacks stay stable while a reply streams (a new one would rebuild Bubble.List's role
@@ -380,7 +383,7 @@ export default function ChatView() {
 
 	/**
 	 * Rates an answer by its Dify message id (spec §4.7): shown at once, taken back if Dify refuses
-	 * (DifyApi resolves the refusal; feedbackError reads it) with Dify's text or the generic one.
+	 * (the browser client rejects with DifyRequestError) with the failure's text (failureText) or the generic one.
 	 */
 	const feedback = useCallback(
 		async (
@@ -396,14 +399,8 @@ export default function ChatView() {
 			const previous = message.feedback ?? null
 			setMessage(key, info => ({ message: { ...info.message, feedback: rating } }))
 			try {
-				const answer: unknown = await difyApi.createMessageFeedback({
-					messageId,
-					rating,
-					content: reason ?? '',
-				})
 				// The button's state is the confirmation (spec §4.7): no toast on success.
-				const refused = feedbackError(answer)
-				if (refused) throw refused
+				await difyApi.createFeedback(messageId, { rating, content: reason ?? '' })
 			} catch (error) {
 				// Unless another rating replaced this one meanwhile.
 				setMessage(key, info => ({
@@ -412,7 +409,7 @@ export default function ChatView() {
 						feedback: info.message.feedback === rating ? previous : info.message.feedback,
 					},
 				}))
-				toast.error(toDifyError(error).message || t('common.request_failed_retry'))
+				toast.error(failureText(error, t, t('common.request_failed_retry')))
 			}
 		},
 		[difyApi, t, toast],
@@ -436,8 +433,6 @@ export default function ChatView() {
 		() => new Set(unanswered ? unanswered.split('\n') : []),
 		[unanswered],
 	)
-	// Stable while a reply streams; it changes when one starts or ends (the actions wait meanwhile).
-	const isRequesting = chat.isRequesting
 	const renderFooter = useCallback(
 		(message: DifyChatMessage, info: BubbleInfo) =>
 			info.key === undefined ? null : (
@@ -462,8 +457,7 @@ export default function ChatView() {
 		Boolean(activeKey) &&
 		!historyPending &&
 		!chat.historyError &&
-		(app.extConfig?.conversation?.openingStatement?.displayMode === 'always' ||
-			chat.messages.length === 0)
+		(app.settings.openingStatementDisplayMode === 'always' || chat.messages.length === 0)
 
 	// The list's callbacks and menu are stable, so the memoised sidebar does not re-render per streamed chunk.
 	const { setActiveKey, createTemp, rename, remove } = list
@@ -529,7 +523,7 @@ export default function ChatView() {
 					strong
 					ellipsis
 				>
-					{site.title || app.info.name}
+					{site.title || app.name}
 				</Typography.Text>
 			}
 			extra={
@@ -596,7 +590,7 @@ export default function ChatView() {
 									type="error"
 									showIcon
 									title={t('chat.history_load_failed')}
-									description={chat.historyError.message || t('common.request_failed_retry')}
+									description={failureText(chat.historyError, t, t('common.request_failed_retry'))}
 									action={
 										<Button
 											size="small"
@@ -693,7 +687,7 @@ export default function ChatView() {
 					createDisabled={createDisabled}
 				/>
 			</ConversationDrawer>
-			{app.extConfig?.annotation?.enabled && (
+			{app.settings.annotationEnabled && (
 				<AnnotationDrawer
 					open={annotation.open}
 					question={annotation.question}

@@ -44,6 +44,34 @@ test.describe('chatflow', () => {
 		await expect(page.getByText('Output', { exact: true })).toBeVisible()
 	})
 
+	// Dify's own chat puts the run first, then the thinking, then the answer (1.17.1,
+	// web/app/components/base/chat/chat/answer/index.tsx). The thinking streams as reasoning_chunk events only and
+	// GET /messages has no field for it, so the chat keeps the streamed text in the browser beside the nodes.
+	test('puts the reasoning under the run, and brings it back after a reload', async ({
+		page,
+	}, testInfo) => {
+		const text = `hello again ${testInfo.project.name} ${testInfo.repeatEachIndex}.${testInfo.retry}`
+		await senderBox(page).fill(text)
+		await page.keyboard.press('Enter')
+		await expect(page.getByText(`Echo: ${text}`, { exact: true })).toBeVisible()
+		const answer = page.locator('.ant-bubble-start').last()
+		const run = answer.getByRole('button', { name: /Workflow Nodes: / })
+		const reasoning = answer.getByRole('group', { name: 'Reasoning' })
+		const top = async (locator: typeof run) => (await locator.boundingBox())?.y ?? Number.NaN
+		expect(await top(run)).toBeLessThan(await top(reasoning))
+		// Reopened from Dify (workers: 1: the chatflow app's latest conversation is this one).
+		await page.goto(`/chat/${APP_IDS['advanced-chat']}`)
+		const reopened = page.locator('.ant-bubble-start').last()
+		await expect(reopened.getByText(`Echo: ${text}`, { exact: true })).toBeVisible()
+		const kept = reopened.getByRole('group', { name: 'Reasoning' })
+		await expect(kept.getByText(/^Finished thinking \(\d+\.\ds\)$/)).toBeVisible()
+		await kept.getByText(/^Finished thinking/).click()
+		await expect(reopened.getByText(REASONING.join(''), { exact: true })).toBeVisible()
+		expect(await top(reopened.getByRole('button', { name: /Workflow Nodes: / }))).toBeLessThan(
+			await top(kept),
+		)
+	})
+
 	// The stub's `nodefail` scenario is Dify's documented chatflow failure: the Answer node fails, then
 	// workflow_finished (failed) and `error`; no answer text and no message_end.
 	test('a failed run keeps its node logs with the error, live and after a reload', async ({

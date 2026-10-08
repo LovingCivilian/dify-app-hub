@@ -5,12 +5,10 @@ import { App } from 'antd'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { AppModeEnums } from '@/lib/core'
-
 import { useAppContext } from '../app-context'
 import { apiInputs, pendingFileInputs } from '../chat-view/inputs-values'
 import { parseEvent } from '../provider/dify-chat-provider'
-import { envelopeError, toDifyError } from './dify-errors'
+import { failureText } from './dify-errors'
 import { initialRunState, reduceRunEvent, type RunState } from './run-reducer'
 
 /**
@@ -19,8 +17,8 @@ import { initialRunState, reduceRunEvent, type RunState } from './run-reducer'
  * is not a conversation.
  *
  * Each run has its own AbortController: stop(), a new run and unmounting abort it, which cancels the
- * response body (and so the fetch) and keeps anything of that run from reaching the state. The Dify run
- * itself goes on: the workflow and completion stop endpoints have no proxy route (spec §4.8, §12).
+ * response body (and so the fetch) and keeps anything of that run from reaching the state. stop() also
+ * posts Dify's stop for the run's task, so the run ends on the server too (charter §4.1).
  */
 export const useWorkflowRun = () => {
 	const { t } = useTranslation()
@@ -28,7 +26,11 @@ export const useWorkflowRun = () => {
 	const { app, parameters, difyApi } = useAppContext()
 	const [state, setState] = useState<RunState>(initialRunState)
 	const controller = useRef<AbortController | null>(null)
-	const mode = app.info.mode
+	// The running task's id, written where the stream's events are parsed and read by stop() (react.dev useRef: refs
+	// are read and written in event handlers and effects, not during render), so a Stop between an event and its
+	// commit still reaches Dify. Unset before the first event and once the run's stream has ended.
+	const taskIdRef = useRef<string | undefined>(undefined)
+	const mode = app.mode
 	const form = parameters.user_input_form
 
 	useEffect(() => () => controller.current?.abort(), [])
@@ -49,6 +51,7 @@ export const useWorkflowRun = () => {
 			controller.current?.abort()
 			const current = new AbortController()
 			controller.current = current
+			taskIdRef.current = undefined
 			const { signal } = current
 			const update = (next: (state: RunState) => RunState) => {
 				if (!signal.aborted) setState(next)
@@ -58,22 +61,17 @@ export const useWorkflowRun = () => {
 			const inputs = apiInputs(form, values)
 			try {
 				const response =
-					mode === AppModeEnums.WORKFLOW
+					mode === 'workflow'
 						? await difyApi.runWorkflow({ inputs })
 						: await difyApi.completion({ inputs })
 				if (signal.aborted) {
 					await response.body?.cancel().catch(() => {})
 					return true
 				}
-				// The proxy passes Dify's status and error body through (`{ code, message, status }`); its own
-				// failures answer `{ error }`, which has no text to show (the view uses the generic one).
-				if (!response.ok || !response.body) {
-					const body: unknown = await response.json().catch(() => null)
-					update(s => ({
-						...s,
-						status: 'failed',
-						error: envelopeError(body, response.status).message,
-					}))
+				// The browser client rejects a non-OK answer with DifyRequestError (caught below); an answer
+				// without a body has no text to show (the view uses the generic one).
+				if (!response.body) {
+					update(s => ({ ...s, status: 'failed', error: '' }))
 					return true
 				}
 				// XStream yields the SSE parts as `{ event?, data? }`; its reader is a standard ReadableStream
@@ -87,7 +85,9 @@ export const useWorkflowRun = () => {
 						if (done || signal.aborted) break
 						// `event: ping` parts carry no data; `[DONE]` and junk parse to null.
 						const event = parseEvent(value?.data)
-						if (event) update(s => reduceRunEvent(s, event))
+						if (!event) continue
+						if (event.task_id) taskIdRef.current = event.task_id
+						update(s => reduceRunEvent(s, event))
 					}
 				} finally {
 					signal.removeEventListener('abort', cancel)
@@ -95,21 +95,33 @@ export const useWorkflowRun = () => {
 				// A stream that closed without its closing event has ended all the same.
 				update(s => (s.status === 'running' ? { ...s, status: 'finished' } : s))
 			} catch (error) {
-				// A network failure keeps no text (the view shows the generic one).
-				update(s => ({ ...s, status: 'failed', error: toDifyError(error).message }))
+				// The failure's text; '' for a network failure or the like (the view shows the generic one).
+				update(s => ({ ...s, status: 'failed', error: failureText(error, t) }))
 			}
+			// The stream has ended; an aborted run no longer owns the ref (a newer run, stop or reset does).
+			if (!signal.aborted) taskIdRef.current = undefined
 			return true
 		},
 		[difyApi, form, mode, t, toast],
 	)
 
-	/** Cancels the response body and marks the run stopped; what arrived so far stays. */
+	/**
+	 * Cancels the response body, marks the run stopped, and tells Dify to stop the task (its answer is not
+	 * needed). The stop is posted here, once per click, never inside the state updater: React calls updaters
+	 * twice in Strict Mode, and they must stay pure.
+	 */
 	const stop = useCallback(() => {
 		const current = controller.current
 		if (!current || current.signal.aborted) return
+		const taskId = taskIdRef.current
 		current.abort()
 		setState(s => (s.status === 'running' ? { ...s, status: 'stopped' } : s))
-	}, [])
+		// Before the first event, the run exists on Dify, but its task id is not known to the client yet.
+		if (!taskId) return
+		const stopOnDify =
+			mode === 'workflow' ? difyApi.stopWorkflow(taskId) : difyApi.stopCompletion(taskId)
+		void stopOnDify.catch(() => undefined)
+	}, [difyApi, mode])
 
 	const reset = useCallback(() => {
 		controller.current?.abort()

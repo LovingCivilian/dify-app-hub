@@ -1,4 +1,12 @@
-import type { IAgentThought, IFile, IFileType, IRetrieverResource } from '@/lib/api'
+import type {
+	AgentThought,
+	FileInput,
+	HumanInputAction,
+	HumanInputField,
+	RetrieverResource,
+} from '@/lib/dify/types'
+
+export type { HumanInputAction, HumanInputField } from '@/lib/dify/types'
 
 export type DifyRole = 'user' | 'assistant'
 
@@ -36,33 +44,6 @@ export interface MessageFile {
 	uploadFileId?: string
 }
 
-export interface HumanInputField {
-	type: 'paragraph' | 'select' | 'file' | 'file-list' | string
-	output_variable_name: string
-	default?: { type: string; value?: string; selector?: string[] } | null
-	/*
-	 * The OpenAPI documents the three fields below only on GET /form/human_input, not on the stream's or
-	 * the history's inputs; Dify sends them there too, and the form reads them from there (ADR-0017
-	 * note, 2026-10-05).
-	 */
-	/** `select` inputs: the options (`value` when `type` is `constant`). */
-	option_source?: { type: string; value?: string[]; selector?: string[] }
-	/** `file` and `file-list` inputs: `image`, `document`, `audio`, `video`, `custom`. */
-	allowed_file_types?: IFileType[]
-	/** `file` and `file-list` inputs: the extensions of `custom` files, with the leading `.`. */
-	allowed_file_extensions?: string[]
-	/** `file` and `file-list` inputs: `local_file`, `remote_url`. */
-	allowed_file_upload_methods?: Array<'local_file' | 'remote_url'>
-	/** `file-list` inputs: the most files the recipient may upload. */
-	number_limits?: number
-}
-
-export interface HumanInputAction {
-	id: string
-	title: string
-	button_style: 'primary' | 'default' | 'accent' | 'ghost' | string
-}
-
 export interface HumanInputState {
 	state: 'pending' | 'filled' | 'expired'
 	formToken: string
@@ -90,10 +71,10 @@ export interface DifyChatMessage {
 	content: string
 	reasoning?: string
 	reasoningDone?: boolean
-	thoughts?: IAgentThought[]
+	thoughts?: AgentThought[]
 	workflow?: WorkflowState
 	files?: MessageFile[]
-	citations?: IRetrieverResource[]
+	citations?: RetrieverResource[]
 	humanInput?: HumanInputState
 	error?: MessageError
 	ids: { messageId?: string; conversationId?: string; taskId?: string }
@@ -116,7 +97,7 @@ export interface DifyChatMessage {
  * A file sent with a message: Dify's file object (OpenAPI ChatRequest.files) and, for an attachment, the
  * name it was picked with, which only the local user bubble shows (the request leaves it out).
  */
-export type DifyChatFile = IFile & { filename?: string }
+export type DifyChatFile = FileInput & { filename?: string }
 
 /** onRequest params. `resume` turns the request into a HITL continuation (spec §4.6). */
 export interface DifyChatInput {

@@ -17,10 +17,7 @@ export default function AppGallery({ apps }: { apps: AppSummary[] }) {
 	const { t } = useTranslation()
 	const { token } = theme.useToken()
 	const [query, setQuery] = useState('')
-	// A row without info has nothing to search, so it shows only while the query is empty.
-	const shown = apps.filter(app =>
-		app.missingInfo ? !query.trim() : matchesQuery([app.name, app.description, ...app.tags], query),
-	)
+	const shown = apps.filter(app => matchesQuery([app.name, app.description, ...app.tags], query))
 
 	// The padding sits on a plain wrapper: antd's Flex resets margin and padding (es/flex/style/index.js:10-11).
 	return (

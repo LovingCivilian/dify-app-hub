@@ -1,11 +1,14 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 
 import { expect, test } from '@playwright/test'
 
-import { hashPasswordResetToken } from '../lib/password-reset'
 import { ADMIN_STATE } from './fixtures/constants'
 import { withDb } from './fixtures/db'
 import { e2eEnv } from './fixtures/env'
+
+// The reset-token hash as lib/auth/password.ts computes it. That module imports server-only, which Playwright's
+// loader cannot resolve, so the spec mirrors the one line instead of importing it.
+const hashPasswordResetToken = (token: string) => createHash('sha256').update(token).digest('hex')
 
 test('/ sends a signed-in visitor straight to /apps', async ({ page }) => {
 	await page.goto('/')
@@ -75,7 +78,7 @@ test.describe('password reset', () => {
 		const email = `reset-${testInfo.project.name}@e2e.local`
 		const token = randomUUID().replaceAll('-', '')
 		// A throwaway user through the signed-in API (admin storage state), then the token row as the route
-		// would store it (lib/password-reset.ts: sha-256 hash, 15-minute expiry).
+		// would store it (lib/auth/password.ts: sha-256 hash, 15-minute expiry).
 		const admin = await browser.newContext({ storageState: ADMIN_STATE })
 		await admin.request.post('/api/users', {
 			data: { name: 'Reset me', email, password: 'old-password-1' },

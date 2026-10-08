@@ -1,5 +1,5 @@
 /**
- * 全局 LocalStorage Key 前缀
+ * Global LocalStorage key prefix
  */
 const KEY_PREFIX = '__DC__'
 
@@ -12,32 +12,31 @@ const LocalStorageKeyList = [
 	'ENABLE_SETTING',
 ] as const
 
-export const LocalStorageKeys = LocalStorageKeyList.reduce(
-	(acc, key) => {
-		// @ts-expect-error 已知错误，待解决
-		acc[key] = key
-		return acc
-	},
-	{} as { [key in (typeof LocalStorageKeyList)[number]]: key },
-)
-
 type ILocalStorageKey = (typeof LocalStorageKeyList)[number]
 
 /**
- * 生成 localStorage key
+ * Each key mapped to itself. `Object.fromEntries` builds the object; its result type is a plain record, so the
+ * mapped type is asserted once (writing `acc[key] = key` into that type is the unsound write TypeScript 3.5 refuses).
+ */
+export const LocalStorageKeys = Object.fromEntries(LocalStorageKeyList.map(key => [key, key])) as {
+	[K in ILocalStorageKey]: K
+}
+
+/**
+ * Builds a localStorage key
  */
 export const genLocalStorageKey = (key: ILocalStorageKey) => {
 	return `${KEY_PREFIX}${key}`
 }
 
 /**
- * 内存 fallback：当 localStorage 不可用时（隐私模式、iframe 沙箱、配额耗尽等），
- * 使用 Map 存储数据，保证应用不崩溃。注意：页面刷新后数据会丢失。
+ * In-memory fallback: when localStorage is unavailable (private mode, an iframe sandbox, an exhausted
+ * quota, …), data is kept in a Map so the app does not crash. Note: the data is lost on a page reload.
  */
 const memoryFallback = new Map<string, string>()
 
 /**
- * 尝试访问 localStorage，失败时静默降级到内存存储
+ * Tries localStorage and silently falls back to the in-memory store when it fails
  */
 const safeGetItem = (key: string): string | null => {
 	try {
@@ -56,7 +55,7 @@ const safeSetItem = (key: string, value: string): void => {
 }
 
 /**
- * LocalStorage 操作封装
+ * LocalStorage wrapper
  */
 class LocalStorageStoreBuilder {
 	validateKey = (key: string) => {
@@ -70,7 +69,7 @@ class LocalStorageStoreBuilder {
 	}
 
 	/**
-	 * 获取 localStorage 值
+	 * Reads a localStorage value
 	 */
 	get = (key: ILocalStorageKey) => {
 		this.validateKey(key)
@@ -86,9 +85,9 @@ class LocalStorageStoreBuilder {
 	}
 
 	/**
-	 * 设置 localStorage 值
-	 * @param key 必须是 LocalStorageKeys 中的 key
-	 * @param value 必须是 string 类型
+	 * Writes a localStorage value
+	 * @param key must be one of the LocalStorageKeys
+	 * @param value must be a string
 	 */
 	set = (key: ILocalStorageKey, value: string) => {
 		this.validateKey(key)
@@ -101,6 +100,6 @@ class LocalStorageStoreBuilder {
 }
 
 /**
- * LocalStorage 操作实例
+ * The LocalStorage wrapper instance
  */
 export const LocalStorageStore = new LocalStorageStoreBuilder()

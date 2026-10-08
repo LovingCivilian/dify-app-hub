@@ -1,47 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AppModeEnums, EIsEnabled } from '@/lib/core'
-
-const { requireSessionUser, listApp, AppManagement, redirectSignal } = vi.hoisted(() => ({
-	requireSessionUser: vi.fn(),
-	listApp: vi.fn(),
+const { requireUser, listApps, AppManagement, redirectSignal } = vi.hoisted(() => ({
+	requireUser: vi.fn(),
+	listApps: vi.fn(),
 	AppManagement: () => null,
 	redirectSignal: new Error('NEXT_REDIRECT'),
 }))
-vi.mock('@/lib/session-user', () => ({ requireSessionUser }))
-vi.mock('@/app/(admin)/app-management/actions', () => ({ listApp }))
+vi.mock('@/lib/auth/session', () => ({ requireUser }))
+vi.mock('@/lib/data/apps', () => ({ listApps }))
 vi.mock('@/components/admin/apps/app-management', () => ({ default: AppManagement }))
 
 import AppManagementPage from '@/app/(admin)/app-management/page'
 
+const actor = { id: 'u1', email: 'jane@example.com', name: null }
+
 describe('/app-management page', () => {
 	beforeEach(() => {
-		requireSessionUser.mockReset()
-		listApp.mockReset()
+		requireUser.mockReset()
+		listApps.mockReset()
 	})
-
 	it('checks the session before it lists the apps', async () => {
-		requireSessionUser.mockRejectedValue(redirectSignal)
+		requireUser.mockRejectedValue(redirectSignal)
 		await expect(AppManagementPage()).rejects.toBe(redirectSignal)
-		expect(listApp).not.toHaveBeenCalled()
+		expect(listApps).not.toHaveBeenCalled()
 	})
-
-	it('lists with masked keys and hands the table rows without requestConfig', async () => {
-		requireSessionUser.mockResolvedValue(undefined)
-		listApp.mockResolvedValue([
-			{
-				id: 'a1',
-				info: { name: 'Alpha', mode: AppModeEnums.CHATBOT, description: '', tags: [] },
-				isEnabled: EIsEnabled.disabled,
-				requestConfig: { apiBase: 'https://dify.example/v1', apiKey: 'app-***' },
-			},
-		])
+	it('hands the table the DTOs as they come (no key in them by construction)', async () => {
+		requireUser.mockResolvedValue(actor)
+		const rows = [{ id: 'a1', name: 'Alpha', enabled: false, apiBase: 'https://dify.example/v1' }]
+		listApps.mockResolvedValue(rows)
 		const page = await AppManagementPage()
-		expect(listApp).toHaveBeenCalledWith({ isMask: true })
-		expect(page).toMatchObject({
-			type: AppManagement,
-			props: { apps: [{ id: 'a1', name: 'Alpha', isEnabled: EIsEnabled.disabled }] },
-		})
-		expect(JSON.stringify(page.props)).not.toMatch(/app-\*\*\*|dify\.example/)
+		expect(listApps).toHaveBeenCalledWith(actor)
+		expect(page).toMatchObject({ type: AppManagement, props: { apps: rows } })
 	})
 })

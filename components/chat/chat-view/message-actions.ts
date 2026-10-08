@@ -1,6 +1,6 @@
 import type { MessageInfo } from '@ant-design/x-sdk'
 
-import type { IFileType } from '@/lib/api'
+import type { FileType } from '@/lib/dify/types'
 
 import type { DifyChatFile, DifyChatMessage } from '../provider/message'
 
@@ -16,7 +16,7 @@ export interface FooterActions {
 
 /** What the footer depends on beyond the message: the app's switches and the answer's place in the list. */
 export interface FooterContext {
-	/** `extConfig.annotation.enabled` */
+	/** The app's `settings.annotationEnabled` */
 	annotation: boolean
 	/** `parameters.text_to_speech.enabled` */
 	tts: boolean
@@ -53,7 +53,7 @@ export const footerActions = (
  */
 const resendFiles = (message: DifyChatMessage): DifyChatFile[] =>
 	(message.files ?? []).flatMap((file): DifyChatFile[] => {
-		const type = file.type as IFileType
+		const type = file.type as FileType
 		const name = file.filename ? { filename: file.filename } : {}
 		if (file.uploadFileId) {
 			return [{ type, transfer_method: 'local_file', upload_file_id: file.uploadFileId, ...name }]
