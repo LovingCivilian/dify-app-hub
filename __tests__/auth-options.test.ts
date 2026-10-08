@@ -87,6 +87,11 @@ describe('authorizeCredentials', () => {
 			role: 'admin',
 			sessionVersion: 3,
 		})
+		// The hash checked is the row of the email given: the lookup is by email, with that email as its only parameter.
+		expect(where).toHaveBeenCalledTimes(1)
+		const { sql, params } = renderWhere(where.mock.calls[0]![0])
+		expect(sql).toMatch(/ where `users`\.`email` = \?$/)
+		expect(params).toEqual(['jane@example.com'])
 	})
 })
 
