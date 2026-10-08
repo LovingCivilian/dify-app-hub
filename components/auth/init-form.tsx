@@ -57,7 +57,7 @@ export default function InitForm() {
 				<Form.Item
 					name="name"
 					label={t('init.owner_name')}
-					rules={[{ required: true, message: t('init.owner_name_required') }]}
+					rules={[{ required: true, whitespace: true, message: t('init.owner_name_required') }]}
 				>
 					<Input placeholder={t('init.owner_name_placeholder')} />
 				</Form.Item>

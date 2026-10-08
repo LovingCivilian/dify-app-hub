@@ -8,9 +8,11 @@ import { signInAs } from './fixtures/users'
 setup(
 	'set up the owner through /init when needed, seed the stub apps, sign in',
 	async ({ page }) => {
-		// Charter §4.6: an empty database gets its owner through the /init form (ADR-0024); on a set-up one /init
-		// sends the browser to /login. The annotation records which path this run took (the final full run starts empty).
-		await page.goto('/init')
+		// Charter §4.2 and §4.6: on an empty database the login layout sends the browser to /init, where the form
+		// creates the owner (ADR-0024); on a set-up one the browser stays on /login. The layout redirects before
+		// anything streams, so goto follows a 307 and the URL tells which path this run took; the annotation records
+		// it (the final full run starts empty).
+		await page.goto('/login')
 		if (new URL(page.url()).pathname === '/init') {
 			await page.getByLabel('Owner name').fill('E2E Owner')
 			await page.getByLabel('Owner email').fill(e2eEnv.E2E_ADMIN_EMAIL)
