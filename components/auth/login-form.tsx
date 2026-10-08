@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 
 import { getSafeCallbackUrl } from '@/lib/access'
 
+import { loginFailureKey } from './auth-failure'
 import styles from './login-form.module.css'
 
 interface LoginValues {
@@ -44,7 +45,7 @@ export default function LoginForm({
 		try {
 			const result = await signIn('credentials', { ...values, redirect: false })
 			if (result?.error) {
-				message.error(t('auth.login_failed'))
+				message.error(t(loginFailureKey(result.error)))
 				return
 			}
 			message.success(t('auth.login_success'))

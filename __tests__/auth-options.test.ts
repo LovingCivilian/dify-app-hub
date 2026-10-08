@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 
 // The fake chain keeps the condition each query passes to where(), so a test can render it (below).
 const { rows, limit, where } = vi.hoisted(() => {
@@ -11,11 +11,10 @@ vi.mock('@/db', () => ({
 		select: () => ({ from: () => ({ where }) }),
 	}),
 }))
-vi.mock('@/lib/auth/password', () => ({
-	verifyPassword: (password: string, hash: string) => Promise.resolve(hash === `hash:${password}`),
-}))
+const { verifyPassword } = vi.hoisted(() => ({ verifyPassword: vi.fn() }))
+vi.mock('@/lib/auth/password', () => ({ verifyPassword }))
 
-import type { SQL } from 'drizzle-orm'
+import { DrizzleQueryError, type SQL } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/mysql2'
 import type { JWT } from 'next-auth/jwt'
 
@@ -49,6 +48,10 @@ beforeEach(() => {
 	limit.mockReset()
 	limit.mockImplementation(() => Promise.resolve(rows.value))
 	where.mockClear()
+	verifyPassword.mockReset()
+	verifyPassword.mockImplementation((password: string, hash: string) =>
+		Promise.resolve(hash === `hash:${password}`),
+	)
 })
 
 describe('authOptions', () => {
@@ -92,6 +95,61 @@ describe('authorizeCredentials', () => {
 		const { sql, params } = renderWhere(where.mock.calls[0]![0])
 		expect(sql).toMatch(/ where `users`\.`email` = \?$/)
 		expect(params).toEqual(['jane@example.com'])
+	})
+})
+
+// A failure inside authorize() becomes next-auth's error URL: "If you throw an Error, the user will be sent to the
+// error page with the error message as a query parameter" (next-auth Credentials provider), and with
+// `redirect: false` the login request's answer carries it. Drizzle's message holds the SQL and its parameters, the
+// typed email among them (final review M-8).
+describe('authorizeCredentials on a failure', () => {
+	let errorSpy: MockInstance<typeof console.error>
+	beforeEach(() => {
+		errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+	})
+	afterEach(() => {
+		errorSpy.mockRestore()
+	})
+
+	const credentials = { email: 'jane@example.com', password: 'right-password' }
+	const expectNothingLeaks = (thrown: unknown) => {
+		expect(thrown).toBeInstanceOf(Error)
+		const { message } = thrown as Error
+		// next-auth's catch-all sign-in error code (next-auth Pages, "Error codes": Default), not CredentialsSignin,
+		// so the form does not answer a failing service with "check your email and password".
+		expect(message).toBe('Default')
+		expect(message).not.toContain('jane@example.com')
+		expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('jane@example.com')
+	}
+
+	it('throws a fixed message for a failed query, and logs only its name, code and errno', async () => {
+		const cause = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:3306'), {
+			code: 'ECONNREFUSED',
+			errno: -111,
+		})
+		limit.mockRejectedValueOnce(
+			new DrizzleQueryError(
+				'select `id`, `password` from `users` where `users`.`email` = ? limit ?',
+				['jane@example.com', 1],
+				cause,
+			),
+		)
+		const thrown = await authorizeCredentials(credentials).catch((error: unknown) => error)
+		expectNothingLeaks(thrown)
+		expect((thrown as Error).message).not.toMatch(/select|users|password/i)
+		expect(errorSpy).toHaveBeenCalledTimes(1)
+		expect(errorSpy).toHaveBeenCalledWith('authorizeCredentials:', {
+			name: 'DrizzleQueryError',
+			code: 'ECONNREFUSED',
+			errno: -111,
+		})
+	})
+
+	it('throws the same fixed message when the password check fails', async () => {
+		rows.value = [row]
+		verifyPassword.mockRejectedValueOnce(new Error('Illegal arguments: string, undefined'))
+		expectNothingLeaks(await authorizeCredentials(credentials).catch((error: unknown) => error))
+		expect(errorSpy).toHaveBeenCalledTimes(1)
 	})
 })
 

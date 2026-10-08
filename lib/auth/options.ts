@@ -6,17 +6,14 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 
 import { getDb } from '@/db'
 import { users } from '@/db/schema'
+import { logActionError } from '@/lib/action-failure'
 
 import { verifyPassword } from './password'
 
 /**
- * The credentials check of next-auth's Credentials provider: the account without its hash, or null, which the
- * login form shows as a failed sign-in. Exported for its tests.
+ * The account of these credentials without its hash, or null for an unknown email or a wrong password.
  */
-export async function authorizeCredentials(
-	credentials: Record<'email' | 'password', string> | undefined,
-): Promise<User | null> {
-	if (!credentials?.email || !credentials?.password) return null
+async function findAccount(email: string, password: string): Promise<User | null> {
 	const [user] = await getDb()
 		.select({
 			id: users.id,
@@ -27,16 +24,37 @@ export async function authorizeCredentials(
 			sessionVersion: users.sessionVersion,
 		})
 		.from(users)
-		.where(eq(users.email, credentials.email))
+		.where(eq(users.email, email))
 		.limit(1)
 	if (!user) return null
-	if (!(await verifyPassword(credentials.password, user.password))) return null
+	if (!(await verifyPassword(password, user.password))) return null
 	return {
 		id: user.id,
 		email: user.email,
 		name: user.name,
 		role: user.role,
 		sessionVersion: user.sessionVersion,
+	}
+}
+
+/**
+ * The credentials check of next-auth's Credentials provider (next-auth Credentials provider: return null and "an
+ * error will be displayed advising the user to check their details"; throw an Error and "the user will be sent to
+ * the error page with the error message as a query parameter"). Refused credentials answer null, next-auth's
+ * `CredentialsSignin`. A failure of the lookup or the check is logged by name, code and errno only (decision g), and
+ * rethrown as next-auth's catch-all code `Default` (next-auth Pages, "Error codes"): a Drizzle error's message holds
+ * the SQL and its parameters, the typed email among them, and would reach the browser in that URL. Exported for its
+ * tests.
+ */
+export async function authorizeCredentials(
+	credentials: Record<'email' | 'password', string> | undefined,
+): Promise<User | null> {
+	if (!credentials?.email || !credentials?.password) return null
+	try {
+		return await findAccount(credentials.email, credentials.password)
+	} catch (error) {
+		logActionError(error, 'authorizeCredentials')
+		throw new Error('Default')
 	}
 }
 
