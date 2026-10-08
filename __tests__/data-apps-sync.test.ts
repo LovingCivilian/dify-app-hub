@@ -40,7 +40,7 @@ import {
 	type AppSettings,
 } from '@/lib/data/apps'
 
-const actor = { id: 'u1', email: 'jane@example.com', name: null }
+const actor = { id: 'u1', email: 'jane@example.com', name: null, role: 'admin' as const }
 const ICON_URL = 'https://dify.example/files/x?sign=1'
 // What the narrow access read returns (the fake ignores the selection; the selection test checks it).
 const stored = {

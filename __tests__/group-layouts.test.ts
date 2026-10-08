@@ -39,7 +39,9 @@ describe.each([
 	})
 
 	it('renders the page for a live session', async () => {
-		getServerSession.mockResolvedValue({ user: { id: 'u1', email: 'jane@example.com' } })
+		getServerSession.mockResolvedValue({
+			user: { id: 'u1', email: 'jane@example.com', role: 'admin' },
+		})
 		expectRendered(await Layout({ children: page }))
 		expect(redirect).not.toHaveBeenCalled()
 	})
@@ -54,5 +56,31 @@ describe.each([
 		getServerSession.mockResolvedValue({ user: { email: 'jane@example.com' } })
 		await expect(Layout({ children: page })).rejects.toBe(redirectSignal)
 		expect(redirect).toHaveBeenCalledWith('/login')
+	})
+})
+
+describe('(admin) layout and roles', () => {
+	beforeEach(() => {
+		getServerSession.mockReset()
+		redirect.mockReset()
+		redirect.mockImplementation(() => {
+			throw redirectSignal
+		})
+	})
+
+	// Task 3: the (admin) layout calls requireAdminUser()
+	it.todo('sends a user-role account to /apps (charter §4.2)', async () => {
+		getServerSession.mockResolvedValue({
+			user: { id: 'u2', email: 'joe@example.com', role: 'user' },
+		})
+		await expect(AdminLayout({ children: page })).rejects.toBe(redirectSignal)
+		expect(redirect).toHaveBeenCalledWith('/apps')
+	})
+
+	it('lets a user-role account into the (user) layout', async () => {
+		getServerSession.mockResolvedValue({
+			user: { id: 'u2', email: 'joe@example.com', role: 'user' },
+		})
+		expect(await UserLayout({ children: page })).toBe(page)
 	})
 })

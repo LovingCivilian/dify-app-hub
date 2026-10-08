@@ -15,12 +15,21 @@ vi.mock('@/lib/auth/password', () => ({
 
 import type { JWT } from 'next-auth/jwt'
 
-import { authOptions } from '@/lib/auth/options'
+import { authOptions, authorizeCredentials } from '@/lib/auth/options'
 
 type JwtCallback = NonNullable<NonNullable<typeof authOptions.callbacks>['jwt']>
 type SessionCallback = NonNullable<NonNullable<typeof authOptions.callbacks>['session']>
 const jwt = authOptions.callbacks!.jwt as JwtCallback
 const session = authOptions.callbacks!.session as SessionCallback
+
+const row = {
+	id: 'u1',
+	email: 'jane@example.com',
+	name: 'Jane',
+	role: 'admin',
+	password: 'hash:right-password',
+	sessionVersion: 3,
+}
 
 beforeEach(() => {
 	limit.mockReset()
@@ -32,48 +41,129 @@ describe('authOptions', () => {
 		expect(authOptions.session).toEqual({ strategy: 'jwt' })
 		expect(authOptions.pages).toEqual({ signIn: '/login' })
 	})
+})
 
-	it('copies id and sessionVersion into the token at sign-in', async () => {
+// B1 follow-up (follow-ups.md, Tests): nothing called authorize.
+describe('authorizeCredentials', () => {
+	it('refuses missing credentials without a query', async () => {
+		expect(await authorizeCredentials(undefined)).toBeNull()
+		expect(await authorizeCredentials({ email: '', password: 'x' })).toBeNull()
+		expect(await authorizeCredentials({ email: 'jane@example.com', password: '' })).toBeNull()
+		expect(limit).not.toHaveBeenCalled()
+	})
+
+	it('refuses an unknown email and a wrong password', async () => {
+		rows.value = []
+		expect(await authorizeCredentials({ email: 'nobody@example.com', password: 'x' })).toBeNull()
+		rows.value = [row]
+		expect(
+			await authorizeCredentials({ email: 'jane@example.com', password: 'wrong-password' }),
+		).toBeNull()
+	})
+
+	it('answers the account without its hash, with its role and session version', async () => {
+		rows.value = [row]
+		expect(
+			await authorizeCredentials({ email: 'jane@example.com', password: 'right-password' }),
+		).toEqual({
+			id: 'u1',
+			email: 'jane@example.com',
+			name: 'Jane',
+			role: 'admin',
+			sessionVersion: 3,
+		})
+	})
+})
+
+describe('jwt callback', () => {
+	it('copies id, role and sessionVersion into the token at sign-in', async () => {
 		const token = await jwt({
 			token: {} as JWT,
-			user: { id: 'u1', email: 'j@e.com', name: null, sessionVersion: 3 },
+			user: { id: 'u1', email: 'jane@example.com', name: null, role: 'user', sessionVersion: 3 },
 			account: null,
 		} as never)
-		expect(token).toMatchObject({ id: 'u1', sessionVersion: 3 })
+		expect(token).toMatchObject({ id: 'u1', role: 'user', sessionVersion: 3 })
 	})
 
-	it('keeps a token whose sessionVersion still matches the row', async () => {
-		rows.value = [{ sessionVersion: 3 }]
-		const token = await jwt({ token: { id: 'u1', sessionVersion: 3 } as JWT } as never)
-		expect(token).toMatchObject({ id: 'u1', sessionVersion: 3 })
+	// Review Focus 4: the row is the truth for what an admin can change while the session lives.
+	it('refreshes role, email and name from the row while the version matches', async () => {
+		rows.value = [{ sessionVersion: 3, role: 'user', email: 'new@example.com', name: 'New' }]
+		const token = await jwt({
+			token: {
+				id: 'u1',
+				sessionVersion: 3,
+				role: 'admin',
+				email: 'old@example.com',
+				name: 'Old',
+			} as JWT,
+		} as never)
+		expect(token).toMatchObject({
+			id: 'u1',
+			sessionVersion: 3,
+			role: 'user',
+			email: 'new@example.com',
+			name: 'New',
+		})
 	})
 
-	// ADR-0018's revocation rule: a password reset bumps sessionVersion; the token loses its id and the session
-	// callback then sets none, which verifySession reads as "no live session".
-	it('strips id and sessionVersion from a token whose version no longer matches, or whose user is gone', async () => {
-		const signedIn = { id: 'u1', sessionVersion: 3, email: 'j@e.com', name: 'Jane' } as JWT
-		rows.value = [{ sessionVersion: 4 }]
+	it('gives a token issued before roles existed its role on first use', async () => {
+		rows.value = [{ sessionVersion: 0, role: 'admin', email: 'jane@example.com', name: null }]
+		const token = await jwt({ token: { id: 'u1', sessionVersion: 0 } as JWT } as never)
+		expect(token).toMatchObject({ id: 'u1', role: 'admin' })
+	})
+
+	// ADR-0018's revocation rule: the token loses id, sessionVersion and role; the session callback then sets none.
+	it('strips id, sessionVersion and role when the version moved or the user is gone', async () => {
+		const signedIn = {
+			id: 'u1',
+			sessionVersion: 3,
+			role: 'admin',
+			email: 'jane@example.com',
+			name: 'Jane',
+		} as JWT
+		rows.value = [{ sessionVersion: 4, role: 'admin', email: 'jane@example.com', name: 'Jane' }]
 		expect(await jwt({ token: { ...signedIn } } as never)).toEqual({
-			email: 'j@e.com',
+			email: 'jane@example.com',
 			name: 'Jane',
 		})
 		rows.value = []
 		expect(await jwt({ token: { ...signedIn } } as never)).toEqual({
-			email: 'j@e.com',
+			email: 'jane@example.com',
 			name: 'Jane',
 		})
 	})
 
-	it('sets session.user.id only from a token that has one', async () => {
-		const withId = await session({
-			session: { user: { email: 'j@e.com' }, expires: '' },
-			token: { id: 'u1' } as JWT,
+	it('leaves a token without an id alone, without a query', async () => {
+		expect(await jwt({ token: { email: 'jane@example.com' } as JWT } as never)).toEqual({
+			email: 'jane@example.com',
+		})
+		expect(limit).not.toHaveBeenCalled()
+	})
+})
+
+describe('session callback', () => {
+	// Review Focus 4: the session's email (the Dify user) is the token's, which the jwt callback refreshed from the row.
+	it('forwards the refreshed email and name from the token', async () => {
+		const result = await session({
+			session: { user: { email: 'old@example.com', name: 'Old' }, expires: '' },
+			token: { id: 'u1', role: 'user', email: 'new@example.com', name: 'New' } as JWT,
 		} as never)
-		expect(withId.user).toMatchObject({ id: 'u1', email: 'j@e.com' })
-		const without = await session({
-			session: { user: { email: 'j@e.com' }, expires: '' },
-			token: {} as JWT,
+		expect(result.user).toMatchObject({ email: 'new@example.com', name: 'New' })
+	})
+
+	it('sets user.id and user.role only from a token that has both', async () => {
+		const withBoth = await session({
+			session: { user: { email: 'jane@example.com' }, expires: '' },
+			token: { id: 'u1', role: 'user' } as JWT,
 		} as never)
-		expect(without.user).not.toHaveProperty('id')
+		expect(withBoth.user).toMatchObject({ id: 'u1', role: 'user', email: 'jane@example.com' })
+		for (const token of [{}, { id: 'u1' }, { role: 'admin' }]) {
+			const without = await session({
+				session: { user: { email: 'jane@example.com' }, expires: '' },
+				token: token as JWT,
+			} as never)
+			expect(without.user).not.toHaveProperty('id')
+			expect(without.user).not.toHaveProperty('role')
+		}
 	})
 })
