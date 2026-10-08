@@ -1,5 +1,7 @@
 import { expect, type Page, test } from '@playwright/test'
+import type { RowDataPacket } from 'mysql2/promise'
 
+import { withDb } from './fixtures/db'
 import { drawerOpened } from './fixtures/drawer'
 import { e2eEnv } from './fixtures/env'
 import { deleteUsersLike, seedUser, signInAs } from './fixtures/users'
@@ -102,6 +104,26 @@ test.describe('user CRUD', () => {
 		const own = row(page, e2eEnv.E2E_ADMIN_EMAIL)
 		await expect(own.getByRole('button', { name: 'Edit' })).toBeVisible()
 		await expect(own.getByRole('button', { name: 'Delete' })).toHaveCount(0)
+	})
+
+	test("the owner's row shows its Dify user ID, the account id, with a copy button (ADR-0026)", async ({
+		page,
+	}) => {
+		const ownerId = await withDb(async db => {
+			const [rows] = await db.execute<RowDataPacket[]>('SELECT id FROM users WHERE email = ?', [
+				e2eEnv.E2E_ADMIN_EMAIL,
+			])
+			return String(rows[0]?.id)
+		})
+		await openUsers(page)
+		const own = row(page, e2eEnv.E2E_ADMIN_EMAIL)
+		// A narrow column with antd's ellipsis: the cell shows the id's start, its ellipsis tooltip the whole id.
+		const idText = own.getByText(ownerId.slice(0, 8))
+		await expect(idText).toBeVisible()
+		await idText.hover()
+		await expect(page.getByRole('tooltip')).toHaveText(ownerId)
+		// antd's copyable names its button from the locale ("Copy"); the clipboard itself is not tested.
+		await expect(own.getByRole('button', { name: 'Copy' })).toBeVisible()
 	})
 
 	test('editing a user onto an email another account holds says it is in use and writes nothing', async ({

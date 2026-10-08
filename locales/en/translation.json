@@ -243,6 +243,7 @@
 		"add_user": "Add user",
 		"edit_user": "Edit user",
 		"column_user": "User",
+		"dify_user_id": "Dify user ID",
 		"column_updated_at": "Last updated",
 		"name_not_set": "No name set",
 		"status_active": "Active",

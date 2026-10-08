@@ -31,6 +31,7 @@ import type { UserDto } from '@/lib/data/users'
 import { matchesQuery } from '@/lib/match-query'
 
 import { ROLE_LABEL_KEYS } from './role-labels'
+import styles from './user-management.module.css'
 import { userErrorKey } from './user-errors'
 import UserFormDrawer from './user-form-drawer'
 
@@ -78,6 +79,20 @@ export default function UserManagement({
 						<Typography.Text type="secondary">{user.email}</Typography.Text>
 					</div>
 				</Space>
+			),
+		},
+		{
+			// ADR-0026: the account id is the Dify end user; the owner copies it into Dify's log search or Langfuse.
+			title: t('admin_users.dify_user_id'),
+			key: 'difyUserId',
+			render: (_, user) => (
+				<Typography.Text
+					className={styles.difyUserId}
+					copyable={{ text: user.id }}
+					ellipsis={{ tooltip: user.id }}
+				>
+					{user.id}
+				</Typography.Text>
 			),
 		},
 		{

@@ -243,6 +243,7 @@
 		"add_user": "添加用户",
 		"edit_user": "编辑用户",
 		"column_user": "用户",
+		"dify_user_id": "Dify 用户 ID",
 		"column_updated_at": "最后更新",
 		"name_not_set": "未设置姓名",
 		"status_active": "正常",

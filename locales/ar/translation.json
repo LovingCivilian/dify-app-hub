@@ -243,6 +243,7 @@
 		"add_user": "إضافة مستخدم",
 		"edit_user": "تعديل المستخدم",
 		"column_user": "المستخدم",
+		"dify_user_id": "معرّف مستخدم Dify",
 		"column_updated_at": "آخر تحديث",
 		"name_not_set": "لم يُحدَّد اسم",
 		"status_active": "نشط",
