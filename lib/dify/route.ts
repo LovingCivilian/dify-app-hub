@@ -4,9 +4,10 @@ import { verifySession, type SessionUser } from '@/lib/auth/session'
 import { getAppAccess } from '@/lib/data/apps'
 
 import { difyClient, type DifyClient } from './client'
-import { difyErrorResponse, errorResponseFrom } from './errors'
+import { difyErrorResponse, errorResponseFrom, forbiddenResponse } from './errors'
 
-export { errorResponseFrom }
+// A route checks the role right after the app (session → app → role → input) and answers forbiddenResponse().
+export { errorResponseFrom, forbiddenResponse }
 export { difyJson } from './response'
 
 export interface DifyRouteContext {
@@ -60,9 +61,3 @@ export const resolveDifyRoute = async (
 		return { ok: false, response: errorResponseFrom(error, 'resolveDifyRoute') }
 	}
 }
-
-/**
- * The app's refusal of a signed-in caller whose role does not allow the operation (charter §4.2): the body
- * errorResponseFrom gives an AuthError('forbidden'), checked right after the app (session → app → role → input).
- */
-export const forbiddenResponse = (): Response => difyErrorResponse('forbidden', 'Not allowed.', 403)

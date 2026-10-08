@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 vi.mock('@/db', () => ({
@@ -207,8 +207,16 @@ const appInput = {
 	},
 } as const
 
-// Review Focus 1: the role check comes before Dify and the database (the @/db mock throws on any query).
+// Review Focus 1: the role check comes before Dify and the database (the @/db mock throws on any query). fetch
+// is stubbed (Vitest "Mocking globals"), so a gate placed after the Dify call fails here without reaching the network.
 describe('the apps DAL refuses a non-admin actor before anything else', () => {
+	beforeEach(() => {
+		vi.stubGlobal('fetch', vi.fn())
+	})
+	afterEach(() => {
+		vi.unstubAllGlobals()
+	})
+
 	it.each([
 		['createApp', () => createApp(member, appInput)],
 		['updateApp', () => updateApp(member, 'a1', appInput)],
@@ -216,5 +224,6 @@ describe('the apps DAL refuses a non-admin actor before anything else', () => {
 		['syncApp', () => syncApp(member, 'a1')],
 	] as const)('%s', async (_name, call) => {
 		await expect(call()).rejects.toMatchObject({ name: 'AuthError', code: 'forbidden' })
+		expect(fetch).not.toHaveBeenCalled()
 	})
 })

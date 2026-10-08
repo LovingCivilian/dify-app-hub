@@ -6,6 +6,7 @@ import {
 	difyErrorFromResponse,
 	difyErrorResponse,
 	errorResponseFrom,
+	forbiddenResponse,
 	isDifyErrorBody,
 } from '@/lib/dify/errors'
 
@@ -78,6 +79,13 @@ describe('difyErrorResponse and errorResponseFrom', () => {
 	it('turns an AuthError into 401 or 403', async () => {
 		expect(errorResponseFrom(new AuthError('unauthorized'), 'test').status).toBe(401)
 		expect(errorResponseFrom(new AuthError('forbidden'), 'test').status).toBe(403)
+	})
+	// One definition of the role refusal (charter §4.2): the routes' own check and a thrown AuthError answer alike.
+	it("answers an AuthError('forbidden') exactly as forbiddenResponse()", async () => {
+		const thrown = errorResponseFrom(new AuthError('forbidden'), 'test')
+		const direct = forbiddenResponse()
+		expect(thrown.status).toBe(direct.status)
+		expect(await thrown.json()).toEqual(await direct.json())
 	})
 	it('logs anything else and answers 500 internal_error without the message', async () => {
 		const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
