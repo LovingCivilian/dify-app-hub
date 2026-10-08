@@ -135,9 +135,11 @@ describe('changeOwnPassword (charter §4.2, decision d)', () => {
 		expect(mocks.updates).toEqual([])
 	})
 
-	it('answers not_found when the account is deleted before the lock, and writes nothing', async () => {
+	// One cause, one code: an account deleted under its own session has no live session (charter §4.5), whichever read
+	// finds it gone; the jwt callback signs that session out on its next request.
+	it('answers unauthorized when the account is deleted before the lock, and writes nothing', async () => {
 		mocks.rows.locked = []
-		expect(await changeOwnPassword(actor, input)).toEqual({ ok: false, code: 'not_found' })
+		expect(await changeOwnPassword(actor, input)).toEqual({ ok: false, code: 'unauthorized' })
 		expect(mocks.updates).toEqual([])
 	})
 })

@@ -246,7 +246,8 @@ export async function changeOwnPassword(
 			.where(eq(users.id, actor.id))
 			.limit(1)
 			.for('update')
-		if (!locked) return fail('not_found')
+		// Deleted since the check: the same answer as a row gone before it (no live session, charter §4.5).
+		if (!locked) return fail('unauthorized')
 		if (locked.password !== row.password) {
 			return fail('invalid_input', { currentPassword: ['incorrect'] })
 		}
