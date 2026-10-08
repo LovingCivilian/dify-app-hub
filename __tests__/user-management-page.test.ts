@@ -24,18 +24,25 @@ describe('/user-management page', () => {
 		expect(listUsers).not.toHaveBeenCalled()
 	})
 
-	it('hands the table the rows and the signed-in user id', async () => {
-		requireAdminUser.mockResolvedValue({ id: 'u1', email: 'admin@e2e.local', name: 'Admin' })
-		const at = new Date('2026-01-15T09:05:00.000Z')
-		listUsers.mockResolvedValue([
-			{ id: 'u1', name: 'Admin', email: 'admin@e2e.local', createdAt: at, updatedAt: at },
-		])
+	it('lists the users as the signed-in admin and hands the table the DTOs and its id', async () => {
+		const admin = { id: 'u1', email: 'admin@e2e.local', name: 'Admin', role: 'admin' }
+		requireAdminUser.mockResolvedValue(admin)
+		const at = '2026-01-15T09:05:00.000Z'
+		const users = [
+			{
+				id: 'u1',
+				name: 'Admin',
+				email: 'admin@e2e.local',
+				role: 'admin',
+				createdAt: at,
+				updatedAt: at,
+			},
+		]
+		listUsers.mockResolvedValue(users)
 		expect(await UserManagementPage()).toMatchObject({
 			type: UserManagement,
-			props: {
-				currentUserId: 'u1',
-				users: [{ id: 'u1', email: 'admin@e2e.local', createdAt: '2026-01-15T09:05:00.000Z' }],
-			},
+			props: { currentUserId: 'u1', users },
 		})
+		expect(listUsers).toHaveBeenCalledWith(admin)
 	})
 })
