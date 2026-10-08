@@ -11,10 +11,11 @@ describe('resetFailureKey', () => {
 	})
 })
 
-// /api/init answers 400 when an admin already exists (the form guarantees the fields).
+// The first-run action answers forbidden once any account exists (Review Focus 5).
 describe('initFailureKey', () => {
-	it('maps 400 to "already set up" and anything else to the generic failure', () => {
-		expect(initFailureKey(400)).toBe('init.already_initialized')
-		expect(initFailureKey(500)).toBe('init.failed')
+	it('maps the action codes', () => {
+		expect(initFailureKey('forbidden')).toBe('init.already_initialized')
+		expect(initFailureKey('operation_failed')).toBe('init.failed')
+		expect(initFailureKey('invalid_input')).toBe('init.failed')
 	})
 })

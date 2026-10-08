@@ -2,10 +2,16 @@ import { getToken } from 'next-auth/jwt'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
-import { isApiPath, isPublicPath, isUngatedPath } from '@/lib/access'
+import { isApiPath, isPublicPath } from '@/lib/access'
 
+/**
+ * The optimistic check of Next's authentication guide (the proxy reads the cookie; layouts, pages, actions and
+ * handlers verify the session themselves): a public path passes, any other needs a token with an id (a revoked
+ * token has none, ADR-0018). First run is the login layout's job (charter §4.2), so the proxy makes no request
+ * of its own.
+ */
 export async function proxy(request: NextRequest) {
-	const { pathname, origin } = request.nextUrl
+	const { pathname } = request.nextUrl
 
 	// Classify by the decoded path (Next matches routes on the decoded path too)
 	let decoded: string
@@ -18,42 +24,20 @@ export async function proxy(request: NextRequest) {
 		)
 	}
 
-	// Skip the public APIs, static assets and the init page itself
-	if (isUngatedPath(decoded)) return NextResponse.next()
+	if (isPublicPath(decoded)) return NextResponse.next()
 
-	// Site-wide gate: every page but the public ones needs a session; APIs are denied by default
-	if (!isPublicPath(decoded)) {
-		const token = await getToken({ req: request })
-		// A token without id is one the jwt callback stripped on a sessionVersion mismatch (ADR-0018): no session.
-		if (!token?.id) {
-			if (isApiPath(decoded)) {
-				return NextResponse.json(
-					{ code: 'unauthorized', message: 'Sign in required.', status: 401 },
-					{ status: 401 },
-				)
-			}
-			const loginUrl = new URL('/login', request.url)
-			loginUrl.searchParams.set('callbackUrl', pathname + request.nextUrl.search)
-			return NextResponse.redirect(loginUrl)
-		}
-		if (isApiPath(decoded)) return NextResponse.next()
+	const token = await getToken({ req: request })
+	if (token?.id) return NextResponse.next()
+
+	if (isApiPath(decoded)) {
+		return NextResponse.json(
+			{ code: 'unauthorized', message: 'Sign in required.', status: 401 },
+			{ status: 401 },
+		)
 	}
-
-	try {
-		const res = await fetch(`${origin}/api/init/status`, { cache: 'no-store' })
-		const data = await res.json()
-		const isInitialized = !!data.initialized
-
-		if (!isInitialized) {
-			const url = new URL('/init', request.url)
-			return NextResponse.redirect(url)
-		}
-	} catch (error) {
-		console.error('Init status check failed:', error)
-		// A failed check must not block the page; the pages handle it
-	}
-
-	return NextResponse.next()
+	const loginUrl = new URL('/login', request.url)
+	loginUrl.searchParams.set('callbackUrl', pathname + request.nextUrl.search)
+	return NextResponse.redirect(loginUrl)
 }
 
 export const config = {

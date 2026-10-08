@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { count, desc, eq, sql } from 'drizzle-orm'
+import { desc, eq, sql } from 'drizzle-orm'
 
 import { getDb, type Db } from '@/db'
 import { passwordResetTokens, users } from '@/db/schema'
@@ -210,10 +210,4 @@ export async function deleteUser(actor: SessionUser, id: string): Promise<Action
 		await tx.delete(users).where(eq(users.id, id))
 		return ok(undefined)
 	})
-}
-
-/** Whether any account exists (the /init page's check). Replaced by lib/data/setup.ts hasAccounts in Task 6. */
-export async function hasUsers() {
-	const [row] = await getDb().select({ count: count() }).from(users)
-	return (row?.count ?? 0) > 0
 }

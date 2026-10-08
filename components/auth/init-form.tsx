@@ -2,12 +2,13 @@
 
 import { Alert, App, Button, Form, Input, theme, Typography } from 'antd'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { initFailureKey } from './auth-failure'
+import { createOwnerAction } from '@/app/init/actions'
+import { useActionTransition } from '@/hooks/use-action-transition'
+import { PASSWORD_MAX, PASSWORD_MIN } from '@/lib/auth/fields'
 
-const PASSWORD_MIN = 8
+import { initFailureKey } from './auth-failure'
 
 interface InitValues {
 	name: string
@@ -16,36 +17,28 @@ interface InitValues {
 	confirmPassword: string
 }
 
-/** Spec §7.5: first-run setup; the match check runs while typing (dependencies), not on submit. */
+/**
+ * Spec §7.5: first-run setup; the match check runs while typing (dependencies), not on submit. The Server Action
+ * runs through startTransition from onFinish (ADR-0024).
+ */
 export default function InitForm() {
 	const { t } = useTranslation()
 	const { message } = App.useApp()
 	const { token } = theme.useToken()
 	const router = useRouter()
-	const [loading, setLoading] = useState(false)
+	const { pending, run } = useActionTransition()
 
-	const create = async ({ name, email, password }: InitValues) => {
-		setLoading(true)
-		try {
-			const response = await fetch('/api/init', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name, email, password }),
-			})
-			if (response.ok) {
-				message.success(t('init.admin_created'))
+	const create = ({ name, email, password }: InitValues) =>
+		void run(async () => {
+			const result = await createOwnerAction({ name, email, password })
+			if (result.ok) {
+				message.success(t('init.owner_created'))
 				router.replace(`/login?email=${encodeURIComponent(email)}`)
 				return
 			}
-			message.error(t(initFailureKey(response.status)))
-			if (response.status === 400) router.replace('/login')
-		} catch (error) {
-			console.error('Init failed', error)
-			message.error(t('common.network_error_retry'))
-		} finally {
-			setLoading(false)
-		}
-	}
+			message.error(t(initFailureKey(result.code)))
+			if (result.code === 'forbidden') router.replace('/login')
+		})
 
 	return (
 		<>
@@ -63,27 +56,28 @@ export default function InitForm() {
 			>
 				<Form.Item
 					name="name"
-					label={t('init.admin_name')}
-					rules={[{ required: true, message: t('init.admin_name_required') }]}
+					label={t('init.owner_name')}
+					rules={[{ required: true, message: t('init.owner_name_required') }]}
 				>
-					<Input placeholder={t('init.admin_name_placeholder')} />
+					<Input placeholder={t('init.owner_name_placeholder')} />
 				</Form.Item>
 				<Form.Item
 					name="email"
-					label={t('init.admin_email')}
+					label={t('init.owner_email')}
 					rules={[
-						{ required: true, message: t('init.admin_email_required') },
+						{ required: true, message: t('init.owner_email_required') },
 						{ type: 'email', message: t('init.email_invalid') },
 					]}
 				>
-					<Input placeholder={t('init.admin_email_placeholder')} />
+					<Input placeholder={t('init.owner_email_placeholder')} />
 				</Form.Item>
 				<Form.Item
 					name="password"
-					label={t('init.admin_password')}
+					label={t('init.owner_password')}
 					rules={[
 						{ required: true, message: t('auth.password_required') },
 						{ min: PASSWORD_MIN, message: t('init.password_min_8') },
+						{ max: PASSWORD_MAX, message: t('auth.password_max_128') },
 					]}
 				>
 					<Input.Password
@@ -114,7 +108,7 @@ export default function InitForm() {
 					type="primary"
 					htmlType="submit"
 					block
-					loading={loading}
+					loading={pending}
 				>
 					{t('init.submit')}
 				</Button>
