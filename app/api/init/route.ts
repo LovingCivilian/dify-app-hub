@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json({ message: '姓名、邮箱和密码都是必填项' }, { status: 400 })
 		}
 		const hashedPassword = await hashPassword(password)
-		await db.insert(users).values({ name, email, password: hashedPassword })
+		await db.insert(users).values({ name, email, password: hashedPassword, role: 'owner' })
 		return NextResponse.json({ message: '初始化成功' }, { status: 201 })
 	} catch (error) {
 		console.error('初始化失败:', error)
