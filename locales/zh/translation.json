@@ -28,7 +28,8 @@
 		"unsupported_app_type": "不支持的应用类型",
 		"retry": "重试",
 		"load_failed": "页面加载失败",
-		"session_expired": "登录已过期，请重新登录"
+		"session_expired": "登录已过期，请重新登录",
+		"forbidden": "你没有执行此操作的权限。"
 	},
 	"form": {
 		"select_placeholder": "请选择",
@@ -102,8 +103,10 @@
 		"sending_queued": "此会话加载完成后将发送你的消息。",
 		"history_load_failed": "无法加载此会话的消息",
 		"error_unauthorized": "未获授权。请重新登录；如果问题仍然存在，请联系管理员检查应用设置。",
+		"error_forbidden": "你没有执行此操作的权限。",
 		"error_app_not_found": "找不到此应用。",
 		"error_app_disabled": "此应用已停用。",
+		"error_icon_not_found": "此应用没有已保存的图标。",
 		"error_upstream_error": "Dify 返回了错误，请稍后重试。",
 		"error_upstream_unreachable": "无法连接到 Dify，请稍后重试。",
 		"retry": "重试",

@@ -6,8 +6,9 @@ export type AppAction = 'save' | 'sync' | 'delete'
 export const appErrorKey = (code: ActionErrorCode, action: AppAction) => {
 	switch (code) {
 		case 'unauthorized':
-		case 'forbidden':
 			return 'common.session_expired' as const
+		case 'forbidden':
+			return 'common.forbidden' as const
 		case 'not_found':
 			return 'admin_apps.not_found' as const
 		case 'dify_unreachable':

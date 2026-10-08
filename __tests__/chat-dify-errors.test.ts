@@ -58,6 +58,14 @@ describe('failureText', () => {
 		expect(failureText(new DifyRequestError(502, undefined, ''), t, 'generic')).toBe('generic')
 		expect(failureText(new TypeError('fetch failed'), t, 'generic')).toBe('generic')
 	})
+	it('maps forbidden and icon_not_found to their keys (B2)', () => {
+		expect(failureText(new DifyRequestError(403, 'forbidden', 'Not allowed.'), t)).toBe(
+			'chat.error_forbidden',
+		)
+		expect(failureText(new DifyRequestError(404, 'icon_not_found', 'x'), t)).toBe(
+			'chat.error_icon_not_found',
+		)
+	})
 	it('gives an empty text without a fallback', () => {
 		expect(failureText(new DifyRequestError(500, 'internal_error', 'x'), t)).toBe('')
 	})

@@ -4,15 +4,16 @@ import { desc, eq, sql } from 'drizzle-orm'
 
 import { getDb } from '@/db'
 import { difyApps } from '@/db/schema'
-import type { SessionUser } from '@/lib/auth/session'
+import { assertAdmin, type SessionUser } from '@/lib/auth/session'
 import { difyClient, type DifyCredentials } from '@/lib/dify/client'
 import { DifyError } from '@/lib/dify/errors'
 import { isAppMode, type AppInfo, type AppMode, type SiteSettings } from '@/lib/dify/types'
 
 /*
  * The apps Data Access Layer (charter §4.2). Every function takes the verified actor first: the entry point
- * (route, action, page) verifies the session once, and nothing here can be called without a SessionUser. B1
- * has no roles, so `_actor` is not read yet; B2 reads its role here.
+ * (route, action, page) verifies the session once, and nothing here can be called without a SessionUser.
+ * Admin-only writes check the role themselves (assertAdmin); the reads serve every signed-in user until B3
+ * filters them.
  */
 
 type AppRow = typeof difyApps.$inferSelect
@@ -91,6 +92,8 @@ export interface ChatAppDto {
 export interface AppAccess {
 	id: string
 	enabled: boolean
+	/** The app's annotation switch: a user-role account may create annotations only where it is on (charter §4.1). */
+	annotationEnabled: boolean
 	credentials: DifyCredentials
 }
 
@@ -308,6 +311,7 @@ const readAccess = async (id: string): Promise<AppAccess | null> => {
 		.select({
 			id: difyApps.id,
 			isEnabled: difyApps.isEnabled,
+			enableAnnotation: difyApps.enableAnnotation,
 			apiBase: difyApps.apiBase,
 			apiKey: difyApps.apiKey,
 		})
@@ -318,6 +322,7 @@ const readAccess = async (id: string): Promise<AppAccess | null> => {
 		? {
 				id: row.id,
 				enabled: row.isEnabled,
+				annotationEnabled: row.enableAnnotation,
 				credentials: { apiBase: row.apiBase, apiKey: row.apiKey },
 			}
 		: null
@@ -326,11 +331,6 @@ const readAccess = async (id: string): Promise<AppAccess | null> => {
 export async function listApps(_actor: SessionUser): Promise<AppDto[]> {
 	const rows = await getDb().select(dtoColumns).from(difyApps).orderBy(desc(difyApps.createdAt))
 	return rows.map(toAppDto)
-}
-
-export async function getApp(_actor: SessionUser, id: string): Promise<AppDto | null> {
-	const row = await selectDtoRow(id)
-	return row ? toAppDto(row) : null
 }
 
 export async function getChatApp(_actor: SessionUser, id: string): Promise<ChatAppDto | null> {
@@ -357,9 +357,10 @@ export async function getAppIcon(
 
 /** Creates the row from Dify's own info for the given credentials; rejects with DifyError when Dify refuses them. */
 export async function createApp(
-	_actor: SessionUser,
+	actor: SessionUser,
 	input: AppInput & { apiKey: string },
 ): Promise<SyncResult> {
+	assertAdmin(actor)
 	const credentials = { apiBase: input.apiBase, apiKey: input.apiKey }
 	const { info, iconColumns, partial } = await fetchDifyProfile(credentials)
 	const id = crypto.randomUUID()
@@ -381,10 +382,11 @@ export async function createApp(
 
 /** Re-reads Dify with the effective credentials (a new key when given, else the stored one); null when the app is gone. */
 export async function updateApp(
-	_actor: SessionUser,
+	actor: SessionUser,
 	id: string,
 	input: AppInput,
 ): Promise<SyncResult | null> {
+	assertAdmin(actor)
 	const access = await readAccess(id)
 	if (!access) return null
 	const credentials = { apiBase: input.apiBase, apiKey: input.apiKey || access.credentials.apiKey }
@@ -404,13 +406,15 @@ export async function updateApp(
 	return { id, partial }
 }
 
-export async function deleteApp(_actor: SessionUser, id: string): Promise<boolean> {
+export async function deleteApp(actor: SessionUser, id: string): Promise<boolean> {
+	assertAdmin(actor)
 	const [result] = await getDb().delete(difyApps).where(eq(difyApps.id, id))
 	return result.affectedRows > 0
 }
 
 /** Refreshes name, description, tags, a known mode and the icon from Dify; null when the app is gone. */
-export async function syncApp(_actor: SessionUser, id: string): Promise<SyncResult | null> {
+export async function syncApp(actor: SessionUser, id: string): Promise<SyncResult | null> {
+	assertAdmin(actor)
 	const access = await readAccess(id)
 	if (!access) return null
 	const { info, iconColumns, partial } = await fetchDifyProfile(access.credentials)

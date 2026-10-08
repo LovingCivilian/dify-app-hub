@@ -272,6 +272,12 @@ describe('reads select explicit columns (charter §4.2)', () => {
 	it('syncApp reads only the access columns', async () => {
 		dify()
 		await syncApp(actor, 'a1')
-		expect(Object.keys(db.fields ?? {}).sort()).toEqual(['apiBase', 'apiKey', 'id', 'isEnabled'])
+		expect(Object.keys(db.fields ?? {}).sort()).toEqual([
+			'apiBase',
+			'apiKey',
+			'enableAnnotation',
+			'id',
+			'isEnabled',
+		])
 	})
 })

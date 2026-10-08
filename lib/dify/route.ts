@@ -15,6 +15,8 @@ export interface DifyRouteContext {
 	actor: SessionUser
 	appId: string
 	apiBase: string
+	/** The app's annotation switch (AppAccess). */
+	annotationEnabled: boolean
 	dify: DifyClient
 }
 
@@ -50,6 +52,7 @@ export const resolveDifyRoute = async (
 				actor,
 				appId,
 				apiBase: app.credentials.apiBase,
+				annotationEnabled: app.annotationEnabled,
 				dify: difyClient(app.credentials),
 			},
 		}
@@ -57,3 +60,9 @@ export const resolveDifyRoute = async (
 		return { ok: false, response: errorResponseFrom(error, 'resolveDifyRoute') }
 	}
 }
+
+/**
+ * The app's refusal of a signed-in caller whose role does not allow the operation (charter §4.2): the body
+ * errorResponseFrom gives an AuthError('forbidden'), checked right after the app (session → app → role → input).
+ */
+export const forbiddenResponse = (): Response => difyErrorResponse('forbidden', 'Not allowed.', 403)

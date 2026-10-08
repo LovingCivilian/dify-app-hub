@@ -5,7 +5,7 @@ import { appErrorKey } from '@/components/admin/apps/app-errors'
 describe('appErrorKey', () => {
 	it('maps the codes to translation keys, per action for the generic failure', () => {
 		expect(appErrorKey('unauthorized', 'save')).toBe('common.session_expired')
-		expect(appErrorKey('forbidden', 'sync')).toBe('common.session_expired')
+		expect(appErrorKey('forbidden', 'sync')).toBe('common.forbidden')
 		expect(appErrorKey('not_found', 'delete')).toBe('admin_apps.not_found')
 		expect(appErrorKey('dify_unreachable', 'save')).toBe('admin_apps.dify_unreachable')
 		expect(appErrorKey('invalid_input', 'save')).toBe('admin_apps.invalid_input')

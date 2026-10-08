@@ -1,17 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { requireActor, createApp, updateApp, deleteApp, syncApp, refresh } = vi.hoisted(() => ({
-	requireActor: vi.fn(),
+const { getServerSession, createApp, updateApp, deleteApp, syncApp, refresh } = vi.hoisted(() => ({
+	getServerSession: vi.fn(),
 	createApp: vi.fn(),
 	updateApp: vi.fn(),
 	deleteApp: vi.fn(),
 	syncApp: vi.fn(),
 	refresh: vi.fn(),
 }))
-vi.mock('@/lib/auth/session', async importOriginal => ({
-	...(await importOriginal<typeof import('@/lib/auth/session')>()),
-	requireActor,
-}))
+vi.mock('next-auth/next', () => ({ getServerSession }))
+vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 vi.mock('@/lib/data/apps', () => ({ createApp, updateApp, deleteApp, syncApp }))
 vi.mock('next/cache', () => ({ refresh }))
@@ -22,10 +20,9 @@ import {
 	syncAppAction,
 	updateAppAction,
 } from '@/app/(admin)/app-management/actions'
-import { AuthError } from '@/lib/auth/session'
 import { DifyError } from '@/lib/dify/errors'
 
-const actor = { id: 'u1', email: 'jane@example.com', name: null }
+const actor = { id: 'u1', email: 'jane@example.com', name: null, role: 'admin' }
 const UUID = '3b241101-e2bb-4255-8caf-4136c566a962'
 const input = {
 	apiBase: 'https://dify.example/v1',
@@ -41,8 +38,9 @@ const input = {
 }
 
 beforeEach(() => {
-	for (const fn of [requireActor, createApp, updateApp, deleteApp, syncApp, refresh]) fn.mockReset()
-	requireActor.mockResolvedValue(actor)
+	for (const fn of [getServerSession, createApp, updateApp, deleteApp, syncApp, refresh])
+		fn.mockReset()
+	getServerSession.mockResolvedValue({ user: actor })
 })
 // toActionFailure logs a DifyError or an unexpected throw (lib/action-failure.ts); the spy keeps the output clean.
 afterEach(() => {
@@ -51,7 +49,7 @@ afterEach(() => {
 
 describe('app actions', () => {
 	it('answers unauthorized without a live session and touches nothing', async () => {
-		requireActor.mockRejectedValue(new AuthError('unauthorized'))
+		getServerSession.mockResolvedValue(null)
 		expect(await createAppAction(input)).toEqual({ ok: false, code: 'unauthorized' })
 		expect(createApp).not.toHaveBeenCalled()
 	})
@@ -97,5 +95,27 @@ describe('app actions', () => {
 		syncApp.mockResolvedValue({ id: UUID, partial: false })
 		expect(await syncAppAction(UUID)).toEqual({ ok: true, data: { id: UUID, partial: false } })
 		expect(refresh).toHaveBeenCalledTimes(2)
+	})
+
+	// Review Focus 1 and deviation 3: every admin action refuses a user-role session before touching the DAL.
+	it.each([
+		['createAppAction', () => createAppAction(input)],
+		['updateAppAction', () => updateAppAction(UUID, input)],
+		['deleteAppAction', () => deleteAppAction(UUID)],
+		['syncAppAction', () => syncAppAction(UUID)],
+	] as const)('%s answers forbidden to a user-role account', async (_name, call) => {
+		getServerSession.mockResolvedValue({ user: { ...actor, role: 'user' } })
+		expect(await call()).toEqual({ ok: false, code: 'forbidden' })
+		for (const fn of [createApp, updateApp, deleteApp, syncApp, refresh])
+			expect(fn).not.toHaveBeenCalled()
+	})
+
+	// ADR-0024: the owner has the admin surface too (hasAdminRights).
+	it('lets the owner through as well', async () => {
+		const owner = { ...actor, role: 'owner' }
+		getServerSession.mockResolvedValue({ user: owner })
+		deleteApp.mockResolvedValue(true)
+		expect(await deleteAppAction(UUID)).toEqual({ ok: true, data: undefined })
+		expect(deleteApp).toHaveBeenCalledWith(owner, UUID)
 	})
 })

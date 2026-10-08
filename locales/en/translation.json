@@ -28,7 +28,8 @@
 		"unsupported_app_type": "Unsupported app type",
 		"retry": "Try again",
 		"load_failed": "This page could not be loaded",
-		"session_expired": "Your session has expired. Sign in again."
+		"session_expired": "Your session has expired. Sign in again.",
+		"forbidden": "You do not have permission to do this."
 	},
 	"form": {
 		"select_placeholder": "Please select",
@@ -102,8 +103,10 @@
 		"sending_queued": "Your message will be sent once this conversation has loaded.",
 		"history_load_failed": "Could not load this conversation's messages",
 		"error_unauthorized": "Not authorized. Sign in again; if it keeps happening, ask an admin to check the app's settings.",
+		"error_forbidden": "You do not have permission to do this.",
 		"error_app_not_found": "This app could not be found.",
 		"error_app_disabled": "This app is disabled.",
+		"error_icon_not_found": "This app has no stored icon.",
 		"error_upstream_error": "Dify answered with an error. Please try again later.",
 		"error_upstream_unreachable": "Dify could not be reached. Please try again later.",
 		"retry": "Retry",

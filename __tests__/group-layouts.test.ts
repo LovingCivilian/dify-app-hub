@@ -69,7 +69,7 @@ describe('(admin) layout and roles', () => {
 	})
 
 	// Task 3: the (admin) layout calls requireAdminUser()
-	it.todo('sends a user-role account to /apps (charter §4.2)', async () => {
+	it('sends a user-role account to /apps (charter §4.2)', async () => {
 		getServerSession.mockResolvedValue({
 			user: { id: 'u2', email: 'joe@example.com', role: 'user' },
 		})
