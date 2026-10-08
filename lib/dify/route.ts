@@ -11,7 +11,7 @@ export { errorResponseFrom, forbiddenResponse }
 export { difyJson } from './response'
 
 export interface DifyRouteContext {
-	/** The Dify end-user id: the signed-in email (ADR-0006). */
+	/** The Dify end user: the account's permanent id, never the email (ADR-0026). */
 	user: string
 	actor: SessionUser
 	appId: string
@@ -49,7 +49,7 @@ export const resolveDifyRoute = async (
 		return {
 			ok: true,
 			ctx: {
-				user: actor.email,
+				user: actor.id,
 				actor,
 				appId,
 				apiBase: app.credentials.apiBase,

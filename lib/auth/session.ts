@@ -7,7 +7,7 @@ import { cache } from 'react'
 import { authOptions } from './options'
 import { hasAdminRights, isRole, type Role } from './roles'
 
-/** The signed-in account as the server code sees it; `email` is the Dify end-user id (ADR-0006). */
+/** The signed-in account as the server code sees it; `id` is the Dify end-user id (ADR-0026). */
 export interface SessionUser {
 	id: string
 	email: string

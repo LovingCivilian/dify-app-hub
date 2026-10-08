@@ -170,7 +170,7 @@ export const difyClient = (credentials: DifyCredentials) => {
 				},
 			})
 		} catch (error) {
-			// The cause stays in the server log: Node's fetch puts the full URL (the Dify host, the user's email in a
+			// The cause stays in the server log: Node's fetch puts the full URL (the Dify host, the account id in a
 			// query string) in its message, and errorResponseFrom sends a DifyError's message to the browser.
 			console.error('Dify request failed:', error)
 			throw new DifyError(502, 'upstream_unreachable', 'Dify is unreachable.')

@@ -35,8 +35,9 @@ import { POST as runWorkflow } from '@/app/api/dify/[appId]/workflows/run/route'
 import { POST as stopWorkflow } from '@/app/api/dify/[appId]/workflows/tasks/[taskId]/stop/route'
 import { DifyError } from '@/lib/dify/errors'
 
-const USER = 'jane@example.com'
-const actor = { id: 'u1', email: USER, name: null }
+/** The Dify end user: the account's id, never its email (ADR-0026). */
+const USER = 'u1'
+const actor = { id: USER, email: 'jane@example.com', name: null }
 const access = { id: 'app-1', enabled: true, credentials: { apiBase: 'http://d/v1', apiKey: 'k' } }
 const base = 'http://app/api/dify/app-1'
 const json = (path: string, body: unknown) =>

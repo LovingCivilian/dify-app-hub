@@ -1,0 +1,6 @@
+/* A reading measure, not a pixel size: Typography's ellipsis needs a bounded width (antd's "Ellipsis" demo gives the
+   Text one), and the table sizes its columns from their content (scroll.x: 'max-content'). `width`, not `max-width`:
+   antd gives an ellipsis span `max-width: 100%` through a selector that outranks a single class. */
+.difyUserId {
+	width: 16ch;
+}

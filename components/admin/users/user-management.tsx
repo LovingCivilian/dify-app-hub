@@ -31,6 +31,7 @@ import type { UserDto } from '@/lib/data/users'
 import { matchesQuery } from '@/lib/match-query'
 
 import { ROLE_LABEL_KEYS } from './role-labels'
+import styles from './user-management.module.css'
 import { userErrorKey } from './user-errors'
 import UserFormDrawer from './user-form-drawer'
 
@@ -56,7 +57,8 @@ export default function UserManagement({
 		setEditing(user)
 		setDrawerOpen(true)
 	}
-	const shown = users.filter(user => matchesQuery([user.name, user.email], query))
+	// The id too (ADR-0026): an id copied from Dify's logs or Langfuse finds its account.
+	const shown = users.filter(user => matchesQuery([user.name, user.email, user.id], query))
 
 	const { run } = useActionTransition()
 	const remove = (user: UserDto) =>
@@ -78,6 +80,21 @@ export default function UserManagement({
 						<Typography.Text type="secondary">{user.email}</Typography.Text>
 					</div>
 				</Space>
+			),
+		},
+		{
+			// ADR-0026: the account id is the Dify end user; the owner copies it into Dify's log search or Langfuse.
+			title: t('admin_users.dify_user_id'),
+			key: 'difyUserId',
+			render: (_, user) => (
+				<Typography.Text
+					className={styles.difyUserId}
+					// The tooltips from i18next: antd's ar_EG pack calls "Copied" نقل ("moved").
+					copyable={{ text: user.id, tooltips: [t('common.copy'), t('common.copied')] }}
+					ellipsis={{ tooltip: user.id }}
+				>
+					{user.id}
+				</Typography.Text>
 			),
 		},
 		{

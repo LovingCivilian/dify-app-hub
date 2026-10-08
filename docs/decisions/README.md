@@ -47,6 +47,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0023](0023-build-the-dify-layer-as-one-route-per-operation.md) | Build the Dify layer as one Route Handler per Service API operation, a typed server client and a pass-through contract | proposed | 2026-10-07 |
 | [0024](0024-keep-the-apps-own-data-behind-a-data-access-layer-with-server-actions-and-gate-the-admin-surface-by-role.md) | Keep the app's own data behind a Data Access Layer with Server Actions, and gate the admin surface by role | proposed | 2026-10-08 |
 | [0025](0025-validate-with-zod.md) | Validate request bodies, action inputs and the environment with zod | proposed | 2026-10-07 |
+| [0026](0026-use-the-accounts-permanent-id-as-the-dify-end-user.md) | Use the account's permanent id as the Dify end user | proposed | 2026-10-08 |
 
 ## Inherited from upstream (not fork decisions)
 

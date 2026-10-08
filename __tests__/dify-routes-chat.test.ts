@@ -35,9 +35,10 @@ import { GET as suggested } from '@/app/api/dify/[appId]/messages/[messageId]/su
 import { GET as listMessages } from '@/app/api/dify/[appId]/messages/route'
 import { DifyError } from '@/lib/dify/errors'
 
-const USER = 'jane@example.com'
+/** The Dify end user: the account's id, never its email (ADR-0026). */
+const USER = 'u1'
 const UUID = '3b241101-e2bb-4255-8caf-4136c566a962'
-const actor = { id: 'u1', email: USER, name: null }
+const actor = { id: USER, email: 'jane@example.com', name: null }
 const access = { id: 'app-1', enabled: true, credentials: { apiBase: 'http://d/v1', apiKey: 'k' } }
 const base = 'http://app/api/dify/app-1'
 const json = (path: string, method: string, body: unknown) =>
