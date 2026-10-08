@@ -284,6 +284,8 @@ export interface DifyChatProviderOptions {
 	getDifyConversationId: () => string | undefined
 	/** Called after every workflow event so the hook can persist node data (GET /messages has none). */
 	onWorkflowUpdate?: (message: DifyChatMessage) => void
+	/** Called when a node's reasoning ends (`reasoning_chunk` with `is_final`) so the hook can keep the text (GET /messages has none). */
+	onReasoningEnd?: (message: DifyChatMessage) => void
 	/**
 	 * Called once per reply, when the stream first names the server conversation: a new chat learns its
 	 * Dify id here (spec §4.4), whether or not its conversation is the one on screen.
@@ -319,17 +321,20 @@ export class DifyChatProvider extends AbstractChatProvider<
 	answeredToken: string | undefined
 	private readonly getDifyConversationId: () => string | undefined
 	private readonly onWorkflowUpdate?: (message: DifyChatMessage) => void
+	private readonly onReasoningEnd?: (message: DifyChatMessage) => void
 	private readonly onConversationId?: (difyId: string) => void
 
 	constructor({
 		request,
 		getDifyConversationId,
 		onWorkflowUpdate,
+		onReasoningEnd,
 		onConversationId,
 	}: DifyChatProviderOptions) {
 		super({ request })
 		this.getDifyConversationId = getDifyConversationId
 		this.onWorkflowUpdate = onWorkflowUpdate
+		this.onReasoningEnd = onReasoningEnd
 		this.onConversationId = onConversationId
 	}
 
@@ -490,6 +495,13 @@ export class DifyChatProvider extends AbstractChatProvider<
 			} catch {
 				// Persistence is best effort: a failing store must not end the stream, or XRequest's
 				// catch would replace the streaming bubble with an error.
+			}
+		}
+		if (event.event === 'reasoning_chunk' && next.reasoningDone) {
+			try {
+				this.onReasoningEnd?.(next)
+			} catch {
+				// Same rule: persistence is best effort.
 			}
 		}
 		return next

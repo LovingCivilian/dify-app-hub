@@ -118,24 +118,38 @@ export const waitForHydration = (persist: PersistHydration, boundMs: number) =>
 const HYDRATION_BOUND_MS = 3000
 let workflowsHydrated: Promise<void> | undefined
 
-/**
- * Workflow nodes for the history mapper (spec §4.10). The store is read after its first hydration
- * (one shared wait): before it, a full reload would find no nodes. The mapper tolerates a failing read.
- */
-const workflowLoader = (appId: string, conversationId: string) => async (messageId: string) => {
+/** Reads one stored item of a message after the store's first hydration (one shared wait). */
+const storedItem = async (
+	appId: string,
+	conversationId: string,
+	messageId: string,
+	key: string,
+) => {
 	workflowsHydrated ??= waitForHydration(useWorkflowStore.persist, HYDRATION_BOUND_MS)
 	await workflowsHydrated
-	return (await workflowDataStorage.get({ appId, conversationId, messageId, key: 'workflows' })) as
-		| WorkflowState
-		| undefined
+	return workflowDataStorage.get({ appId, conversationId, messageId, key })
 }
+
+/**
+ * Workflow nodes and the streamed reasoning for the history mapper (spec §4.10): neither is part of GET /messages.
+ * The store is read after its first hydration: before it, a full reload would find nothing. The mapper tolerates a
+ * failing read.
+ */
+const historyLoaders = (appId: string, conversationId: string) => ({
+	loadWorkflow: async (messageId: string) =>
+		(await storedItem(appId, conversationId, messageId, 'workflows')) as WorkflowState | undefined,
+	loadReasoning: async (messageId: string) => {
+		const reasoning = await storedItem(appId, conversationId, messageId, 'reasoning')
+		return typeof reasoning === 'string' ? reasoning : undefined
+	},
+})
 
 /** The latest history page of a conversation (its first load, or a retry of it); sets the key's cursor. */
 const loadLatestPage = async (difyApi: DifyApi, appId: string, key: string, difyId: string) => {
 	const page = await fetchPage(difyApi, difyId)
 	setPaging(key, nextPaging(page))
 	// Oldest first, as Dify answers (ADR-0017 note): the mapper keeps the order.
-	return mapHistoryPage(page.data, { loadWorkflow: workflowLoader(appId, difyId) })
+	return mapHistoryPage(page.data, historyLoaders(appId, difyId))
 }
 
 export type SendDecision = 'send' | 'queue' | 'ignore'
@@ -308,6 +322,19 @@ export const useDifyChat = ({
 							})
 						}
 					},
+					// The streamed reasoning (an LLM node with reasoning separation) is not in GET /messages either.
+					onReasoningEnd: message => {
+						const { conversationId, messageId } = message.ids
+						if (conversationId && messageId && message.reasoning) {
+							void workflowDataStorage.set({
+								appId,
+								conversationId,
+								messageId,
+								key: 'reasoning',
+								value: message.reasoning,
+							})
+						}
+					},
 				})
 				return created
 			})
@@ -434,7 +461,7 @@ export const useDifyChat = ({
 		pagesInFlight.add(key)
 		try {
 			const page = await fetchPage(api, difyId, current.firstId)
-			const older = await mapHistoryPage(page.data, { loadWorkflow: workflowLoader(app, difyId) })
+			const older = await mapHistoryPage(page.data, historyLoaders(app, difyId))
 			setPaging(key, nextPaging(page, current))
 			setMessages(prev => prependOlder(prev, older.map(toMessageInfo)))
 		} catch (error) {

@@ -257,6 +257,35 @@ describe('mapHistoryPage', () => {
 		expect(page[1].message.workflow).toBeUndefined()
 	})
 
+	// An LLM node with reasoning separation streams its thinking as reasoning_chunk events only; GET /messages has no
+	// field for it (Dify 1.17.1 MessageListItem; `metadata` is on the web app's WebMessageListItem alone), so the chat
+	// keeps the streamed text in the browser beside the nodes.
+	it('attaches the stored reasoning to the assistant message, finished', async () => {
+		const loadReasoning = vi.fn(async (id: string) => (id === 'm1' ? 'I think.' : undefined))
+		const page = await mapHistoryPage([item(), item({ id: 'm2' })], {
+			loadWorkflow: async () => undefined,
+			loadReasoning,
+		})
+		expect(page[0].message.reasoning).toBeUndefined()
+		expect(page[1].message).toMatchObject({ reasoning: 'I think.', reasoningDone: true })
+		expect(page[3].message.reasoning).toBeUndefined()
+		expect(page[3].message.reasoningDone).toBeUndefined()
+		expect(loadReasoning.mock.calls.map(call => call[0])).toEqual(['m1', 'm2'])
+	})
+
+	it('maps the page without reasoning when its loader fails, and without a loader', async () => {
+		const failing = await mapHistoryPage([item()], {
+			loadWorkflow: async () => undefined,
+			loadReasoning: async () => {
+				throw new Error('IndexedDB is blocked')
+			},
+		})
+		expect(failing[1].message.reasoning).toBeUndefined()
+		expect(failing[1].message.content).toBe('At 80 °C.')
+		const none = await mapHistoryPage([item()], ctx)
+		expect(none[1].message.reasoning).toBeUndefined()
+	})
+
 	// extra_contents (OpenAPI HumanInputContent): a pending form carries its definition (token, expiry); a
 	// submitted one its submission data, with `form_definition` null per the document.
 	describe('human input forms (extra_contents)', () => {

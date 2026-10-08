@@ -35,7 +35,7 @@ const hasNothingToShow = (m: DifyChatMessage) =>
 	!m.humanInput
 
 /**
- * An assistant bubble's content (spec §5.2), in order: reasoning, tool calls, node logs, the Markdown
+ * An assistant bubble's content (spec §5.2), in order: node logs, reasoning, tool calls, the Markdown
  * answer, the form slot, then the error (spec §4.5: a stream error shows in the bubble, below whatever
  * came before it, such as a failed chatflow run's node logs), the "stopped" caption, files and
  * citations. A bubble with nothing but the error is the error alone.
@@ -67,6 +67,8 @@ export default function AssistantContent({ message, info, onSend, extra }: Assis
 			vertical
 			gap="small"
 		>
+			{/* The run first, then its reasoning, as Dify's own chat orders them (1.17.1, chat/answer/index.tsx). */}
+			<WorkflowLogs workflow={shownWorkflow} />
 			{message.reasoning && (
 				<Reasoning
 					reasoning={message.reasoning}
@@ -80,7 +82,6 @@ export default function AssistantContent({ message, info, onSend, extra }: Assis
 				streaming={streaming}
 				interrupted={aborted ? 'abort' : error ? 'error' : undefined}
 			/>
-			<WorkflowLogs workflow={shownWorkflow} />
 			{message.content && (
 				<MessageMarkdown
 					content={message.content}

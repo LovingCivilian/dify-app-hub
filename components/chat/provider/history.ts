@@ -23,6 +23,11 @@ export type HistoryMessage = MessageListItem
 export interface HistoryContext {
 	/** Workflow nodes are not part of GET /messages; they come from the IndexedDB store (spec §4.10). */
 	loadWorkflow: (messageId: string) => Promise<WorkflowState | undefined>
+	/**
+	 * The streamed `reasoning_chunk` text, kept in the same store: GET /messages has no field for it (Dify 1.17.1
+	 * `MessageListItem`; only the web app's `WebMessageListItem` carries the message `metadata` that holds it).
+	 */
+	loadReasoning?: (messageId: string) => Promise<string | undefined>
 	/** The clock in unix seconds, for a pending form that expired meanwhile (default: the system clock). */
 	now?: () => number
 }
@@ -101,10 +106,14 @@ const toHumanInput = (
 	return { ...form, state: humanInputPhase(form, nowSeconds) }
 }
 
-// Workflow nodes are optional enrichment: one failing store read (IndexedDB blocked or full) must not fail the page.
-const loadWorkflowSafely = async (ctx: HistoryContext, messageId: string) => {
+// Workflow nodes and reasoning are optional enrichment: one failing store read (IndexedDB blocked or full) must not
+// fail the page.
+const loadSafely = async <T>(
+	load: ((messageId: string) => Promise<T>) | undefined,
+	messageId: string,
+) => {
 	try {
-		return await ctx.loadWorkflow(messageId)
+		return await load?.(messageId)
 	} catch {
 		return undefined
 	}
@@ -116,6 +125,7 @@ const mapMessage = async (
 ): Promise<DefaultMessageInfo<DifyChatMessage>[]> => {
 	const ids = historyIds(item.id)
 	const files = (item.message_files ?? []).map(toFile)
+	const reasoning = await loadSafely(ctx.loadReasoning, item.id)
 	const common = {
 		ids: { messageId: item.id, conversationId: item.conversation_id },
 		createdAt: item.created_at,
@@ -142,7 +152,8 @@ const mapMessage = async (
 				feedback: toRating(item.feedback),
 				thoughts: (item.agent_thoughts ?? []).map(t => toThought(t, item.conversation_id)),
 				citations: item.retriever_resources ?? [],
-				workflow: await loadWorkflowSafely(ctx, item.id),
+				workflow: await loadSafely(ctx.loadWorkflow, item.id),
+				...(reasoning ? { reasoning, reasoningDone: true } : {}),
 				humanInput: toHumanInput(item.extra_contents, ctx.now?.() ?? Math.floor(Date.now() / 1000)),
 				// A failed turn stays `success` for the SDK and carries its error, like a live `error` event
 				// (spec §4.5); `message` is empty without Dify's text and the UI supplies the i18n fallback.

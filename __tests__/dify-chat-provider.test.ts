@@ -1016,6 +1016,22 @@ describe('DifyChatProvider', () => {
 		feed(provider, [ev('workflow_paused', { data: {} })], m)
 		expect(onWorkflowUpdate).toHaveBeenCalledTimes(6)
 	})
+	// The streamed thinking is kept beside the nodes (GET /messages has none): it is reported when a node's
+	// reasoning ends, the `is_final` chunk.
+	it('reports the reasoning when a node has finished thinking, and keeps streaming if that throws', () => {
+		const onReasoningEnd = vi.fn((_message: DifyChatMessage) => {
+			throw new Error('IndexedDB is unavailable')
+		})
+		const provider = makeProvider({ onReasoningEnd })
+		const m = feed(provider, [
+			ev('reasoning_chunk', { data: { reasoning: 'One. ', node_id: 'llm' } }),
+			ev('reasoning_chunk', { data: { reasoning: 'Two.', node_id: 'llm', is_final: true } }),
+			ev('message', { answer: 'Answer' }),
+		])
+		expect(onReasoningEnd).toHaveBeenCalledTimes(1)
+		expect(onReasoningEnd.mock.calls[0][0]).toMatchObject({ reasoning: 'One. Two.' })
+		expect(m.content).toBe('Answer')
+	})
 	it('keeps streaming when the workflow persistence callback throws', () => {
 		const onWorkflowUpdate = vi.fn(() => {
 			throw new Error('IndexedDB is unavailable')
@@ -1201,7 +1217,12 @@ describe('DifyChatProvider: the resume stream of a human input form', () => {
 		expect(provider.answeredToken).toBeUndefined()
 		feed(
 			provider,
-			[ev('workflow_started', { workflow_run_id: 'run-1', data: { id: 'run-1', reason: 'resumption' } })],
+			[
+				ev('workflow_started', {
+					workflow_run_id: 'run-1',
+					data: { id: 'run-1', reason: 'resumption' },
+				}),
+			],
 			m,
 		)
 		expect(provider.answeredToken).toBe('ft-1')
