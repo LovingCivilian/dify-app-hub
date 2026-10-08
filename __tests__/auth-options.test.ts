@@ -232,7 +232,7 @@ describe('jwt callback', () => {
 })
 
 describe('session callback', () => {
-	// Review Focus 4: the session's email (the Dify user) is the token's, which the jwt callback refreshed from the row.
+	// Review Focus 4: the session's email is the token's, which the jwt callback refreshed from the row.
 	it('forwards the refreshed email and name from the token', async () => {
 		const result = await session({
 			session: { user: { email: 'old@example.com', name: 'Old' }, expires: '' },
