@@ -1,17 +1,19 @@
 import { expect, type Page, test } from '@playwright/test'
 
-import { withDb } from './fixtures/db'
 import { drawerOpened } from './fixtures/drawer'
 import { e2eEnv } from './fixtures/env'
-import { seedUser, signInAs } from './fixtures/users'
+import { deleteUsersLike, seedUser, signInAs } from './fixtures/users'
 
 const row = (page: Page, email: string) => page.getByRole('row', { name: new RegExp(email) })
 
 /**
  * Opens the users page and waits until its table has hydrated. The page is server-rendered, and a click that lands
  * before React has attached its handlers does nothing (Playwright docs, "Navigations > Hydration"); seen on the
- * mobile project, where Edit opened no drawer. ClientDateTime shows a date only after it has mounted, so a date in
- * the table marks a hydrated table (the time-zone test below reads the same state).
+ * mobile project, where Edit opened no drawer. The fix those docs name is product-side, interactive controls
+ * disabled until hydration; that is a pattern change for the owner and is recorded as a follow-up. Until then this
+ * is a test-side wait on a signal only hydration produces: ClientDateTime renders its text only after its effect
+ * runs (react.dev, hydrateRoot: two-pass rendering), so a date in the table marks a hydrated table (the time-zone
+ * test below reads the same state).
  */
 const openUsers = async (page: Page) => {
 	await page.goto('/user-management')
@@ -21,13 +23,10 @@ const openUsers = async (page: Page) => {
 test.describe('user CRUD', () => {
 	// Spec users carry the project name and are removed after each test (the database survives between runs).
 	test.afterEach(async () => {
-		const { project } = test.info()
-		await withDb(db =>
-			db.execute('DELETE FROM users WHERE email LIKE ?', [`user-${project.name}%`]),
-		)
+		await deleteUsersLike(`user-${test.info().project.name}%`)
 	})
 
-	test('an admin adds a user (8-character minimum), edits it, cannot reuse its email, and deletes it', async ({
+	test('the owner adds a user (8-character minimum), edits it, cannot reuse its email, and deletes it', async ({
 		page,
 	}, testInfo) => {
 		const email = `user-${testInfo.project.name}@e2e.local`
@@ -87,7 +86,7 @@ test.describe('user CRUD', () => {
 		await expect(row(page, email)).toHaveCount(0)
 	})
 
-	test('search narrows the table, and the signed-in admin has no Delete', async ({
+	test('search narrows the table, and the signed-in owner has no Delete', async ({
 		page,
 	}, testInfo) => {
 		const email = `user-${testInfo.project.name}-search@e2e.local`
@@ -111,19 +110,21 @@ test.describe('user CRUD', () => {
 		// updateUser's email check runs only against MySQL, so the e2e suite is where it is exercised.
 		const email = `user-${testInfo.project.name}-moved@e2e.local`
 		const taken = `user-${testInfo.project.name}-taken@e2e.local`
-		await seedUser({ email, password: '12345678', name: 'Moved' })
+		await seedUser({ email, password: '12345678', name: 'Kept name' })
 		await seedUser({ email: taken, password: '12345678', name: 'Taken' })
 		await openUsers(page)
 		await row(page, email).getByRole('button', { name: 'Edit' }).click()
 		const edit = page.getByRole('dialog').filter({ hasText: 'Edit user' })
+		await edit.getByLabel('Name').fill('Refused name')
 		await edit.getByLabel('Email').fill(taken)
 		await edit.getByRole('button', { name: 'Update' }).click()
 		await expect(page.getByText('This email is already in use')).toBeVisible()
 		await edit.getByRole('button', { name: 'Cancel' }).click()
 		await expect(edit).toBeHidden()
+		// The row read back from MySQL: the refused edit applied none of its fields, the name included.
 		await page.reload()
-		await expect(row(page, email)).toBeVisible()
-		await expect(row(page, taken)).toBeVisible()
+		await expect(row(page, email)).toContainText('Kept name')
+		await expect(row(page, email)).not.toContainText('Refused name')
 	})
 
 	test('the own row of the owner offers no password field and a fixed role, and still saves', async ({
