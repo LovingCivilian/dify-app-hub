@@ -4,12 +4,12 @@ import { App, Button, Drawer, Form, Space } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 import { createAppAction, updateAppAction } from '@/app/(admin)/app-management/actions'
+import { useActionTransition } from '@/hooks/use-action-transition'
 import type { AppDto } from '@/lib/data/apps'
 
 import { appErrorKey } from './app-errors'
 import { type AppFormValues, DEFAULT_APP_FORM_VALUES, toAppFormValues } from './app-form-values'
 import AppSettingsFields from './app-settings-fields'
-import { useActionTransition } from './use-action-transition'
 
 const APP_FORM_ID = 'app-settings-form'
 

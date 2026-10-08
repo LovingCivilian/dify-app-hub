@@ -2,9 +2,9 @@ import { createHash, randomUUID } from 'node:crypto'
 
 import { expect, test } from '@playwright/test'
 
-import { ADMIN_STATE } from './fixtures/constants'
 import { withDb } from './fixtures/db'
 import { e2eEnv } from './fixtures/env'
+import { seedUser } from './fixtures/users'
 
 // The reset-token hash as lib/auth/password.ts computes it. That module imports server-only, which Playwright's
 // loader cannot resolve, so the spec mirrors the one line instead of importing it.
@@ -73,26 +73,18 @@ test.describe('password reset', () => {
 	test('a valid token sets a new password once; reusing it says the link expired', async ({
 		page,
 		request,
-		browser,
 	}, testInfo) => {
 		const email = `reset-${testInfo.project.name}@e2e.local`
 		const token = randomUUID().replaceAll('-', '')
-		// A throwaway user through the signed-in API (admin storage state), then the token row as the route
+		// A throwaway user seeded in MySQL (e2e/fixtures/users.ts), then the token row as the route
 		// would store it (lib/auth/password.ts: sha-256 hash, 15-minute expiry).
-		const admin = await browser.newContext({ storageState: ADMIN_STATE })
-		await admin.request.post('/api/users', {
-			data: { name: 'Reset me', email, password: 'old-password-1' },
-		})
-		await admin.close()
-		const userId = await withDb(async db => {
-			const [rows] = await db.execute('SELECT id FROM users WHERE email = ?', [email])
-			const id = (rows as { id: string }[])[0].id
-			await db.execute(
+		const userId = await seedUser({ email, password: 'old-password-1', name: 'Reset me' })
+		await withDb(db =>
+			db.execute(
 				'INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, DATE_ADD(NOW(3), INTERVAL 15 MINUTE), NOW(3))',
-				[randomUUID(), id, hashPasswordResetToken(token)],
-			)
-			return id
-		})
+				[randomUUID(), userId, hashPasswordResetToken(token)],
+			),
+		)
 		try {
 			await page.goto(`/reset-password?token=${token}`)
 			await page.getByLabel('New password').fill('new-password-1')
