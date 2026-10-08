@@ -5,10 +5,10 @@ import { App, Button, Dropdown, Flex, type MenuProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 import { deleteAppAction, syncAppAction } from '@/app/(admin)/app-management/actions'
+import { useActionTransition } from '@/hooks/use-action-transition'
 
 import type { AdminAppRow } from './admin-app-row'
 import { appErrorKey } from './app-errors'
-import { useActionTransition } from './use-action-transition'
 
 /** A row's actions (spec §5.3). Every outcome is a translated message; the actions refresh the server page. */
 export default function AppActions({

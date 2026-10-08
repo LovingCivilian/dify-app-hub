@@ -1,16 +1,21 @@
-export type UserAction = 'create' | 'update' | 'delete'
+import type { ActionErrorCode } from '@/lib/action-result'
 
-/**
- * Spec §3.6: /api/users answers 400 for a taken email (create, update) or a self-delete, 404 for a missing user,
- * 401 without a live session. The form already guarantees the required fields, so 400 has one meaning per action.
- */
-export const userErrorKey = (status: number, action: UserAction) => {
-	if (status === 401) return 'common.session_expired' as const
-	if (status === 404) return 'admin_users.not_found' as const
-	if (status === 400) {
-		return action === 'delete'
-			? ('admin_users.cannot_delete_self' as const)
-			: ('admin_users.email_in_use' as const)
+/** A users action's failure code as the message the admin reads (charter §4.5: codes, never a route's text). */
+export const userErrorKey = (code: ActionErrorCode) => {
+	switch (code) {
+		case 'unauthorized':
+			return 'common.session_expired' as const
+		case 'forbidden':
+			return 'common.forbidden' as const
+		case 'not_found':
+			return 'admin_users.not_found' as const
+		case 'email_in_use':
+			return 'admin_users.email_in_use' as const
+		case 'cannot_delete_self':
+			return 'admin_users.cannot_delete_self' as const
+		case 'invalid_input':
+			return 'admin_users.invalid_input' as const
+		default:
+			return 'common.operation_failed' as const
 	}
-	return 'common.operation_failed' as const
 }

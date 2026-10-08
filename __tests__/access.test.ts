@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getSafeCallbackUrl, isApiPath, isPublicPath, isUngatedPath } from '@/lib/access'
+import { getSafeCallbackUrl, isApiPath, isPublicPath } from '@/lib/access'
 
 describe('isPublicPath', () => {
 	it.each([
@@ -11,9 +11,9 @@ describe('isPublicPath', () => {
 		'/init/anything',
 		'/api/auth/signin',
 		'/api/auth/callback/credentials',
-		'/api/init/status',
 		'/api/health',
 		'/_next/static/chunk.js',
+		'/_next/data/build/page.json',
 		'/favicon.ico',
 	])('allows %s without a session', pathname => {
 		expect(isPublicPath(pathname)).toBe(true)
@@ -26,37 +26,14 @@ describe('isPublicPath', () => {
 		'/app-management',
 		'/user-management',
 		'/loginx',
-		'/api/dify/app-1/parameters',
-		'/api/users',
-	])('requires a session for %s', pathname => {
-		expect(isPublicPath(pathname)).toBe(false)
-	})
-})
-
-describe('isUngatedPath', () => {
-	it.each([
-		'/init',
-		'/init/anything',
-		'/api/auth/session',
-		'/api/init/status',
-		'/api/health',
-		'/_next/data/build/page.json',
-		'/favicon.ico',
-	])('skips the session and init-status checks for %s', pathname => {
-		expect(isUngatedPath(pathname)).toBe(true)
-	})
-
-	it.each([
-		'/login',
-		'/forgot-password',
-		'/reset-password',
 		'/initx',
 		'/_nextx',
-		'/apps',
 		'/api/dify/app-1/parameters',
 		'/api/users',
-	])('keeps %s behind the session or init-status check', pathname => {
-		expect(isUngatedPath(pathname)).toBe(false)
+		'/api/init',
+		'/api/init/status',
+	])('requires a session for %s', pathname => {
+		expect(isPublicPath(pathname)).toBe(false)
 	})
 })
 

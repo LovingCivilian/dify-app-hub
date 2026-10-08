@@ -41,10 +41,12 @@ import { POST as upload } from '@/app/api/dify/[appId]/files/upload/route'
 import { POST as textToAudio } from '@/app/api/dify/[appId]/text-to-audio/route'
 
 const USER = 'jane@example.com'
-const actor = { id: 'u1', email: USER, name: null }
+const actor = { id: 'u1', email: USER, name: null, role: 'admin' }
+const member = { ...actor, role: 'user' }
 const access = {
 	id: 'app-1',
 	enabled: true,
+	annotationEnabled: false,
 	credentials: { apiBase: 'https://dify.example/v1', apiKey: 'k' },
 }
 const base = 'http://app/api/dify/app-1'
@@ -257,6 +259,59 @@ describe('annotations', () => {
 				)
 			).status,
 		).toBe(400)
+	})
+})
+
+describe('annotation routes and roles (charter §4.1, §4.2)', () => {
+	const forbidden = { code: 'forbidden', message: 'Not allowed.', status: 403 }
+
+	it('refuses list, update and delete to a user-role account without calling Dify', async () => {
+		verifySession.mockResolvedValue(member)
+		const list = await listAnnotations(new NextRequest(`${base}/apps/annotations`), params())
+		const put = await updateAnnotation(
+			json('/apps/annotations/ann-1', 'PUT', { question: 'q', answer: 'a' }),
+			params({ annotationId: 'ann-1' }),
+		)
+		const del = await deleteAnnotation(
+			new NextRequest(`${base}/apps/annotations/ann-1`, { method: 'DELETE' }),
+			params({ annotationId: 'ann-1' }),
+		)
+		for (const response of [list, put, del]) {
+			expect(response.status).toBe(403)
+			expect(await response.json()).toEqual(forbidden)
+		}
+		expect(client.listAnnotations).not.toHaveBeenCalled()
+		expect(client.updateAnnotation).not.toHaveBeenCalled()
+		expect(client.deleteAnnotation).not.toHaveBeenCalled()
+	})
+
+	it('lets a user-role account create an annotation only where the app enables annotations', async () => {
+		verifySession.mockResolvedValue(member)
+		getAppAccess.mockResolvedValue({ ...access, annotationEnabled: false })
+		const refused = await createAnnotation(
+			json('/apps/annotations', 'POST', { question: 'q', answer: 'a' }),
+			params(),
+		)
+		expect(refused.status).toBe(403)
+		expect(client.createAnnotation).not.toHaveBeenCalled()
+
+		getAppAccess.mockResolvedValue({ ...access, annotationEnabled: true })
+		client.createAnnotation.mockResolvedValue({ id: 'ann-1', question: 'q', answer: 'a' })
+		const created = await createAnnotation(
+			json('/apps/annotations', 'POST', { question: 'q', answer: 'a' }),
+			params(),
+		)
+		expect(created.status).toBe(201)
+	})
+
+	it('lets an admin create an annotation whatever the app setting', async () => {
+		getAppAccess.mockResolvedValue({ ...access, annotationEnabled: false })
+		client.createAnnotation.mockResolvedValue({ id: 'ann-1', question: 'q', answer: 'a' })
+		const created = await createAnnotation(
+			json('/apps/annotations', 'POST', { question: 'q', answer: 'a' }),
+			params(),
+		)
+		expect(created.status).toBe(201)
 	})
 })
 

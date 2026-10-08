@@ -1,15 +1,17 @@
 import type { NextRequest } from 'next/server'
 
-import { difyJson, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
+import { hasAdminRights } from '@/lib/auth/roles'
+import { difyJson, errorResponseFrom, forbiddenResponse, resolveDifyRoute } from '@/lib/dify/route'
 import { annotationBody, parseJsonBody, parsePathParams } from '@/lib/dify/schemas'
 
-/** PUT /apps/annotations/{annotation_id}. Admin-only from B2 on. */
+/** PUT /apps/annotations/{annotation_id}. Admin rights only: the owner or an admin (charter §4.1). */
 export async function PUT(
 	request: NextRequest,
 	ctx: RouteContext<'/api/dify/[appId]/apps/annotations/[annotationId]'>,
 ) {
 	const resolved = await resolveDifyRoute(ctx.params)
 	if (!resolved.ok) return resolved.response
+	if (!hasAdminRights(resolved.ctx.actor)) return forbiddenResponse()
 	const segments = await parsePathParams(ctx.params, 'annotationId')
 	if (!segments.ok) return segments.response
 	const body = await parseJsonBody(request, annotationBody)
@@ -21,13 +23,14 @@ export async function PUT(
 	}
 }
 
-/** DELETE /apps/annotations/{annotation_id}: 204. Admin-only from B2 on. */
+/** DELETE /apps/annotations/{annotation_id}: 204. Admin rights only: the owner or an admin (charter §4.1). */
 export async function DELETE(
 	_request: NextRequest,
 	ctx: RouteContext<'/api/dify/[appId]/apps/annotations/[annotationId]'>,
 ) {
 	const resolved = await resolveDifyRoute(ctx.params)
 	if (!resolved.ok) return resolved.response
+	if (!hasAdminRights(resolved.ctx.actor)) return forbiddenResponse()
 	const segments = await parsePathParams(ctx.params, 'annotationId')
 	if (!segments.ok) return segments.response
 	try {

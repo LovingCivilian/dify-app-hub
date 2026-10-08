@@ -40,7 +40,7 @@ import {
 	type AppSettings,
 } from '@/lib/data/apps'
 
-const actor = { id: 'u1', email: 'jane@example.com', name: null }
+const actor = { id: 'u1', email: 'jane@example.com', name: null, role: 'admin' as const }
 const ICON_URL = 'https://dify.example/files/x?sign=1'
 // What the narrow access read returns (the fake ignores the selection; the selection test checks it).
 const stored = {
@@ -272,6 +272,12 @@ describe('reads select explicit columns (charter §4.2)', () => {
 	it('syncApp reads only the access columns', async () => {
 		dify()
 		await syncApp(actor, 'a1')
-		expect(Object.keys(db.fields ?? {}).sort()).toEqual(['apiBase', 'apiKey', 'id', 'isEnabled'])
+		expect(Object.keys(db.fields ?? {}).sort()).toEqual([
+			'apiBase',
+			'apiKey',
+			'enableAnnotation',
+			'id',
+			'isEnabled',
+		])
 	})
 })

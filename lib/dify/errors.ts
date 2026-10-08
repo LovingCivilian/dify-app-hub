@@ -40,6 +40,12 @@ export const difyErrorResponse = (code: string, message: string, status: number)
 	difyJson({ code, message, status } satisfies DifyErrorBody, { status })
 
 /**
+ * The app's refusal of a signed-in caller whose role does not allow the operation (charter §4.2): the one
+ * definition, which a route's own role check and errorResponseFrom's AuthError('forbidden') both answer.
+ */
+export const forbiddenResponse = (): Response => difyErrorResponse('forbidden', 'Not allowed.', 403)
+
+/**
  * A non-OK upstream answer as a DifyError: Dify's code and message when the body is its envelope (the HTTP
  * status is authoritative), `upstream_error` with the status otherwise — an HTML page from a reverse proxy, an
  * empty body, a JSON body of another shape (Review Focus 1).
@@ -68,7 +74,7 @@ export const errorResponseFrom = (error: unknown, context: string): Response => 
 	if (error instanceof DifyError) return difyErrorResponse(error.code, error.message, error.status)
 	if (error instanceof AuthError) {
 		return error.code === 'forbidden'
-			? difyErrorResponse('forbidden', 'Not allowed.', 403)
+			? forbiddenResponse()
 			: difyErrorResponse('unauthorized', 'Sign in required.', 401)
 	}
 	console.error(`${context}:`, error)

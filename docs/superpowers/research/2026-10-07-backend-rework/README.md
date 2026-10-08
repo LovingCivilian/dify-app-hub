@@ -18,3 +18,13 @@ B1 execution (subagent-driven run of `docs/superpowers/plans/2026-10-07-backend-
 - `b1-execution/follow-ups.md` — what B1 leaves open after the final review and its fix wave, by area, one line each.
 - `b1-execution/final-review-report.md` — the whole-branch review (most capable model): findings, the triage of every deferred item, the verdict.
 - `b1-execution/rulings.md` — every ruling the controller made during the run, in order, each with its reason and its cost if wrong.
+
+B2 execution (subagent-driven run of `docs/superpowers/plans/2026-10-08-backend-b2-accounts.md`; committed on the owner's word of 2026-10-08):
+
+- `b2-execution/ledger.md`: the run's ledger. It holds the pre-flight scan table, every dispatch, review and fix round, the controller's rulings (each with its source and what it costs if wrong), the deferred minor findings and the carries to later tasks.
+- `b2-execution/rulings.md`: the owner's decisions and every controller ruling, in order.
+- `b2-execution/preflight-scan.md`, `preflight-descope-check.md`, `preflight-owner-roles-review.md`: the pre-flight reviews of the plan, of its de-scope (deviation 6) and of its three-role revision (deviation 7).
+- `b2-execution/final-review-report.md`: the whole-branch review (Opus), with its findings, the triage of every deferred item and the verdict.
+- `b2-execution/fix-wave-report.md`: the fix wave and its second round, item by item, with sources.
+
+What B2 leaves open is recorded in ADR-0024 and in `CLAUDE.md`'s "Open follow-ups".

@@ -3,29 +3,26 @@
 import { refresh } from 'next/cache'
 import * as z from 'zod'
 
-import { toActionFailure } from '@/lib/action-failure'
+import { invalidInput, toActionFailure } from '@/lib/action-failure'
 import { fail, ok, type ActionResult } from '@/lib/action-result'
-import { requireActor } from '@/lib/auth/session'
+import { requireAdmin } from '@/lib/auth/session'
 import { createApp, deleteApp, syncApp, updateApp, type SyncResult } from '@/lib/data/apps'
 
 import { appInputSchema, createAppInputSchema } from './schemas'
 
 /*
- * Thin Server Actions (charter §4.2): verify, validate, call the DAL, refresh the route (next/cache `refresh`:
- * the page reads the database directly, so the current route's RSC payload is refetched in the same round
- * trip), answer a plain ActionResult. Every expected failure is a result, never a throw.
+ * Thin Server Actions (charter §4.2): verify the admin, validate, call the DAL, refresh the route
+ * (next/cache `refresh`: the page reads the database directly, so the current route's RSC payload is refetched
+ * in the same round trip), answer a plain ActionResult. Every expected failure is a result, never a throw.
  */
-
-const invalid = (error: z.ZodError) =>
-	fail('invalid_input', z.flattenError(error).fieldErrors as Record<string, string[]>)
 
 const isId = (id: string) => z.uuid().safeParse(id).success
 
 export async function createAppAction(input: unknown): Promise<ActionResult<SyncResult>> {
 	try {
-		const actor = await requireActor()
+		const actor = await requireAdmin()
 		const parsed = createAppInputSchema.safeParse(input)
-		if (!parsed.success) return invalid(parsed.error)
+		if (!parsed.success) return invalidInput(parsed.error)
 		const result = await createApp(actor, parsed.data)
 		refresh()
 		return ok(result)
@@ -39,10 +36,10 @@ export async function updateAppAction(
 	input: unknown,
 ): Promise<ActionResult<SyncResult>> {
 	try {
-		const actor = await requireActor()
+		const actor = await requireAdmin()
 		if (!isId(id)) return fail('not_found')
 		const parsed = appInputSchema.safeParse(input)
-		if (!parsed.success) return invalid(parsed.error)
+		if (!parsed.success) return invalidInput(parsed.error)
 		const result = await updateApp(actor, id, {
 			...parsed.data,
 			apiKey: parsed.data.apiKey || undefined,
@@ -57,7 +54,7 @@ export async function updateAppAction(
 
 export async function deleteAppAction(id: string): Promise<ActionResult> {
 	try {
-		const actor = await requireActor()
+		const actor = await requireAdmin()
 		if (!isId(id) || !(await deleteApp(actor, id))) return fail('not_found')
 		refresh()
 		return ok(undefined)
@@ -68,7 +65,7 @@ export async function deleteAppAction(id: string): Promise<ActionResult> {
 
 export async function syncAppAction(id: string): Promise<ActionResult<SyncResult>> {
 	try {
-		const actor = await requireActor()
+		const actor = await requireAdmin()
 		if (!isId(id)) return fail('not_found')
 		const result = await syncApp(actor, id)
 		if (!result) return fail('not_found')

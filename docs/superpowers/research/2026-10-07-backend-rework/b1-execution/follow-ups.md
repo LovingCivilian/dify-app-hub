@@ -22,7 +22,7 @@ What B1 leaves open, by area: every FOLLOW-UP verdict of the whole-branch review
 ## Chat
 
 - `components/chat/hooks/use-workflow-run.ts:36,127`: unmounting and `reset()` abort the stream without posting Dify's stop, so leaving the page mid-run leaves the Dify run running (ledger, Task 18 carry).
-- `components/chat/hooks/dify-errors.ts:37` `failureText`: `forbidden` and `icon_not_found` join the app's mapped codes when B2 lets them reach a screen (B2).
+- `components/chat/hooks/dify-errors.ts:37` `failureText`: `forbidden` and `icon_not_found` join the app's mapped codes when B2 lets them reach a screen (B2). Done in B2 (`docs/superpowers/plans/2026-10-08-backend-b2-accounts.md`): mapped to `chat.error_forbidden` and `chat.error_icon_not_found`.
 - Dify's `provider_response_latency` and token counts from `GET /messages` are not shown in the chat; a quick item of frontend phase 2 (F2; ledger, owner 2026-10-07).
 - A study of per-message metadata Dify does not keep, or keeps where the Service API does not return it (thinking time, the separated reasoning text, run summaries, per-node timings), stored on the hub by message id, deferred until after B1-B3 and F2 (owner, 2026-10-07; CLAUDE.md). Today the reasoning text and the nodes are kept per browser (ADR-0017 notes of 2026-10-08).
 - `components/chat/provider/history.ts:60` `toThought` still sets `task_id: ''` although `AgentThought.task_id` is optional ([326]).
@@ -41,13 +41,13 @@ What B1 leaves open, by area: every FOLLOW-UP verdict of the whole-branch review
 ## Admin
 
 - `components/admin/apps/annotations-panel.tsx:19` imports `failureText` from `components/chat`; move it next to `lib/dify/browser.ts` ([386]).
-- `app/api/dify/[appId]/apps/annotations/route.ts:23`: creating an annotation needs only a signed-in user; the role gate and the app's `enableAnnotation` setting are B2's decision (B2; ledger [290]).
+- `app/api/dify/[appId]/apps/annotations/route.ts:23`: creating an annotation needs only a signed-in user; the role gate and the app's `enableAnnotation` setting are B2's decision (B2; ledger [290]). Done in B2 (`docs/superpowers/plans/2026-10-08-backend-b2-accounts.md`; ADR-0024, decision j): list, update and delete need admin rights; create needs them unless the app enables annotations.
 - `locales/ar/translation.json:291`: the Arabic `app_setting.api_base_invalid` puts `http://`/`https://` right before Arabic text; re-check it when RTL lands (bidi isolation or a reworded sentence; ADR-0005).
 
 ## Tests
 
 - `lib/mail.ts:22-27`: the SMTP TLS mapping (465, 587, `useTls` false) and the `env()` cache have no direct tests ([155]).
-- `__tests__/auth-options.test.ts`: no test calls `authorize` (missing credentials, unknown email, wrong password, the returned shape) (B2; [171]).
+- `__tests__/auth-options.test.ts`: no test calls `authorize` (missing credentials, unknown email, wrong password, the returned shape) (B2; [171]). Done in B2 (`docs/superpowers/plans/2026-10-08-backend-b2-accounts.md`): `authorizeCredentials` is exported and tested for each case.
 - `__tests__/action-failure.test.ts`, `__tests__/dify-errors.test.ts`: `toActionFailure(AuthError('unauthorized'))`, `errorResponseFrom`'s `AuthError` bodies, a non-Error throw, `toBody()` and `isAppMode` are untested ([190]).
 - `__tests__/dify-schemas.test.ts:107`: the range cases assert only `ok === false`, not the named parameter ([227]).
 - `__tests__/dify-routes-app-upstream.test.ts:84`: the `console.error` spy is restored in the body, not `afterEach`, and the log is not asserted ([263]).

@@ -8,7 +8,7 @@ vi.mock('react', async importOriginal => ({
 	useTransition: () => [false, (action: () => Promise<void>) => started.push(action())],
 }))
 
-import { useActionTransition } from '@/components/admin/apps/use-action-transition'
+import { useActionTransition } from '@/hooks/use-action-transition'
 
 const PENDING = Symbol('pending')
 const settled = (promise: Promise<void>) =>

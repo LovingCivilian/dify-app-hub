@@ -17,61 +17,56 @@ import {
 	Typography,
 	theme,
 } from 'antd'
-import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { deleteUserAction } from '@/app/(admin)/user-management/actions'
 import { tablePagination } from '@/components/admin/table-pagination'
 import PageHeader from '@/components/shell/page-header'
 import ClientDateTime from '@/components/admin/client-date-time'
 import SearchInput from '@/components/shell/search-input'
+import { useActionTransition } from '@/hooks/use-action-transition'
+import { canManage, type Role } from '@/lib/auth/roles'
+import type { UserDto } from '@/lib/data/users'
 import { matchesQuery } from '@/lib/match-query'
 
+import { ROLE_LABEL_KEYS } from './role-labels'
 import { userErrorKey } from './user-errors'
 import UserFormDrawer from './user-form-drawer'
-import type { UserRow } from './user-row'
 
-/** The user table (spec §6). The "Active" tag is kept as it was (owner decision); dates format in the browser. */
+/** The user table (charter §4.2): the role column, Server Actions for every write; the "Active" tag is kept (owner decision); dates format in the browser. */
 export default function UserManagement({
 	users,
-	currentUserId,
+	currentUser,
 }: {
-	users: UserRow[]
-	currentUserId: string
+	users: UserDto[]
+	currentUser: { id: string; role: Role }
 }) {
 	const { t } = useTranslation()
 	const { token } = theme.useToken()
 	const { message } = App.useApp()
-	const router = useRouter()
 	const [query, setQuery] = useState('')
 	// The drawer's `open` follows the admin's action alone; the user it edits stays until its close animation has
 	// ended (antd Drawer `afterOpenChange(false)`), so the title and fields do not change while it slides out. Each
 	// opening sets it again: the callback does not run when the drawer is closed before its open motion has ended
 	// (antd then removes it at once) or reopened while it slides out.
 	const [drawerOpen, setDrawerOpen] = useState(false)
-	const [editing, setEditing] = useState<UserRow>()
-	const openDrawer = (user?: UserRow) => {
+	const [editing, setEditing] = useState<UserDto>()
+	const openDrawer = (user?: UserDto) => {
 		setEditing(user)
 		setDrawerOpen(true)
 	}
 	const shown = users.filter(user => matchesQuery([user.name, user.email], query))
 
-	const remove = async (user: UserRow) => {
-		try {
-			const response = await fetch(`/api/users/${user.id}`, { method: 'DELETE' })
-			if (!response.ok) {
-				message.error(t(userErrorKey(response.status, 'delete')))
-				return
-			}
-			message.success(t('admin_users.delete_success'))
-			router.refresh()
-		} catch (error) {
-			console.error('Failed to delete the user', error)
-			message.error(t('admin_users.delete_error'))
-		}
-	}
+	const { run } = useActionTransition()
+	const remove = (user: UserDto) =>
+		run(async () => {
+			const result = await deleteUserAction(user.id)
+			if (result.ok) message.success(t('admin_users.delete_success'))
+			else message.error(t(userErrorKey(result.code)))
+		})
 
-	const columns: TableProps<UserRow>['columns'] = [
+	const columns: TableProps<UserDto>['columns'] = [
 		{
 			title: t('admin_users.column_user'),
 			key: 'user',
@@ -83,6 +78,15 @@ export default function UserManagement({
 						<Typography.Text type="secondary">{user.email}</Typography.Text>
 					</div>
 				</Space>
+			),
+		},
+		{
+			title: t('admin_users.role'),
+			key: 'role',
+			render: (_, user) => (
+				<Tag color={user.role === 'owner' ? 'purple' : user.role === 'admin' ? 'gold' : 'default'}>
+					{t(ROLE_LABEL_KEYS[user.role])}
+				</Tag>
 			),
 		},
 		{
@@ -105,14 +109,16 @@ export default function UserManagement({
 			key: 'actions',
 			render: (_, user) => (
 				<Space>
-					<Button
-						type="text"
-						icon={<EditOutlined />}
-						onClick={() => openDrawer(user)}
-					>
-						{t('common.edit')}
-					</Button>
-					{user.id !== currentUserId && (
+					{(user.id === currentUser.id || canManage(currentUser.role, user.role)) && (
+						<Button
+							type="text"
+							icon={<EditOutlined />}
+							onClick={() => openDrawer(user)}
+						>
+							{t('common.edit')}
+						</Button>
+					)}
+					{canManage(currentUser.role, user.role) && (
 						<Popconfirm
 							title={t('admin_users.delete_confirm_title')}
 							description={t('admin_users.delete_confirm_description')}
@@ -188,6 +194,7 @@ export default function UserManagement({
 			<UserFormDrawer
 				open={drawerOpen}
 				user={editing}
+				currentUser={currentUser}
 				onClose={() => setDrawerOpen(false)}
 				onClosed={() => setEditing(undefined)}
 			/>

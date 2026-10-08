@@ -1,11 +1,14 @@
+import { DrizzleQueryError } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import * as z from 'zod'
 
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 
 import { fail, ok } from '@/lib/action-result'
-import { toActionFailure } from '@/lib/action-failure'
+import { invalidInput, toActionFailure } from '@/lib/action-failure'
 import { AuthError } from '@/lib/auth/session'
 import { DifyError } from '@/lib/dify/errors'
+import { describeError } from '@/lib/error-log'
 
 describe('ActionResult helpers', () => {
 	it('builds results', () => {
@@ -55,5 +58,87 @@ describe('toActionFailure', () => {
 		expect(toActionFailure(error, 'createApp')).toEqual({ ok: false, code: 'operation_failed' })
 		expect(errorSpy).toHaveBeenCalledTimes(1)
 		expect(errorSpy).toHaveBeenCalledWith('createApp:', error)
+	})
+
+	describe('failure logging without secrets (Review Focus 3, decision g)', () => {
+		const hash = '$2a$12$abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQ'
+		const cause = Object.assign(
+			new Error("Duplicate entry 'jane@example.com' for key 'users_email_key'"),
+			{
+				code: 'ER_DUP_ENTRY',
+				errno: 1062,
+			},
+		)
+		const queryError = new DrizzleQueryError(
+			'insert into `users` …',
+			['u1', 'Jane', 'jane@example.com', hash],
+			cause,
+		)
+
+		it('describes a failed query by its driver code only', () => {
+			expect(describeError(queryError)).toEqual({
+				name: 'DrizzleQueryError',
+				code: 'ER_DUP_ENTRY',
+				errno: 1062,
+			})
+			expect(describeError(cause)).toEqual({ name: 'Error', code: 'ER_DUP_ENTRY', errno: 1062 })
+			const plain = new Error('boom')
+			expect(describeError(plain)).toBe(plain)
+		})
+
+		it('logs neither the parameters nor the message of a failed query', () => {
+			expect(toActionFailure(queryError, 'createUserAction')).toEqual({
+				ok: false,
+				code: 'operation_failed',
+			})
+			const logged = JSON.stringify(errorSpy.mock.calls)
+			expect(logged).not.toContain(hash)
+			expect(logged).not.toContain('jane@example.com')
+			expect(logged).toContain('ER_DUP_ENTRY')
+		})
+
+		// mysql2's lost connection, connect timeout and protocol errors carry a code and no errno
+		// (node_modules/mysql2/lib/base/connection.js); the code alone still says why the query failed.
+		it('logs the driver code of a lost connection, never the parameters or the message', () => {
+			const lost = Object.assign(new Error('Connection lost: The server closed the connection.'), {
+				code: 'PROTOCOL_CONNECTION_LOST',
+				fatal: true,
+			})
+			const lostQuery = new DrizzleQueryError('update `users` …', ['Jane', hash, 'u1'], lost)
+			expect(describeError(lostQuery)).toEqual({
+				name: 'DrizzleQueryError',
+				code: 'PROTOCOL_CONNECTION_LOST',
+				errno: undefined,
+			})
+			expect(toActionFailure(lostQuery, 'updateUserAction')).toEqual({
+				ok: false,
+				code: 'operation_failed',
+			})
+			const logged = JSON.stringify(errorSpy.mock.calls)
+			expect(logged).not.toContain(hash)
+			expect(logged).not.toContain('Connection lost')
+			expect(logged).toContain('PROTOCOL_CONNECTION_LOST')
+		})
+
+		it('keeps only a string code and a numeric errno from the cause (fixed labels)', () => {
+			const odd = Object.assign(new Error('x'), { code: { leaked: hash }, errno: '1062' })
+			expect(describeError(new DrizzleQueryError('select …', [], odd))).toEqual({
+				name: 'DrizzleQueryError',
+				code: undefined,
+				errno: undefined,
+			})
+		})
+
+		it('builds invalid_input from a zod error', () => {
+			const result = z.object({ email: z.email() }).safeParse({ email: 'nope' })
+			expect(result.success).toBe(false)
+			if (!result.success) {
+				expect(invalidInput(result.error)).toEqual({
+					ok: false,
+					code: 'invalid_input',
+					fieldErrors: { email: [expect.any(String)] },
+				})
+			}
+		})
 	})
 })

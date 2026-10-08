@@ -1,16 +1,14 @@
 import UserManagement from '@/components/admin/users/user-management'
-import { toUserRows } from '@/components/admin/users/user-row'
-import { requireUser } from '@/lib/auth/session'
+import { requireAdminUser } from '@/lib/auth/session'
 import { listUsers } from '@/lib/data/users'
 
-/** Spec §6 of sub-project 3: the signed-in user's database id hides their own Delete. */
+/** The users table (charter §4.2): the signed-in account's id and role decide its own row and what its rank may manage. */
 export default async function UserManagementPage() {
-	const user = await requireUser()
-	const users = await listUsers()
+	const user = await requireAdminUser()
 	return (
 		<UserManagement
-			users={toUserRows(users)}
-			currentUserId={user.id}
+			users={await listUsers(user)}
+			currentUser={{ id: user.id, role: user.role }}
 		/>
 	)
 }

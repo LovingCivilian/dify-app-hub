@@ -1,71 +1,80 @@
 'use client'
 
-import { App, Button, Drawer, Form, Input, Space } from 'antd'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { App, Button, Drawer, Form, Input, Radio, Space, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
 
-import { userErrorKey } from './user-errors'
-import type { UserRow } from './user-row'
+import { createUserAction, updateUserAction } from '@/app/(admin)/user-management/actions'
+import type { UserFormInput } from '@/app/(admin)/user-management/schemas'
+import { useActionTransition } from '@/hooks/use-action-transition'
+import { emailRule, nameRule, PASSWORD_MIN, passwordBytesRule } from '@/lib/auth/fields'
+import { MANAGEABLE_ROLES, type Role } from '@/lib/auth/roles'
+import type { UserDto } from '@/lib/data/users'
 
-const PASSWORD_MIN = 8
+import { ROLE_LABEL_KEYS } from './role-labels'
+import { userErrorKey } from './user-errors'
+
 const USER_FORM_ID = 'user-form'
 
-interface UserFormValues {
-	name: string
-	email: string
-	password?: string
-}
-
 /**
- * Add or edit a user (spec §6): /api/users keeps its contract; 8-character minimum everywhere (owner decision).
- * The Form owns its instance (antd creates one automatically when `form` is not provided), so each mounting under
- * `destroyOnHidden` gets a fresh store seeded from its own `initialValues`; a drawer-level `Form.useForm()` would
- * keep the previous user's values (and `clearOnDestroy` empties the store under Strict Mode's remount). The
- * submit button in `extra` reaches the form through the HTML `form` attribute; antd spreads `id` onto `<form>`.
- * The Form is keyed by the user it edits, so a drawer reopened for someone else while it still slides out (no
- * unmount in between) gets a fresh store too.
+ * Add or edit a user (charter §4.2). The Server Actions run through startTransition from onFinish (ADR-0023
+ * "Admin actions"; the Form owns validation), and each refreshes the page itself.
+ *
+ * Your own row has no password field and a fixed role: your own password changes from the account menu with the
+ * current one, only the owner changes an admin's role, and the owner's never changes (ADR-0024). Elsewhere the
+ * role options are the roles the signed-in account's rank may give (MANAGEABLE_ROLES): Admin and User for the
+ * owner, User alone for an admin, shown disabled with a hint. The server applies the same rank. A disabled field
+ * keeps its value in the form store, so the role is still submitted (antd's store has no notion of disabled).
+ *
+ * The Form owns its instance (antd creates one when `form` is not provided), so each mounting under
+ * `destroyOnHidden` gets a fresh store seeded from its own `initialValues`. A drawer-level `Form.useForm()` would
+ * keep the previous user's values, and `clearOnDestroy` empties the store under Strict Mode's remount. The Form is
+ * keyed by the user it edits, so a drawer reopened for someone else while it still slides out gets a fresh store
+ * too. The submit button in `extra` reaches the form through the HTML `form` attribute.
  */
 export default function UserFormDrawer({
 	open,
 	user,
+	currentUser,
 	onClose,
 	onClosed,
 }: {
 	open: boolean
 	/** The user to edit; absent when adding. */
-	user?: UserRow
+	user?: UserDto
+	/** The signed-in account: its own row offers no password field and a fixed role; its role decides the options. */
+	currentUser: { id: string; role: Role }
 	onClose: () => void
 	/** Called once the close animation has ended (Drawer `afterOpenChange(false)`): the parent clears `user`. */
 	onClosed: () => void
 }) {
 	const { t } = useTranslation()
 	const { message } = App.useApp()
-	const router = useRouter()
-	const [saving, setSaving] = useState(false)
+	const { pending, run } = useActionTransition()
+	const isSelf = user?.id === currentUser.id
+	// Your own role is fixed; otherwise the roles the signed-in account's rank may give (ADR-0024).
+	const roleOptions: readonly Role[] =
+		user && user.id === currentUser.id ? [user.role] : MANAGEABLE_ROLES[currentUser.role]
 
-	const save = async (values: UserFormValues) => {
-		setSaving(true)
-		try {
-			const response = await fetch(user ? `/api/users/${user.id}` : '/api/users', {
-				method: user ? 'PUT' : 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(values),
-			})
-			if (!response.ok) {
-				message.error(t(userErrorKey(response.status, user ? 'update' : 'create')))
+	const save = (values: UserFormInput) =>
+		void run(async () => {
+			if (user) {
+				const result = await updateUserAction(user.id, values)
+				if (!result.ok) {
+					message.error(t(userErrorKey(result.code)))
+					return
+				}
+				message.success(t('admin_users.update_success'))
+				onClose()
 				return
 			}
-			message.success(user ? t('admin_users.update_success') : t('admin_users.add_success'))
+			const result = await createUserAction(values)
+			if (!result.ok) {
+				message.error(t(userErrorKey(result.code)))
+				return
+			}
+			message.success(t('admin_users.add_success'))
 			onClose()
-			router.refresh()
-		} catch (error) {
-			console.error('Failed to save the user', error)
-			message.error(t('common.operation_error'))
-		} finally {
-			setSaving(false)
-		}
-	}
+		})
 
 	return (
 		<Drawer
@@ -83,24 +92,29 @@ export default function UserFormDrawer({
 						type="primary"
 						htmlType="submit"
 						form={USER_FORM_ID}
-						loading={saving}
+						loading={pending}
 					>
 						{user ? t('common.update') : t('common.add')}
 					</Button>
 				</Space>
 			}
 		>
-			<Form
+			<Form<UserFormInput>
 				key={user?.id ?? 'create'}
 				id={USER_FORM_ID}
 				layout="vertical"
-				initialValues={user ? { name: user.name ?? '', email: user.email } : undefined}
+				initialValues={
+					user ? { name: user.name ?? '', email: user.email, role: user.role } : { role: 'user' }
+				}
 				onFinish={save}
 			>
 				<Form.Item
 					name="name"
 					label={t('admin_users.name')}
-					rules={[{ required: true, message: t('admin_users.name_required') }]}
+					rules={[
+						{ required: true, whitespace: true, message: t('admin_users.name_required') },
+						nameRule(t('admin_users.name_too_long')),
+					]}
 				>
 					<Input placeholder={t('admin_users.name_placeholder')} />
 				</Form.Item>
@@ -109,22 +123,46 @@ export default function UserFormDrawer({
 					label={t('auth.email')}
 					rules={[
 						{ required: true, message: t('admin_users.email_required') },
-						{ type: 'email', message: t('auth.email_invalid') },
+						emailRule(t('auth.email_invalid')),
 					]}
 				>
 					<Input placeholder={t('admin_users.email_placeholder')} />
 				</Form.Item>
 				<Form.Item
-					name="password"
-					label={user ? t('auth.new_password') : t('auth.password')}
-					extra={user ? t('admin_users.password_keep_hint') : undefined}
-					rules={[
-						...(user ? [] : [{ required: true, message: t('admin_users.password_required') }]),
-						{ min: PASSWORD_MIN, message: t('auth.password_min_8') },
-					]}
+					name="role"
+					label={t('admin_users.role')}
+					extra={
+						isSelf
+							? t('admin_users.role_self_hint')
+							: roleOptions.length < 2
+								? t('admin_users.role_owner_only_hint')
+								: undefined
+					}
 				>
-					<Input.Password autoComplete="new-password" />
+					<Radio.Group
+						optionType="button"
+						disabled={roleOptions.length < 2}
+						options={roleOptions.map(role => ({ value: role, label: t(ROLE_LABEL_KEYS[role]) }))}
+					/>
 				</Form.Item>
+				{isSelf ? (
+					<Typography.Paragraph type="secondary">
+						{t('admin_users.password_self_hint')}
+					</Typography.Paragraph>
+				) : (
+					<Form.Item
+						name="password"
+						label={user ? t('auth.new_password') : t('auth.password')}
+						extra={user ? t('admin_users.password_keep_hint') : undefined}
+						rules={[
+							...(user ? [] : [{ required: true, message: t('admin_users.password_required') }]),
+							{ min: PASSWORD_MIN, message: t('auth.password_min_8') },
+							passwordBytesRule(t('auth.password_too_long')),
+						]}
+					>
+						<Input.Password autoComplete="new-password" />
+					</Form.Item>
+				)}
 			</Form>
 		</Drawer>
 	)
