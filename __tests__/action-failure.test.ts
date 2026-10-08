@@ -96,6 +96,38 @@ describe('toActionFailure', () => {
 			expect(logged).toContain('ER_DUP_ENTRY')
 		})
 
+		// mysql2's lost connection, connect timeout and protocol errors carry a code and no errno
+		// (node_modules/mysql2/lib/base/connection.js); the code alone still says why the query failed.
+		it('logs the driver code of a lost connection, never the parameters or the message', () => {
+			const lost = Object.assign(new Error('Connection lost: The server closed the connection.'), {
+				code: 'PROTOCOL_CONNECTION_LOST',
+				fatal: true,
+			})
+			const lostQuery = new DrizzleQueryError('update `users` …', ['Jane', hash, 'u1'], lost)
+			expect(describeError(lostQuery)).toEqual({
+				name: 'DrizzleQueryError',
+				code: 'PROTOCOL_CONNECTION_LOST',
+				errno: undefined,
+			})
+			expect(toActionFailure(lostQuery, 'updateUserAction')).toEqual({
+				ok: false,
+				code: 'operation_failed',
+			})
+			const logged = JSON.stringify(errorSpy.mock.calls)
+			expect(logged).not.toContain(hash)
+			expect(logged).not.toContain('Connection lost')
+			expect(logged).toContain('PROTOCOL_CONNECTION_LOST')
+		})
+
+		it('keeps only a string code and a numeric errno from the cause (fixed labels)', () => {
+			const odd = Object.assign(new Error('x'), { code: { leaked: hash }, errno: '1062' })
+			expect(describeError(new DrizzleQueryError('select …', [], odd))).toEqual({
+				name: 'DrizzleQueryError',
+				code: undefined,
+				errno: undefined,
+			})
+		})
+
 		it('builds invalid_input from a zod error', () => {
 			const result = z.object({ email: z.email() }).safeParse({ email: 'nope' })
 			expect(result.success).toBe(false)

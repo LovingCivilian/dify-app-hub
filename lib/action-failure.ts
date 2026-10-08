@@ -16,18 +16,28 @@ const driverFields = (value: unknown) =>
 		: null
 
 /**
+ * The driver error under a DrizzleQueryError, by its code and errno, each kept only with its documented type: a
+ * string label (mysql2's QueryError.code, e.g. 'ER_DUP_ENTRY' or 'PROTOCOL_CONNECTION_LOST'; Node: "error.code
+ * is the most stable way to identify an error") and a number. mysql2's lost connection, connect timeout and
+ * protocol errors carry a code and no errno (node_modules/mysql2/lib/base/connection.js).
+ */
+const causeFields = (cause: unknown) => {
+	const fields = typeof cause === 'object' && cause !== null ? cause : {}
+	return {
+		code: 'code' in fields && typeof fields.code === 'string' ? fields.code : undefined,
+		errno: 'errno' in fields && typeof fields.errno === 'number' ? fields.errno : undefined,
+	}
+}
+
+/**
  * What the server log may carry for an error (decision g). Drizzle's DrizzleQueryError puts the query's
  * parameters in its message (node_modules/drizzle-orm/errors.js), and mysql2's error carries the SQL and the
- * duplicate value: a users write would log the bcrypt hash, an apps write the API key. Both are logged by name,
- * driver code and errno only; any other error as it is.
+ * duplicate value: a users write would log the bcrypt hash, an apps write the API key. A DrizzleQueryError is
+ * logged by its name and its cause's code and errno, a bare driver error (one with an errno, mysql2's server
+ * errors) by name, code and errno; any other error as it is.
  */
 export const describeError = (error: unknown): unknown => {
-	if (error instanceof DrizzleQueryError) {
-		return {
-			name: error.name,
-			...(driverFields(error.cause) ?? { code: undefined, errno: undefined }),
-		}
-	}
+	if (error instanceof DrizzleQueryError) return { name: error.name, ...causeFields(error.cause) }
 	const driver = driverFields(error)
 	if (driver && error instanceof Error) return { name: error.name, ...driver }
 	return error

@@ -15,12 +15,16 @@ vi.mock('@/lib/auth/password', () => ({
 }))
 vi.mock('@/db', () => {
 	// select().from().where().limit(1) is awaited for the email check ([]), or ends in .for('update') for the target.
+	// Any other lock strength is refused: under FOR SHARE two writers could read the same old role (MySQL "Locking Reads").
 	const query = {
 		from: () => query,
 		where: () => query,
 		limit: () =>
 			Object.assign(Promise.resolve([]), {
-				for: () => Promise.resolve(target.value ? [target.value] : []),
+				for: (strength: string) =>
+					strength === 'update'
+						? Promise.resolve(target.value ? [target.value] : [])
+						: Promise.reject(new Error(`lock ${strength}`)),
 			}),
 	}
 	const db = {
@@ -94,6 +98,15 @@ describe('an admin session (ADR-0024: an admin manages users only)', () => {
 		target.value = row
 		expect(await updateUserAction(row.id, fields('user'))).toEqual(forbidden)
 		expect(await updateUserAction(row.id, { ...fields('user'), password: 'password-1' })).toEqual(
+			forbidden,
+		)
+		expect(anyWrite()).toBe(false)
+	})
+
+	it('cannot change its own role or set its own password (decisions b, c)', async () => {
+		target.value = { id: 'a1', role: 'admin' }
+		expect(await updateUserAction('a1', fields('user'))).toEqual(forbidden)
+		expect(await updateUserAction('a1', { ...fields('admin'), password: 'password-1' })).toEqual(
 			forbidden,
 		)
 		expect(anyWrite()).toBe(false)
