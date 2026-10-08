@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { createOwnerAction } from '@/app/init/actions'
 import { useActionTransition } from '@/hooks/use-action-transition'
-import { emailRule, PASSWORD_MIN, passwordBytesRule } from '@/lib/auth/fields'
+import { emailRule, nameRule, PASSWORD_MIN, passwordBytesRule } from '@/lib/auth/fields'
 
 import { initFailureKey } from './auth-failure'
 
@@ -57,7 +57,10 @@ export default function InitForm() {
 				<Form.Item
 					name="name"
 					label={t('init.owner_name')}
-					rules={[{ required: true, whitespace: true, message: t('init.owner_name_required') }]}
+					rules={[
+						{ required: true, whitespace: true, message: t('init.owner_name_required') },
+						nameRule(t('init.owner_name_too_long')),
+					]}
 				>
 					<Input placeholder={t('init.owner_name_placeholder')} />
 				</Form.Item>

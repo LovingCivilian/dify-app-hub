@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 import {
 	emailField,
 	emailRule,
+	nameField,
+	nameRule,
 	PASSWORD_MAX_BYTES,
 	PASSWORD_MIN,
 	passwordBytesRule,
@@ -78,5 +80,30 @@ describe('emailRule', () => {
 	it('leaves an empty field to the required rule', async () => {
 		await expect(validator({}, undefined)).resolves.toBeUndefined()
 		await expect(validator({}, '')).resolves.toBeUndefined()
+	})
+})
+
+// The name fields had no client maximum against nameField's 255, so a longer name passed the form and the action
+// answered invalid_input with no field marked (fix wave round 2).
+describe('nameRule', () => {
+	const { validator } = nameRule('too long')
+
+	it.each([
+		['255 characters', 'a'.repeat(255), true],
+		['256 characters', 'a'.repeat(256), false],
+		['255 characters inside spaces the server trims', `  ${'a'.repeat(255)}  `, true],
+	] as const)(
+		'%s: accepted is %s, as the server field decides',
+		async (_label, value, accepted) => {
+			expect(nameField.safeParse(value).success).toBe(accepted)
+			if (accepted) await expect(validator({}, value)).resolves.toBeUndefined()
+			else await expect(validator({}, value)).rejects.toThrow('too long')
+		},
+	)
+
+	it('leaves an empty or blank name to the required rule with whitespace', async () => {
+		await expect(validator({}, undefined)).resolves.toBeUndefined()
+		await expect(validator({}, '')).resolves.toBeUndefined()
+		await expect(validator({}, '   ')).resolves.toBeUndefined()
 	})
 })

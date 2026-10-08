@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { createUserAction, updateUserAction } from '@/app/(admin)/user-management/actions'
 import type { UserFormInput } from '@/app/(admin)/user-management/schemas'
 import { useActionTransition } from '@/hooks/use-action-transition'
-import { emailRule, PASSWORD_MIN, passwordBytesRule } from '@/lib/auth/fields'
+import { emailRule, nameRule, PASSWORD_MIN, passwordBytesRule } from '@/lib/auth/fields'
 import { MANAGEABLE_ROLES, type Role } from '@/lib/auth/roles'
 import type { UserDto } from '@/lib/data/users'
 
@@ -111,7 +111,10 @@ export default function UserFormDrawer({
 				<Form.Item
 					name="name"
 					label={t('admin_users.name')}
-					rules={[{ required: true, whitespace: true, message: t('admin_users.name_required') }]}
+					rules={[
+						{ required: true, whitespace: true, message: t('admin_users.name_required') },
+						nameRule(t('admin_users.name_too_long')),
+					]}
 				>
 					<Input placeholder={t('admin_users.name_placeholder')} />
 				</Form.Item>

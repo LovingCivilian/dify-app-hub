@@ -38,3 +38,9 @@ export const passwordBytesRule = ruleFor(fitsBcrypt)
 
 /** The email fields of the forms that post to a zod-validated action: `emailField` itself (ADR-0024 decision k). */
 export const emailRule = ruleFor(value => emailField.safeParse(value).success)
+
+/**
+ * The name fields' maximum: `nameField` itself, which trims, so only a name over 255 characters fails here. A blank
+ * name is left to the `required` rule with `whitespace` (antd Form Rule), which reports it with its own message.
+ */
+export const nameRule = ruleFor(value => value.trim() === '' || nameField.safeParse(value).success)
