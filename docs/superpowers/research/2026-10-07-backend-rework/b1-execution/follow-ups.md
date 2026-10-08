@@ -24,7 +24,7 @@ What B1 leaves open, by area: every FOLLOW-UP verdict of the whole-branch review
 - `components/chat/hooks/use-workflow-run.ts:36,127`: unmounting and `reset()` abort the stream without posting Dify's stop, so leaving the page mid-run leaves the Dify run running (ledger, Task 18 carry).
 - `components/chat/hooks/dify-errors.ts:37` `failureText`: `forbidden` and `icon_not_found` join the app's mapped codes when B2 lets them reach a screen (B2).
 - Dify's `provider_response_latency` and token counts from `GET /messages` are not shown in the chat; a quick item of frontend phase 2 (F2; ledger, owner 2026-10-07).
-- A study of per-message metadata Dify does not keep (thinking time, run summaries, per-node timings) stored on the hub by message id, deferred until after B1-B3 and F2 (owner, 2026-10-07; CLAUDE.md).
+- A study of per-message metadata Dify does not keep, or keeps where the Service API does not return it (thinking time, the separated reasoning text, run summaries, per-node timings), stored on the hub by message id, deferred until after B1-B3 and F2 (owner, 2026-10-07; CLAUDE.md). Today the reasoning text and the nodes are kept per browser (ADR-0017 notes of 2026-10-08).
 - `components/chat/provider/history.ts:60` `toThought` still sets `task_id: ''` although `AgentThought.task_id` is optional ([326]).
 - `components/chat/chat-view/assistant-content.tsx:60` shows the raw `error.code`; the run, chat and upload hooks store already-translated text that does not follow a later language switch ([333]).
 - Answer Markdown mapping (F2; [372]): the mapped `a` loses XMarkdown 2.9.0's streaming fade; `MarkdownLink` and `MarkdownSource` drop other sanitised attributes; `<track>`, `srcset`, `<audio>` and `<video poster>` are not routed.
