@@ -1,26 +1,40 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { rows, limit } = vi.hoisted(() => {
+// The fake chain keeps the condition each query passes to where(), so a test can render it (below).
+const { rows, limit, where } = vi.hoisted(() => {
 	const limit = vi.fn()
-	return { rows: { value: [] as unknown[] }, limit }
+	const where = vi.fn((_condition: unknown) => ({ limit }))
+	return { rows: { value: [] as unknown[] }, limit, where }
 })
 vi.mock('@/db', () => ({
 	getDb: () => ({
-		select: () => ({ from: () => ({ where: () => ({ limit }) }) }),
+		select: () => ({ from: () => ({ where }) }),
 	}),
 }))
 vi.mock('@/lib/auth/password', () => ({
 	verifyPassword: (password: string, hash: string) => Promise.resolve(hash === `hash:${password}`),
 }))
 
+import type { SQL } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/mysql2'
 import type { JWT } from 'next-auth/jwt'
 
+import { users } from '@/db/schema'
 import { authOptions, authorizeCredentials } from '@/lib/auth/options'
 
 type JwtCallback = NonNullable<NonNullable<typeof authOptions.callbacks>['jwt']>
 type SessionCallback = NonNullable<NonNullable<typeof authOptions.callbacks>['session']>
 const jwt = authOptions.callbacks!.jwt as JwtCallback
 const session = authOptions.callbacks!.session as SessionCallback
+
+/** A condition the code passed to where(), rendered on a select from users built on drizzle.mock() (no connection). */
+const renderWhere = (condition: unknown) =>
+	drizzle
+		.mock()
+		.select({ id: users.id })
+		.from(users)
+		.where(condition as SQL)
+		.toSQL()
 
 const row = {
 	id: 'u1',
@@ -34,6 +48,7 @@ const row = {
 beforeEach(() => {
 	limit.mockReset()
 	limit.mockImplementation(() => Promise.resolve(rows.value))
+	where.mockClear()
 })
 
 describe('authOptions', () => {
@@ -106,6 +121,18 @@ describe('jwt callback', () => {
 		})
 	})
 
+	// Review Focus 1 and 4 rest on this row: the lookup is by the token's id, not by anything else the token holds.
+	it("looks the account up by the token's id", async () => {
+		rows.value = [{ sessionVersion: 3, role: 'user', email: 'jane@example.com', name: null }]
+		await jwt({
+			token: { id: 'u1', sessionVersion: 3, role: 'admin', email: 'old@example.com' } as JWT,
+		} as never)
+		expect(where).toHaveBeenCalledTimes(1)
+		const { sql, params } = renderWhere(where.mock.calls[0]![0])
+		expect(sql).toMatch(/ where `users`\.`id` = \?$/)
+		expect(params).toEqual(['u1'])
+	})
+
 	it('gives a token issued before roles existed its role on first use', async () => {
 		rows.value = [{ sessionVersion: 0, role: 'admin', email: 'jane@example.com', name: null }]
 		const token = await jwt({ token: { id: 'u1', sessionVersion: 0 } as JWT } as never)
@@ -151,10 +178,19 @@ describe('session callback', () => {
 		expect(result.user).toMatchObject({ email: 'new@example.com', name: 'New' })
 	})
 
+	// A name the row cleared (the column is nullable) reaches the session as null, not as the default user's.
+	it('forwards a cleared name as null', async () => {
+		const result = await session({
+			session: { user: { email: 'jane@example.com', name: 'Old' }, expires: '' },
+			token: { id: 'u1', role: 'user', email: 'jane@example.com', name: null } as JWT,
+		} as never)
+		expect(result.user).toMatchObject({ name: null })
+	})
+
 	it('sets user.id and user.role only from a token that has both', async () => {
 		const withBoth = await session({
 			session: { user: { email: 'jane@example.com' }, expires: '' },
-			token: { id: 'u1', role: 'user' } as JWT,
+			token: { id: 'u1', role: 'user', email: 'jane@example.com' } as JWT,
 		} as never)
 		expect(withBoth.user).toMatchObject({ id: 'u1', role: 'user', email: 'jane@example.com' })
 		for (const token of [{}, { id: 'u1' }, { role: 'admin' }]) {

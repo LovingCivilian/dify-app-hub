@@ -92,10 +92,11 @@ export const authOptions: NextAuthOptions = {
 			if (token.id && token.role) {
 				session.user.id = token.id
 				session.user.role = token.role
-				// Forwarded explicitly (next-auth callbacks docs: token data reaches the session only through this callback):
-				// next-auth builds the default user from the decoded token object, which the jwt callback happens to mutate.
-				session.user.email = token.email ?? session.user.email
-				session.user.name = token.name ?? session.user.name
+				// Forwarded explicitly from the token, which the jwt callback refreshed from the row (next-auth callbacks
+				// docs: token data reaches the session only through this callback). No fallback to the default user, so a
+				// name the row cleared arrives as null.
+				session.user.email = token.email ?? null
+				session.user.name = token.name ?? null
 			}
 			return session
 		},
