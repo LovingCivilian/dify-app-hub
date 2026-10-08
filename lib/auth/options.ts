@@ -6,7 +6,7 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 
 import { getDb } from '@/db'
 import { users } from '@/db/schema'
-import { logActionError } from '@/lib/action-failure'
+import { logActionError } from '@/lib/error-log'
 
 import { verifyPassword } from './password'
 
