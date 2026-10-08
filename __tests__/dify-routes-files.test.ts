@@ -40,8 +40,9 @@ import { GET as remote } from '@/app/api/dify/[appId]/files/remote/route'
 import { POST as upload } from '@/app/api/dify/[appId]/files/upload/route'
 import { POST as textToAudio } from '@/app/api/dify/[appId]/text-to-audio/route'
 
-const USER = 'jane@example.com'
-const actor = { id: 'u1', email: USER, name: null, role: 'admin' }
+/** The Dify end user: the account's id, never its email (ADR-0026). */
+const USER = 'u1'
+const actor = { id: USER, email: 'jane@example.com', name: null, role: 'admin' }
 const member = { ...actor, role: 'user' }
 const access = {
 	id: 'app-1',

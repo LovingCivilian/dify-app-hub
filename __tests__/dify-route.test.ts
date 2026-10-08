@@ -78,7 +78,7 @@ describe('resolveDifyRoute', () => {
 		expect(difyClient).not.toHaveBeenCalled()
 		errorSpy.mockRestore()
 	})
-	it('builds the context with the session email as the Dify user and a client for the app', async () => {
+	it('builds the context with the account id as the Dify user, never the email, and a client for the app', async () => {
 		verifySession.mockResolvedValue(actor)
 		getAppAccess.mockResolvedValue({
 			id: 'app-1',
@@ -89,7 +89,7 @@ describe('resolveDifyRoute', () => {
 		expect(resolved.ok).toBe(true)
 		if (!resolved.ok) return
 		expect(resolved.ctx).toMatchObject({
-			user: 'jane@example.com',
+			user: 'u1',
 			appId: 'app-1',
 			apiBase: 'http://d/v1',
 			dify: { marker: 'client' },
