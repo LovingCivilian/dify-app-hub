@@ -36,17 +36,18 @@ test.describe('signed out', () => {
 		await expect(page).toHaveURL(/\/user-management$/)
 	})
 
-	test('the login page shows the brand header and a forgot-password link', async ({ page }) => {
+	test('the login page shows the brand header, and the forgot-password link only with mail configured', async ({
+		page,
+	}) => {
 		await page.goto('/login')
 		await expect(page.getByRole('heading', { name: 'Dify App Hub' })).toBeVisible()
-		await expect(page.getByRole('link', { name: 'Forgot password?' })).toHaveAttribute(
-			'href',
-			'/forgot-password',
+		await expect(page.getByRole('link', { name: 'Forgot password?' })).toHaveCount(
+			e2eEnv.SMTP_ENABLED === 'true' ? 1 : 0,
 		)
 	})
 
 	test('/init on an initialised instance goes straight to /login', async ({ page }) => {
-		// The suite's database holds the admin, so the form never shows (spec §9.6 states the form gap).
+		// The suite's database holds the owner, which the setup project created through the /init form.
 		await page.goto('/init')
 		await expect(page).toHaveURL(/\/login$/)
 	})

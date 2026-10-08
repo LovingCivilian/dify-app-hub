@@ -203,6 +203,14 @@
 		"reset_link_expired": "重置链接无效或已过期",
 		"request_new_link": "重新获取链接"
 	},
+	"account": {
+		"change_password": "修改密码",
+		"current_password": "当前密码",
+		"current_password_required": "请输入当前密码",
+		"current_password_wrong": "当前密码不正确",
+		"password_changed": "密码已修改，请使用新密码登录。",
+		"change_password_failed": "修改密码失败，请重试。"
+	},
 	"init": {
 		"title": "系统初始化",
 		"description": "首次使用，请创建所有者账户。该账户拥有全部权限且不能被删除。初始化完成后将跳转至登录页。",

@@ -1,7 +1,7 @@
 'use client'
 
 import { LockOutlined, UserOutlined } from '@ant-design/icons'
-import { App, Button, Form, Input, theme, Typography } from 'antd'
+import { Alert, App, Button, Form, Input, theme, Typography } from 'antd'
 import { getSession, signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -17,13 +17,21 @@ interface LoginValues {
 	password: string
 }
 
-/** Spec §7.2: labels on, placeholders and the flow kept (`signIn` without redirect, then the safe callback). */
+/**
+ * Spec §7.2: labels on, placeholders and the flow kept (`signIn` without redirect, then the safe callback). A
+ * password change lands here with a notice (charter §4.2). The "Forgot password?" link shows only when mail is
+ * configured, since the forgot-password flow can send a link only then (ADR-0024).
+ */
 export default function LoginForm({
 	callbackUrl,
 	email,
+	notice,
+	mailConfigured,
 }: {
 	callbackUrl?: string
 	email?: string
+	notice?: 'password-changed'
+	mailConfigured: boolean
 }) {
 	const { t } = useTranslation()
 	const { message } = App.useApp()
@@ -51,6 +59,14 @@ export default function LoginForm({
 
 	return (
 		<>
+			{notice === 'password-changed' && (
+				<Alert
+					type="success"
+					showIcon
+					title={t('account.password_changed')}
+					style={{ marginBottom: token.marginLG }}
+				/>
+			)}
 			<Typography.Paragraph
 				className={styles.subtitle}
 				style={{ marginBottom: token.marginLG }}
@@ -98,9 +114,11 @@ export default function LoginForm({
 						{t('auth.login')}
 					</Button>
 				</Form.Item>
-				<div className={styles.forgot}>
-					<Link href="/forgot-password">{t('auth.forgot_password_link')}</Link>
-				</div>
+				{mailConfigured && (
+					<div className={styles.forgot}>
+						<Link href="/forgot-password">{t('auth.forgot_password_link')}</Link>
+					</div>
+				)}
 			</Form>
 		</>
 	)

@@ -5,7 +5,7 @@ import { desc, eq, sql } from 'drizzle-orm'
 import { getDb, type Db } from '@/db'
 import { passwordResetTokens, users } from '@/db/schema'
 import { fail, ok, type ActionErrorCode, type ActionResult } from '@/lib/action-result'
-import { hashPassword } from '@/lib/auth/password'
+import { hashPassword, verifyPassword } from '@/lib/auth/password'
 import { canManage, type Role } from '@/lib/auth/roles'
 import { assertAdmin, type SessionUser } from '@/lib/auth/session'
 
@@ -210,4 +210,33 @@ export async function deleteUser(actor: SessionUser, id: string): Promise<Action
 		await tx.delete(users).where(eq(users.id, id))
 		return ok(undefined)
 	})
+}
+
+/**
+ * The account menu's password change (charter §4.2): the current password is checked with bcrypt, the new one is
+ * hashed, and sessionVersion is bumped, which revokes every session including this one; the client then signs
+ * out. Any role, for the actor's own account only (no target id comes from the client).
+ */
+export async function changeOwnPassword(
+	actor: SessionUser,
+	input: { currentPassword: string; newPassword: string },
+): Promise<ActionResult> {
+	const db = getDb()
+	const [row] = await db
+		.select({ password: users.password })
+		.from(users)
+		.where(eq(users.id, actor.id))
+		.limit(1)
+	if (!row) return fail('unauthorized')
+	if (!(await verifyPassword(input.currentPassword, row.password))) {
+		return fail('invalid_input', { currentPassword: ['incorrect'] })
+	}
+	await db
+		.update(users)
+		.set({
+			password: await hashPassword(input.newPassword),
+			sessionVersion: sql`${users.sessionVersion} + 1`,
+		})
+		.where(eq(users.id, actor.id))
+	return ok(undefined)
 }

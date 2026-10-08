@@ -203,6 +203,14 @@
 		"reset_link_expired": "This reset link is invalid or has expired.",
 		"request_new_link": "Request a new link"
 	},
+	"account": {
+		"change_password": "Change password",
+		"current_password": "Current password",
+		"current_password_required": "Enter your current password",
+		"current_password_wrong": "The current password is incorrect",
+		"password_changed": "Password changed. Log in with your new password.",
+		"change_password_failed": "Could not change the password. Try again."
+	},
 	"init": {
 		"title": "System setup",
 		"description": "First time here: create the owner account. It keeps every permission and cannot be deleted. You will be taken to the login page when setup finishes.",
