@@ -57,7 +57,8 @@ export default function UserManagement({
 		setEditing(user)
 		setDrawerOpen(true)
 	}
-	const shown = users.filter(user => matchesQuery([user.name, user.email], query))
+	// The id too (ADR-0026): an id copied from Dify's logs or Langfuse finds its account.
+	const shown = users.filter(user => matchesQuery([user.name, user.email, user.id], query))
 
 	const { run } = useActionTransition()
 	const remove = (user: UserDto) =>
@@ -88,7 +89,8 @@ export default function UserManagement({
 			render: (_, user) => (
 				<Typography.Text
 					className={styles.difyUserId}
-					copyable={{ text: user.id }}
+					// The tooltips from i18next: antd's ar_EG pack calls "Copied" نقل ("moved").
+					copyable={{ text: user.id, tooltips: [t('common.copy'), t('common.copied')] }}
 					ellipsis={{ tooltip: user.id }}
 				>
 					{user.id}

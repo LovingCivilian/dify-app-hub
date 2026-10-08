@@ -8,6 +8,18 @@ import { deleteUsersLike, seedUser, signInAs } from './fixtures/users'
 
 const row = (page: Page, email: string) => page.getByRole('row', { name: new RegExp(email) })
 
+/** The owner's account id, the Dify user ID (ADR-0026), read from MySQL: exactly one row. */
+const ownerId = async () => {
+	const rows = await withDb(async db => {
+		const [found] = await db.execute<RowDataPacket[]>('SELECT id FROM users WHERE email = ?', [
+			e2eEnv.E2E_ADMIN_EMAIL,
+		])
+		return found
+	})
+	expect(rows).toHaveLength(1)
+	return String(rows[0].id)
+}
+
 /**
  * Opens the users page and waits until its table has hydrated. The page is server-rendered, and a click that lands
  * before React has attached its handlers does nothing (Playwright docs, "Navigations > Hydration"); seen on the
@@ -109,21 +121,24 @@ test.describe('user CRUD', () => {
 	test("the owner's row shows its Dify user ID, the account id, with a copy button (ADR-0026)", async ({
 		page,
 	}) => {
-		const ownerId = await withDb(async db => {
-			const [rows] = await db.execute<RowDataPacket[]>('SELECT id FROM users WHERE email = ?', [
-				e2eEnv.E2E_ADMIN_EMAIL,
-			])
-			return String(rows[0]?.id)
-		})
+		const id = await ownerId()
 		await openUsers(page)
 		const own = row(page, e2eEnv.E2E_ADMIN_EMAIL)
 		// A narrow column with antd's ellipsis: the cell shows the id's start, its ellipsis tooltip the whole id.
-		const idText = own.getByText(ownerId.slice(0, 8))
+		const idText = own.getByText(id.slice(0, 8))
 		await expect(idText).toBeVisible()
 		await idText.hover()
-		await expect(page.getByRole('tooltip')).toHaveText(ownerId)
-		// antd's copyable names its button from the locale ("Copy"); the clipboard itself is not tested.
+		await expect(page.getByRole('tooltip')).toHaveText(id)
+		// The copy button is named by its tooltip (copyable.tooltips, common.copy); the clipboard itself is not tested.
 		await expect(own.getByRole('button', { name: 'Copy' })).toBeVisible()
+	})
+
+	test('searching for a Dify user ID finds its account (ADR-0026)', async ({ page }) => {
+		// An id copied from Dify's logs or Langfuse: the table search matches it, whatever the cell's ellipsis shows.
+		const id = await ownerId()
+		await openUsers(page)
+		await page.getByRole('textbox', { name: 'Search users' }).fill(id)
+		await expect(row(page, e2eEnv.E2E_ADMIN_EMAIL)).toBeVisible()
 	})
 
 	test('editing a user onto an email another account holds says it is in use and writes nothing', async ({
