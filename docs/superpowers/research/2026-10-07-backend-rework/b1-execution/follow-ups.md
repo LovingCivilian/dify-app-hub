@@ -30,6 +30,13 @@ What B1 leaves open, by area: every FOLLOW-UP verdict of the whole-branch review
 - Answer Markdown mapping (F2; [372]): the mapped `a` loses XMarkdown 2.9.0's streaming fade; `MarkdownLink` and `MarkdownSource` drop other sanitised attributes; `<track>`, `srcset`, `<audio>` and `<video poster>` are not routed.
 - `components/chat/chat-view/conversation-sidebar.tsx:44`: `AppAvatar` is exported from the sider and imported by two siblings (its own file); `withGivenLinks` belongs in `chat-view/file-types.ts`; a `null` icon falls back to the first letter in the chat but to the mode icon in the gallery ([366]).
 - `components/chat/app-unavailable.tsx:19`: the `Button href` is a plain full-page link; wrap it in `next/link` ([316]).
+- Human input order (ADR-0017 note of 2026-10-08):
+  - A run whose continuation this browser did not receive keeps the node data it stored last, so a node can spin after a reload next to a submitted form. That happens when the tab is closed right after an answer, when Stop or a dropped stream ends the continuation, when another recipient answers the form, and for data stored before the fix. GET /messages has no node data, and the Service API replays nodes only for an unfinished run. Two options:
+    - a display rule in `components/chat/message/display-workflow.ts`, so that a run whose form was submitted, or a finished run, shows no spinning node (the node's real status is not known);
+    - the message metadata study.
+  - While a refused answer's stream stays open, the Sender is busy (`components/chat/chat-view/chat-view.tsx` `submitting`).
+  - x-sdk 2.9.0 moves a reply whose stream ends by abort or error to the end of the list with a new id, so a form answered on an older message moves it at its next pause. Regenerate and annotate then pair it with the wrong question (`components/chat/chat-view/message-actions.ts` `questionOf`; finding the question by Dify message id would fix it).
+  - Accepted: Dify's replay is stored event by event like a live run, about 2N+2 IndexedDB writes for a run of N nodes per answer (`components/chat/hooks/use-dify-chat.ts` `onWorkflowUpdate`).
 
 ## Admin
 
@@ -52,7 +59,6 @@ What B1 leaves open, by area: every FOLLOW-UP verdict of the whole-branch review
 ## Docs and operations
 
 - A separate user-content host for the files the routes serve (OWASP's first-choice control for uploads); B1 serves them on the app's origin with `nosniff`, forced attachment outside an inline list and a sandbox CSP (ADR-0023).
-- Behind a buffering reverse proxy such as nginx, the SSE answers need `X-Accel-Buffering: no` (ADR-0023).
 - `db/migrations/**/snapshot.json` are not oxfmt-clean; add them to `.oxfmtrc.json`'s `ignorePatterns` ([245]).
 - Several Markdown records under `docs/` are not oxfmt-clean, including pre-B1 specs and plans. They were committed without the lint-staged hook, which is not installed in this checkout, and oxfmt is not idempotent on the B1 plan. Install the hooks (`pnpm prepare`/husky) or add `docs/superpowers/**` to `ignorePatterns`. Decided 2026-10-08 not to reformat the approved records in B1.
 - Arabic RTL layout as a whole (ADR-0005; CLAUDE.md "i18n").

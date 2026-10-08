@@ -77,7 +77,11 @@ Conventions used below:
 | `POST /form/human_input/{form_token}` | same | JSON req | `{inputs: {<output_variable_name>: string \| {transfer_method:"local_file", upload_file_id} \| {transfer_method:"remote_url", url\|remote_url} \| [file mappings]}, action: <user_actions[].id>, user}` | **`{}`** (200); the run resumes on the chosen action branch | 400 `bad_request` (recipient type invalid), `invalid_form_data`; 404 `not_found`; 412 `human_input_form_submitted`, `human_input_form_expired` |
 
 `form_token` arrives in the `human_input_required` SSE event (`data.form_token`; `null` means Email delivery, which the
-API cannot drive). Forms are one-shot: the first submission wins regardless of `user`.
+API cannot drive). Forms are one-shot: the first submission wins regardless of `user`. A submission resumes the run at
+once in a worker (`HumanInputService.enqueue_resume`), and the run's events go to a Redis pub/sub topic that keeps
+nothing for a later listener (`MessageGenerator.retrieve_events`): open `/workflow/{workflow_run_id}/events` with
+`include_state_snapshot=true&continue_on_pause=true` first and submit after its replayed `workflow_paused`, as Dify's own
+chat does (`web/app/components/base/chat/chat/hooks.ts`).
 
 ### 1.6 Files, audio, feedback, end users
 
