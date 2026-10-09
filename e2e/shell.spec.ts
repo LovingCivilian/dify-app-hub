@@ -73,8 +73,12 @@ test('on desktop the admin navigation is a sidebar that collapses to its icons a
 	await expect(page.getByRole('table').locator('time').first()).not.toContainText(/^\s*$/)
 	const sider = page.getByRole('complementary')
 	const item = (name: string) => sider.getByRole('menuitem', { name })
-	await expect(sider.getByRole('link', { name: 'App management' })).toBeVisible()
-	await expect(sider.getByRole('link', { name: 'User management' })).toBeVisible()
+	// The links are the page's one navigation landmark, a <nav> in the sider's <aside> (WHATWG HTML, "The aside
+	// element": "groups of nav elements"); being the only one, it needs no label (WAI-ARIA APG, "Landmark Regions").
+	const navigation = sider.getByRole('navigation')
+	await expect(page.getByRole('navigation')).toHaveCount(1)
+	await expect(navigation.getByRole('link', { name: 'App management' })).toBeVisible()
+	await expect(navigation.getByRole('link', { name: 'User management' })).toBeVisible()
 	// The current page's item is selected (Menu `selectedKeys`; antd marks it with a class, not an ARIA state).
 	await expect(item('User management')).toHaveClass(/ant-menu-item-selected/)
 	await expect(item('App management')).not.toHaveClass(/ant-menu-item-selected/)
@@ -100,12 +104,17 @@ test('on desktop the admin navigation is a sidebar that collapses to its icons a
 	await expect(item('App management')).toHaveClass(/ant-menu-item-selected/)
 	// The (admin) layout stays mounted across the client navigation, so the sider is still collapsed.
 	await expect(expand).toHaveAttribute('aria-expanded', 'false')
-	// The trigger is a button, so the keyboard reaches and activates it.
+	// The trigger is a button, so the keyboard reaches it, and Enter and Space both activate it (WAI-ARIA APG,
+	// Disclosure pattern).
 	await expand.focus()
 	await page.keyboard.press('Enter')
 	await expect(collapse).toHaveAttribute('aria-expanded', 'true')
 	await expect.poll(width).toBe(expanded)
 	await expect(sider.getByRole('menu')).not.toHaveClass(/ant-menu-inline-collapsed/)
+	await collapse.focus()
+	await page.keyboard.press('Space')
+	await expect(expand).toHaveAttribute('aria-expanded', 'false')
+	await expect.poll(width).toBeLessThan(expanded)
 })
 
 test('on mobile the admin navigation opens from the menu button', async ({ page, isMobile }) => {

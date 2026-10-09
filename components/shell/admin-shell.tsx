@@ -40,8 +40,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 					collapsed={collapsed}
 					onCollapse={setCollapsed}
 				>
-					{/* An inline Menu inside a collapsed Sider collapses with it to its icons (antd reads the Sider's state). */}
-					<div className={styles.siderMenu}>
+					{/* The area's navigation landmark inside the sider's aside (WHATWG HTML, "The aside element": "groups of
+					    nav elements"); the page's only nav, so it needs no label (WAI-ARIA APG, "Landmark Regions"). An
+					    inline Menu inside a collapsed Sider collapses with it to its icons (antd reads the Sider's state). */}
+					<nav className={styles.siderMenu}>
 						<Menu
 							mode="inline"
 							items={nav}
@@ -49,7 +51,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 							// The sider draws the edge line (antd Layout, demo "Header Sider 2").
 							style={{ borderInlineEnd: 0 }}
 						/>
-					</div>
+					</nav>
 				</AppSider>
 				<Layout.Content className={`${styles.content} ${styles.adminContent}`}>
 					{children}
