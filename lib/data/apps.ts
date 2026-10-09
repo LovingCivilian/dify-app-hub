@@ -1,9 +1,11 @@
 import 'server-only'
 
-import { desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, exists, or, sql, type SQL } from 'drizzle-orm'
+import { QueryBuilder } from 'drizzle-orm/mysql-core'
 
 import { getDb } from '@/db'
-import { difyApps } from '@/db/schema'
+import { appGroupGrants, appUserGrants, difyApps, userGroupMembers } from '@/db/schema'
+import { hasAdminRights } from '@/lib/auth/roles'
 import { assertAdmin, type SessionUser } from '@/lib/auth/session'
 import { difyClient, type DifyCredentials } from '@/lib/dify/client'
 import { DifyError } from '@/lib/dify/errors'
@@ -12,8 +14,8 @@ import { isAppMode, type AppInfo, type AppMode, type SiteSettings } from '@/lib/
 /*
  * The apps Data Access Layer (charter §4.2). Every function takes the verified actor first: the entry point
  * (route, action, page) verifies the session once, and nothing here can be called without a SessionUser.
- * Admin-only writes check the role themselves (assertAdmin); the reads serve every signed-in user until B3
- * filters them.
+ * Admin-only writes check the role themselves (assertAdmin); every read applies `visibleTo`, so a `user` reaches only
+ * the apps granted to it (ADR-0027).
  */
 
 type AppRow = typeof difyApps.$inferSelect
@@ -302,13 +304,40 @@ const settingsColumns = (settings: AppSettings) => ({
 	enableAnnotation: settings.annotationEnabled,
 })
 
-const selectDtoRow = async (id: string): Promise<DtoRow | undefined> => {
-	const [row] = await getDb().select(dtoColumns).from(difyApps).where(eq(difyApps.id, id)).limit(1)
-	return row
-}
+/** Builds the access rule's subqueries without a database instance (Drizzle docs, standalone query builder; decision d). */
+const qb = new QueryBuilder()
 
-/** The access columns only: the Dify routes, and the writes that re-read Dify with the stored key. */
-const readAccess = async (id: string): Promise<AppAccess | null> => {
+/**
+ * Which apps an actor may use (B3 spec §4.1, ADR-0027): every app for an account with admin rights (no condition),
+ * otherwise an app open to everyone, granted to the account, or granted to a group it belongs to, whatever the
+ * membership's source. One rule for the list and every single-app read (spec §4.2; OWASP Authorization "Validate the
+ * Permissions on Every Request"; Next "A Data Access Layer should … Perform authorization checks"). Built with
+ * Drizzle's `or`/`exists` on correlated subqueries; `and()` skips the undefined an admin gets.
+ */
+export const visibleTo = (actor: Pick<SessionUser, 'id' | 'role'>): SQL | undefined =>
+	hasAdminRights(actor)
+		? undefined
+		: or(
+				eq(difyApps.accessMode, 'everyone'),
+				exists(
+					qb
+						.select({ one: sql`1` })
+						.from(appUserGrants)
+						.where(and(eq(appUserGrants.appId, difyApps.id), eq(appUserGrants.userId, actor.id))),
+				),
+				exists(
+					qb
+						.select({ one: sql`1` })
+						.from(appGroupGrants)
+						.innerJoin(userGroupMembers, eq(userGroupMembers.groupId, appGroupGrants.groupId))
+						.where(
+							and(eq(appGroupGrants.appId, difyApps.id), eq(userGroupMembers.userId, actor.id)),
+						),
+				),
+			)
+
+/** The access columns only: the Dify routes (with visibleTo), and the admin writes that re-read Dify with the stored key (without). */
+const readAccess = async (id: string, visible?: SQL): Promise<AppAccess | null> => {
 	const [row] = await getDb()
 		.select({
 			id: difyApps.id,
@@ -318,7 +347,7 @@ const readAccess = async (id: string): Promise<AppAccess | null> => {
 			apiKey: difyApps.apiKey,
 		})
 		.from(difyApps)
-		.where(eq(difyApps.id, id))
+		.where(and(eq(difyApps.id, id), visible))
 		.limit(1)
 	return row
 		? {
@@ -330,29 +359,38 @@ const readAccess = async (id: string): Promise<AppAccess | null> => {
 		: null
 }
 
-export async function listApps(_actor: SessionUser): Promise<AppDto[]> {
-	const rows = await getDb().select(dtoColumns).from(difyApps).orderBy(desc(difyApps.createdAt))
+export async function listApps(actor: SessionUser): Promise<AppDto[]> {
+	const rows = await getDb()
+		.select(dtoColumns)
+		.from(difyApps)
+		.where(visibleTo(actor))
+		.orderBy(desc(difyApps.createdAt))
 	return rows.map(toAppDto)
 }
 
-export async function getChatApp(_actor: SessionUser, id: string): Promise<ChatAppDto | null> {
-	const row = await selectDtoRow(id)
+/** Null for a missing app and for one the actor may not use alike (spec §4.2: no difference to probe). */
+export async function getChatApp(actor: SessionUser, id: string): Promise<ChatAppDto | null> {
+	const [row] = await getDb()
+		.select(dtoColumns)
+		.from(difyApps)
+		.where(and(eq(difyApps.id, id), visibleTo(actor)))
+		.limit(1)
 	return row ? toChatAppDto(row) : null
 }
 
-/** For the Dify routes: the credentials never leave the server. */
-export async function getAppAccess(_actor: SessionUser, id: string): Promise<AppAccess | null> {
-	return readAccess(id)
+/** For the Dify routes: the credentials never leave the server; null when missing or not the actor's to use. */
+export async function getAppAccess(actor: SessionUser, id: string): Promise<AppAccess | null> {
+	return readAccess(id, visibleTo(actor))
 }
 
 export async function getAppIcon(
-	_actor: SessionUser,
+	actor: SessionUser,
 	id: string,
 ): Promise<{ bytes: Buffer; mime: string } | null> {
 	const [row] = await getDb()
 		.select({ iconImage: difyApps.iconImage, iconMime: difyApps.iconMime })
 		.from(difyApps)
-		.where(eq(difyApps.id, id))
+		.where(and(eq(difyApps.id, id), visibleTo(actor)))
 		.limit(1)
 	return row?.iconImage && row.iconMime ? { bytes: row.iconImage, mime: row.iconMime } : null
 }

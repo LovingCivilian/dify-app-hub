@@ -12,7 +12,7 @@ const { db } = vi.hoisted(() => {
 		select: (fields?: Record<string, unknown>) => {
 			db.fields = fields
 			const rows = async () => (db.row ? [db.row] : [])
-			return { from: () => ({ where: () => ({ limit: rows }), orderBy: rows }) }
+			return { from: () => ({ where: () => ({ limit: rows, orderBy: rows }), orderBy: rows }) }
 		},
 		insert: () => ({
 			values: async (values: Record<string, unknown>) => {

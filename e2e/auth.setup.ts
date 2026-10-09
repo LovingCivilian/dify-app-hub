@@ -33,9 +33,11 @@ setup(
 		for (const app of [...STUB_APPS, ...SEEDED_EXTRA_APPS]) {
 			// A database that survives between runs keeps its rows: the display mode, the annotation switch, the
 			// status and the icon are refreshed on them. The icon is the emoji the stub's /site answers (the DAL stores
-			// it at create and sync; a seeded row needs it set), none for the app without a site.
+			// it at create and sync; a seeded row needs it set), none for the app without a site. The stub apps are
+			// open to everyone, as the B3a migration leaves existing apps (ADR-0027); specs that test access create
+			// their own restricted apps (e2e/fixtures/access.ts).
 			await db.execute(
-				'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key, opening_statement_display_mode, enable_annotation, is_enabled, icon_type, icon, icon_background) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE opening_statement_display_mode = ?, enable_annotation = ?, is_enabled = ?, icon_type = ?, icon = ?, icon_background = ?',
+				'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key, opening_statement_display_mode, enable_annotation, is_enabled, icon_type, icon, icon_background, access_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE opening_statement_display_mode = ?, enable_annotation = ?, is_enabled = ?, icon_type = ?, icon = ?, icon_background = ?, access_mode = ?',
 				[
 					app.id,
 					app.name,
@@ -47,10 +49,12 @@ setup(
 					app.enableAnnotation,
 					app.enabled === false ? 0 : 1,
 					...(app.site === 'none' ? [null, null, null] : ['emoji', '🤖', '#FFEAD5']),
+					'everyone',
 					app.openingStatementDisplayMode,
 					app.enableAnnotation,
 					app.enabled === false ? 0 : 1,
 					...(app.site === 'none' ? [null, null, null] : ['emoji', '🤖', '#FFEAD5']),
+					'everyone',
 				],
 			)
 		}

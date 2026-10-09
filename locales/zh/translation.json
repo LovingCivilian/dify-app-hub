@@ -45,7 +45,7 @@
 		"no_description": "暂无描述",
 		"no_config_default_text": "暂无 Dify 应用配置，请联系管理员",
 		"no_description_user": "该应用暂无描述",
-		"empty_contact_admin": "暂无应用数据，请联系管理员配置",
+		"empty_contact_admin": "暂无可用的应用，请联系管理员。",
 		"load_failed": "加载失败",
 		"reload_page": "刷新页面",
 		"loading": "应用加载中...",

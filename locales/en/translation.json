@@ -45,7 +45,7 @@
 		"no_description": "No description",
 		"no_config_default_text": "No Dify app configuration found. Contact your administrator.",
 		"no_description_user": "This app has no description",
-		"empty_contact_admin": "No apps yet. Ask your administrator to set one up.",
+		"empty_contact_admin": "No apps are available to you yet. Ask your administrator.",
 		"load_failed": "Failed to load",
 		"reload_page": "Reload page",
 		"loading": "Loading app...",

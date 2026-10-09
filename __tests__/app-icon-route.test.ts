@@ -33,13 +33,15 @@ describe('GET /api/apps/[appId]/icon', () => {
 		getAppIcon.mockResolvedValue(null)
 		expect((await GET(get(), ctx)).status).toBe(404)
 	})
-	it('serves the bytes with their type, an ETag and a private cache header, and 304 on a matching ETag', async () => {
+	// The browser revalidates every use (RFC 9111 §5.2.2.4 no-cache), so a removed grant applies at the next request
+	// (B3 spec §4.5) and an unchanged icon still costs only a 304.
+	it('serves the bytes with their type, an ETag and a revalidated private cache header, and 304 on a matching ETag', async () => {
 		verifySession.mockResolvedValue(actor)
 		getAppIcon.mockResolvedValue({ bytes: Buffer.from([1, 2, 3]), mime: 'image/png' })
 		const response = await GET(get(), ctx)
 		expect(response.status).toBe(200)
 		expect(response.headers.get('content-type')).toBe('image/png')
-		expect(response.headers.get('cache-control')).toBe('private, max-age=86400')
+		expect(response.headers.get('cache-control')).toBe('private, no-cache')
 		const etag = response.headers.get('etag')
 		expect(etag).toMatch(/^"[0-9a-f]{32}"$/)
 		expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
