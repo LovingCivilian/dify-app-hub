@@ -1,5 +1,5 @@
+import { and, eq, type SQL } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/mysql2'
-import type { SQL } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The fake chain keeps the condition each read passes to where(), so a test can render it on drizzle.mock().
@@ -71,11 +71,13 @@ describe('visibleTo (spec §4.1)', () => {
 	})
 })
 
-// Review Focus 1: every read applies the same rule, for the list and for each single-app check.
+// Review Focus 1: every read applies the same rule, for the list and for each single-app check. Each read's
+// condition is compared with the whole rule rendered on its own (pinned above), so a read that kept only part of it
+// (one arm of the `or`, one subquery) fails.
 describe('the app reads apply visibleTo', () => {
-	it('listApps: the rule alone for a user, nothing for an admin', async () => {
+	it('listApps: the whole rule for a user, nothing for an admin', async () => {
 		await listApps(user)
-		expect(render(where.mock.calls[0]![0]).sql).toMatch(/exists/)
+		expect(render(where.mock.calls[0]![0])).toEqual(render(visibleTo(user)))
 		await listApps(admin)
 		expect(where.mock.calls[1]![0]).toBeUndefined()
 	})
@@ -84,12 +86,12 @@ describe('the app reads apply visibleTo', () => {
 		['getChatApp', () => getChatApp(user, 'app-1')],
 		['getAppAccess', () => getAppAccess(user, 'app-1')],
 		['getAppIcon', () => getAppIcon(user, 'app-1')],
-	] as const)('%s: the id and the rule for a user', async (_name, read) => {
+	] as const)('%s: the id and the whole rule for a user', async (_name, read) => {
 		expect(await read()).toBeNull()
-		const { sql, params } = render(where.mock.calls[0]![0])
-		expect(sql).toMatch(/`dify_apps`\.`id` = \?\) and \(/)
-		expect(sql).toMatch(/exists/)
-		expect(params[0]).toBe('app-1')
+		const rendered = render(where.mock.calls[0]![0])
+		expect(rendered).toEqual(render(and(eq(difyApps.id, 'app-1'), visibleTo(user))))
+		expect(rendered.sql).toMatch(/`dify_apps`\.`id` = \?\) and \(/)
+		expect(rendered.params).toEqual(['app-1', 'everyone', 'u1', 'u1'])
 	})
 
 	it.each([
@@ -98,8 +100,9 @@ describe('the app reads apply visibleTo', () => {
 		['getAppIcon', () => getAppIcon(admin, 'app-1')],
 	] as const)('%s: the id alone for an admin', async (_name, read) => {
 		await read()
-		const { sql, params } = render(where.mock.calls[0]![0])
-		expect(sql).not.toMatch(/exists/)
-		expect(params).toEqual(['app-1'])
+		const rendered = render(where.mock.calls[0]![0])
+		expect(rendered).toEqual(render(eq(difyApps.id, 'app-1')))
+		expect(rendered.sql).not.toMatch(/exists/)
+		expect(rendered.params).toEqual(['app-1'])
 	})
 })

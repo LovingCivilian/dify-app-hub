@@ -33,6 +33,16 @@ describe('GET /api/apps/[appId]/icon', () => {
 		getAppIcon.mockResolvedValue(null)
 		expect((await GET(get(), ctx)).status).toBe(404)
 	})
+	// After a grant is removed, the browser revalidates its stored icon with the old ETag (RFC 9111 §4.3, RFC 9110
+	// §13.1.2 If-None-Match). The access rule answers first, so the caller gets the missing-icon 404, never a 304.
+	it('answers 404, not 304, for an app the caller may not use, whatever ETag it sends', async () => {
+		verifySession.mockResolvedValue(actor)
+		getAppIcon.mockResolvedValue(null)
+		const response = await GET(get({ 'if-none-match': `"${'0'.repeat(32)}"` }), ctx)
+		expect(response.status).toBe(404)
+		await expect(response.json()).resolves.toMatchObject({ code: 'icon_not_found', status: 404 })
+		expect(response.headers.get('etag')).toBeNull()
+	})
 	// The browser revalidates every use (RFC 9111 §5.2.2.4 no-cache), so a removed grant applies at the next request
 	// (B3 spec §4.5) and an unchanged icon still costs only a 304.
 	it('serves the bytes with their type, an ETag and a revalidated private cache header, and 304 on a matching ETag', async () => {

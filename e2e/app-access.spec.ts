@@ -2,7 +2,6 @@ import { expect, test } from '@playwright/test'
 
 import {
 	appsOpenToEveryone,
-	deleteApp,
 	deleteAppsLike,
 	deleteGroupsLike,
 	grantAppToGroup,
@@ -17,6 +16,12 @@ import { deleteUsersLike, seedUser, signInAs } from './fixtures/users'
 const PASSWORD = 'access-pass-1'
 const tag = () => `access-${test.info().project.name}`
 const appName = () => `Restricted ${tag()}`
+/**
+ * Every app this spec seeds ends with the project's tag, so the clean-up deletes by name and needs no id: it also runs
+ * when a `beforeEach` failed before seeding (mysql2 refuses an `undefined` bind parameter), and it clears what a
+ * killed run left behind.
+ */
+const deleteOwnApps = () => deleteAppsLike(`%${tag()}`)
 const notFound = { code: 'app_not_found', message: 'No such app.', status: 404 }
 
 // Review Focus 1: an app the account was not granted is answered as a missing one everywhere.
@@ -26,7 +31,7 @@ test.describe('per-app access for a user-role account (B3 spec §4)', () => {
 	let userId: string
 
 	test.beforeEach(async () => {
-		await deleteAppsLike(`%${tag()}`)
+		await deleteOwnApps()
 		userId = await seedUser({
 			email: `${tag()}@e2e.local`,
 			password: PASSWORD,
@@ -35,7 +40,7 @@ test.describe('per-app access for a user-role account (B3 spec §4)', () => {
 		appId = await seedApp({ name: appName(), accessMode: 'restricted' })
 	})
 	test.afterEach(async () => {
-		await deleteApp(appId)
+		await deleteOwnApps()
 		await deleteGroupsLike(`%${tag()}`)
 		await deleteUsersLike(`${tag()}%`)
 	})
@@ -96,10 +101,11 @@ test.describe('the owner', () => {
 	let appId: string
 
 	test.beforeEach(async () => {
+		await deleteOwnApps()
 		appId = await seedApp({ name: `Admins only ${tag()}`, accessMode: 'restricted' })
 	})
 	test.afterEach(async () => {
-		await deleteApp(appId)
+		await deleteOwnApps()
 	})
 
 	test('sees and opens a restricted app nobody was granted', async ({ page }) => {

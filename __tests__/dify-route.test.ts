@@ -42,6 +42,15 @@ describe('resolveDifyRoute', () => {
 		getAppAccess.mockResolvedValue(null)
 		const missing = await resolveDifyRoute(params)
 		expect(missing.ok ? null : missing.response.status).toBe(404)
+		if (!missing.ok)
+			await expect(missing.response.json()).resolves.toEqual({
+				code: 'app_not_found',
+				message: 'No such app.',
+				status: 404,
+			})
+		// A missing app and one the actor may not use (getAppAccess answers null for both, B3 spec §4.2) reach no
+		// Dify client, so no request goes to Dify (Review Focus 1).
+		expect(difyClient).not.toHaveBeenCalled()
 		getAppAccess.mockResolvedValue({
 			id: 'app-1',
 			enabled: false,
