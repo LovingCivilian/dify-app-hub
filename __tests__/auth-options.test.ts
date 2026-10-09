@@ -35,6 +35,9 @@ const renderWhere = (condition: unknown) =>
 		.where(condition as SQL)
 		.toSQL()
 
+/** Both deactivation markers empty: an active account (ADR-0027). */
+const live = { adminDeactivatedAt: null, directoryDeactivatedAt: null }
+
 const row = {
 	id: 'u1',
 	email: 'jane@example.com',
@@ -42,6 +45,7 @@ const row = {
 	role: 'admin',
 	password: 'hash:right-password',
 	sessionVersion: 3,
+	...live,
 }
 
 beforeEach(() => {
@@ -95,6 +99,44 @@ describe('authorizeCredentials', () => {
 		const { sql, params } = renderWhere(where.mock.calls[0]![0])
 		expect(sql).toMatch(/ where `users`\.`email` = \?$/)
 		expect(params).toEqual(['jane@example.com'])
+	})
+
+	// Spec §5 and §7.3: refused after the password check, with the same answer as a wrong password; the reason is
+	// logged by account id, never by email (decision b).
+	it('refuses an account an admin or the directory deactivated, after the password check, and logs its id', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+		try {
+			for (const markers of [
+				{ adminDeactivatedAt: new Date(), directoryDeactivatedAt: null },
+				{ adminDeactivatedAt: null, directoryDeactivatedAt: new Date() },
+			]) {
+				rows.value = [{ ...row, ...markers }]
+				expect(
+					await authorizeCredentials({ email: 'jane@example.com', password: 'right-password' }),
+				).toBeNull()
+			}
+			expect(warn).toHaveBeenCalledTimes(2)
+			expect(warn).toHaveBeenCalledWith('authorizeCredentials: sign-in refused', {
+				reason: 'account_inactive',
+				userId: 'u1',
+			})
+			expect(JSON.stringify(warn.mock.calls)).not.toMatch(/jane@example\.com|right-password|hash:/)
+		} finally {
+			warn.mockRestore()
+		}
+	})
+
+	it('answers a wrong password on a deactivated account without telling it is deactivated', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+		try {
+			rows.value = [{ ...row, adminDeactivatedAt: new Date() }]
+			expect(
+				await authorizeCredentials({ email: 'jane@example.com', password: 'wrong-password' }),
+			).toBeNull()
+			expect(warn).not.toHaveBeenCalled()
+		} finally {
+			warn.mockRestore()
+		}
 	})
 })
 
@@ -165,7 +207,9 @@ describe('jwt callback', () => {
 
 	// Review Focus 4: the row is the truth for what an admin can change while the session lives.
 	it('refreshes role, email and name from the row while the version matches', async () => {
-		rows.value = [{ sessionVersion: 3, role: 'user', email: 'new@example.com', name: 'New' }]
+		rows.value = [
+			{ sessionVersion: 3, role: 'user', email: 'new@example.com', name: 'New', ...live },
+		]
 		const token = await jwt({
 			token: {
 				id: 'u1',
@@ -186,7 +230,9 @@ describe('jwt callback', () => {
 
 	// Review Focus 1 and 4 rest on this row: the lookup is by the token's id, not by anything else the token holds.
 	it("looks the account up by the token's id", async () => {
-		rows.value = [{ sessionVersion: 3, role: 'user', email: 'jane@example.com', name: null }]
+		rows.value = [
+			{ sessionVersion: 3, role: 'user', email: 'jane@example.com', name: null, ...live },
+		]
 		await jwt({
 			token: { id: 'u1', sessionVersion: 3, role: 'admin', email: 'old@example.com' } as JWT,
 		} as never)
@@ -197,7 +243,9 @@ describe('jwt callback', () => {
 	})
 
 	it('gives a token issued before roles existed its role on first use', async () => {
-		rows.value = [{ sessionVersion: 0, role: 'admin', email: 'jane@example.com', name: null }]
+		rows.value = [
+			{ sessionVersion: 0, role: 'admin', email: 'jane@example.com', name: null, ...live },
+		]
 		const token = await jwt({ token: { id: 'u1', sessionVersion: 0 } as JWT } as never)
 		expect(token).toMatchObject({ id: 'u1', role: 'admin' })
 	})
@@ -211,7 +259,9 @@ describe('jwt callback', () => {
 			email: 'jane@example.com',
 			name: 'Jane',
 		} as JWT
-		rows.value = [{ sessionVersion: 4, role: 'admin', email: 'jane@example.com', name: 'Jane' }]
+		rows.value = [
+			{ sessionVersion: 4, role: 'admin', email: 'jane@example.com', name: 'Jane', ...live },
+		]
 		expect(await jwt({ token: { ...signedIn } } as never)).toEqual({
 			email: 'jane@example.com',
 			name: 'Jane',
@@ -221,6 +271,29 @@ describe('jwt callback', () => {
 			email: 'jane@example.com',
 			name: 'Jane',
 		})
+	})
+
+	// Spec §5: a row an admin or the directory deactivated is refused at the token's next use, like a revoked one.
+	it('strips id, sessionVersion and role from the token of a deactivated account', async () => {
+		const signedIn = {
+			id: 'u1',
+			sessionVersion: 3,
+			role: 'user',
+			email: 'jane@example.com',
+			name: 'Jane',
+		} as JWT
+		for (const markers of [
+			{ adminDeactivatedAt: new Date(), directoryDeactivatedAt: null },
+			{ adminDeactivatedAt: null, directoryDeactivatedAt: new Date() },
+		]) {
+			rows.value = [
+				{ sessionVersion: 3, role: 'user', email: 'jane@example.com', name: 'Jane', ...markers },
+			]
+			expect(await jwt({ token: { ...signedIn } } as never)).toEqual({
+				email: 'jane@example.com',
+				name: 'Jane',
+			})
+		}
 	})
 
 	it('leaves a token without an id alone, without a query', async () => {
