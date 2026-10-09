@@ -45,7 +45,9 @@ const dtoColumns = {
 }
 
 /** A row as the DTOs read it (dtoColumns). */
-type DtoRow = Omit<AppRow, 'apiKey' | 'iconImage' | 'iconMime'> & { hasIconImage: boolean }
+type DtoRow = Omit<AppRow, 'apiKey' | 'iconImage' | 'iconMime' | 'accessMode'> & {
+	hasIconImage: boolean
+}
 
 export type OpeningStatementDisplayMode = 'default' | 'always'
 

@@ -1,6 +1,15 @@
 import { sql } from 'drizzle-orm'
-import { boolean, datetime, mediumblob, mysqlTable, text, varchar } from 'drizzle-orm/mysql-core'
+import {
+	boolean,
+	datetime,
+	mediumblob,
+	mysqlEnum,
+	mysqlTable,
+	text,
+	varchar,
+} from 'drizzle-orm/mysql-core'
 
+import { ACCESS_MODES } from '@/lib/app-access'
 import { generateUuidV4 } from '@/lib/helpers'
 
 export const difyApps = mysqlTable('dify_apps', {
@@ -21,6 +30,8 @@ export const difyApps = mysqlTable('dify_apps', {
 	/** JSON array of strings. */
 	tags: text(),
 	isEnabled: boolean('is_enabled').default(true).notNull(),
+	/** B3 spec §2 #9: a new app is closed until granted; the B3a migration opened every existing app to everyone. */
+	accessMode: mysqlEnum('access_mode', ACCESS_MODES).default('restricted').notNull(),
 	apiBase: varchar('api_base', { length: 500 }).notNull(),
 	apiKey: varchar('api_key', { length: 255 }).notNull(),
 	enableAnswerForm: boolean('enable_answer_form').default(false).notNull(),
