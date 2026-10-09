@@ -1,13 +1,18 @@
 import 'server-only'
 
-import { desc, eq, sql } from 'drizzle-orm'
+import { asc, desc, eq, sql } from 'drizzle-orm'
 
 import { getDb, type Db } from '@/db'
 import { passwordResetTokens, users } from '@/db/schema'
 import { fail, ok, type ActionErrorCode, type ActionResult } from '@/lib/action-result'
+import { isActive } from '@/lib/auth/account-status'
 import { hashPassword, verifyPassword } from '@/lib/auth/password'
 import { canManage, type Role } from '@/lib/auth/roles'
 import { assertAdmin, type SessionUser } from '@/lib/auth/session'
+
+import { isDuplicateEntry } from './db-errors'
+
+export { isDuplicateEntry } from './db-errors'
 
 /*
  * The users Data Access Layer (charter §4.2). Every function takes the verified actor first and checks its role
@@ -99,17 +104,6 @@ export const deleteRefusal = ({
 	return canManage(actor.role, target.role) ? null : 'forbidden'
 }
 
-const codeOf = (value: unknown) =>
-	typeof value === 'object' && value !== null && 'code' in value ? value.code : undefined
-
-/**
- * MySQL's duplicate-key error (1062 ER_DUP_ENTRY) as mysql2 reports it, bare or as the cause of Drizzle's
- * DrizzleQueryError: the unique email index refused a write that raced the check before it.
- */
-export const isDuplicateEntry = (error: unknown): boolean =>
-	codeOf(error) === 'ER_DUP_ENTRY' ||
-	(error instanceof Error && codeOf(error.cause) === 'ER_DUP_ENTRY')
-
 /**
  * A locking read of one account by its primary key (decision d; MySQL "Locking Reads": SELECT … FOR UPDATE). A
  * concurrent change to the same account, such as the owner promoting a user an admin is editing, waits and is then
@@ -131,6 +125,30 @@ export async function listUsers(actor: SessionUser): Promise<UserDto[]> {
 	assertAdmin(actor)
 	const rows = await getDb().select(dtoColumns).from(users).orderBy(desc(users.createdAt))
 	return rows.map(toUserDto)
+}
+
+/** An account as the admin pickers show it (spec §4.3, §4.4): no role, no dates, whether it is active. */
+export interface UserOption {
+	id: string
+	name: string | null
+	email: string
+	active: boolean
+}
+
+/** Every account for the group and app pickers, deactivated ones included and tagged (spec §4.3). */
+export async function listUserOptions(actor: SessionUser): Promise<UserOption[]> {
+	assertAdmin(actor)
+	const rows = await getDb()
+		.select({
+			id: users.id,
+			name: users.name,
+			email: users.email,
+			adminDeactivatedAt: users.adminDeactivatedAt,
+			directoryDeactivatedAt: users.directoryDeactivatedAt,
+		})
+		.from(users)
+		.orderBy(asc(users.email))
+	return rows.map(row => ({ id: row.id, name: row.name, email: row.email, active: isActive(row) }))
 }
 
 export async function createUser(

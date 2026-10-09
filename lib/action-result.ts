@@ -4,6 +4,7 @@ export type ActionErrorCode =
 	| 'forbidden'
 	| 'invalid_input'
 	| 'email_in_use'
+	| 'name_in_use'
 	| 'cannot_delete_self'
 	| 'not_found'
 	| 'dify_unreachable'

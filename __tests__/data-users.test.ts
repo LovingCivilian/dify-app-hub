@@ -15,6 +15,7 @@ import {
 	deleteRefusal,
 	deleteUser,
 	isDuplicateEntry,
+	listUserOptions,
 	listUsers,
 	lockTarget,
 	toUserDto,
@@ -166,6 +167,7 @@ describe('lockTarget (decision d, Review Focus 2)', () => {
 describe('the users DAL refuses a non-admin actor before any query (Review Focus 1)', () => {
 	it.each([
 		['listUsers', () => listUsers(member)],
+		['listUserOptions', () => listUserOptions(member)],
 		[
 			'createUser',
 			() =>
