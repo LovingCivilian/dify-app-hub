@@ -9,7 +9,7 @@ import { users } from '@/db/schema'
 import { logActionError, logSignInRefusal } from '@/lib/error-log'
 
 import { isActive } from './account-status'
-import { verifyPassword } from './password'
+import { UNKNOWN_ACCOUNT_HASH, verifyPassword } from './password'
 
 /**
  * The account of these credentials without its hash, or null for an unknown email, a wrong password or a deactivated
@@ -30,7 +30,12 @@ async function findAccount(email: string, password: string): Promise<User | null
 		.from(users)
 		.where(eq(users.email, email))
 		.limit(1)
-	if (!user) return null
+	if (!user) {
+		// OWASP "Authentication Responses": no quick exit. The same bcrypt work as a wrong password, against a fixed
+		// hash, so the answer's time does not tell an unknown email apart; its result is ignored.
+		await verifyPassword(password, UNKNOWN_ACCOUNT_HASH)
+		return null
+	}
 	if (!(await verifyPassword(password, user.password))) return null
 	// Spec §5: after the password, so a wrong password and a deactivated account take the same path and answer.
 	if (!isActive(user)) {
@@ -109,8 +114,10 @@ export const authOptions: NextAuthOptions = {
 				.from(users)
 				.where(eq(users.id, token.id))
 				.limit(1)
-			// ADR-0018's revocation rule, and spec §5: a deactivated row (a marker set, also by hand in the database)
-			// strips the token too; deactivation also bumps sessionVersion, so reactivation does not revive it.
+			// ADR-0018's revocation rule, and spec §5: the token is refused while the row is inactive (either marker set,
+			// also by hand in the database). Only the app's Deactivate, which bumps sessionVersion in the same write, keeps
+			// a token issued before refused after reactivation; a marker set by hand bumps nothing, so reactivating by hand
+			// can revive such a token.
 			if (!row || row.sessionVersion !== token.sessionVersion || !isActive(row)) {
 				const { id: _id, sessionVersion: _version, role: _role, ...rest } = token
 				return rest

@@ -11,8 +11,12 @@ vi.mock('@/db', () => ({
 		select: () => ({ from: () => ({ where }) }),
 	}),
 }))
-const { verifyPassword } = vi.hoisted(() => ({ verifyPassword: vi.fn() }))
-vi.mock('@/lib/auth/password', () => ({ verifyPassword }))
+// The fixed hash an unknown email is checked against is a stand-in here; __tests__/auth-password.test.ts pins the real one.
+const { verifyPassword, noAccountHash } = vi.hoisted(() => ({
+	verifyPassword: vi.fn(),
+	noAccountHash: 'hash:no-account',
+}))
+vi.mock('@/lib/auth/password', () => ({ verifyPassword, UNKNOWN_ACCOUNT_HASH: noAccountHash }))
 
 import { DrizzleQueryError, type SQL } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/mysql2'
@@ -81,6 +85,16 @@ describe('authorizeCredentials', () => {
 		expect(
 			await authorizeCredentials({ email: 'jane@example.com', password: 'wrong-password' }),
 		).toBeNull()
+	})
+
+	// OWASP Authentication Cheat Sheet, "Authentication Responses": no "quick exit". An unknown email runs the same
+	// bcrypt check as a wrong password, against a fixed hash, and is refused whatever that check answers.
+	it('runs the password check for an unknown email too, and refuses it', async () => {
+		rows.value = []
+		verifyPassword.mockResolvedValue(true)
+		expect(await authorizeCredentials({ email: 'nobody@example.com', password: 'x' })).toBeNull()
+		expect(verifyPassword).toHaveBeenCalledTimes(1)
+		expect(verifyPassword).toHaveBeenCalledWith('x', noAccountHash)
 	})
 
 	it('answers the account without its hash, with its role and session version', async () => {
@@ -251,6 +265,8 @@ describe('jwt callback', () => {
 	})
 
 	// ADR-0018's revocation rule: the token loses id, sessionVersion and role; the session callback then sets none.
+	// Review Focus 5: the version-moved row (markers empty) is also a reactivated account; an old token stays refused
+	// after reactivation because deactivation moved sessionVersion (spec §5).
 	it('strips id, sessionVersion and role when the version moved or the user is gone', async () => {
 		const signedIn = {
 			id: 'u1',
