@@ -16,7 +16,10 @@ import LanguageDropdown from './language-dropdown'
 import ThemeDropdown from './theme-dropdown'
 
 export interface AppHeaderProps {
-	/** Area navigation (admin). A horizontal Menu from md up, inside a Drawer below. */
+	/**
+	 * Area navigation (admin) for the Drawer below md, opened by the Menu button; from md up the shell's sidebar
+	 * shows it (components/shell/admin-shell.tsx).
+	 */
 	nav?: MenuProps['items']
 	navSelectedKey?: string
 	/** Centre content (chat: the app title); the centre region is rendered only when this is set. */
@@ -104,17 +107,6 @@ export default function AppHeader({
 						Dify App Hub
 					</Typography.Text>
 				</Link>
-				{nav && (
-					<span className={styles.desktopOnly}>
-						<Menu
-							mode="horizontal"
-							items={nav}
-							selectedKeys={selectedKeys}
-							className={styles.nav}
-							style={{ borderBottom: 0 }}
-						/>
-					</span>
-				)}
 			</Flex>
 			{title && <div className={styles.center}>{title}</div>}
 			<Flex

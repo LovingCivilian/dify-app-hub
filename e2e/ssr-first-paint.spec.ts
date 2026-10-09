@@ -181,35 +181,37 @@ test.describe('signed out', () => {
 	})
 })
 
-test('the server HTML holds both breakpoint variants of the header, so no branch is chosen before hydration', async ({
+test('the server HTML holds both breakpoint variants of the admin navigation, so no branch is chosen before hydration', async ({
 	page,
 }) => {
 	const html = await (await page.request.get('/app-management')).text()
-	// Desktop navigation (horizontal Menu) and the mobile trigger (named through system.menu) both exist;
-	// CSS media queries at antd's screen tokens decide which one shows (spec §3.3).
-	expect(html).toContain('ant-menu-horizontal')
+	// Desktop navigation (the sidebar's inline Menu) and the header's mobile trigger (named through system.menu)
+	// both exist; CSS media queries at antd's screen tokens decide which one shows (spec §3.3).
+	expect(html).toMatch(/<aside[^>]*class="[^"]*ant-layout-sider/)
+	expect(html).toContain('ant-menu-inline')
 	expect(html).toContain('aria-label="Menu"')
 })
 
-test('the media query shows one header variant and display: none keeps the other out of reach', async ({
+test('the media query shows one navigation variant and display: none keeps the other out of reach', async ({
 	page,
 	isMobile,
 }) => {
 	await page.goto('/app-management')
 	const header = page.locator('header.ant-layout-header')
 	const trigger = header.locator('button[aria-label="Menu"]')
-	const nav = header.locator('.ant-menu-horizontal')
+	const sider = page.locator('aside.ant-layout-sider')
 	// Both variants are in the DOM at the same time, whatever the viewport; the media query at antd's screenMD (768)
-	// decides which one is displayed. The menu is checked first: a header that picks its branch with a hook only
-	// has the trigger in the server HTML and swaps in the menu after hydration, so it cannot satisfy both counts.
-	await expect(nav).toHaveCount(1)
+	// decides which one is displayed. The sidebar is checked first: a shell that picks its branch with a hook only
+	// has one variant in the server HTML and swaps in the other after hydration, so it cannot satisfy both counts.
+	await expect(sider).toHaveCount(1)
 	await expect(trigger).toHaveCount(1)
 	await expect(trigger).toBeVisible({ visible: isMobile })
-	await expect(nav).toBeVisible({ visible: !isMobile })
-	// Role queries skip what display: none hides (as do screen readers), so the Menu button and the menu
-	// are each reachable in exactly one viewport class: no duplicate accessible names.
+	await expect(sider).toBeVisible({ visible: !isMobile })
+	// Role queries skip what display: none hides (as do screen readers), so the Menu button and the sidebar's
+	// menu are each reachable in exactly one viewport class: no duplicate accessible names.
 	await expect(header.getByRole('button', { name: 'Menu' })).toHaveCount(isMobile ? 1 : 0)
-	await expect(header.getByRole('menu')).toHaveCount(isMobile ? 0 : 1)
+	await expect(page.getByRole('complementary').getByRole('menu')).toHaveCount(isMobile ? 0 : 1)
+	await expect(header.getByRole('menu')).toHaveCount(0)
 })
 
 test('the app list arrives with its apps in the first HTML and no API key (spec §3.1)', async ({

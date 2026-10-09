@@ -12,6 +12,11 @@ const nextConfig: NextConfig = {
 	logging: {
 		serverFunctions: false,
 	},
+	// Development only: Next's on-screen indicator floats at the bottom-left by default and covers the sidebar's
+	// trigger bar (components/shell/app-sider.tsx) at the same corner (next.config.js `devIndicators`, `position`).
+	devIndicators: {
+		position: 'bottom-right',
+	},
 }
 
 export default nextConfig

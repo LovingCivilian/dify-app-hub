@@ -20,10 +20,6 @@
 	gap: var(--ant-margin-xs);
 	color: inherit;
 }
-.nav {
-	flex: 1;
-	min-width: 0;
-}
 
 /* Mobile first with one query at antd's screenMD (docs/frontend-conventions.md §4.3.4), so the two variants
    are exact complements at any width, fractional ones included. Below md the title text makes way for the

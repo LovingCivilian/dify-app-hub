@@ -1,6 +1,6 @@
 'use client'
 
-import { MenuFoldOutlined, MenuOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
+import { MenuOutlined } from '@ant-design/icons'
 import { Prompts } from '@ant-design/x'
 import { useLocalStorageState } from 'ahooks'
 import { Alert, App, Button, Form, Layout, Typography, theme } from 'antd'
@@ -9,7 +9,6 @@ import {
 	useCallback,
 	useEffect,
 	useEffectEvent,
-	useId,
 	useLayoutEffect,
 	useMemo,
 	useRef,
@@ -17,6 +16,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import AppSider from '@/components/shell/app-sider'
 import UserShell from '@/components/shell/user-shell'
 import type { HumanInputSubmission } from '@/lib/dify/types'
 
@@ -54,9 +54,6 @@ import SiderCollapsed from './sider-collapsed'
 import { useConversationMenu } from './use-conversation-menu'
 import WelcomePanel from './welcome-panel'
 import WidthToggle from './width-toggle'
-
-/** The one literal width in the chat (X's full-page pattern gives its sider a literal width too). */
-const SIDEBAR_WIDTH = 280
 
 /** `?isKeepAll=true`: the link's other values (`<variable>=<gzip>`) stay for the page session, whatever the URL does later. */
 const keptParamsOf = (params: URLSearchParams): Record<string, string> =>
@@ -477,24 +474,6 @@ export default function ChatView() {
 	}, [createTemp])
 	const conversationMenu = useConversationMenu({ rename, remove, getDifyId })
 
-	// The collapse toggle sits at the top of the sider (end of the app info row; under the icon when
-	// collapsed): the bottom-left corner is where Next's dev indicator floats and covers a click target. It
-	// discloses the sider, named by its id (WAI-ARIA disclosure pattern: aria-expanded, aria-controls).
-	const siderId = useId()
-	const siderToggle = useMemo(
-		() => (
-			<Button
-				type="text"
-				icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-				aria-label={collapsed ? t('chat.sidebar_open') : t('chat.sidebar_close')}
-				title={collapsed ? t('chat.sidebar_open') : t('chat.sidebar_close')}
-				aria-expanded={!collapsed}
-				aria-controls={siderId}
-				onClick={() => setCollapsed(value => !value)}
-			/>
-		),
-		[collapsed, siderId, t],
-	)
 	// A send queued for this conversation's history lives in the SDK's queue of this conversation, which only
 	// the conversation on screen sends: until its reply starts, the list keeps it (ADR-0017 note of 2026-10-05).
 	const locked = chat.queued
@@ -549,22 +528,14 @@ export default function ChatView() {
 				className={styles.layout}
 				hasSider
 			>
-				<Layout.Sider
-					id={siderId}
-					width={SIDEBAR_WIDTH}
-					theme="light"
-					className={styles.sider}
-					collapsible
+				<AppSider
 					collapsed={collapsed}
-					collapsedWidth={token.controlHeightLG * 2}
-					// Our own toggle (top of the sider) replaces antd's trigger bar.
-					trigger={null}
+					onCollapse={setCollapsed}
 				>
 					{collapsed ? (
 						<SiderCollapsed
 							onCreate={createConversation}
 							createDisabled={createDisabled}
-							toggle={siderToggle}
 							listOpen={railListOpen}
 							onListOpenChange={setRailListOpen}
 							list={<ConversationList {...sidebarProps} />}
@@ -574,10 +545,9 @@ export default function ChatView() {
 							{...sidebarProps}
 							onCreate={createConversation}
 							createDisabled={createDisabled}
-							action={siderToggle}
 						/>
 					)}
-				</Layout.Sider>
+				</AppSider>
 				<Layout.Content>
 					<div className={styles.column}>
 						{chat.historyError && (
