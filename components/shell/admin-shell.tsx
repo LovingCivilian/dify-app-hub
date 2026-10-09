@@ -1,6 +1,6 @@
 'use client'
 
-import { AppstoreOutlined, TeamOutlined } from '@ant-design/icons'
+import { ApartmentOutlined, AppstoreOutlined, TeamOutlined } from '@ant-design/icons'
 import { Layout, Menu } from 'antd'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -14,6 +14,7 @@ import styles from './shell.module.css'
 const ADMIN_NAV = [
 	{ key: '/app-management', icon: <AppstoreOutlined />, label: 'admin.menu_apps' },
 	{ key: '/user-management', icon: <TeamOutlined />, label: 'admin.menu_users' },
+	{ key: '/group-management', icon: <ApartmentOutlined />, label: 'admin.menu_groups' },
 ] as const
 
 /** Shell for the admin area: the shared header, then the sidebar with the area's navigation beside the content region. */

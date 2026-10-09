@@ -238,7 +238,8 @@
 	"admin": {
 		"menu_apps": "App management",
 		"menu_users": "User management",
-		"route_not_found": "Route not found"
+		"route_not_found": "Route not found",
+		"menu_groups": "Group management"
 	},
 	"admin_users": {
 		"subtitle": "Manage user accounts",
@@ -275,7 +276,38 @@
 		"role_self_hint": "You cannot change your own role.",
 		"role_owner_only_hint": "Only the owner can give the admin role.",
 		"password_self_hint": "Change your own password from the account menu.",
-		"invalid_input": "Check the fields and try again."
+		"invalid_input": "Check the fields and try again.",
+		"status_deactivated": "Deactivated"
+	},
+	"admin_groups": {
+		"subtitle": "Group accounts to give them apps together",
+		"add_group": "Add group",
+		"edit_group": "Edit group",
+		"column_group": "Group",
+		"column_members": "Members",
+		"column_apps": "Apps",
+		"name": "Name",
+		"name_required": "Enter a group name",
+		"name_too_long": "Name must be at most 255 characters",
+		"name_placeholder": "Enter a group name",
+		"description": "Description",
+		"description_placeholder": "What this group is for (optional)",
+		"description_too_long": "Description must be at most 1000 characters",
+		"members": "Members",
+		"members_placeholder": "Choose accounts",
+		"members_hint": "Membership matters only for accounts with the User role: the owner and admins see every app.",
+		"member_missing": "A picked account no longer exists. Reload the page and pick again.",
+		"search_placeholder": "Search groups",
+		"no_match": "No groups match your search",
+		"total": "Total groups: {{total}}",
+		"delete_confirm_title": "Delete this group?",
+		"delete_confirm_description": "Its members lose the apps granted through it. This cannot be undone.",
+		"delete_success": "Group deleted",
+		"add_success": "Group added",
+		"update_success": "Group updated",
+		"not_found": "Group not found",
+		"name_in_use": "A group with this name already exists",
+		"invalid_input": "Check the fields and try again. An account you chose may have been deleted."
 	},
 	"admin_apps": {
 		"subtitle": "Manage the Dify apps published in the hub",

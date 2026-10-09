@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-/** The three list pages share one header (cosmetic sweep 1, item 4): a level-4 title with a subtitle under it. */
+/** The list pages share one header (cosmetic sweep 1, item 4): a level-4 title with a subtitle under it. */
 const PAGES = [
 	{ path: '/apps', title: 'Apps', subtitle: 'Choose an app to start a conversation' },
 	{
@@ -9,9 +9,14 @@ const PAGES = [
 		subtitle: 'Manage the Dify apps published in the hub',
 	},
 	{ path: '/user-management', title: 'User management', subtitle: 'Manage user accounts' },
+	{
+		path: '/group-management',
+		title: 'Group management',
+		subtitle: 'Group accounts to give them apps together',
+	},
 ]
 
-test('the apps, app management and user management pages share one header: title, subtitle below it, same inset', async ({
+test('the apps, app management, user management and group management pages share one header: title, subtitle below it, same inset', async ({
 	page,
 }) => {
 	const insets: number[] = []
@@ -32,6 +37,6 @@ test('the apps, app management and user management pages share one header: title
 		expect(Math.round(subtitleBox!.x)).toBe(Math.round(headingBox!.x))
 		insets.push(Math.round(headingBox!.x - regionBox!.x))
 	}
-	// One inset from the content region's left edge for the three titles (the same page padding on every page).
+	// One inset from the content region's left edge for the titles (the same page padding on every page).
 	expect(new Set(insets).size).toBe(1)
 })

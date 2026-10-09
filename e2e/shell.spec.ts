@@ -79,6 +79,7 @@ test('on desktop the admin navigation is a sidebar that collapses to its icons a
 	await expect(page.getByRole('navigation')).toHaveCount(1)
 	await expect(navigation.getByRole('link', { name: 'App management' })).toBeVisible()
 	await expect(navigation.getByRole('link', { name: 'User management' })).toBeVisible()
+	await expect(navigation.getByRole('link', { name: 'Group management' })).toBeVisible()
 	// The current page's item is selected (Menu `selectedKeys`; antd marks it with a class, not an ARIA state).
 	await expect(item('User management')).toHaveClass(/ant-menu-item-selected/)
 	await expect(item('App management')).not.toHaveClass(/ant-menu-item-selected/)

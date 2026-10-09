@@ -238,7 +238,8 @@
 	"admin": {
 		"menu_apps": "应用管理",
 		"menu_users": "用户管理",
-		"route_not_found": "路径不存在"
+		"route_not_found": "路径不存在",
+		"menu_groups": "群组管理"
 	},
 	"admin_users": {
 		"subtitle": "管理系统用户账户",
@@ -275,7 +276,38 @@
 		"role_self_hint": "你不能修改自己的角色。",
 		"role_owner_only_hint": "只有所有者可以授予管理员角色。",
 		"password_self_hint": "请在账户菜单中修改你自己的密码。",
-		"invalid_input": "请检查填写的内容后重试。"
+		"invalid_input": "请检查填写的内容后重试。",
+		"status_deactivated": "已停用"
+	},
+	"admin_groups": {
+		"subtitle": "将账户分组，统一授予应用",
+		"add_group": "添加群组",
+		"edit_group": "编辑群组",
+		"column_group": "群组",
+		"column_members": "成员",
+		"column_apps": "应用",
+		"name": "名称",
+		"name_required": "请输入群组名称",
+		"name_too_long": "名称不能超过 255 个字符",
+		"name_placeholder": "请输入群组名称",
+		"description": "描述",
+		"description_placeholder": "群组用途（可选）",
+		"description_too_long": "描述不能超过 1000 个字符",
+		"members": "成员",
+		"members_placeholder": "选择账户",
+		"members_hint": "群组成员资格只对普通用户生效：所有者和管理员可以看到所有应用。",
+		"member_missing": "所选账户已不存在。请刷新页面后重新选择。",
+		"search_placeholder": "搜索群组",
+		"no_match": "没有符合搜索条件的群组",
+		"total": "群组总数：{{total}}",
+		"delete_confirm_title": "删除这个群组吗？",
+		"delete_confirm_description": "成员将失去通过该群组授予的应用。此操作不可恢复。",
+		"delete_success": "群组已删除",
+		"add_success": "群组已添加",
+		"update_success": "群组已更新",
+		"not_found": "群组不存在",
+		"name_in_use": "已存在同名群组",
+		"invalid_input": "请检查填写的内容后重试。你选择的账户可能已被删除。"
 	},
 	"admin_apps": {
 		"subtitle": "管理在应用中心发布的 Dify 应用",
