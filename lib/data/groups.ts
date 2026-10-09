@@ -18,6 +18,7 @@ import { isDuplicateEntry, isMissingReference } from './db-errors'
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
 type GroupRow = typeof userGroups.$inferSelect
+type GroupDtoRow = Pick<GroupRow, 'id' | 'name' | 'description' | 'createdAt' | 'updatedAt'>
 
 export interface GroupMemberDto {
 	userId: string
@@ -48,7 +49,7 @@ export interface GroupInput {
 }
 
 export const toGroupDto = (
-	row: Pick<GroupRow, 'id' | 'name' | 'description' | 'createdAt' | 'updatedAt'>,
+	row: GroupDtoRow,
 	members: GroupMemberDto[],
 	appCount: number,
 ): GroupDto => ({
@@ -60,6 +61,26 @@ export const toGroupDto = (
 	createdAt: row.createdAt.toISOString(),
 	updatedAt: row.updatedAt.toISOString(),
 })
+
+/** The groups with their members and app counts, each list grouped once (MDN `Map.groupBy`); the groups' order stays. */
+export const toGroupDtos = (
+	groups: readonly GroupDtoRow[],
+	members: readonly (GroupMemberDto & { groupId: string })[],
+	grants: readonly { groupId: string; apps: number }[],
+): GroupDto[] => {
+	const membersOf = Map.groupBy(members, member => member.groupId)
+	const appCounts = new Map(grants.map(grant => [grant.groupId, grant.apps]))
+	return groups.map(group =>
+		toGroupDto(
+			group,
+			(membersOf.get(group.id) ?? []).map(member => ({
+				userId: member.userId,
+				source: member.source,
+			})),
+			appCounts.get(group.id) ?? 0,
+		),
+	)
+}
 
 /** What a save changes in the manual memberships (spec §2 #8): the ids to add and to remove, each once. */
 export const manualMemberChanges = (
@@ -82,6 +103,35 @@ export const lockGroup = (tx: Pick<Tx, 'select'>, id: string) =>
 		.where(eq(userGroups.id, id))
 		.limit(1)
 		.for('update')
+
+/**
+ * The group's manual members, the rows an admin's save diffs and changes (spec §2 #8). A locking read (MySQL 8.4
+ * "Locking Reads": before writes to related data in the same transaction, "the regular SELECT statement does not give
+ * enough protection"): it reads the latest committed rows whatever the transaction read before, and holds them until
+ * the commit.
+ */
+export const manualMembersOf = (tx: Pick<Tx, 'select'>, groupId: string) =>
+	tx
+		.select({ userId: userGroupMembers.userId })
+		.from(userGroupMembers)
+		.where(and(eq(userGroupMembers.groupId, groupId), eq(userGroupMembers.source, 'manual')))
+		.for('update')
+
+/** Deletes the named manual memberships of the group; its directory rows stay (spec §2 #8). */
+export const removeManualMembers = (
+	tx: Pick<Tx, 'delete'>,
+	groupId: string,
+	userIds: readonly string[],
+) =>
+	tx
+		.delete(userGroupMembers)
+		.where(
+			and(
+				eq(userGroupMembers.groupId, groupId),
+				eq(userGroupMembers.source, 'manual'),
+				inArray(userGroupMembers.userId, userIds),
+			),
+		)
 
 const manualRows = (groupId: string, userIds: readonly string[]) =>
 	userIds.map(userId => ({ groupId, userId, source: 'manual' as const }))
@@ -119,15 +169,7 @@ export async function listGroups(actor: SessionUser): Promise<GroupDto[]> {
 			.from(appGroupGrants)
 			.groupBy(appGroupGrants.groupId),
 	])
-	return groups.map(group =>
-		toGroupDto(
-			group,
-			members
-				.filter(member => member.groupId === group.id)
-				.map(member => ({ userId: member.userId, source: member.source })),
-			grants.find(grant => grant.groupId === group.id)?.apps ?? 0,
-		),
-	)
+	return toGroupDtos(groups, members, grants)
 }
 
 export async function listGroupOptions(actor: SessionUser): Promise<GroupOption[]> {
@@ -175,24 +217,12 @@ export async function updateGroup(
 				.update(userGroups)
 				.set({ name: input.name, description: input.description || null })
 				.where(eq(userGroups.id, id))
-			const current = await tx
-				.select({ userId: userGroupMembers.userId })
-				.from(userGroupMembers)
-				.where(and(eq(userGroupMembers.groupId, id), eq(userGroupMembers.source, 'manual')))
+			const current = await manualMembersOf(tx, id)
 			const { add, remove } = manualMemberChanges(
 				current.map(row => row.userId),
 				input.memberIds,
 			)
-			if (remove.length)
-				await tx
-					.delete(userGroupMembers)
-					.where(
-						and(
-							eq(userGroupMembers.groupId, id),
-							eq(userGroupMembers.source, 'manual'),
-							inArray(userGroupMembers.userId, remove),
-						),
-					)
+			if (remove.length) await removeManualMembers(tx, id, remove)
 			if (add.length) await tx.insert(userGroupMembers).values(manualRows(id, add))
 			return ok(undefined)
 		})

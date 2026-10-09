@@ -1,26 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getServerSession, refresh, writes, locked } = vi.hoisted(() => ({
+const { getServerSession, refresh, writes, locked, manual } = vi.hoisted(() => ({
 	getServerSession: vi.fn(),
 	refresh: vi.fn(),
 	writes: { insert: vi.fn(), update: vi.fn(), delete: vi.fn() },
 	/** The group the locking read finds (lockGroup). */
 	locked: { value: undefined as { id: string } | undefined },
+	/** The group's manual members the locking read finds (manualMembersOf). */
+	manual: { value: [] as { userId: string }[] },
 }))
 vi.mock('next-auth/next', () => ({ getServerSession }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
 vi.mock('next/cache', () => ({ refresh }))
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 vi.mock('@/db', () => {
-	// select().from().where() is awaited for the current manual members ([]), or ends in .limit().for('update').
+	// Both reads are locking reads: lockGroup ends in .limit(1).for('update'), manualMembersOf in .where().for('update').
+	const forUpdate = (rows: () => unknown[]) => (strength: string) =>
+		strength === 'update' ? Promise.resolve(rows()) : Promise.reject(new Error(`lock ${strength}`))
 	const query = {
 		from: () => query,
-		where: () => Object.assign(Promise.resolve([]), query),
-		limit: () => ({
-			for: (strength: string) =>
-				strength === 'update'
-					? Promise.resolve(locked.value ? [locked.value] : [])
-					: Promise.reject(new Error(`lock ${strength}`)),
+		where: () => ({
+			limit: () => ({ for: forUpdate(() => (locked.value ? [locked.value] : [])) }),
+			for: forUpdate(() => manual.value),
 		}),
 	}
 	const db = {
@@ -59,6 +60,7 @@ beforeEach(() => {
 		fn.mockResolvedValue([{ affectedRows: 1 }])
 	}
 	locked.value = { id: groupId }
+	manual.value = []
 	for (const fn of dal) fn.mockClear()
 })
 
@@ -78,10 +80,15 @@ describe('a user-role session', () => {
 })
 
 describe('no session', () => {
-	it('answers unauthorized', async () => {
+	it.each([
+		['createGroupAction', () => createGroupAction(input)],
+		['updateGroupAction', () => updateGroupAction(groupId, input)],
+		['deleteGroupAction', () => deleteGroupAction(groupId)],
+	] as const)('%s answers unauthorized and writes nothing', async (_name, call) => {
 		getServerSession.mockResolvedValue(null)
-		expect(await createGroupAction(input)).toEqual({ ok: false, code: 'unauthorized' })
-		expect(createGroup).not.toHaveBeenCalled()
+		expect(await call()).toEqual({ ok: false, code: 'unauthorized' })
+		expect(anyWrite()).toBe(false)
+		for (const fn of dal) expect(fn).not.toHaveBeenCalled()
 	})
 })
 
@@ -141,7 +148,41 @@ describe('the owner', () => {
 		expect(await updateGroupAction(groupId, input)).toEqual({ ok: true, data: undefined })
 		expect(writes.update).toHaveBeenCalledTimes(1)
 		expect(writes.insert).toHaveBeenCalledTimes(1)
+		expect(writes.insert.mock.calls[0]![0]).toEqual([{ groupId, userId: 'u2', source: 'manual' }])
+		expect(writes.delete).not.toHaveBeenCalled()
 		expect(refresh).toHaveBeenCalledTimes(1)
+	})
+
+	// Spec §2 #8: the save diffs against the manual members only (the SQL is pinned in data-groups.test.ts).
+	it('replaces the manual members: deletes the dropped one and inserts the new one as manual', async () => {
+		manual.value = [{ userId: 'u2' }, { userId: 'u3' }]
+		const next = { ...input, memberIds: ['u2', 'u4'] }
+		expect(await updateGroupAction(groupId, next)).toEqual({ ok: true, data: undefined })
+		expect(writes.delete).toHaveBeenCalledTimes(1)
+		expect(writes.insert).toHaveBeenCalledTimes(1)
+		expect(writes.insert.mock.calls[0]![0]).toEqual([{ groupId, userId: 'u4', source: 'manual' }])
+	})
+
+	// Decision c and deviation 2, on a rename.
+	it('answers name_in_use when a rename hits the unique index', async () => {
+		writes.update.mockRejectedValueOnce(
+			new Error('Failed query', { cause: mysqlError('ER_DUP_ENTRY', 1062) }),
+		)
+		expect(await updateGroupAction(groupId, input)).toEqual({ ok: false, code: 'name_in_use' })
+		expect(refresh).not.toHaveBeenCalled()
+	})
+
+	// Review Focus 3: a member picked in the edit drawer deleted before the save.
+	it('answers invalid_input on the members when an account picked for the update is gone', async () => {
+		writes.insert.mockRejectedValueOnce(
+			new Error('Failed query', { cause: mysqlError('ER_NO_REFERENCED_ROW_2', 1452) }),
+		)
+		expect(await updateGroupAction(groupId, input)).toEqual({
+			ok: false,
+			code: 'invalid_input',
+			fieldErrors: { memberIds: ['unknown'] },
+		})
+		expect(refresh).not.toHaveBeenCalled()
 	})
 
 	it('deletes a group, and answers not_found when nothing was deleted', async () => {

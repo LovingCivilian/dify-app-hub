@@ -15,7 +15,10 @@ import {
 	listGroups,
 	lockGroup,
 	manualMemberChanges,
+	manualMembersOf,
+	removeManualMembers,
 	toGroupDto,
+	toGroupDtos,
 	updateGroup,
 } from '@/lib/data/groups'
 
@@ -48,6 +51,53 @@ describe('toGroupDto', () => {
 			createdAt: '2026-10-09T09:05:00.000Z',
 			updatedAt: '2026-10-09T09:05:00.000Z',
 		})
+	})
+})
+
+describe('toGroupDtos', () => {
+	it('gives each group its own members and app count, and a group without either none', () => {
+		const at = new Date('2026-10-09T09:05:00.000Z')
+		const row = (id: string) => ({ id, name: id, description: null, createdAt: at, updatedAt: at })
+		const dtos = toGroupDtos(
+			[row('g1'), row('g2'), row('g3')],
+			[
+				{ groupId: 'g1', userId: 'u1', source: 'manual' },
+				{ groupId: 'g2', userId: 'u2', source: 'directory' },
+				{ groupId: 'g1', userId: 'u2', source: 'manual' },
+			],
+			[{ groupId: 'g2', apps: 3 }],
+		)
+		expect(dtos.map(({ id, members, appCount }) => ({ id, members, appCount }))).toEqual([
+			{
+				id: 'g1',
+				members: [
+					{ userId: 'u1', source: 'manual' },
+					{ userId: 'u2', source: 'manual' },
+				],
+				appCount: 0,
+			},
+			{ id: 'g2', members: [{ userId: 'u2', source: 'directory' }], appCount: 3 },
+			{ id: 'g3', members: [], appCount: 0 },
+		])
+	})
+})
+
+// Spec §2 #8: an admin's save reads and deletes `manual` rows only; the directory sync (B3b) owns the others.
+describe('the manual-member queries (spec §2 #8)', () => {
+	it("reads the group's manual members with a locking read", () => {
+		const query = manualMembersOf(drizzle.mock(), 'g1').toSQL()
+		expect(query.sql).toMatch(
+			/^select `user_id` from `user_group_members` where .*`user_group_members`\.`group_id` = \?.* and .*`user_group_members`\.`source` = \?.* for update$/,
+		)
+		expect(query.params).toEqual(['g1', 'manual'])
+	})
+
+	it('deletes only the named manual memberships of the group', () => {
+		const query = removeManualMembers(drizzle.mock(), 'g1', ['u1', 'u2']).toSQL()
+		expect(query.sql).toMatch(
+			/^delete from `user_group_members` where .*`user_group_members`\.`group_id` = \?.* and .*`user_group_members`\.`source` = \?.* and .*`user_group_members`\.`user_id` in \(\?, \?\)/,
+		)
+		expect(query.params).toEqual(['g1', 'manual', 'u1', 'u2'])
 	})
 })
 
