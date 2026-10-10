@@ -277,7 +277,19 @@
 		"role_owner_only_hint": "Only the owner can give the admin role.",
 		"password_self_hint": "Change your own password from the account menu.",
 		"invalid_input": "Check the fields and try again.",
-		"status_deactivated": "Deactivated"
+		"status_deactivated": "Deactivated",
+		"column_groups": "Groups",
+		"deactivate": "Deactivate",
+		"reactivate": "Reactivate",
+		"deactivate_confirm_title": "Deactivate this account?",
+		"deactivate_confirm_description": "They are signed out at once and cannot sign in until an admin reactivates the account. Their groups, apps and history are kept.",
+		"deactivate_success": "Account deactivated",
+		"reactivate_confirm_title": "Reactivate this account?",
+		"reactivate_confirm_description": "They can sign in again. Sessions from before the deactivation stay signed out.",
+		"reactivate_success": "Account reactivated",
+		"cannot_deactivate_self": "You cannot deactivate your own account",
+		"deactivated_by": "Deactivated by {{name}}",
+		"deactivated_by_unknown": "Deactivated by an account that no longer exists"
 	},
 	"admin_groups": {
 		"subtitle": "Group accounts to give them apps together",

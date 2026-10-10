@@ -1,6 +1,13 @@
 'use client'
 
-import { DeleteOutlined, EditOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons'
+import {
+	CheckCircleOutlined,
+	DeleteOutlined,
+	EditOutlined,
+	PlusOutlined,
+	StopOutlined,
+	UserOutlined,
+} from '@ant-design/icons'
 import {
 	App,
 	Avatar,
@@ -14,13 +21,18 @@ import {
 	Table,
 	type TableProps,
 	Tag,
+	Tooltip,
 	Typography,
 	theme,
 } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { deleteUserAction } from '@/app/(admin)/user-management/actions'
+import {
+	deactivateUserAction,
+	deleteUserAction,
+	reactivateUserAction,
+} from '@/app/(admin)/user-management/actions'
 import { tablePagination } from '@/components/admin/table-pagination'
 import PageHeader from '@/components/shell/page-header'
 import ClientDateTime from '@/components/admin/client-date-time'
@@ -35,7 +47,7 @@ import styles from './user-management.module.css'
 import { userErrorKey } from './user-errors'
 import UserFormDrawer from './user-form-drawer'
 
-/** The user table (charter §4.2): the role column, Server Actions for every write; the "Active" tag is kept (owner decision); dates format in the browser. */
+/** The user table (charter §4.2): the role column, Server Actions for every write; the status column shows Active or Deactivated (ADR-0027) instead of the fixed tag; dates format in the browser. */
 export default function UserManagement({
 	users,
 	currentUser,
@@ -59,12 +71,28 @@ export default function UserManagement({
 	}
 	// The id too (ADR-0026): an id copied from Dify's logs or Langfuse finds its account.
 	const shown = users.filter(user => matchesQuery([user.name, user.email, user.id], query))
+	// Who deactivated an account, by name or email; null when that account no longer exists.
+	const nameOf = (id: string | null) => {
+		const found = users.find(user => user.id === id)
+		return found ? found.name || found.email : null
+	}
 
 	const { run } = useActionTransition()
 	const remove = (user: UserDto) =>
 		run(async () => {
 			const result = await deleteUserAction(user.id)
 			if (result.ok) message.success(t('admin_users.delete_success'))
+			else message.error(t(userErrorKey(result.code)))
+		})
+	const setActive = (user: UserDto, active: boolean) =>
+		run(async () => {
+			const result = active
+				? await reactivateUserAction(user.id)
+				: await deactivateUserAction(user.id)
+			if (result.ok)
+				message.success(
+					t(active ? 'admin_users.reactivate_success' : 'admin_users.deactivate_success'),
+				)
 			else message.error(t(userErrorKey(result.code)))
 		})
 
@@ -107,9 +135,45 @@ export default function UserManagement({
 			),
 		},
 		{
+			title: t('admin_users.column_groups'),
+			key: 'groups',
+			render: (_, user) =>
+				user.groups.length ? (
+					<Flex
+						wrap
+						gap="small"
+					>
+						{user.groups.map(group => (
+							<Tag key={group.id}>{group.name}</Tag>
+						))}
+					</Flex>
+				) : null,
+		},
+		{
 			title: t('common.status'),
 			key: 'status',
-			render: () => <Tag color="green">{t('admin_users.status_active')}</Tag>,
+			render: (_, user) => {
+				if (user.active) return <Tag color="green">{t('admin_users.status_active')}</Tag>
+				const deactivation = user.adminDeactivation
+				if (!deactivation) return <Tag color="red">{t('admin_users.status_deactivated')}</Tag>
+				const by = nameOf(deactivation.by)
+				return (
+					<Tooltip
+						title={
+							<>
+								<div>
+									{by
+										? t('admin_users.deactivated_by', { name: by })
+										: t('admin_users.deactivated_by_unknown')}
+								</div>
+								<ClientDateTime value={deactivation.at} />
+							</>
+						}
+					>
+						<Tag color="red">{t('admin_users.status_deactivated')}</Tag>
+					</Tooltip>
+				)
+			},
 		},
 		{
 			title: t('common.created_at'),
@@ -134,6 +198,40 @@ export default function UserManagement({
 						>
 							{t('common.edit')}
 						</Button>
+					)}
+					{canManage(currentUser.role, user.role) && user.active && (
+						<Popconfirm
+							title={t('admin_users.deactivate_confirm_title')}
+							description={t('admin_users.deactivate_confirm_description')}
+							okText={t('admin_users.deactivate')}
+							okButtonProps={{ danger: true }}
+							cancelText={t('common.cancel')}
+							onConfirm={() => setActive(user, false)}
+						>
+							<Button
+								type="text"
+								danger
+								icon={<StopOutlined />}
+							>
+								{t('admin_users.deactivate')}
+							</Button>
+						</Popconfirm>
+					)}
+					{canManage(currentUser.role, user.role) && user.adminDeactivation && (
+						<Popconfirm
+							title={t('admin_users.reactivate_confirm_title')}
+							description={t('admin_users.reactivate_confirm_description')}
+							okText={t('admin_users.reactivate')}
+							cancelText={t('common.cancel')}
+							onConfirm={() => setActive(user, true)}
+						>
+							<Button
+								type="text"
+								icon={<CheckCircleOutlined />}
+							>
+								{t('admin_users.reactivate')}
+							</Button>
+						</Popconfirm>
 					)}
 					{canManage(currentUser.role, user.role) && (
 						<Popconfirm

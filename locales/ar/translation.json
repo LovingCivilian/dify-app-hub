@@ -277,7 +277,19 @@
 		"role_owner_only_hint": "لا يمنح دورَ المسؤول إلا المالك.",
 		"password_self_hint": "غيّر كلمة المرور الخاصة بك من قائمة الحساب.",
 		"invalid_input": "راجع الحقول وأعد المحاولة.",
-		"status_deactivated": "معطَّل"
+		"status_deactivated": "معطَّل",
+		"column_groups": "المجموعات",
+		"deactivate": "تعطيل",
+		"reactivate": "إعادة التفعيل",
+		"deactivate_confirm_title": "تعطيل هذا الحساب؟",
+		"deactivate_confirm_description": "سيُسجَّل خروجه فورًا ولن يتمكن من تسجيل الدخول حتى يعيد مسؤول تفعيل الحساب. تبقى مجموعاته وتطبيقاته وسجله محفوظة.",
+		"deactivate_success": "تم تعطيل الحساب",
+		"reactivate_confirm_title": "إعادة تفعيل هذا الحساب؟",
+		"reactivate_confirm_description": "سيتمكن من تسجيل الدخول مجددًا. تبقى الجلسات السابقة للتعطيل منتهية.",
+		"reactivate_success": "تمت إعادة تفعيل الحساب",
+		"cannot_deactivate_self": "لا يمكنك تعطيل حسابك",
+		"deactivated_by": "عطّله {{name}}",
+		"deactivated_by_unknown": "عطّله حساب لم يعد موجودًا"
 	},
 	"admin_groups": {
 		"subtitle": "اجمع الحسابات في مجموعات لمنحها التطبيقات معًا",

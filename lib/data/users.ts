@@ -3,7 +3,7 @@ import 'server-only'
 import { asc, desc, eq, sql } from 'drizzle-orm'
 
 import { getDb, type Db } from '@/db'
-import { passwordResetTokens, users } from '@/db/schema'
+import { passwordResetTokens, userGroupMembers, userGroups, users } from '@/db/schema'
 import { fail, ok, type ActionErrorCode, type ActionResult } from '@/lib/action-result'
 import { isActive } from '@/lib/auth/account-status'
 import { hashPassword, verifyPassword } from '@/lib/auth/password'
@@ -29,6 +29,12 @@ export interface UserDto {
 	name: string | null
 	email: string
 	role: Role
+	/** Both deactivation markers empty (ADR-0027). */
+	active: boolean
+	/** Set while an admin has deactivated the account: when, and that admin's id (null when the record names nobody). */
+	adminDeactivation: { at: string; by: string | null } | null
+	/** The groups it belongs to, by any source, each once. */
+	groups: { id: string; name: string }[]
 	createdAt: string
 	updatedAt: string
 }
@@ -47,17 +53,37 @@ const dtoColumns = {
 	name: users.name,
 	email: users.email,
 	role: users.role,
+	adminDeactivatedAt: users.adminDeactivatedAt,
+	adminDeactivatedBy: users.adminDeactivatedBy,
+	directoryDeactivatedAt: users.directoryDeactivatedAt,
 	createdAt: users.createdAt,
 	updatedAt: users.updatedAt,
 }
 
 export const toUserDto = (
-	row: Pick<UserRow, 'id' | 'name' | 'email' | 'role' | 'createdAt' | 'updatedAt'>,
+	row: Pick<
+		UserRow,
+		| 'id'
+		| 'name'
+		| 'email'
+		| 'role'
+		| 'adminDeactivatedAt'
+		| 'adminDeactivatedBy'
+		| 'directoryDeactivatedAt'
+		| 'createdAt'
+		| 'updatedAt'
+	>,
+	groups: { id: string; name: string }[] = [],
 ): UserDto => ({
 	id: row.id,
 	name: row.name,
 	email: row.email,
 	role: row.role,
+	active: isActive(row),
+	adminDeactivation: row.adminDeactivatedAt
+		? { at: row.adminDeactivatedAt.toISOString(), by: row.adminDeactivatedBy }
+		: null,
+	groups,
 	createdAt: row.createdAt.toISOString(),
 	updatedAt: row.updatedAt.toISOString(),
 })
@@ -92,17 +118,27 @@ export const updateRefusal = ({
 	return null
 }
 
-/** Nobody deletes themselves (charter §4.2), and only an account whose role the actor's rank manages: never the owner. */
-export const deleteRefusal = ({
-	actor,
-	target,
-}: {
+interface ActorAndTarget {
 	actor: { id: string; role: Role }
 	target: { id: string; role: Role }
-}): ActionErrorCode | null => {
-	if (target.id === actor.id) return 'cannot_delete_self'
+}
+
+/** The rule delete and deactivation share: the self code on your own row, else the rank (ADR-0024). */
+const selfOrRankRefusal = (
+	selfCode: 'cannot_delete_self' | 'cannot_deactivate_self',
+	{ actor, target }: ActorAndTarget,
+): ActionErrorCode | null => {
+	if (target.id === actor.id) return selfCode
 	return canManage(actor.role, target.role) ? null : 'forbidden'
 }
+
+/** Nobody deletes themselves (charter §4.2), and only an account whose role the actor's rank manages: never the owner. */
+export const deleteRefusal = (pair: ActorAndTarget): ActionErrorCode | null =>
+	selfOrRankRefusal('cannot_delete_self', pair)
+
+/** Who may deactivate or reactivate whom (ADR-0027 with ADR-0024's rank): nobody themselves, and only an account the actor's rank manages, never the owner. */
+export const deactivateRefusal = (pair: ActorAndTarget): ActionErrorCode | null =>
+	selfOrRankRefusal('cannot_deactivate_self', pair)
 
 /**
  * A locking read of one account by its primary key (decision d; MySQL "Locking Reads": SELECT … FOR UPDATE). A
@@ -112,7 +148,7 @@ export const deleteRefusal = ({
  */
 export const lockTarget = (tx: Pick<Tx, 'select'>, id: string) =>
 	tx
-		.select({ id: users.id, role: users.role })
+		.select({ id: users.id, role: users.role, adminDeactivatedAt: users.adminDeactivatedAt })
 		.from(users)
 		.where(eq(users.id, id))
 		.limit(1)
@@ -123,8 +159,24 @@ const emailTakenBy = (tx: Pick<Tx, 'select'>, email: string) =>
 
 export async function listUsers(actor: SessionUser): Promise<UserDto[]> {
 	assertAdmin(actor)
-	const rows = await getDb().select(dtoColumns).from(users).orderBy(desc(users.createdAt))
-	return rows.map(toUserDto)
+	const db = getDb()
+	const [rows, memberships] = await Promise.all([
+		db.select(dtoColumns).from(users).orderBy(desc(users.createdAt)),
+		// Distinct: a person in a group by hand and through the directory is listed once.
+		db
+			.selectDistinct({ userId: userGroupMembers.userId, id: userGroups.id, name: userGroups.name })
+			.from(userGroupMembers)
+			.innerJoin(userGroups, eq(userGroups.id, userGroupMembers.groupId))
+			.orderBy(asc(userGroups.name)),
+	])
+	return rows.map(row =>
+		toUserDto(
+			row,
+			memberships
+				.filter(membership => membership.userId === row.id)
+				.map(membership => ({ id: membership.id, name: membership.name })),
+		),
+	)
 }
 
 /** An account as the admin pickers show it (spec §4.3, §4.4): no role, no dates, whether it is active. */
@@ -226,6 +278,41 @@ export async function deleteUser(actor: SessionUser, id: string): Promise<Action
 		if (refusal) return fail(refusal)
 		await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, id))
 		await tx.delete(users).where(eq(users.id, id))
+		return ok(undefined)
+	})
+}
+
+/**
+ * Deactivates or reactivates an account by the admin marker only (B3 spec §5). Deactivation stamps when and by whom
+ * and bumps sessionVersion, so every token in use loses its id at its next request (ADR-0018's rule); reactivation
+ * clears the marker and leaves those tokens revoked. The directory marker (B3b) is never touched here. The target is
+ * read with a locking read and the rank checked against that row (ADR-0024 decision d). Idempotent (deviation 6).
+ */
+export async function setUserActive(
+	actor: SessionUser,
+	id: string,
+	active: boolean,
+): Promise<ActionResult> {
+	assertAdmin(actor)
+	return getDb().transaction(async tx => {
+		const [target] = await lockTarget(tx, id)
+		if (!target) return fail('not_found')
+		const refusal = deactivateRefusal({ actor, target })
+		if (refusal) return fail(refusal)
+		const deactivatedByAdmin = target.adminDeactivatedAt !== null
+		if (active !== deactivatedByAdmin) return ok(undefined)
+		await tx
+			.update(users)
+			.set(
+				active
+					? { adminDeactivatedAt: null, adminDeactivatedBy: null }
+					: {
+							adminDeactivatedAt: new Date(),
+							adminDeactivatedBy: actor.id,
+							sessionVersion: sql`${users.sessionVersion} + 1`,
+						},
+			)
+			.where(eq(users.id, id))
 		return ok(undefined)
 	})
 }

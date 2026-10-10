@@ -13,6 +13,8 @@ export const userErrorKey = (code: ActionErrorCode) => {
 			return 'admin_users.email_in_use' as const
 		case 'cannot_delete_self':
 			return 'admin_users.cannot_delete_self' as const
+		case 'cannot_deactivate_self':
+			return 'admin_users.cannot_deactivate_self' as const
 		case 'invalid_input':
 			return 'admin_users.invalid_input' as const
 		default:

@@ -6,6 +6,7 @@ export type ActionErrorCode =
 	| 'email_in_use'
 	| 'name_in_use'
 	| 'cannot_delete_self'
+	| 'cannot_deactivate_self'
 	| 'not_found'
 	| 'dify_unreachable'
 	| 'operation_failed'

@@ -5,7 +5,7 @@ import { refresh } from 'next/cache'
 import { invalidInput, toActionFailure } from '@/lib/action-failure'
 import { fail, type ActionResult } from '@/lib/action-result'
 import { requireAdmin } from '@/lib/auth/session'
-import { createUser, deleteUser, updateUser } from '@/lib/data/users'
+import { createUser, deleteUser, setUserActive, updateUser } from '@/lib/data/users'
 
 import { createUserInputSchema, userIdSchema, userInputSchema } from './schemas'
 
@@ -54,5 +54,29 @@ export async function deleteUserAction(id: string): Promise<ActionResult> {
 		return result
 	} catch (error) {
 		return toActionFailure(error, 'deleteUserAction')
+	}
+}
+
+export async function deactivateUserAction(id: string): Promise<ActionResult> {
+	try {
+		const actor = await requireAdmin()
+		if (!userIdSchema.safeParse(id).success) return fail('not_found')
+		const result = await setUserActive(actor, id, false)
+		if (result.ok) refresh()
+		return result
+	} catch (error) {
+		return toActionFailure(error, 'deactivateUserAction')
+	}
+}
+
+export async function reactivateUserAction(id: string): Promise<ActionResult> {
+	try {
+		const actor = await requireAdmin()
+		if (!userIdSchema.safeParse(id).success) return fail('not_found')
+		const result = await setUserActive(actor, id, true)
+		if (result.ok) refresh()
+		return result
+	} catch (error) {
+		return toActionFailure(error, 'reactivateUserAction')
 	}
 }

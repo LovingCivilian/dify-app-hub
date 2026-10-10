@@ -277,7 +277,19 @@
 		"role_owner_only_hint": "只有所有者可以授予管理员角色。",
 		"password_self_hint": "请在账户菜单中修改你自己的密码。",
 		"invalid_input": "请检查填写的内容后重试。",
-		"status_deactivated": "已停用"
+		"status_deactivated": "已停用",
+		"column_groups": "群组",
+		"deactivate": "停用",
+		"reactivate": "重新启用",
+		"deactivate_confirm_title": "停用这个账户吗？",
+		"deactivate_confirm_description": "该账户会立即退出登录，在管理员重新启用之前无法登录。其群组、应用和历史记录都会保留。",
+		"deactivate_success": "账户已停用",
+		"reactivate_confirm_title": "重新启用这个账户吗？",
+		"reactivate_confirm_description": "该账户可以再次登录。停用前的会话仍保持退出状态。",
+		"reactivate_success": "账户已重新启用",
+		"cannot_deactivate_self": "你不能停用自己的账户",
+		"deactivated_by": "由 {{name}} 停用",
+		"deactivated_by_unknown": "由一个已不存在的账户停用"
 	},
 	"admin_groups": {
 		"subtitle": "将账户分组，统一授予应用",
