@@ -10,23 +10,148 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-09-backend-b3-groups-access-ldap-design.md`. Read §2 (the owner's 18 decisions, not re-opened), §3.2 (the B3b data model), §6 (directory accounts), §7 (settings, security, messages), §8 (B3b tests), §9 (the B3b row and its "done when"), §10 (records), §12–§14 (follow-ups, risks, not confirmed) first; every task cites its sections. The research behind it is `docs/superpowers/research/2026-10-09-backend-b3/` (start at its README); this plan's own research, checked against the current docs and sources on 2026-10-10, is in its `b3b-plan/` folder: `library-apis.md` (ldapts, croner, Vitest, Drizzle and MySQL, Next instrumentation, next-auth, zod), `ldap-test-servers.md` (the two test servers, their certificates, seeds and health checks) and `ad-and-reference-projects.md` (Active Directory's signing and channel binding, Docker on WSL, and the reference projects behind the decisions below). B3a's records are the patterns: ADR-0027 (the data model as built, `visibleTo`, the two markers, the B3b notes), the B3a plan `docs/superpowers/plans/2026-10-09-backend-b3a-groups-access.md` (task and test style) and its run records `docs/superpowers/research/2026-10-09-backend-b3/b3a-execution/`.
 
+**Deviations from the spec text, all deliberate (Task 15 records them in ADR-0029):**
+
+1. **The record is ADR-0029**, not ADR-0028 (spec §10): the sidebar took 0028 (ADR-0027's B3b notes).
+2. **The run table's trigger column is `run_trigger`**, since `TRIGGER` is reserved in MySQL 8.4 and spec §3 asks that names avoid reserved words; the table also counts `group_errors` (spec §6.4 step 4 "count the error"). Task 1.
+3. **A key is binary when the id attribute is `objectGUID`** (decision m), where spec §6.3 step 6 reads binary-ness from the value's length; the sync then knows how to rebuild a key's bytes for a lookup (spec §6.4 step 4). The results are the same for `objectGUID` and `entryUUID`. Task 5.
+4. **`servername` is set only for a host name** (decision r), not for an IP address (spec §6.2 lists it among the TLS options): Node refuses an IP address there ("must be a host name, and not an IP address"; DEP0123) and checks the certificate against the host either way. Task 6.
+5. **The `empty` safety stop is proven by `pnpm test:ldap` and the unit tests, not by Playwright** (spec §8 lists it under Playwright): the e2e app's settings are fixed for a run (ADR-0010: no test switches in product code), so no spec can point it at an empty base. Tasks 10 and 14.
+6. **A directory that refuses the connection answers `DirectoryUnavailable`** (decision u): a refused service bind or StartTLS, and `strongerAuthRequired` (8) or `confidentialityRequired` (13) on the person's bind, besides spec §7.3's connection, timeout and TLS failures; a domain controller that enforces LDAP signing would otherwise tell every person to check their password. Tasks 6 and 7.
+7. **No run starts while another is going, whatever its trigger** (decision ag; spec §6.4 names the check for manual runs). Task 10.
+8. **The directory tab's failure text names the username** (`auth.directory_login_failed`, the spec's "Check your username and password"); the local tab keeps its "Check your email and password" (`auth.login_failed`), where spec §7.3 names one key for both (decision z). Task 8.
+
+Every other choice the spec leaves open is a decision, lettered a–aq in the tasks that make them, each with its documented source and, where the docs are silent, two or three reference projects (rule R0).
+
 ## Global Constraints
 
-(DRAFT: being written)
+- **Documented approaches only (ADR-0002, rule R0 of the run).** Name the source of every non-obvious API decision in the task report, and take a documented route whenever a reviewer names one. Sources:
+  - Next's bundled docs `node_modules/next/dist/docs/01-app/`: `02-guides/instrumentation.md`, `03-api-reference/03-file-conventions/instrumentation.md`, `02-guides/self-hosting.md`, `02-guides/server-actions.md`, `02-guides/data-security.md`, `02-guides/authentication.md`, `03-api-reference/04-functions/refresh.md`;
+  - next-auth v4: Context7 `/websites/next-auth_js` (Credentials provider, "Multiple providers", callbacks) and the installed `node_modules/next-auth` (`core/routes/callback.js`, `core/lib/providers.js`, `react/index.js`);
+  - ldapts 9.2.0: its README and `dist/index.d.mts` (Context7 `/ldapts/ldapts`; the research pins `ldapts/ldapts@b38cfc3`);
+  - croner 10.0.1: its README and `dist/croner.d.ts` (Context7 `/hexagon/croner`; `hexagon/croner@adc86215`);
+  - Drizzle: Context7 `/drizzle-team/drizzle-orm-docs` and the installed `node_modules/drizzle-orm/mysql-core` (`check`, `mysqlEnum`, `uniqueIndex`, `getTableConfig`, `.for('update')`, `transaction`, `drizzle.mock()`);
+  - zod 4 and Vitest 4: Context7 (`/colinhacks/zod/v4.6.5`, `/vitest-dev/vitest/v4.1.6`: "Test Projects", `globalSetup`, the CLI's `--project`);
+  - antd: the antd CLI (`npx -y @ant-design/cli info|demo|doc Tabs|Select|Descriptions|Card|Tag|Form --version 6.6.5`, `.claude/skills/antd`);
+  - the LDAP standards: RFC 4511 (protocol), RFC 4512 §1.4 and §2.5 (attribute names), RFC 4513 §5.1.2–§5.1.3 and §6.3.1 (empty passwords, simple binds), RFC 4514 (DNs), RFC 4515 §3 (filter escaping), RFC 4530 (entryUUID), RFC 9562 §4 (UUID text);
+  - Microsoft Learn and the open specifications for Active Directory (MS-ADTS 3.1.1.3.4.4 and 5.1.1.1.1, MS-DTYP 2.3.4.2, ADSI "Search Filter Syntax", "LDAP signing for Active Directory Domain Services"); the OpenLDAP 2.6 Administrator's Guide and man pages; Samba's smb.conf(5) and samba-tool(8);
+  - the MySQL 8.4 Reference Manual ("CHECK Constraints", "Locking Reads", "How to Minimize and Handle Deadlocks", "CREATE INDEX", the error reference: 1062, 1213, 1452, 3819);
+  - the OWASP Cheat Sheet Series (Authentication "Authentication Responses", LDAP Injection Prevention, Logging "Data to exclude", Authorization).
+
+  For a choice the docs leave open, cite two or three well-known projects on the same stack beside the docs: `docs/superpowers/research/2026-10-09-backend-b3/` and its `b3b-plan/` folder already pin LibreChat, Open WebUI, Rocket.Chat, GitLab, Mattermost, Grafana, Keycloak, Nextcloud, n8n, Backstage, Authelia, Homarr, Formbricks, Rallly, Documenso, Directus, python-ldap, os2mo and authentik. No private imports, no `@ts-nocheck`, and a `@ts-expect-error` only with its reason on the line.
+
+- **Versions:** `next` 16.3.4, `next-auth` 4.24, `drizzle-orm` and `drizzle-kit` 1.0.0-rc.3, `zod` ^4, `react` 19.2, `antd` 6.6.5; added: `ldapts` 9.2.0 and `croner` 10.0.1, pinned exactly (decision a). Nothing else is added.
+- **The directory's security rules (spec §7.2).** `users.id` stays the Dify end user (ADR-0026). A directory account is linked by `users.directory_id` only, never by email, DN, UPN or login name, and no directory sign-in links or takes over another account. An empty password never reaches a bind; every value a person types or the directory supplies reaches a filter only through `lib/directory/filters.ts` (ldapts' `Filter.escape`); exactly one entry may match a login. Every TLS certificate is verified, TLS options never go to the constructor for an `ldap://` URL, and a client makes one connection (decision p). The service account is read-only and its password lives in `.env` only.
+- **The directory writes only what it owns (ADR-0027).** `directory_deactivated_at` (with a `sessionVersion` bump), the directory fields of `ldap` accounts (name, email, `directory_username`), `directory` memberships, and the links' names and `missing_since`; never the admin marker, a role, a password or a `manual` membership.
+- **Two vocabularies (charter §4.5).** Actions answer `ActionResult` with the codes in `lib/action-result.ts` (B3b adds `directory_unavailable` and `sync_running`); a sign-in answers next-auth's `CredentialsSignin`, or the thrown codes `DirectoryUnavailable` and `Default`. Expected failures never throw out of an action; an unexpected throw becomes `operation_failed` through `toActionFailure`.
+- **Logs (spec §7.3; OWASP Logging "Data to exclude").** One line per refused sign-in with a fixed reason and, for the directory, the username; one summary line per sync with the outcome, a fixed error code and the counts. Never a password, the bind password, a hash, an email, a directory message or a filter carrying a person's input; directory errors reach the log through `lib/error-log.ts` as their class name and LDAP result code.
+- **Server-only code** imports `server-only`; every module under `lib/directory/` does. Client components import only the client-safe vocabularies (`lib/directory-status.ts`, `lib/auth/account-source.ts`) and types. `process.env` is read only in `lib/env.ts` (plus `drizzle.config.ts`, `db/migrate.ts`, and `NEXT_RUNTIME` in `instrumentation.ts`, as Next's guide shows). DTOs never carry a password hash, `sessionVersion`, an API key, the bind password or a directory key the screen does not need.
+- **Database (ADR-0004, AGENTS.md).** Schema changes go through `db/schema/*.ts`, `pnpm db:generate --name <name>` and a hand review of the SQL; never `drizzle-kit push`. Every generated `migration.sql` with a foreign key is checked for `ON DELETE CASCADE` (the drizzle-kit rc.3 single-table defect, spec §3.2). The `users_source_credentials` CHECK must hold for every row. The e2e harness applies migrations itself (`e2e/global-setup.ts`); the e2e database is `mysql://e2e:e2e@127.0.0.1:3307/e2e`, reset with `docker compose -f docker-compose.e2e.yml down`.
+- **Language.** No Chinese string remains in the files a task touches; logs are English; nothing user-facing is a server message, only a code the client translates. New UI text goes through i18next keys present in `locales/en`, `locales/zh` and `locales/ar` (`pnpm test` checks parity; `types/i18next.d.ts` types the keys from `en`). Never run `i18next-cli extract/sync`. Arabic is Modern Standard Arabic with the file's Western digits and terms ("مسؤول", "مستخدم", "المالك", "الدليل" for the directory); Chinese uses the file's terms ("管理员", "普通用户", "所有者", "目录") and its informal "你". A key with no remaining reader is removed from all three files.
+- **Frontend rules (`.claude/rules/frontend.md`, `docs/frontend-conventions.md`).** antd components first, checked with the antd CLI; token-only CSS Modules or token-valued inline styles as the existing forms use; `App.useApp()` for messages. A form calls its action from `onFinish` through `useActionTransition`; a Form inside a `destroyOnHidden` Drawer owns its instance, keyed by what it edits; the submit button in `extra` uses `htmlType="submit" form={<id>}`. `npx -y @ant-design/cli lint ./` stays at zero findings.
+- **Unit tests.** vitest (node, no DOM) in `__tests__/`; mock with `vi.hoisted` + `vi.mock`. Every test of a session-bearing action mocks `next-auth/next`'s `getServerSession` and `@/lib/auth/options`, and keeps `lib/auth/session` real (ADR-0024 deviation 3). DAL rules are pure functions tested without a database; a SQL shape is rendered on `drizzle.mock()`. `pnpm test` is the `unit` project; files named `*.ldap.test.ts` live in `__tests__/ldap/` and run only in `pnpm test:ldap` (decision j), which starts and stops the two test directories itself.
+- **e2e (ADR-0010).** Web-first assertions; role, label and name locators; never `networkidle`. Every row a spec creates carries the project name where it can, and is deleted in `afterEach` or `finally`; directory accounts come from the smblds seed, carry its emails, and are deleted by email. The login page shows its two tabs in every spec (decision aa): local sign-ins go through `signInAs` or `chooseLocalAccount`, directory sign-ins through `signInWithDirectory`. A spec that changes the directory (`samba(['user', 'disable', …])`) restores it in `afterEach`. Run a task's specs with `pnpm exec playwright test e2e/<file>.spec.ts …`, with `pnpm dev` stopped (one `next dev` per checkout). The full suite runs once, in Task 16, from a fresh e2e database.
+- **Before every commit:** `pnpm exec next typegen && pnpm exec tsc --noEmit`; `pnpm exec oxlint <changed files>`; `pnpm exec oxfmt --write <changed files>`, then `--check`; `pnpm test`; and `pnpm test:ldap` when the task changes `lib/directory/` code that talks to the directory or a `*.ldap.test.ts`. The pre-commit hook (lint-staged) reformats staged Markdown, JSON and YAML.
+- **Commits.** Conventional (`feat|fix|test|docs|chore(scope): …`), in English. `git add <paths>`, never `-A`; `git rm`/`git mv` for removals and moves. Before each commit, `git status --short` shows nothing unstaged that belongs to the task. Both trailer lines go in ONE `-m` argument, after a blank line:
+
+  ```
+  Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+  Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn
+  ```
+
+  `.cii-assessment.md` goes in its own `docs: update CII assessment` commit (AGENTS.md). No push and no PR without the owner's word.
+
+- **This machine (~5 GB of memory).** Never run the Docker build at the same time as `pnpm test:e2e` or `pnpm test:ldap`. Take the old app container down before a build, build in the foreground, and never restart a build that was killed for memory. `AGENTS.md` stays byte-identical. Never read or print `.env` or `.env*.local` (`.env.e2e` is committed test configuration). Scratch files go to the repo's `tmp/` (it ignores itself), never `/tmp`; nothing under `tmp/` may end in `.ts` or `.tsx` (the root `tsconfig.json` includes `**/*.ts`), nor be named `.env.example`.
 
 ## Review Focus
 
-(DRAFT: being written)
+Five conditions the spec implies that no feature flow pins on its own, most likely first. Each has its tests in the task named.
+
+1. **A crafted value on the directory tab**: a username of `*`, `alice)(objectClass=*`, a backslash, a NUL or 256 characters; an empty or whitespace-only password; a login two entries share. The filter carries the value escaped, no bind runs with an empty password, and the person sees the one generic message. Tests: Task 5 (escaping, the parsed filter), Task 7 (zod bounds, no bind for an empty password, `ambiguous_user`, the wildcard against both servers), Task 6 (`*` finds nothing).
+2. **A directory entry that meets an existing account**: its email belongs to a local account, or to another directory account, at the first sign-in, a later sign-in or the sync; a directory person types their password on the local tab. No account is taken over: the first sign-in is refused, a refresh keeps the old email and counts a conflict, the local tab refuses after the same bcrypt work. Tests: Task 1 (the passwordless local refusal), Task 3 (`email_in_use`, the kept email), Task 9 (the 1062 fallback), Task 8 (`e2e/directory-sign-in.spec.ts`, the local account erin), Task 13 (no password through a direct `updateUser` call).
+3. **A directory that fails partway**: down, slow, a refused certificate, a refused service account, signing required (code 8), a page that fails, one linked group the directory refuses. Nothing is deactivated, the run is `failed` with a fixed code, the refused group's memberships stay, and a person signing in is told the directory is unreachable, not to check their password. Tests: Task 6 (failure classification, against both servers), Task 7 (codes 8 and 13), Task 9 (a group left whole), Task 10 (failure codes, partial counts, the unreachable run against both servers).
+4. **A setting that would quietly cut the truth**: a filter that matches nothing on this server, a changed `LDAP_ID_ATTRIBUTE`, a server-side size cap, a StartTLS client that reconnects, a wrong CA, a malformed filter, schedule or time zone. The sync stops with `empty` or `id_attribute_changed`, the paged search gets every entry, a reconnect fails instead of going plain, the environment refuses the bad value by name. Tests: Task 2 (the block's refusals), Task 4 (the server's size limit is real), Task 6 (the single-use factory, paging past the limit, the untrusted CA), Task 9 (the stops), Task 10 (the empty base against both servers).
+5. **Two at once**: two containers on one scheduled slot, Sync now during a scheduled run, two first sign-ins of the same person, a development reload. One run per slot, `sync_running` for the second, one account (the retry), one croner job per process. Tests: Task 3 (the retry on 1062 or 1213), Task 9 (the claim), Task 10 (the running guard for every trigger), Task 11 (the `globalThis` guard), Task 14 (`sync_running` through the action).
 
 ---
 
 ## File structure
 
-(DRAFT: being written)
+```
+lib/auth/account-source.ts, lib/directory-status.ts           the client-safe vocabularies                        (Task 1)
+db/schema/{users,directory,index}.ts, db/migrations/<ts>_b3b-directory/, lib/auth/options.ts (passwordless refusal),
+lib/data/{users,db-errors}.ts, lib/error-log.ts, __tests__/{b3b-schema,auth-options,data-users-password,data-db-errors}  (Task 1)
+package.json (ldapts, croner), lib/env.ts (the LDAP block), lib/directory/config.ts, .env.template,
+__tests__/{env,directory-config}.test.ts                                                                          (Task 2)
+lib/data/directory.ts (sign-in write, links), __tests__/data-directory-sign-in.test.ts                           (Task 3)
+e2e/fixtures/ldap/ (certificates, Samba scripts, OpenLDAP LDIF), docker-compose.e2e.yml, vitest.config.ts,
+.gitattributes, __tests__/ldap/{global-setup,servers,servers.ldap.test}.ts                                         (Task 4)
+lib/directory/{keys,filters,entry}.ts, __tests__/directory-{keys,filters,entry}.test.ts                            (Task 5)
+lib/directory/{errors,connection,operations}.ts, lib/error-log.ts (directory errors),
+__tests__/directory-{connection,operations}.test.ts, __tests__/ldap/connection.ldap.test.ts                         (Task 6)
+lib/directory/{sign-in,response-floor}.ts, lib/auth/directory-provider.ts, lib/auth/options.ts (ldap, source),
+types/next-auth.d.ts, __tests__/{directory-sign-in,directory-response-floor,auth-directory-provider}.test.ts,
+__tests__/ldap/sign-in.ldap.test.ts                                                                                (Task 7)
+app/(auth)/login/page.tsx, components/auth/{login-form,auth-failure}.ts(x), components/shell/account-dropdown.tsx,
+.env.e2e, e2e/global-setup.ts, e2e/fixtures/{users,directory}.ts, e2e/{auth,deactivation}.spec.ts,
+e2e/directory-sign-in.spec.ts, locales/*                                                                          (Task 8)
+lib/directory/plan.ts, lib/data/directory.ts (sync writes, runs), __tests__/{directory-plan,data-directory-sync}  (Task 9)
+lib/directory/sync.ts, __tests__/directory-sync.test.ts, __tests__/ldap/sync.ldap.test.ts                          (Task 10)
+instrumentation.ts, lib/directory/schedule.ts, __tests__/{directory-schedule,instrumentation}.test.ts             (Task 11)
+lib/directory/admin.ts (group search), lib/data/groups.ts (links), app/(admin)/group-management/*,
+components/admin/groups/*, lib/action-{result,failure}.ts, e2e/directory-groups.spec.ts, locales/*               (Task 12)
+lib/data/users.ts (source, updateUserRole), app/(admin)/user-management/{actions,schemas}.ts,
+components/admin/users/{user-management,user-form-drawer}.tsx, e2e/directory-accounts.spec.ts, locales/*         (Task 13)
+lib/directory/admin.ts (status, Sync now), components/admin/users/directory-{status,labels}.ts(x),
+app/(admin)/user-management/{actions,page}.ts(x), e2e/directory-sync.spec.ts, locales/*                         (Task 14)
+docs/decisions/0029-…, notes on 0006/0010/0018/0024/0026/0027, docs/ldap.md, docs/auth-gate.md, CLAUDE.md, CII   (Task 15)
+whole-branch review, fix wave, test:ldap, full e2e, migration on a copy of the local DB, Docker gate, PR text,
+the owner's live check list                                                                                      (Task 16)
+```
 
 ## Execution notes (for the controller)
 
-(DRAFT: being written)
+- **Pre-flight review first (Opus), before Task 1.** One Opus reviewer applies this plan, task by task and verbatim, to a throwaway copy of the repository outside it (the session scratchpad: sources copied without `.git`, `.env`, `.env*.local`, `.superpowers` and `docs`; `node_modules` symlinked), as B3a's pre-flight did (`docs/superpowers/research/2026-10-09-backend-b3/b3a-execution/preflight-scan.md`; it found 9 Critical defects before Task 1). It runs `next typegen` and `tsc --noEmit`, `drizzle-kit generate` (checking the SQL against Task 1's test), `vitest`, `oxlint` and the antd CLI's lint after each task's code. Then it runs the two LDAP test directories once on the copy, in this plan's Task 4 form: generate the certificates, `up -d --wait` both servers, the checklist of `ldap-test-servers.md` §7.6 (the certificates served and verified, the Samba seed with `CN=Smith\, Frank`, the nested group through the in-chain rule and through nestgroup, the OpenLDAP size limit with and without paging, the ppolicy lock, start-up time and `docker stats` memory), Task 1's migration on the e2e MySQL (the `CHECK` accepted, error 3819 on a bad row), and the plan's `pnpm test:ldap` suite against them; then `down -v` and nothing left running. It does not touch `docker-compose.local.yml`, never starts a Docker build and never runs `pnpm dev`. Its report lists Critical, Important and Minor findings with their fixes; the controller rules on each (rule R0), amends this plan (including the measured `mem_limit` values), and commits the amended plan before Task 1.
+- **Workspace.** `.superpowers/sdd/2026-10-10-backend-b3b-directory/` (git-ignored) holds the contracts copied from `.superpowers/sdd/2026-10-09-backend-b3a-groups-access/{implementer-contract,reviewer-contract,re-review-contract}.md` and adapted to this plan (B3b, its branch, `pnpm test:ldap`), `global-constraints.md` (this plan's header, Global Constraints, Review Focus and File structure, verbatim), a `rules.md`, the ledger `progress.md`, `rulings.md`, each task's brief, carry, report and reviews, and a `RESUME.md` kept current. The rules, from B3a's R0–R10:
+  - **R0** ADR-0002 governs every decision, the controller's rulings included; a review finding that names a documented route is taken, even when Minor and even against this plan; every architectural choice the docs leave open names 2–3 reference projects, or it is a finding.
+  - **R1** the commit trailers above, in the same `-m`, whatever model writes them.
+  - **R2** forgot and reset password stay as inherited (ADR-0024 deviation 6): `app/api/auth/{forgot,reset}-password/**`, `app/(auth)/{forgot,reset}-password/**`, their two forms and `lib/mail.ts` are not edited.
+  - **R3** scratch in the repo's `tmp/`, nothing there ending in `.ts`/`.tsx` or named `.env.example`.
+  - **R4** Docker: only `docker-compose.e2e.yml`'s services (MySQL, `ldap-ad`, `ldap-openldap`), and only where the brief says; never `docker-compose.local.yml`, never a Docker build, never `pnpm dev`.
+  - **R5** `AGENTS.md` byte-identical; never read or print `.env` or `.env*.local`.
+  - **R6** stage only the task's paths; never `tmp/`, `.superpowers/` or a handoff.
+  - **R7** no push, no PR, no branch deletion (owner); commits on `feat/backend-b3b-directory` only.
+  - **R8** the unit gate is `pnpm test` (the `unit` project); `pnpm test:ldap` runs where the brief names it, and stops its servers itself.
+  - **R9** only the Playwright specs the brief names (plus a spec the task changed); never the full suite, which runs once in Task 16. No extra probes or scratch configs unless the brief asks; say in the report what you would have probed.
+  - **R10** leave nothing running: no shell, `next dev`, Playwright or `pnpm test:ldap` process you started is alive when you report, `ldap-openldap` is not left up by hand, and no command waits on stdin.
+- **Per task:** a fresh implementer, given its task text, the Global Constraints, the Review Focus lines its task owns, the implementer contract, `rules.md` and the task's carry (the controller's rulings for it); then a fresh reviewer with the task's gates; scoped re-reviews of each fix round. If a subagent cannot write its report file, save the report from its reply before dispatching the reviewer.
+- **Models** (owner, 2026-10-10: Fable for the security-sensitive reviews and the final review; Opus or Sonnet elsewhere):
+
+  | Task | Implementer | Reviewer |
+  | --- | --- | --- |
+  | 1 schema, the passwordless account | Opus | **Fable** (a migration on real data; the local sign-in path) |
+  | 2 the LDAP block | Sonnet | Opus |
+  | 3 the directory DAL for sign-in | Opus | **Fable** (account linking, takeover) |
+  | 4 the test directories, `test:ldap` | Opus | Opus |
+  | 5 keys, filters, entries | Opus | **Fable** (filter injection, key canonicalisation) |
+  | 6 connection and operations | Opus | **Fable** (TLS, the StartTLS downgrade, failure classification) |
+  | 7 sign-in and the `ldap` provider | Opus | **Fable** (authentication, timing) |
+  | 8 login tabs, e2e harness | Opus | Opus |
+  | 9 the sync plan and writes | Opus | **Fable** (deactivation writes) |
+  | 10 the sync run | Opus | **Fable** (safety stops) |
+  | 11 the schedule | Sonnet | Opus |
+  | 12 directory groups on the groups page | Opus | Opus |
+  | 13 directory accounts on the users page | Opus | **Fable** (rank-mapped writes) |
+  | 14 status panel and Sync now | Sonnet | Opus |
+  | 15 records | Sonnet | Sonnet |
+
+  Scoped re-reviews run on Sonnet; a fix loop that reaches round 4 goes to Fable. The whole-branch review (Task 16) runs on Fable, its fix wave on Opus.
+
+- **Keep tasks lean** (owner, after B3a's Task 4b): implementers run only their brief's Playwright specs; the full suite (about 25 minutes) runs once in Task 16.
+- **Progress in chat.** This harness has no todo tool: post the task checklist in chat at each task boundary.
+- **The owner changes design mid-run.** Relay a change to the running implementer, append it to that task's brief, and record it in ADR-0029 (Task 15).
+- **Usage limits pause the run.** Keep `RESUME.md` and the ledger current, with a memory pointer, so a new session resumes without loss (B3a's pattern).
+- **The owner is often remote**: they merge on the gates' strength and defer browser checks; the live check against their Active Directory (Task 16 Step 7) is theirs and comes after the merge decision.
 
 ---
 
@@ -8894,7 +9019,7 @@ Create it with the project's adr-skill (`.claude/skills/adr-skill`; its README's
   - an unknown username's timing: a response-time floor (chosen; Authelia) / a dummy bind (no surveyed project; AD's PDC forwarding would still differ) / nothing (Spring Security, django-auth-ldap, n8n);
   - the test directories: smblds over LDAPS and OpenLDAP 2.6 over StartTLS and plain (chosen; os2mo and authentik run a Samba DC beside OpenLDAP) / OpenLDAP only (Mattermost, GitLab QA, ldapts) / smblds only;
   - the test certificates: committed with a regeneration script (chosen; python-ldap, Node.js core, Go) / generated at test time (ldapts with node-forge, authentik) / generated in a container at start.
-- **Decision Outcome:** the data model of spec §3.2 as built (Task 1), the `LDAP_*` block (Task 2), the directory DAL (Tasks 3 and 9), the modules of `lib/directory/` (Tasks 5, 6, 7, 10, 11, 12, 14), the `ldap` provider and the session's `source` (Task 7), the login tabs and the account menu (Task 8), the groups page's links (Task 12), the users page's directory accounts and status panel (Tasks 13, 14), the test directories and `pnpm test:ldap` (Task 4); this plan's deviations 1–9 and decisions a–aq, each with its source, copied from the tasks.
+- **Decision Outcome:** the data model of spec §3.2 as built (Task 1), the `LDAP_*` block (Task 2), the directory DAL (Tasks 3 and 9), the modules of `lib/directory/` (Tasks 5, 6, 7, 10, 11, 12, 14), the `ldap` provider and the session's `source` (Task 7), the login tabs and the account menu (Task 8), the groups page's links (Task 12), the users page's directory accounts and status panel (Tasks 13, 14), the test directories and `pnpm test:ldap` (Task 4); this plan's deviations 1–8 and decisions a–aq, each with its source, copied from the tasks.
 - **Consequences:** Good: a directory account can never take over a local one, and its Dify history (`users.id`) survives renames and moves; an unreachable directory, an empty answer or a changed id attribute changes nothing; the directory owns only its own marker and memberships, so it never undoes an admin's decision; one CI-free suite proves the AD and the generic paths in all three modes. Bad: `LDAP_ENCRYPTION=none` sends every directory password and the service account's in clear (spec §13), and a domain controller that starts requiring LDAP signing (a new Windows Server 2025 domain, or an unconfigured DC upgraded to 2025; Microsoft Learn, "LDAP signing for Active Directory Domain Services") ends it: every sign-in then answers "the directory is unreachable" and the log names result code 8; failed binds through the hub count toward the directory's lockout until throttling exists (spec §12); a wrong but non-empty filter deactivates the people it misses until the next correct sync (spec §13); the in-process schedule is reference-project practice where Next's docs are silent; the test servers cover Samba's AD, not Microsoft's (paging above 1,000, referrals, signing policy), so the owner's live check is the real test. Neutral: the e2e suite runs with the LDAP block on, so every spec sees the login tabs; the run table keeps 90 days.
 - **Implementation Plan:** affected paths (this plan's file structure); patterns to follow (every directory value in a filter goes through `lib/directory/filters.ts`; every directory connection through `withDirectory`, one per sign-in or sync; a new directory write touches only the directory's marker, the directory fields of `ldap` accounts or `directory` memberships; every failed directory sign-in goes through the response floor; the sync reads everything before it writes); patterns to avoid (binding with an unchecked password; a `sizeLimit` on a sync search; TLS options on the constructor for `ldap://`; linking by email, DN or login; an admin action writing the directory marker; a `register()` that can throw); configuration (the `LDAP_*` block, `docs/ldap.md`); migration steps (`pnpm db:migrate`; every existing account becomes `local`; the `CHECK` must hold, so a database whose `users.password` holds a NULL cannot be migrated until that row is fixed).
 - **Verification:** the vitest files and e2e specs of Tasks 1–14 by name; `pnpm test:ldap`; the migration on a copy of the local database (Task 16); the Docker gate (Task 16, unchecked until done); the owner's live check against their Active Directory (unchecked until done).
