@@ -875,7 +875,7 @@ const ATTRIBUTE_NAME = /^(?:[A-Za-z][A-Za-z0-9-]*|\d+(?:\.\d+)+)$/
 /** The placeholder LDAP_GROUP_MEMBER_FILTER carries for a group's DN (spec §6.5). */
 export const GROUP_DN_PLACEHOLDER = '{group_dn}'
 
-/** Decision p: wrapped in parentheses (RFC 4515 §3) and readable by the parser ldapts' search() uses. */
+/** Decision b: wrapped in parentheses (RFC 4515 §3) and readable by the parser ldapts' search() uses. */
 const isFilter = (value: string): boolean => {
 	if (!value.startsWith('(') || !value.endsWith(')')) return false
 	try {
@@ -939,7 +939,7 @@ const ldapSchema = z
 			})
 		const schedule = value.LDAP_SYNC_SCHEDULE
 		if (schedule.toLowerCase() === 'off') return
-		// Decision q: five fields, then croner's parser (a Cron without a function parses the pattern and schedules
+		// Decision c: five fields, then croner's parser (a Cron without a function parses the pattern and schedules
 		// nothing, croner src/croner.ts:215-219; stop() is harmless on it), then the time zone through a date conversion.
 		try {
 			if (schedule.split(/\s+/).length !== 5) throw new Error('five fields')
@@ -2130,7 +2130,7 @@ Replace `vitest.config.ts`'s `test` block with:
 		// Playwright specs under e2e/ run with `pnpm test:e2e`, not vitest; tmp/ is git-ignored scratch (research
 		// clones carry their own test files), so it is never collected (owner, 2026-10-10).
 		exclude: [...configDefaults.exclude, 'e2e/**', 'tmp/**'],
-		// Decision am (Vitest "Test Projects"): `unit` is `pnpm test`; `ldap` needs the two test directories of
+		// Decision j (Vitest "Test Projects"): `unit` is `pnpm test`; `ldap` needs the two test directories of
 		// docker-compose.e2e.yml and runs only through `pnpm test:ldap`.
 		projects: [
 			{
@@ -2676,7 +2676,7 @@ import { DIRECTORY_KEY_PATTERN } from '@/lib/directory-status'
 /** The canonical key text (Task 1's client-safe vocabulary, so the groups form shares it). */
 export { DIRECTORY_KEY_PATTERN }
 
-/** Decision s: binary when the id attribute is `objectGUID`, compared without case (Keycloak's `isObjectGUID`). */
+/** Decision m: binary when the id attribute is `objectGUID`, compared without case (Keycloak's `isObjectGUID`). */
 export const isBinaryKeyAttribute = (attribute: string): boolean =>
 	attribute.toLowerCase() === 'objectguid'
 
@@ -3289,7 +3289,7 @@ import { DirectoryRefusedError, DirectoryUnavailableError } from './errors'
 export const CONNECT_TIMEOUT_MS = 5_000
 export const OPERATION_TIMEOUT_MS = 15_000
 
-/** Decision ac: TLS 1.2 or later, the CA when set, the URL's host checked by name. */
+/** Decision r: TLS 1.2 or later, the CA when set, the URL's host checked by name. */
 async function tlsOptionsFor(config: LdapConfig): Promise<tls.ConnectionOptions> {
 	// WHATWG URL keeps an IPv6 host in brackets; Node wants it bare.
 	const host = new URL(config.url).hostname.replace(/^\[(.*)\]$/, '$1')
@@ -3302,7 +3302,7 @@ async function tlsOptionsFor(config: LdapConfig): Promise<tls.ConnectionOptions>
 }
 
 /**
- * Decision v: a factory that opens one connection, then refuses. Its signature accepts whatever ldapts passes (ldapts
+ * Decision p: a factory that opens one connection, then refuses. Its signature accepts whatever ldapts passes (ldapts
  * calls it "with the parsed port and host", README); a function taking `unknown[]` is assignable to each of the Node
  * factory's overloads, so no overload is guessed.
  */
@@ -4178,7 +4178,7 @@ export async function checkDirectoryCredentials(
 			await client.bind(entry.dn, password)
 		} catch (error) {
 			if (error instanceof InvalidCredentialsError) return { ok: false, reason: 'wrong_password' }
-			// Decision ah: a directory that demands signing or TLS refuses the connection, not the password.
+			// Decision u: a directory that demands signing or TLS refuses the connection, not the password.
 			if (error instanceof StrongAuthRequiredError || error instanceof ConfidentialityRequiredError)
 				throw new DirectoryRefusedError({ cause: error })
 			throw error
@@ -4208,7 +4208,7 @@ import {
 	type SignInRefusalReason,
 } from '@/lib/error-log'
 
-/** Decision aj: the username trimmed, the password as typed, both bounded; nothing else of the POST body. */
+/** Decision w: the username trimmed, the password as typed, both bounded; nothing else of the POST body. */
 export const directoryCredentialsSchema = z.object({
 	username: z.string().trim().min(1).max(255),
 	password: z.string().min(1).max(1024),
@@ -4490,7 +4490,7 @@ it('tells the form whether the directory tab exists (spec §6.3)', async () => {
 In `__tests__/account-menu.test.ts`, add:
 
 ```ts
-// Decision ai: a directory account has no hub password; the menu leaves the entry out (GitLab hides it).
+// Decision v: a directory account has no hub password; the menu leaves the entry out (GitLab hides it).
 it('leaves out change password without its handler', () => {
 	const items = getAccountMenuItems({ email: 'bob@corp.example', t, onLogout: vi.fn() })
 	expect(items.map(item => item?.key)).toEqual(['account', 'logout'])
@@ -4826,7 +4826,7 @@ import { withDb } from './db'
 export const DIRECTORY_PASSWORD = 'E2e-Dir-Passw0rd'
 
 /**
- * Decision as: a Samba provisioned again issues new objectGUIDs, so the directory accounts and links a previous run left
+ * Decision aa: a Samba provisioned again issues new objectGUIDs, so the directory accounts and links a previous run left
  * in the reused e2e MySQL would collide with the next first sign-in. Deleting the accounts removes their memberships
  * (ON DELETE CASCADE, ADR-0027).
  */
@@ -4968,7 +4968,7 @@ test.describe('directory sign-in (ADR-0029)', () => {
 		expect(String(account!.directory_id)).toMatch(
 			/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
 		)
-		// Decision ai: the account menu has no password change for a directory account.
+		// Decision v: the account menu has no password change for a directory account.
 		await page.getByRole('button', { name: /Signed in as/ }).click()
 		await expect(page.getByRole('menuitem', { name: 'Log out' })).toBeVisible()
 		await expect(page.getByRole('menuitem', { name: 'Change password' })).toHaveCount(0)
@@ -5232,7 +5232,7 @@ describe('planDirectoryMemberships (spec §6.4 step 4, §6.5)', () => {
 		expect(plan.linkRefreshes).toEqual([{ groupId: 'g1', directoryGroupId: 'd1', name: null }])
 	})
 
-	// Decision k: one failed link leaves its whole hub group untouched, and counts the error.
+	// Decision ad: one failed link leaves its whole hub group untouched, and counts the error.
 	it('leaves a group with a failed lookup untouched', () => {
 		const plan = planDirectoryMemberships(
 			[
@@ -5250,7 +5250,7 @@ describe('planDirectoryMemberships (spec §6.4 step 4, §6.5)', () => {
 		expect(plan.linkRefreshes).toEqual([{ groupId: 'g1', directoryGroupId: 'd2', name: 'Backend' }])
 	})
 
-	// Decision g: a group whose last link was removed keeps no directory member.
+	// Decision f: a group whose last link was removed keeps no directory member.
 	it('removes the directory rows of a group with no link left', () => {
 		const plan = planDirectoryMemberships([], ids, [{ groupId: 'g9', userId: 'a' }])
 		expect(plan.remove).toEqual([{ groupId: 'g9', userId: 'a' }])
@@ -5660,7 +5660,7 @@ export function planDirectoryMemberships(
 In `lib/data/directory.ts`, extend the drizzle import to `import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, notInArray, sql } from 'drizzle-orm'`, add `directorySyncRuns` to the schema import, import `isMissingReference` beside the other two from `./db-errors`, import the types `import type { AccountUpdate, LinkRefresh, MembershipPlan, MembershipRow, SyncAccount } from '@/lib/directory/plan'` and `import type { SyncErrorCode, SyncOutcome, SyncTrigger } from '@/lib/directory-status'`, then append:
 
 ```ts
-/** Decision l: at most 1,000 ids per statement, under MySQL's 65,535 placeholders (ER_PS_MANY_PARAM, 1390). */
+/** Decision ae: at most 1,000 ids per statement, under MySQL's 65,535 placeholders (ER_PS_MANY_PARAM, 1390). */
 const BATCH = 1_000
 const batches = <T>(items: readonly T[]): T[][] =>
 	Array.from({ length: Math.ceil(items.length / BATCH) }, (_, index) =>
@@ -6400,10 +6400,10 @@ export const RUN_RETENTION_MS = 90 * 24 * 60 * 60 * 1000
 
 const minute = (at: Date) => `${at.toISOString().slice(0, 16)}Z`
 
-/** Decision y: a scheduled run's slot is the minute it fires (`schedule:2026-10-09T13:00Z`). */
+/** Decision ak: a scheduled run's slot is the minute it fires (`schedule:2026-10-09T13:00Z`). */
 export const scheduleSlot = (at: Date): string => `schedule:${minute(at)}`
 
-/** Decision y: a startup catch-up's slot is the missed due minute, so two starting containers claim it once. */
+/** Decision ak: a startup catch-up's slot is the missed due minute, so two starting containers claim it once. */
 export const startupSlot = (due: Date): string => `startup:${minute(due)}`
 
 export type SyncAttempt =
@@ -6430,7 +6430,7 @@ interface DirectorySnapshot {
 }
 
 /**
- * Decision z: every linked directory group, by key, then its members' keys. A result-code error for one group is that
+ * Decision af: every linked directory group, by key, then its members' keys. A result-code error for one group is that
  * group's error (the directory answered, spec §6.4 step 4); anything else, a lost connection above all, fails the run.
  */
 async function lookUpLinks(
@@ -6516,7 +6516,7 @@ export async function runSync(run: {
 	trigger: SyncTrigger
 	slot: string
 }): Promise<SyncAttempt> {
-	// Decision au: Keycloak's one sync key for every trigger; the slot claim below then stops a second container.
+	// Decision ag: Keycloak's one sync key for every trigger; the slot claim below then stops a second container.
 	if (await hasUnfinishedRunSince(new Date(Date.now() - RUNNING_GUARD_MS))) {
 		console.info('directorySync: a run is going, this one is skipped', { trigger: run.trigger })
 		return { status: 'running' }
@@ -7056,7 +7056,7 @@ export function startDirectorySchedule(): void {
  * Next calls register() once when a server instance starts, in every runtime ("Next.js calls `register` in all
  * environments, so it's important to conditionally import any code that doesn't support specific runtimes",
  * node_modules/next/dist/docs/01-app/02-guides/instrumentation.md). The directory schedule runs in the Node runtime
- * only (ADR-0029); NEXT_RUNTIME is Next's own variable, read here as the guide shows, beside lib/env.ts. Decision w:
+ * only (ADR-0029); NEXT_RUNTIME is Next's own variable, read here as the guide shows, beside lib/env.ts. Decision ai:
  * nothing escapes, since a failing register() stops the server from starting.
  */
 export async function register(): Promise<void> {
@@ -7438,7 +7438,7 @@ export const DIRECTORY_SEARCH_MIN = 2
 export const DIRECTORY_SEARCH_MAX = 64
 export const DIRECTORY_GROUPS_MAX = 50
 
-/** Decision ae: the text an admin types to find a directory group. */
+/** Decision al: the text an admin types to find a directory group. */
 export const directoryGroupSearchSchema = z
 	.string()
 	.trim()
@@ -7449,7 +7449,7 @@ export const directoryGroupSearchSchema = z
 and, in `groupInputSchema`, after `memberIds`:
 
 ```ts
-	/** Decision af: the linked directory groups by canonical key, with the name the search showed. */
+	/** Decision am: the linked directory groups by canonical key, with the name the search showed. */
 	directoryGroups: z
 		.array(z.object({ id: z.string().regex(DIRECTORY_KEY_PATTERN), name: z.string().trim().min(1).max(255) }))
 		.max(DIRECTORY_GROUPS_MAX)
@@ -7517,7 +7517,7 @@ export const removeLinks = (tx: Pick<Tx, 'delete'>, groupId: string, keys: reado
 			),
 		)
 
-/** Decision af: what a save changes in the links, by key; a kept link takes the picked name. */
+/** Decision am: what a save changes in the links, by key; a kept link takes the picked name. */
 export const directoryLinkChanges = (
 	current: readonly { directoryGroupId: string; directoryGroupName: string }[],
 	next: readonly { id: string; name: string }[],
@@ -7559,7 +7559,7 @@ for (const link of links.rename)
 				eq(userGroupDirectoryLinks.directoryGroupId, link.id),
 			),
 		)
-// Decision af: with no link left, nothing would refresh the group's directory members, so they go now.
+// Decision am: with no link left, nothing would refresh the group's directory members, so they go now.
 if (currentLinks.length > 0 && input.directoryGroups.length === 0)
 	await tx
 		.delete(userGroupMembers)
@@ -7701,7 +7701,7 @@ function DirectoryGroupSelect({
 			getPopupContainer={drawerPopupContainer}
 			showSearch={{ filterOption: false, onSearch: search, autoClearSearchValue: false }}
 			notFoundContent={fetching ? <Spin size="small" /> : t('admin_groups.directory_groups_none')}
-			// Decision ae: twenty answers may not be all; the list says so (antd Select `popupRender`, 5.25.0).
+			// Decision al: twenty answers may not be all; the list says so (antd Select `popupRender`, 5.25.0).
 			popupRender={menu => (
 				<>
 					{menu}
@@ -8021,7 +8021,7 @@ and, after `adminDeactivation`:
 - in `updateUser`, right after `if (!target) return fail('not_found')`:
 
 ```ts
-// Decision m: a directory account's name and email are the directory's and it has no hub password; its role
+// Decision an: a directory account's name and email are the directory's and it has no hub password; its role
 // changes through updateUserRole.
 if (target.source === 'ldap') return fail('forbidden')
 ```
