@@ -49,3 +49,21 @@ export const describeError = (error: unknown): unknown => {
 export const logActionError = (error: unknown, context: string): void => {
 	console.error(`${context}:`, describeError(error))
 }
+
+/** The fixed reason codes of a refused sign-in (B3 spec §7.3); B3b adds the directory's. */
+export type SignInRefusalReason = 'account_inactive'
+
+/**
+ * A refused sign-in, logged once with a fixed reason code and a subject that names the account without a secret
+ * (B3 spec §7.3: the login form shows a generic message, as OWASP's "Authentication Responses" asks, so the reason
+ * lives in the server log). Pass an account id or a directory username, never a password, a hash or an email
+ * (OWASP Logging Cheat Sheet, "Data to exclude"). The reason is written after the subject, so a subject key cannot
+ * replace it.
+ */
+export const logSignInRefusal = (
+	context: string,
+	reason: SignInRefusalReason,
+	subject: Record<string, string>,
+): void => {
+	console.warn(`${context}: sign-in refused`, { ...subject, reason })
+}

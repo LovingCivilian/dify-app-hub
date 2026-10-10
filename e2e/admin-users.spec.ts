@@ -4,7 +4,7 @@ import type { RowDataPacket } from 'mysql2/promise'
 import { withDb } from './fixtures/db'
 import { drawerOpened } from './fixtures/drawer'
 import { e2eEnv } from './fixtures/env'
-import { deleteUsersLike, seedUser, signInAs } from './fixtures/users'
+import { deleteUsersLike, openUsers, seedUser, signInAs } from './fixtures/users'
 
 const row = (page: Page, email: string) => page.getByRole('row', { name: new RegExp(email) })
 
@@ -18,20 +18,6 @@ const ownerId = async () => {
 	})
 	expect(rows).toHaveLength(1)
 	return String(rows[0].id)
-}
-
-/**
- * Opens the users page and waits until its table has hydrated. The page is server-rendered, and a click that lands
- * before React has attached its handlers does nothing (Playwright docs, "Navigations > Hydration"); seen on the
- * mobile project, where Edit opened no drawer. The fix those docs name is product-side, interactive controls
- * disabled until hydration; that is a pattern change for the owner and is recorded as a follow-up. Until then this
- * is a test-side wait on a signal only hydration produces: ClientDateTime renders its text only after its effect
- * runs (react.dev, hydrateRoot: two-pass rendering), so a date in the table marks a hydrated table (the time-zone
- * test below reads the same state).
- */
-const openUsers = async (page: Page) => {
-	await page.goto('/user-management')
-	await expect(page.getByRole('table').locator('time').first()).not.toContainText(/^\s*$/)
 }
 
 test.describe('user CRUD', () => {

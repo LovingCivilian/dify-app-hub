@@ -1,9 +1,19 @@
-import { expect, type Page, test, type TestInfo } from '@playwright/test'
+import {
+	type Browser,
+	expect,
+	type Locator,
+	type Page,
+	test,
+	type TestInfo,
+} from '@playwright/test'
+import type { RowDataPacket } from 'mysql2/promise'
 
+import { deleteApp, deleteGroupsLike, seedApp as seedAccessApp, seedGroup } from './fixtures/access'
 import { APP_ID, APP_IDS, CREATED_APP } from './fixtures/constants'
 import { withDb } from './fixtures/db'
 import { drawerOpened } from './fixtures/drawer'
 import { stubApiBase } from './fixtures/env'
+import { deleteUsersLike, seedUser, signInAs } from './fixtures/users'
 
 const PROJECTS = ['desktop-light', 'desktop-dark', 'mobile-light']
 /** A dify_apps id (36 characters) of the spec's own, distinct per project: the three projects run one after another. */
@@ -298,4 +308,170 @@ test('the apps table offers items per page like the users table', async ({ page,
 		await expect(pagination.locator('.ant-pagination-options-size-changer')).toBeVisible()
 		await expect(pagination.getByText(/^Total (apps|users): \d+$/)).toBeVisible()
 	}
+})
+
+/**
+ * Clicks a control that opens a drawer and waits for the drawer. /app-management renders no hydration-only signal
+ * (no ClientDateTime), and a click before hydration does nothing (Playwright docs, "Navigations > Hydration"), so the
+ * click is retried with its outcome (Playwright `expect.toPass`); it is repeated only while the drawer is still
+ * closed, since an open drawer's mask would take the click.
+ */
+const openDrawer = async (control: Locator, drawer: Locator) => {
+	await expect(async () => {
+		if (!(await drawer.isVisible())) await control.click()
+		await expect(drawer).toBeVisible({ timeout: 2_000 })
+	}).toPass()
+}
+
+/**
+ * Narrows an access picker found by its exact label (the radio "Selected groups and people" also contains "groups"
+ * and "people") and picks the option by its title (antd Select options carry a title; e2e/admin-groups.spec.ts).
+ */
+const pick = async (
+	page: Page,
+	drawer: Locator,
+	picker: 'Groups' | 'People',
+	label: string,
+	filter: string,
+) => {
+	await drawer.getByLabel(picker, { exact: true }).fill(filter)
+	await page.getByTitle(label, { exact: true }).click()
+	await expect(drawer.locator('.ant-select-selection-item', { hasText: label })).toBeVisible()
+}
+
+/** The app's name, access mode and grant counts as MySQL holds them. */
+const storedAccess = (appId: string) =>
+	withDb(async db => {
+		const [[app]] = await db.execute<RowDataPacket[]>(
+			'SELECT name, access_mode FROM dify_apps WHERE id = ?',
+			[appId],
+		)
+		const [[groups]] = await db.execute<RowDataPacket[]>(
+			'SELECT COUNT(*) AS n FROM app_group_grants WHERE app_id = ?',
+			[appId],
+		)
+		const [[users]] = await db.execute<RowDataPacket[]>(
+			'SELECT COUNT(*) AS n FROM app_user_grants WHERE app_id = ?',
+			[appId],
+		)
+		return {
+			name: app?.name,
+			mode: app?.access_mode,
+			groups: Number(groups?.n),
+			users: Number(users?.n),
+		}
+	})
+
+test.describe('app access in the drawer (B3 spec §4.4)', () => {
+	const PASSWORD = 'appacc-pass-1'
+	const tag = () => `appacc-${test.info().project.name}`
+	const memberEmail = () => `${tag()}@e2e.local`
+	const personEmail = () => `${tag()}-direct@e2e.local`
+	const person = () => `Direct person (${personEmail()})`
+	const seededName = () => `Drawer ${tag()}`
+	let appId: string | undefined
+	let memberId: string
+
+	/** Signs the account in from a fresh context: its gallery links the app (the card is a link to /chat/<id>). */
+	const expectGalleryShows = async (browser: Browser, email: string, id: string) => {
+		const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+		try {
+			const page = await context.newPage()
+			await signInAs(page, email, PASSWORD)
+			await expect(page.locator(`a[href="/chat/${id}"]`)).toBeVisible()
+		} finally {
+			await context.close()
+		}
+	}
+
+	test.beforeEach(async () => {
+		appId = undefined
+		memberId = await seedUser({ email: memberEmail(), password: PASSWORD, name: 'App access user' })
+		await seedUser({ email: personEmail(), password: PASSWORD, name: 'Direct person' })
+		appId = await seedAccessApp({ name: seededName(), accessMode: 'restricted' })
+	})
+	test.afterEach(async () => {
+		// By id: an Update renames the app from the stub's /info ("Stub app"). Its grants go with it (ON DELETE CASCADE).
+		if (appId) await deleteApp(appId)
+		await deleteGroupsLike(`%${tag()}`)
+		await deleteUsersLike(`${tag()}%`)
+	})
+
+	test('a restricted app with no grant is tagged Admins only; granting a group and a person opens it to them', async ({
+		page,
+		browser,
+	}) => {
+		const id = appId!
+		await seedGroup({ name: `Group ${tag()}`, memberIds: [memberId] })
+		await page.goto('/app-management')
+		const row = rowById(page, id)
+		await expect(row.getByText('Admins only')).toBeVisible()
+
+		const drawer = page
+			.getByRole('dialog')
+			.filter({ hasText: `Edit app configuration - ${seededName()}` })
+		await openDrawer(row.getByRole('button', { name: 'Edit' }), drawer)
+		await pick(page, drawer, 'Groups', `Group ${tag()}`, `Group ${tag()}`)
+		await pick(page, drawer, 'People', person(), personEmail())
+		await drawer.getByRole('button', { name: 'Update' }).click()
+		await expect(page.getByText('App configuration updated')).toBeVisible()
+		await expect(row.getByText('Groups: 1 · People: 1')).toBeVisible()
+
+		// Spec §8: the member reaches the app through its group, the person through the direct grant.
+		await expectGalleryShows(browser, memberEmail(), id)
+		await expectGalleryShows(browser, personEmail(), id)
+
+		// The Update renamed the app, so this drawer is found by its title's fixed part.
+		await row.getByRole('button', { name: 'Edit' }).click()
+		const again = page.getByRole('dialog').filter({ hasText: 'Edit app configuration' })
+		// antd draws a button-style radio's <input> at 0×0, so the visible label is clicked.
+		await again.getByText('Everyone', { exact: true }).click()
+		await expect(again.getByRole('radio', { name: 'Everyone' })).toBeChecked()
+		await again.getByRole('button', { name: 'Update' }).click()
+		await expect(row.getByText('Everyone', { exact: true })).toBeVisible()
+		// Deviation 4: an app open to everyone keeps no grant.
+		expect(await storedAccess(id)).toMatchObject({ mode: 'everyone', groups: 0, users: 0 })
+	})
+
+	test('a new app starts closed', async ({ page }) => {
+		await page.goto('/app-management')
+		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
+		await openDrawer(page.getByRole('button', { name: 'New' }), create)
+		await expect(create.getByRole('radio', { name: 'Selected groups and people' })).toBeChecked()
+		await expect(create.getByLabel('Groups', { exact: true })).toBeVisible()
+		await create.getByRole('button', { name: 'Cancel' }).click()
+	})
+
+	// Deviation 3 and ruling M13: a pick deleted meanwhile is the pickers' own error, the save writes nothing, and the
+	// error clears when a pick changes.
+	test('a group deleted after the page loaded is refused on the pickers, and the error clears on a new pick', async ({
+		page,
+	}) => {
+		const id = appId!
+		const gone = `Gone ${tag()}`
+		await seedGroup({ name: gone })
+		await page.goto('/app-management')
+		const drawer = page
+			.getByRole('dialog')
+			.filter({ hasText: `Edit app configuration - ${seededName()}` })
+		await openDrawer(rowById(page, id).getByRole('button', { name: 'Edit' }), drawer)
+		await pick(page, drawer, 'Groups', gone, gone)
+		await deleteGroupsLike(gone)
+		await drawer.getByRole('button', { name: 'Update' }).click()
+		const error = drawer.getByText(
+			'A picked group or account no longer exists. Reload the page and pick again.',
+		)
+		// The server cannot tell which picker held the id, so both carry the error.
+		await expect(error).toHaveCount(2)
+		await expect(error.first()).toBeVisible()
+		// One transaction: the Dify info the update read was not stored either, and no grant was.
+		expect(await storedAccess(id)).toEqual({
+			name: seededName(),
+			mode: 'restricted',
+			groups: 0,
+			users: 0,
+		})
+		await pick(page, drawer, 'People', person(), personEmail())
+		await expect(error).toHaveCount(0)
+	})
 })

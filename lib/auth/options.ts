@@ -6,12 +6,14 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 
 import { getDb } from '@/db'
 import { users } from '@/db/schema'
-import { logActionError } from '@/lib/error-log'
+import { logActionError, logSignInRefusal } from '@/lib/error-log'
 
-import { verifyPassword } from './password'
+import { isActive } from './account-status'
+import { UNKNOWN_ACCOUNT_HASH, verifyPassword } from './password'
 
 /**
- * The account of these credentials without its hash, or null for an unknown email or a wrong password.
+ * The account of these credentials without its hash, or null for an unknown email, a wrong password or a deactivated
+ * account (ADR-0027).
  */
 async function findAccount(email: string, password: string): Promise<User | null> {
 	const [user] = await getDb()
@@ -22,12 +24,24 @@ async function findAccount(email: string, password: string): Promise<User | null
 			role: users.role,
 			password: users.password,
 			sessionVersion: users.sessionVersion,
+			adminDeactivatedAt: users.adminDeactivatedAt,
+			directoryDeactivatedAt: users.directoryDeactivatedAt,
 		})
 		.from(users)
 		.where(eq(users.email, email))
 		.limit(1)
-	if (!user) return null
+	if (!user) {
+		// OWASP "Authentication Responses": no quick exit. The same bcrypt work as a wrong password, against a fixed
+		// hash, so the answer's time does not tell an unknown email apart; its result is ignored.
+		await verifyPassword(password, UNKNOWN_ACCOUNT_HASH)
+		return null
+	}
 	if (!(await verifyPassword(password, user.password))) return null
+	// Spec §5: after the password, so a wrong password and a deactivated account take the same path and answer.
+	if (!isActive(user)) {
+		logSignInRefusal('authorizeCredentials', 'account_inactive', { userId: user.id })
+		return null
+	}
 	return {
 		id: user.id,
 		email: user.email,
@@ -62,8 +76,9 @@ export async function authorizeCredentials(
  * next-auth v4 with the credentials provider and the JWT strategy (ADR-0006). The jwt callback reads the account
  * on every call. A changed sessionVersion (a password reset or change) or a deleted row strips `id`,
  * `sessionVersion` and `role`; the session callback then sets no `user.id`, and verifySession() reads that as "no
- * live session" (ADR-0018). Otherwise the row's role, email and name replace the token's. An admin's demotion or
- * email edit applies on the next request, and a token from before roles existed gets its role (ADR-0024).
+ * live session" (ADR-0018). A deactivated row (ADR-0027) is treated as revoked. Otherwise the row's role, email and
+ * name replace the token's. An admin's demotion or email edit applies on the next request, and a token from before
+ * roles existed gets its role (ADR-0024).
  */
 export const authOptions: NextAuthOptions = {
 	providers: [
@@ -93,11 +108,17 @@ export const authOptions: NextAuthOptions = {
 					role: users.role,
 					email: users.email,
 					name: users.name,
+					adminDeactivatedAt: users.adminDeactivatedAt,
+					directoryDeactivatedAt: users.directoryDeactivatedAt,
 				})
 				.from(users)
 				.where(eq(users.id, token.id))
 				.limit(1)
-			if (!row || row.sessionVersion !== token.sessionVersion) {
+			// ADR-0018's revocation rule, and spec §5: the token is refused while the row is inactive (either marker set,
+			// also by hand in the database). Only the app's Deactivate, which bumps sessionVersion in the same write, keeps
+			// a token issued before refused after reactivation; a marker set by hand bumps nothing, so reactivating by hand
+			// can revive such a token.
+			if (!row || row.sessionVersion !== token.sessionVersion || !isActive(row)) {
 				const { id: _id, sessionVersion: _version, role: _role, ...rest } = token
 				return rest
 			}

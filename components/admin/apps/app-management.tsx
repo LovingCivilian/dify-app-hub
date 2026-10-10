@@ -10,9 +10,11 @@ import PageHeader from '@/components/shell/page-header'
 import AppIcon from '@/components/apps/app-icon'
 import { APP_MODE_NAME_KEYS, APP_MODE_OPTIONS } from '@/components/apps/app-modes'
 import SearchInput from '@/components/shell/search-input'
+import type { GroupOption } from '@/lib/data/groups'
+import type { UserOption } from '@/lib/data/users'
 import { matchesQuery } from '@/lib/match-query'
 
-import { type AdminAppRow, supportsAnnotations } from './admin-app-row'
+import { accessSummary, type AdminAppRow, supportsAnnotations } from './admin-app-row'
 import AnnotationsDrawer from './annotations-drawer'
 import AppActions from './app-actions'
 import AppFormDrawer from './app-form-drawer'
@@ -23,7 +25,16 @@ import styles from './app-management.module.css'
  * inside the table on narrow screens and no fixed or `responsive` columns (responsive columns are added only
  * after hydration, es/table/InternalTable.js).
  */
-export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
+export default function AppManagement({
+	apps,
+	groups,
+	users,
+}: {
+	apps: AdminAppRow[]
+	/** The access pickers' options (B3 spec §4.4). */
+	groups: GroupOption[]
+	users: UserOption[]
+}) {
 	const { t } = useTranslation()
 	const { token } = theme.useToken()
 	const [query, setQuery] = useState('')
@@ -106,6 +117,22 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 				),
 		},
 		{
+			title: t('admin_apps.column_access'),
+			key: 'access',
+			render: (_, app) => {
+				const summary = accessSummary(app.access)
+				if (summary.kind === 'everyone')
+					return <Tag color="green">{t('admin_apps.access_everyone')}</Tag>
+				if (summary.kind === 'admins_only')
+					return <Tag color="warning">{t('admin_apps.access_admins_only')}</Tag>
+				return (
+					<Tag color="blue">
+						{t('admin_apps.access_restricted', { groups: summary.groups, people: summary.people })}
+					</Tag>
+				)
+			},
+		},
+		{
 			title: t('common.actions'),
 			key: 'actions',
 			render: (_, app) => (
@@ -171,6 +198,8 @@ export default function AppManagement({ apps }: { apps: AdminAppRow[] }) {
 			<AppFormDrawer
 				open={editor.open}
 				record={editor.record}
+				groups={groups}
+				users={users}
 				onClose={() => setEditor(current => ({ ...current, open: false }))}
 				onClosed={() => setEditor({ open: false })}
 			/>

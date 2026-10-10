@@ -31,11 +31,11 @@ test('the admin area renders inside the antd shell with its navigation', async (
 }) => {
 	await page.goto('/app-management')
 	await expect(page.locator('header.ant-layout-header')).toHaveCount(1)
-	await test.step('the header navigation offers the user management page', async step => {
-		// Below md the horizontal Menu is in the DOM but hidden by CSS (spec §3.3) and the Drawer menu
-		// mounts only once opened; the mobile Drawer navigation is pinned by its own flow.
-		step.skip(isMobile, 'the horizontal navigation is not part of the mobile layout')
-		const nav = page.locator('header.ant-layout-header').getByRole('menu')
+	await test.step('the sidebar navigation offers the user management page', async step => {
+		// Below md the sidebar is in the DOM but hidden by CSS (spec §3.3) and the header's Drawer menu
+		// mounts only once opened; the mobile Drawer navigation is pinned by its own flow (shell.spec.ts).
+		step.skip(isMobile, 'the sidebar is not part of the mobile layout')
+		const nav = page.getByRole('complementary').getByRole('menu')
 		await expect(nav.getByRole('menuitem', { name: 'User management' })).toBeVisible()
 	})
 	await expect(page.locator('.ant-table')).toBeVisible()

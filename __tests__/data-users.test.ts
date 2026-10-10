@@ -1,26 +1,36 @@
 import { drizzle } from 'drizzle-orm/mysql2'
-import { DrizzleQueryError } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
+import { DrizzleQueryError, type SQL } from 'drizzle-orm'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+const { database } = vi.hoisted(() => ({
+	/** The database a write test hands the DAL; the pure tests leave it unset, so any query throws. */
+	database: { value: undefined as unknown },
+}))
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 vi.mock('@/db', () => ({
 	getDb: () => {
-		throw new Error('not used by the pure tests')
+		if (!database.value) throw new Error('not used by the pure tests')
+		return database.value
 	},
 }))
 
 import {
 	createRefusal,
 	createUser,
+	deactivateRefusal,
 	deleteRefusal,
 	deleteUser,
 	isDuplicateEntry,
+	listUserOptions,
 	listUsers,
 	lockTarget,
+	setUserActive,
 	toUserDto,
+	toUserDtos,
 	updateRefusal,
 	updateUser,
 } from '@/lib/data/users'
+import { passwordResetTokens, users } from '@/db/schema'
 
 const member = { id: 'u2', email: 'joe@example.com', name: null, role: 'user' as const }
 const owner = { id: 'o1', role: 'owner' as const }
@@ -37,6 +47,9 @@ describe('toUserDto', () => {
 				name: null,
 				email: 'a@b.c',
 				role: 'admin',
+				adminDeactivatedAt: null,
+				adminDeactivatedBy: null,
+				directoryDeactivatedAt: null,
 				createdAt: at,
 				updatedAt: at,
 			}),
@@ -45,9 +58,91 @@ describe('toUserDto', () => {
 			name: null,
 			email: 'a@b.c',
 			role: 'admin',
+			active: true,
+			adminDeactivation: null,
+			groups: [],
 			createdAt: '2026-01-15T09:05:00.000Z',
 			updatedAt: '2026-01-15T09:05:00.000Z',
 		})
+	})
+})
+
+describe('toUserDto with markers and groups', () => {
+	it('reports an admin deactivation with when and by whom, and the groups it was given', () => {
+		const at = new Date('2026-10-09T09:05:00.000Z')
+		expect(
+			toUserDto(
+				{
+					id: 'u1',
+					name: null,
+					email: 'a@b.c',
+					role: 'user',
+					adminDeactivatedAt: at,
+					adminDeactivatedBy: 'o1',
+					directoryDeactivatedAt: null,
+					createdAt: at,
+					updatedAt: at,
+				},
+				[{ id: 'g1', name: 'Finance' }],
+			),
+		).toMatchObject({
+			active: false,
+			adminDeactivation: { at: '2026-10-09T09:05:00.000Z', by: 'o1' },
+			groups: [{ id: 'g1', name: 'Finance' }],
+		})
+	})
+
+	it('reads a directory deactivation as inactive without an admin record', () => {
+		const at = new Date()
+		expect(
+			toUserDto({
+				id: 'u1',
+				name: null,
+				email: 'a@b.c',
+				role: 'user',
+				adminDeactivatedAt: null,
+				adminDeactivatedBy: null,
+				directoryDeactivatedAt: at,
+				createdAt: at,
+				updatedAt: at,
+			}),
+		).toMatchObject({ active: false, adminDeactivation: null })
+	})
+})
+
+describe('toUserDtos (listUsers)', () => {
+	it('gives each account only its own groups, grouped once, and keeps both orders', () => {
+		const at = new Date('2026-10-09T09:05:00.000Z')
+		const row = (id: string) => ({
+			id,
+			name: null,
+			email: `${id}@b.c`,
+			role: 'user' as const,
+			adminDeactivatedAt: null,
+			adminDeactivatedBy: null,
+			directoryDeactivatedAt: null,
+			createdAt: at,
+			updatedAt: at,
+		})
+		const dtos = toUserDtos(
+			[row('u1'), row('u2'), row('u3')],
+			[
+				{ userId: 'u2', id: 'g1', name: 'Finance' },
+				{ userId: 'u1', id: 'g2', name: 'Legal' },
+				{ userId: 'u2', id: 'g3', name: 'Sales' },
+			],
+		)
+		expect(dtos.map(({ id, groups }) => [id, groups])).toEqual([
+			['u1', [{ id: 'g2', name: 'Legal' }]],
+			[
+				'u2',
+				[
+					{ id: 'g1', name: 'Finance' },
+					{ id: 'g3', name: 'Sales' },
+				],
+			],
+			['u3', []],
+		])
 	})
 })
 
@@ -135,6 +230,22 @@ describe('deleteRefusal (charter §4.2: nobody deletes themselves; ADR-0024: the
 	})
 })
 
+// Review Focus 4: ADR-0024's rank applies to deactivation; nobody deactivates themselves or the owner.
+describe('deactivateRefusal', () => {
+	it.each([
+		[owner, admin, null],
+		[owner, user, null],
+		[admin, user, null],
+		[admin, otherAdmin, 'forbidden'],
+		[admin, owner, 'forbidden'],
+		[{ id: 'u8', role: 'user' }, user, 'forbidden'],
+		[owner, owner, 'cannot_deactivate_self'],
+		[admin, admin, 'cannot_deactivate_self'],
+	] as const)('%o deactivating %o → %s', (actor, target, expected) => {
+		expect(deactivateRefusal({ actor, target })).toBe(expected)
+	})
+})
+
 describe('isDuplicateEntry (MySQL 1062 ER_DUP_ENTRY)', () => {
 	const dup = Object.assign(new Error("Duplicate entry 'a@b.c' for key 'users_email_key'"), {
 		code: 'ER_DUP_ENTRY',
@@ -159,13 +270,87 @@ describe('lockTarget (decision d, Review Focus 2)', () => {
 		expect(query.sql).toMatch(
 			/^select .* from `users` where `users`\.`id` = \? limit \? for update$/,
 		)
+		// setUserActive's no-op branch reads the admin marker from this row.
+		expect(query.sql).toMatch(/^select [^]*`admin_deactivated_at`[^]* from `users` /)
 		expect(query.params).toEqual(['u9', 1])
+	})
+})
+
+describe('setUserActive and pending reset links (controller ruling on C2)', () => {
+	type Write = { op: 'update' | 'delete'; table: unknown; condition: SQL }
+
+	/** A database that runs everything in its transaction: the target comes from the locking read, writes are recorded. */
+	const recordWrites = (target: { id: string; role: 'user'; adminDeactivatedAt: Date | null }) => {
+		const writes: Write[] = []
+		const tx = {
+			select: () => ({
+				from: () => ({
+					where: () => ({
+						limit: () => ({
+							for: (strength: string) =>
+								strength === 'update'
+									? Promise.resolve([target])
+									: Promise.reject(new Error(strength)),
+						}),
+					}),
+				}),
+			}),
+			update: (table: unknown) => ({
+				set: () => ({
+					where: (condition: SQL) => {
+						writes.push({ op: 'update', table, condition })
+						return Promise.resolve([{ affectedRows: 1 }])
+					},
+				}),
+			}),
+			delete: (table: unknown) => ({
+				where: (condition: SQL) => {
+					writes.push({ op: 'delete', table, condition })
+					return Promise.resolve([{ affectedRows: 1 }])
+				},
+			}),
+		}
+		// No update or delete outside the transaction: a write there would throw.
+		database.value = { transaction: (work: (t: typeof tx) => unknown) => work(tx) }
+		return writes
+	}
+	const ownerSession = { id: 'o1', email: 'owner@example.com', name: null, role: 'owner' as const }
+
+	afterEach(() => {
+		database.value = undefined
+	})
+
+	it("deactivation deletes the account's reset tokens in the same transaction as the marker", async () => {
+		const writes = recordWrites({ id: 'u9', role: 'user', adminDeactivatedAt: null })
+		expect(await setUserActive(ownerSession, 'u9', false)).toEqual({ ok: true, data: undefined })
+		expect(writes.map(write => [write.op, write.table])).toEqual([
+			['update', users],
+			['delete', passwordResetTokens],
+		])
+		const deleted = drizzle.mock().delete(passwordResetTokens).where(writes[1]!.condition).toSQL()
+		expect(deleted.sql).toBe(
+			'delete from `password_reset_tokens` where `password_reset_tokens`.`user_id` = ?',
+		)
+		expect(deleted.params).toEqual(['u9'])
+	})
+
+	it('deactivating an account an admin already deactivated deletes nothing', async () => {
+		const writes = recordWrites({ id: 'u9', role: 'user', adminDeactivatedAt: new Date() })
+		expect(await setUserActive(ownerSession, 'u9', false)).toEqual({ ok: true, data: undefined })
+		expect(writes).toEqual([])
+	})
+
+	it('reactivation clears the marker only: it deletes and restores no reset token', async () => {
+		const writes = recordWrites({ id: 'u9', role: 'user', adminDeactivatedAt: new Date() })
+		expect(await setUserActive(ownerSession, 'u9', true)).toEqual({ ok: true, data: undefined })
+		expect(writes.map(write => [write.op, write.table])).toEqual([['update', users]])
 	})
 })
 
 describe('the users DAL refuses a non-admin actor before any query (Review Focus 1)', () => {
 	it.each([
 		['listUsers', () => listUsers(member)],
+		['listUserOptions', () => listUserOptions(member)],
 		[
 			'createUser',
 			() =>
@@ -173,6 +358,7 @@ describe('the users DAL refuses a non-admin actor before any query (Review Focus
 		],
 		['updateUser', () => updateUser(member, 'u9', { name: 'N', email: 'n@e.com', role: 'user' })],
 		['deleteUser', () => deleteUser(member, 'u9')],
+		['setUserActive', () => setUserActive(member, 'u9', false)],
 	] as const)('%s', async (_name, call) => {
 		await expect(call()).rejects.toMatchObject({ name: 'AuthError', code: 'forbidden' })
 	})

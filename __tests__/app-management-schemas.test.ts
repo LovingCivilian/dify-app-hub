@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { appInputSchema, createAppInputSchema } from '@/app/(admin)/app-management/schemas'
+import {
+	accessSchema,
+	appInputSchema,
+	createAppInputSchema,
+} from '@/app/(admin)/app-management/schemas'
 
 const valid = {
 	apiBase: 'https://dify.example/v1',
@@ -13,6 +17,7 @@ const valid = {
 		openingStatementDisplayMode: 'default',
 		annotationEnabled: false,
 	},
+	access: { mode: 'restricted', groupIds: [], userIds: [] },
 }
 
 describe('app input schemas', () => {
@@ -37,9 +42,46 @@ describe('app input schemas', () => {
 			}).success,
 		).toBe(false)
 	})
+	// Spec §2 #9: closed by default, so the form always says who may use the app.
+	it('refuses an input without its access settings', () => {
+		expect(appInputSchema.safeParse({ ...valid, access: undefined }).success).toBe(false)
+		expect(createAppInputSchema.safeParse({ ...valid, access: undefined }).success).toBe(false)
+	})
 	it('accepts every Dify mode, the new agent app included', () => {
 		for (const mode of ['chat', 'agent-chat', 'advanced-chat', 'workflow', 'completion', 'agent']) {
 			expect(appInputSchema.safeParse({ ...valid, mode }).success).toBe(true)
 		}
+	})
+})
+
+describe('accessSchema (B3 spec §4.4)', () => {
+	const groupId = '6f1c2a9e-1b2c-4d3e-8f40-5a6b7c8d9e0f'
+
+	it('defaults the grant lists and takes the two modes only', () => {
+		expect(accessSchema.parse({ mode: 'restricted' })).toEqual({
+			mode: 'restricted',
+			groupIds: [],
+			userIds: [],
+		})
+		expect(accessSchema.safeParse({ mode: 'public' }).success).toBe(false)
+	})
+
+	it('takes UUID group ids and account ids by B2 decision h', () => {
+		expect(
+			accessSchema.safeParse({ mode: 'restricted', groupIds: [groupId], userIds: ['legacy-1'] })
+				.success,
+		).toBe(true)
+		expect(accessSchema.safeParse({ mode: 'restricted', groupIds: ['g1'] }).success).toBe(false)
+		expect(accessSchema.safeParse({ mode: 'restricted', userIds: [''] }).success).toBe(false)
+	})
+
+	it('bounds the grant lists at 1,000 groups and 10,000 accounts', () => {
+		const ids = (count: number, id: string) => Array.from({ length: count }, () => id)
+		const access = (lists: { groupIds?: string[]; userIds?: string[] }) =>
+			accessSchema.safeParse({ mode: 'restricted', ...lists }).success
+		expect(access({ groupIds: ids(1000, groupId) })).toBe(true)
+		expect(access({ groupIds: ids(1001, groupId) })).toBe(false)
+		expect(access({ userIds: ids(10_000, 'u1') })).toBe(true)
+		expect(access({ userIds: ids(10_001, 'u1') })).toBe(false)
 	})
 })

@@ -35,6 +35,7 @@ const input = {
 		openingStatementDisplayMode: 'default',
 		annotationEnabled: false,
 	},
+	access: { mode: 'restricted', groupIds: [], userIds: [] },
 }
 
 beforeEach(() => {
@@ -95,6 +96,41 @@ describe('app actions', () => {
 		syncApp.mockResolvedValue({ id: UUID, partial: false })
 		expect(await syncAppAction(UUID)).toEqual({ ok: true, data: { id: UUID, partial: false } })
 		expect(refresh).toHaveBeenCalledTimes(2)
+	})
+
+	// Review Focus 3 and deviation 3: a group or account picked in the drawer was deleted before the save.
+	it.each([
+		['createAppAction', () => createAppAction(input), createApp],
+		['updateAppAction', () => updateAppAction(UUID, input), updateApp],
+	] as const)(
+		'%s answers invalid_input on the access field when a granted id is gone',
+		async (_name, call, dal) => {
+			dal.mockRejectedValue(
+				new Error('Failed query', {
+					cause: Object.assign(new Error('ER_NO_REFERENCED_ROW_2'), {
+						code: 'ER_NO_REFERENCED_ROW_2',
+						errno: 1452,
+					}),
+				}),
+			)
+			expect(await call()).toEqual({
+				ok: false,
+				code: 'invalid_input',
+				fieldErrors: { access: ['unknown'] },
+			})
+			expect(refresh).not.toHaveBeenCalled()
+		},
+	)
+
+	it('passes the access settings to the DAL as parsed', async () => {
+		createApp.mockResolvedValue({ id: UUID, partial: false })
+		const groupId = '6f1c2a9e-1b2c-4d3e-8f40-5a6b7c8d9e0f'
+		const granted = {
+			...input,
+			access: { mode: 'restricted', groupIds: [groupId], userIds: ['u7'] },
+		}
+		await createAppAction(granted)
+		expect(createApp).toHaveBeenCalledWith(actor, granted)
 	})
 
 	// Review Focus 1 and deviation 3: every admin action refuses a user-role session before touching the DAL.

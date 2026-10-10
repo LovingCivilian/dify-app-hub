@@ -1,30 +1,69 @@
+import { getTableName, type Table } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The DAL's Dify reads and its writes: the real client and readIconBytes over a stubbed fetch, a fake Drizzle chain
-// that records the selection, the inserted values and what the update sets. vi.mock factories are hoisted above
-// imports, so the fake comes from vi.hoisted.
+// that records the selection, the inserted values and what the update sets, and a log of the writes with the
+// transaction around them. vi.mock factories are hoisted above imports, so the fake comes from vi.hoisted.
 const { db } = vi.hoisted(() => {
 	const db = {
 		row: undefined as Record<string, unknown> | undefined,
+		/** What a locking read (`.for('update')`) finds inside the transaction: the row as it is at that moment. */
+		locked: undefined as Record<string, unknown> | undefined,
 		fields: undefined as Record<string, unknown> | undefined,
 		values: undefined as Record<string, unknown> | undefined,
+		inserted: [] as unknown[],
 		set: undefined as Record<string, unknown> | undefined,
+		/** Each write and lock in order, with its table, between the transaction's begin and commit. */
+		log: [] as [string, unknown?][],
 		select: (fields?: Record<string, unknown>) => {
 			db.fields = fields
 			const rows = async () => (db.row ? [db.row] : [])
-			return { from: () => ({ where: () => ({ limit: rows }), orderBy: rows }) }
+			return {
+				from: (table: unknown) => ({
+					where: () => ({
+						limit: () =>
+							Object.assign(rows(), {
+								for: async (strength: string) => {
+									db.log.push([`lock ${strength}`, table])
+									return db.locked ? [db.locked] : []
+								},
+							}),
+						orderBy: rows,
+					}),
+					orderBy: rows,
+				}),
+			}
 		},
-		insert: () => ({
+		insert: (table: unknown) => ({
 			values: async (values: Record<string, unknown>) => {
+				db.log.push(['insert', table])
 				db.values = values
+				db.inserted.push(values)
 			},
 		}),
-		update: () => ({
+		update: (table: unknown) => ({
 			set: (values: Record<string, unknown>) => {
 				db.set = values
-				return { where: async () => [{ affectedRows: 1 }] }
+				return {
+					where: async () => {
+						db.log.push(['update', table])
+						return [{ affectedRows: 1 }]
+					},
+				}
 			},
 		}),
+		delete: (table: unknown) => ({
+			where: async () => {
+				db.log.push(['delete', table])
+				return [{ affectedRows: 0 }]
+			},
+		}),
+		transaction: async (work: (tx: unknown) => unknown) => {
+			db.log.push(['begin'])
+			const result = await work(db)
+			db.log.push(['commit'])
+			return result
+		},
 	}
 	return { db }
 })
@@ -37,6 +76,7 @@ import {
 	ICON_MAX_BYTES,
 	listApps,
 	syncApp,
+	updateApp,
 	type AppSettings,
 } from '@/lib/data/apps'
 
@@ -77,9 +117,12 @@ const dify = ({
 
 beforeEach(() => {
 	db.row = { ...stored }
+	db.locked = { id: 'a1' }
 	db.fields = undefined
 	db.values = undefined
+	db.inserted = []
 	db.set = undefined
+	db.log = []
 	fetchMock = vi.fn()
 	vi.stubGlobal('fetch', fetchMock)
 })
@@ -87,6 +130,10 @@ afterEach(() => {
 	vi.unstubAllGlobals()
 	vi.restoreAllMocks()
 })
+
+/** The write log with table names, e.g. `insert dify_apps`. */
+const writes = () =>
+	db.log.map(([op, table]) => (table ? `${op} ${getTableName(table as Table)}` : op))
 
 const infoColumns = { name: 'Tea 2', mode: 'chat', description: 'new', tags: '["x"]' }
 const storedIcon = {
@@ -210,6 +257,7 @@ describe('the mode written to the row (charter §4.4: only the six known modes)'
 		mode: 'workflow' as const,
 		enabled: true,
 		settings,
+		access: { mode: 'restricted' as const, groupIds: [] as string[], userIds: [] as string[] },
 	}
 
 	it.each([
@@ -218,7 +266,56 @@ describe('the mode written to the row (charter §4.4: only the six known modes)'
 	])('create: %s', async (_case, difyMode, expected) => {
 		dify({ info: { ...INFO, mode: difyMode } })
 		await createApp(actor, input)
-		expect(db.values).toMatchObject({ name: 'Tea 2', mode: expected })
+		expect(db.values).toMatchObject({ name: 'Tea 2', mode: expected, accessMode: 'restricted' })
+	})
+
+	// Spec §4.4 and deviation 3: the row and its grants are one transaction, so a refused grant leaves no app behind.
+	it('create: stores the grants with the row, in its transaction', async () => {
+		dify()
+		const { id } = await createApp(actor, {
+			...input,
+			access: { mode: 'restricted', groupIds: ['g1'], userIds: [] },
+		})
+		expect(db.inserted.at(-1)).toEqual([{ appId: id, groupId: 'g1' }])
+		expect(writes()).toEqual([
+			'begin',
+			'insert dify_apps',
+			'delete app_group_grants',
+			'delete app_user_grants',
+			'insert app_group_grants',
+			'commit',
+		])
+	})
+
+	// Ruling M11: the row is locked before the grants are written; an app deleted after the access read answers null
+	// (the action's not_found) and nothing is written, instead of the grant insert's 1452 reading as a stale pick.
+	it('update: answers null and writes nothing when the app is gone by the locking read', async () => {
+		dify()
+		db.locked = undefined
+		await expect(updateApp(actor, 'a1', input)).resolves.toBeNull()
+		expect(db.set).toBeUndefined()
+		expect(writes()).toEqual(['begin', 'lock update dify_apps', 'commit'])
+	})
+
+	// Deviation 4: an app open to everyone keeps no grants.
+	it('update: locks the row, writes it and replaces its grants in one transaction', async () => {
+		dify()
+		await expect(
+			updateApp(actor, 'a1', {
+				...input,
+				access: { mode: 'everyone', groupIds: ['g1'], userIds: ['u1'] },
+			}),
+		).resolves.toEqual({ id: 'a1', partial: false })
+		expect(db.set).toMatchObject({ name: 'Tea 2', accessMode: 'everyone' })
+		expect(db.inserted).toEqual([])
+		expect(writes()).toEqual([
+			'begin',
+			'lock update dify_apps',
+			'update dify_apps',
+			'delete app_group_grants',
+			'delete app_user_grants',
+			'commit',
+		])
 	})
 
 	it('sync: an unknown mode from Dify leaves the stored mode alone', async () => {

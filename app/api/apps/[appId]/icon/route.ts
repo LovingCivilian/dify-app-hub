@@ -7,9 +7,11 @@ import { difyErrorResponse, errorResponseFrom } from '@/lib/dify/errors'
 
 /**
  * The app's stored Dify icon image (charter §4.4): signed-in callers only (an <img> on a gated page sends the
- * cookie), an ETag from the bytes so a reload costs 304, cached privately for a day. The stored type can be an
- * SVG, so the answer is never sniffed and runs nothing when opened on its own (GitHub raw's `nosniff` plus a
- * sandboxing CSP); an <img> ignores both.
+ * cookie), and only for an app the caller may use (getAppIcon applies the access rule). Cached privately and
+ * revalidated on every use (`no-cache`, RFC 9111 §5.2.2.4), so a removed grant applies at the next request (B3
+ * spec §4.5) while an unchanged icon costs a 304 through its ETag. The stored type can be an SVG, so the answer is
+ * never sniffed and runs nothing when opened on its own (GitHub raw's `nosniff` plus a sandboxing CSP); an <img>
+ * ignores both.
  */
 export async function GET(request: NextRequest, ctx: RouteContext<'/api/apps/[appId]/icon'>) {
 	const actor = await verifySession()
@@ -21,7 +23,7 @@ export async function GET(request: NextRequest, ctx: RouteContext<'/api/apps/[ap
 		const etag = `"${createHash('sha256').update(icon.bytes).digest('hex').slice(0, 32)}"`
 		const headers = {
 			etag,
-			'cache-control': 'private, max-age=86400',
+			'cache-control': 'private, no-cache',
 			'x-content-type-options': 'nosniff',
 			'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
 		}

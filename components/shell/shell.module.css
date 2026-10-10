@@ -9,6 +9,12 @@
 	overflow: auto;
 }
 
+/* The admin navigation in the sidebar: a long menu scrolls inside the sider, above antd's trigger bar. */
+.siderMenu {
+	height: 100%;
+	overflow: auto;
+}
+
 /* The admin pages' frame (spec §3.4): mobile first, one query at antd's screenMD; pages add no padding. */
 .adminContent {
 	padding: var(--ant-padding);

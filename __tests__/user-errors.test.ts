@@ -10,6 +10,7 @@ describe('userErrorKey', () => {
 		['not_found', 'admin_users.not_found'],
 		['email_in_use', 'admin_users.email_in_use'],
 		['cannot_delete_self', 'admin_users.cannot_delete_self'],
+		['cannot_deactivate_self', 'admin_users.cannot_deactivate_self'],
 		['invalid_input', 'admin_users.invalid_input'],
 		['operation_failed', 'common.operation_failed'],
 		['dify_unreachable', 'common.operation_failed'],

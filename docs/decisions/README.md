@@ -48,6 +48,8 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0024](0024-keep-the-apps-own-data-behind-a-data-access-layer-with-server-actions-and-gate-the-admin-surface-by-role.md) | Keep the app's own data behind a Data Access Layer with Server Actions, and gate the admin surface by role | accepted | 2026-10-08 |
 | [0025](0025-validate-with-zod.md) | Validate request bodies, action inputs and the environment with zod | accepted | 2026-10-07 |
 | [0026](0026-use-the-accounts-permanent-id-as-the-dify-end-user.md) | Use the account's permanent id as the Dify end user | accepted | 2026-10-08 |
+| [0027](0027-gate-apps-by-groups-and-grants-and-deactivate-accounts-with-two-markers.md) | Gate apps by groups and grants, and deactivate accounts with two markers | proposed | 2026-10-10 |
+| [0028](0028-navigate-the-admin-area-in-a-sidebar-shared-with-the-chat.md) | Navigate the admin area in a sidebar shared with the chat | proposed | 2026-10-10 |
 
 ## Inherited from upstream (not fork decisions)
 

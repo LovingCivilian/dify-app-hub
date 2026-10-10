@@ -33,8 +33,6 @@ export interface ConversationSidebarProps extends Omit<ConversationListProps, 'c
 	onCreate: () => void
 	/** An unsent new chat already exists (spec §4.4: at most one). */
 	createDisabled: boolean
-	/** At the end of the app info row (the sider's collapse toggle). */
-	action?: React.ReactNode
 }
 
 /**
@@ -60,8 +58,8 @@ export function AppAvatar({ size, alt }: Pick<AvatarProps, 'size' | 'alt'>) {
 	)
 }
 
-/** The app's icon, name and description (site settings first, the app record second), then `action`. */
-export function AppInfoBlock({ action }: { action?: React.ReactNode }) {
+/** The app's icon, name and description (site settings first, the app record second). */
+export function AppInfoBlock() {
 	const { app, site } = useAppContext()
 	const name = site.title || app.name
 	const description = site.description || app.description
@@ -93,7 +91,6 @@ export function AppInfoBlock({ action }: { action?: React.ReactNode }) {
 						</Typography.Text>
 					)}
 				</Flex>
-				{action}
 			</Flex>
 		</div>
 	)
@@ -152,8 +149,8 @@ export const ConversationList = memo(function ConversationList({
 })
 
 /**
- * App info (with the optional `action` at its end) and the list with the new-chat button, for the sider
- * and the mobile drawer. Memoised: the page re-renders on every streamed chunk and the list holds a dropdown per item.
+ * App info and the list with the new-chat button, for the sider and the mobile drawer. Memoised: the page
+ * re-renders on every streamed chunk and the list holds a dropdown per item.
  */
 const ConversationSidebar = memo(function ConversationSidebar({
 	items,
@@ -163,7 +160,6 @@ const ConversationSidebar = memo(function ConversationSidebar({
 	createDisabled,
 	menu,
 	locked,
-	action,
 }: ConversationSidebarProps) {
 	const creation = useMemo(
 		() => ({ onClick: onCreate, disabled: createDisabled }),
@@ -171,7 +167,7 @@ const ConversationSidebar = memo(function ConversationSidebar({
 	)
 	return (
 		<div className={styles.siderInner}>
-			<AppInfoBlock action={action} />
+			<AppInfoBlock />
 			<div className={styles.siderList}>
 				<ConversationList
 					items={items}

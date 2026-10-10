@@ -1,0 +1,18 @@
+/* Mobile first: below md the sider makes way for the header's drawer trigger (spec §3.3). One query, so the
+   sider and the trigger are exact complements at any width, fractional ones included. The sider spans the
+   region below the header (ADR-0011); what it holds scrolls inside it. */
+.sider {
+	display: none;
+	border-inline-end: var(--ant-line-width) var(--ant-line-type) var(--ant-color-border-secondary);
+}
+@media (min-width: 768px /* screenMD */) {
+	.sider {
+		display: block;
+	}
+}
+/* antd's trigger bar is fixed over the sider's last triggerHeight with the sider's width, so it paints over the
+   sider's border there; the bar's content draws the same line at the same edge. */
+.trigger {
+	height: 100%;
+	border-inline-end: var(--ant-line-width) var(--ant-line-type) var(--ant-color-border-secondary);
+}

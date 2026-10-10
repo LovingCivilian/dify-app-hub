@@ -13,19 +13,19 @@ export interface SiderCollapsedProps {
 	createDisabled: boolean
 	/** The conversation list (X Conversations), shown in the popover. */
 	list: React.ReactNode
-	/** The sider's collapse toggle, which stays reachable in the rail. */
-	toggle: React.ReactNode
 	/** The popover is controlled so that picking a conversation, which the list reports to the page, closes it. */
 	listOpen: boolean
 	onListOpenChange: (open: boolean) => void
 }
 
-/** What the collapsed sider keeps (spec §5.1): the app icon, the toggle, a new-chat button and the list in a popover. */
+/**
+ * What the collapsed sider keeps (spec §5.1): the app icon, a new-chat button and the list in a popover; the
+ * sider's own trigger bar below expands it again (components/shell/app-sider.tsx).
+ */
 export default function SiderCollapsed({
 	onCreate,
 	createDisabled,
 	list,
-	toggle,
 	listOpen,
 	onListOpenChange,
 }: SiderCollapsedProps) {
@@ -39,7 +39,6 @@ export default function SiderCollapsed({
 				gap="small"
 			>
 				<AppAvatar />
-				{toggle}
 				<Button
 					type="text"
 					icon={<PlusCircleOutlined />}

@@ -58,3 +58,5 @@ Chosen option: keep MySQL, because the app is MySQL-only through Drizzle at ever
 ## More Information
 
 Source: `CLAUDE.md` "Infrastructure" ("MySQL stays … Postgres was considered and rejected"). Upstream's migration record is inherited, not a fork decision.
+
+Note, 2026-10-09: the owner wants to move this line to PostgreSQL after backend rework B3 or after frontend phase 2 (their other projects and Dify on the production server run PostgreSQL). That move gets its own ADR superseding this one. This record's main reason, cheap upstream merges, fell away with ADR-0022. B3 keeps to features both engines have (foreign keys with cascade, `CHECK`, composite primary keys, enums, a unique index that allows several `NULL`s).
