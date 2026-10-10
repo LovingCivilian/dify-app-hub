@@ -142,4 +142,11 @@ describe('changeOwnPassword (charter §4.2, decision d)', () => {
 		expect(await changeOwnPassword(actor, input)).toEqual({ ok: false, code: 'unauthorized' })
 		expect(mocks.updates).toEqual([])
 	})
+
+	it('refuses a directory account, which has no hub password, before any check or write', async () => {
+		mocks.rows.read = [{ password: null }]
+		expect(await changeOwnPassword(actor, input)).toEqual({ ok: false, code: 'forbidden' })
+		expect(mocks.strengths).toEqual([])
+		expect(mocks.updates).toEqual([])
+	})
 })

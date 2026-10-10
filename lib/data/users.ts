@@ -354,6 +354,8 @@ export async function changeOwnPassword(
 		.where(eq(users.id, actor.id))
 		.limit(1)
 	if (!row) return fail('unauthorized')
+	// A directory account has no hub password to change (spec §6.3; the directory owns it).
+	if (row.password === null) return fail('forbidden')
 	if (!(await verifyPassword(input.currentPassword, row.password))) {
 		return fail('invalid_input', { currentPassword: ['incorrect'] })
 	}

@@ -152,6 +152,27 @@ describe('authorizeCredentials', () => {
 			warn.mockRestore()
 		}
 	})
+
+	// Spec §6.3: the local provider refuses an `ldap` account (no hub password). The same bcrypt work as a wrong
+	// password, against the fixed hash (OWASP "Authentication Responses"), and the reason is logged by account id.
+	it('refuses a directory account with the same work as a wrong password, and logs its id', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+		try {
+			rows.value = [{ ...row, password: null }]
+			verifyPassword.mockResolvedValue(true)
+			expect(
+				await authorizeCredentials({ email: 'jane@example.com', password: 'any-password' }),
+			).toBeNull()
+			expect(verifyPassword).toHaveBeenCalledTimes(1)
+			expect(verifyPassword).toHaveBeenCalledWith('any-password', noAccountHash)
+			expect(warn).toHaveBeenCalledWith('authorizeCredentials: sign-in refused', {
+				reason: 'directory_account',
+				userId: 'u1',
+			})
+		} finally {
+			warn.mockRestore()
+		}
+	})
 })
 
 // A failure inside authorize() becomes next-auth's error URL: "If you throw an Error, the user will be sent to the

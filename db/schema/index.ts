@@ -1,5 +1,6 @@
 export { appGroupGrants, appUserGrants } from './app-grants'
 export { difyApps } from './apps'
+export { directorySyncRuns, userGroupDirectoryLinks } from './directory'
 export { userGroupMembers, userGroups } from './groups'
 export { passwordResetTokens } from './password-reset-tokens'
 export { users } from './users'

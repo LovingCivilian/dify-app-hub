@@ -17,3 +17,9 @@ export const isDuplicateEntry = (error: unknown): boolean => hasCode(error, 'ER_
  */
 export const isMissingReference = (error: unknown): boolean =>
 	hasCode(error, 'ER_NO_REFERENCED_ROW_2')
+
+/**
+ * InnoDB's deadlock (1213 ER_LOCK_DEADLOCK): the transaction was rolled back and may be run again (MySQL 8.4 "How to
+ * Minimize and Handle Deadlocks": "Always be prepared to re-issue a transaction if it fails due to deadlock").
+ */
+export const isDeadlock = (error: unknown): boolean => hasCode(error, 'ER_LOCK_DEADLOCK')

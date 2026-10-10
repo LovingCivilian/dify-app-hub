@@ -23,6 +23,8 @@ describe('logSignInRefusal', () => {
 
 	// Checked by tsc, which includes this file: the reason is one of the codes in use, not any string (B3b adds its own).
 	it('takes only the fixed reason codes', () => {
-		expectTypeOf(logSignInRefusal).parameter(1).toEqualTypeOf<'account_inactive'>()
+		expectTypeOf(logSignInRefusal)
+			.parameter(1)
+			.toEqualTypeOf<'account_inactive' | 'directory_account'>()
 	})
 })

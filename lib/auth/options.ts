@@ -36,6 +36,13 @@ async function findAccount(email: string, password: string): Promise<User | null
 		await verifyPassword(password, UNKNOWN_ACCOUNT_HASH)
 		return null
 	}
+	// Spec §6.3: an account the directory owns has no hub password. The same bcrypt work as a wrong password, against
+	// the fixed hash, so the answer's time tells nothing; refused like a wrong password (OWASP "Authentication Responses").
+	if (user.password === null) {
+		await verifyPassword(password, UNKNOWN_ACCOUNT_HASH)
+		logSignInRefusal('authorizeCredentials', 'directory_account', { userId: user.id })
+		return null
+	}
 	if (!(await verifyPassword(password, user.password))) return null
 	// Spec §5: after the password, so a wrong password and a deactivated account take the same path and answer.
 	if (!isActive(user)) {

@@ -50,8 +50,11 @@ export const logActionError = (error: unknown, context: string): void => {
 	console.error(`${context}:`, describeError(error))
 }
 
-/** The fixed reason codes of a refused sign-in (B3 spec §7.3); B3b adds the directory's. */
-export type SignInRefusalReason = 'account_inactive'
+/**
+ * The fixed reason codes of a refused sign-in (B3 spec §7.3). `directory_account`: the local form named an account the
+ * directory owns, which has no hub password. The directory's own reasons follow in ADR-0029's tasks.
+ */
+export type SignInRefusalReason = 'account_inactive' | 'directory_account'
 
 /**
  * A refused sign-in, logged once with a fixed reason code and a subject that names the account without a secret
