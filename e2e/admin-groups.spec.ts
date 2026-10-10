@@ -25,14 +25,12 @@ const openGroups = async (page: Page) => {
 }
 
 /**
- * Filters the drawer's member picker by the account's email and picks the first match with Enter (antd Select
- * activates the first filtered option); a click on the option is not used because the popup is not a stable target
- * while it scrolls inside the drawer.
+ * Opens the drawer's member picker, narrows it by the account's email and picks the option by its title (antd Select
+ * options carry a title; the pattern of e2e/chat-hitl.spec.ts).
  */
 const pickMember = async (page: Page, label: string, filter: string) => {
 	await page.getByLabel('Members').fill(filter)
-	await expect(page.getByTitle(label, { exact: true })).toBeVisible()
-	await page.keyboard.press('Enter')
+	await page.getByTitle(label, { exact: true }).click()
 	await expect(
 		page.getByRole('dialog').locator('.ant-select-selection-item', { hasText: label }),
 	).toBeVisible()
