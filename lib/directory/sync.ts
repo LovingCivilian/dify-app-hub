@@ -123,20 +123,35 @@ async function lookUpLinks(
 	}))
 }
 
+/**
+ * What a run reached, kept as it goes so a failure records it (decision ah): the run row's counts, and the entries the
+ * hub could not read, which only the summary line carries (no column).
+ */
+interface RunProgress {
+	counts: SyncRunCounts
+	/** Entries readEntry dropped: no DN or no readable key (a LDAP_ID_ATTRIBUTE that is not a GUID or a UUID). */
+	unreadable: number
+}
+
 async function reconcile(
 	config: LdapConfig,
-	counts: SyncRunCounts,
+	progress: RunProgress,
 ): Promise<Exclude<SyncOutcome, 'running' | 'failed'>> {
+	const { counts } = progress
 	const links = await listGroupLinks()
-	// Read before the directory: an account that a sign-in creates or reactivates while the directory is read is not
-	// judged against an answer older than its change (decision af).
+	// Read before the directory (decision af): an account a sign-in creates or reactivates while the directory is read
+	// is not judged against an answer older than its change, and the membership rows a sign-in writes meanwhile are not
+	// in the plan's view, which removes only rows it saw. The account writes below never touch membership rows.
 	const accounts = await listDirectoryAccounts()
-	const snapshot: DirectorySnapshot = await withDirectory(config, async client => ({
-		entries: (await listUserEntries(client, config))
+	const current = await listDirectoryMemberships()
+	const snapshot: DirectorySnapshot = await withDirectory(config, async client => {
+		const answer = await listUserEntries(client, config)
+		const entries = answer
 			.map(entry => readEntry(entry, config))
-			.filter((entry): entry is DirectoryEntry => entry !== null),
-		lookups: await lookUpLinks(client, config, links),
-	}))
+			.filter((entry): entry is DirectoryEntry => entry !== null)
+		progress.unreadable = answer.length - entries.length
+		return { entries, lookups: await lookUpLinks(client, config, links) }
+	})
 	counts.entriesSeen = snapshot.entries.length
 	const plan = planAccountChanges(accounts, snapshot.entries, config.idAttribute)
 	if (plan.stop !== null) return plan.stop
@@ -149,11 +164,9 @@ async function reconcile(
 		if (updated) counts.updated += 1
 		if (conflict) counts.conflicts += 1
 	}
-	const memberships = planDirectoryMemberships(
-		snapshot.lookups,
-		plan.accountIdByKey,
-		await listDirectoryMemberships(),
-	)
+	// A row in the plan's add list that a sign-in inserted meanwhile is a duplicate key, which applyMembershipChanges
+	// skips row by row (lib/data/directory.ts); the next run corrects any other overlap (spec §6.4 "Claim").
+	const memberships = planDirectoryMemberships(snapshot.lookups, plan.accountIdByKey, current)
 	counts.groupErrors = memberships.groupErrors
 	await refreshGroupLinks(memberships.linkRefreshes, at)
 	const applied = await applyMembershipChanges(memberships)
@@ -168,6 +181,11 @@ async function reconcile(
  * Runs one sync for a slot (spec §6.4). The slot's unique key decides which caller runs it: a refused claim skips. The
  * run's failure is caught, logged by name and code (lib/error-log.ts) and recorded with a fixed code; the summary line
  * carries the outcome and the counts, never a name or an email (OWASP Logging Cheat Sheet, "Data to exclude").
+ *
+ * The summary line comes before the row is finished, so a database that refuses the row still leaves the line; a
+ * failed finish is logged and thrown, since the row may still say `running` (the guard lets the next run start once
+ * the window has passed). The prune is housekeeping that the next run repeats: its failure is logged and changes
+ * nothing the run returns.
  */
 export async function runSync(run: {
 	config: LdapConfig
@@ -177,7 +195,7 @@ export async function runSync(run: {
 }): Promise<SyncAttempt> {
 	// Decision ag: Keycloak's one sync key for every trigger; the slot claim below then stops a second container.
 	if (await hasUnfinishedRunSince(new Date(Date.now() - RUNNING_GUARD_MS))) {
-		console.info('directorySync: a run is going, this one is skipped', { trigger: run.trigger })
+		console.info('directorySync: another run is running', { trigger: run.trigger })
 		return { status: 'running' }
 	}
 	if (
@@ -189,24 +207,35 @@ export async function runSync(run: {
 		}))
 	)
 		return { status: 'skipped' }
-	const counts: SyncRunCounts = { ...EMPTY_COUNTS }
+	const progress: RunProgress = { counts: { ...EMPTY_COUNTS }, unreadable: 0 }
+	const { counts } = progress
 	let outcome: Exclude<SyncOutcome, 'running'>
 	let errorCode: SyncErrorCode | null = null
 	try {
-		outcome = await reconcile(run.config, counts)
+		outcome = await reconcile(run.config, progress)
 	} catch (error) {
 		logActionError(error, 'directorySync')
 		outcome = 'failed'
 		errorCode = errorCodeOf(error)
 	}
-	await finishSyncRun(run.id, outcome, counts, errorCode, new Date())
-	await pruneSyncRuns(new Date(Date.now() - RUN_RETENTION_MS))
 	console.info('directorySync: run finished', {
 		trigger: run.trigger,
 		outcome,
 		errorCode,
 		...counts,
+		unreadable: progress.unreadable,
 	})
+	try {
+		await finishSyncRun(run.id, outcome, counts, errorCode, new Date())
+	} catch (error) {
+		logActionError(error, 'directorySyncFinish')
+		throw error
+	}
+	try {
+		await pruneSyncRuns(new Date(Date.now() - RUN_RETENTION_MS))
+	} catch (error) {
+		logActionError(error, 'directorySyncPrune')
+	}
 	return { status: 'finished', outcome, counts, errorCode }
 }
 

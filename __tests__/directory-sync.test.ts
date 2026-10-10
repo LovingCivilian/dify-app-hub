@@ -153,6 +153,7 @@ describe('runSync (spec §6.4)', () => {
 			mocks.deactivateDirectoryAccounts,
 			mocks.reactivateDirectoryAccounts,
 			mocks.refreshDirectoryAccount,
+			mocks.refreshGroupLinks,
 			mocks.applyMembershipChanges,
 		])
 			expect(write).not.toHaveBeenCalled()
@@ -170,11 +171,12 @@ describe('runSync (spec §6.4)', () => {
 			'bind_refused',
 		],
 		['a refused search', new NoSuchObjectError('no such base'), 'search_failed'],
-		// Task 6 review: ldapts rethrows a page's result code as the error it is, and withDirectory names a connection
-		// that dropped between pages unreachable; either ends the run before any write.
-		['a page the directory refuses partway', new UnwillingToPerformError('page'), 'search_failed'],
+		// The classes a failed page gives (Task 6 review): ldapts throws a page's result code as its own error class
+		// (`dist/index.mjs:3128`), and withDirectory names a dropped socket unreachable. The mid-page proof is Task 6's
+		// (connection.ts and its tests); here, each class maps to its code.
+		['another result code', new UnwillingToPerformError('page'), 'search_failed'],
 		[
-			'a connection dropped partway',
+			"the unreachable error with a dropped socket's cause",
 			new DirectoryUnavailableError({
 				cause: new Error('Socket error. Message type: SearchRequest (0x63)'),
 			}),
@@ -240,11 +242,13 @@ describe('runSync (spec §6.4)', () => {
 		expect(mocks.findGroupByKey.mock.invocationCallOrder.at(-1)!).toBeLessThan(
 			mocks.deactivateDirectoryAccounts.mock.invocationCallOrder[0],
 		)
-		// The hub's accounts are read before the directory (decision af), so an account a sign-in changes while the
-		// directory is read is never judged against an older answer.
-		expect(mocks.listDirectoryAccounts.mock.invocationCallOrder[0]).toBeLessThan(
-			mocks.withDirectory.mock.invocationCallOrder[0],
-		)
+		// The hub's accounts, then its directory memberships, are read before the directory (decision af): an account or
+		// a membership row a sign-in writes while the directory is read is never judged against an older answer, and
+		// the plan removes only rows it saw.
+		const [accountsRead] = mocks.listDirectoryAccounts.mock.invocationCallOrder
+		const [membershipsRead] = mocks.listDirectoryMemberships.mock.invocationCallOrder
+		expect(accountsRead).toBeLessThan(membershipsRead!)
+		expect(membershipsRead).toBeLessThan(mocks.withDirectory.mock.invocationCallOrder[0]!)
 	})
 
 	// Task 9 review: `directory_group_name` is varchar(255); a longer name (a DN taken for a group without one) would be
@@ -358,9 +362,77 @@ describe('runSync (spec §6.4)', () => {
 		try {
 			await runSync(run)
 			expect(info).toHaveBeenCalledTimes(1)
+			expect(info).toHaveBeenCalledWith(
+				'directorySync: run finished',
+				expect.objectContaining({ entriesSeen: 1, unreadable: 0 }),
+			)
 			expect(JSON.stringify(info.mock.calls)).not.toMatch(/alice/)
 		} finally {
 			info.mockRestore()
+		}
+	})
+
+	// Review M1: an entry without a readable key (a LDAP_ID_ATTRIBUTE that is not a GUID or UUID) is dropped; the
+	// summary line counts the drops, so a run that stops `empty` for that reason says why.
+	it('counts the entries it could not read in the summary line, and stops empty when none was readable', async () => {
+		mocks.listUserEntries.mockResolvedValue([
+			{ dn: 'CN=short,DC=x', objectGUID: Buffer.from('short') },
+			{ dn: 'CN=none,DC=x', sAMAccountName: 'none' },
+		])
+		expect(await runSync(run)).toMatchObject({
+			outcome: 'empty',
+			errorCode: null,
+			counts: { entriesSeen: 0 },
+		})
+		expect(console.info).toHaveBeenCalledWith(
+			'directorySync: run finished',
+			expect.objectContaining({ outcome: 'empty', entriesSeen: 0, unreadable: 2 }),
+		)
+	})
+
+	// Review M2: the prune is housekeeping the next run repeats; its failure is logged and changes nothing the run says.
+	it('logs a failed prune and keeps the run as it finished', async () => {
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+		try {
+			mocks.pruneSyncRuns.mockRejectedValue(
+				Object.assign(new Error('lost'), { code: 'PROTOCOL_CONNECTION_LOST' }),
+			)
+			expect(await runSync(run)).toMatchObject({
+				status: 'finished',
+				outcome: 'succeeded',
+				errorCode: null,
+			})
+			expect(mocks.finishSyncRun).toHaveBeenCalledWith(
+				'r1',
+				'succeeded',
+				expect.anything(),
+				null,
+				expect.any(Date),
+			)
+			expect(log).toHaveBeenCalledWith('directorySyncPrune:', expect.anything())
+		} finally {
+			log.mockRestore()
+		}
+	})
+
+	// Review M2: the summary line is written before the row, so a database that refuses the row still leaves it; the
+	// failed finish is logged and thrown, so the caller knows the row may still say `running`.
+	it('logs the summary line before the row, and logs and rethrows a failed finish', async () => {
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+		try {
+			const lost = Object.assign(new Error('lost'), { code: 'PROTOCOL_CONNECTION_LOST' })
+			mocks.finishSyncRun.mockRejectedValue(lost)
+			await expect(runSync(run)).rejects.toBe(lost)
+			expect(console.info).toHaveBeenCalledWith(
+				'directorySync: run finished',
+				expect.objectContaining({ outcome: 'succeeded' }),
+			)
+			expect(vi.mocked(console.info).mock.invocationCallOrder[0]).toBeLessThan(
+				mocks.finishSyncRun.mock.invocationCallOrder[0]!,
+			)
+			expect(log).toHaveBeenCalledWith('directorySyncFinish:', lost)
+		} finally {
+			log.mockRestore()
 		}
 	})
 })
@@ -374,6 +446,10 @@ describe('the running guard (decision ag)', () => {
 			expect(mocks.claimSyncRun).not.toHaveBeenCalled()
 			const [since] = mocks.hasUnfinishedRunSince.mock.calls[0]
 			expect(Math.round((Date.now() - (since as Date).getTime()) / 60_000)).toBe(30)
+			// Review M5: the line names the attempt's own status; `skipped` is a lost slot claim's.
+			expect(console.info).toHaveBeenCalledWith('directorySync: another run is running', {
+				trigger,
+			})
 		},
 	)
 })
