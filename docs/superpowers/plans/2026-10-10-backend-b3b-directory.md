@@ -6239,7 +6239,9 @@ describe('runSync (spec §6.4)', () => {
 					: Promise.resolve({ dn: 'CN=Eng', name: 'Engineering' }),
 		)
 		mocks.listMemberKeys.mockResolvedValue(new Set())
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {})
 		const result = await runSync(run)
+		log.mockRestore()
 		expect(result).toMatchObject({ outcome: 'succeeded', counts: { groupErrors: 1 } })
 		expect(mocks.refreshGroupLinks).toHaveBeenCalledWith(
 			[
@@ -7561,12 +7563,28 @@ for (const link of links.rename)
 		)
 // Decision am: with no link left, nothing would refresh the group's directory members, so they go now.
 if (currentLinks.length > 0 && input.directoryGroups.length === 0)
-	await tx
-		.delete(userGroupMembers)
-		.where(and(eq(userGroupMembers.groupId, id), eq(userGroupMembers.source, 'directory')))
+	await removeDirectoryMembers(tx, id)
 ```
 
-and add to `__tests__/data-groups.test.ts`'s link describe a render of that last delete through a small exported builder if you extract one (`removeDirectoryMembers(tx, groupId)`, asserting `source = 'directory'`); extract it, so the SQL is pinned.
+and add the builder beside `removeLinks`:
+
+```ts
+/** Decision am: every directory membership of the group, when its last link goes; its manual rows stay (spec §2 #8). */
+export const removeDirectoryMembers = (tx: Pick<Tx, 'delete'>, groupId: string) =>
+	tx
+		.delete(userGroupMembers)
+		.where(and(eq(userGroupMembers.groupId, groupId), eq(userGroupMembers.source, 'directory')))
+```
+
+with its test in `__tests__/data-groups.test.ts`'s link describe (import `removeDirectoryMembers`):
+
+```ts
+it('deletes only the directory memberships of a group whose last link went', () => {
+	const query = removeDirectoryMembers(drizzle.mock(), 'g1').toSQL()
+	expect(query.sql).toMatch(/^delete from `user_group_members` where /)
+	expect(query.params).toEqual(['g1', 'directory'])
+})
+```
 
 - [ ] **Step 6: The page and the table**
 
