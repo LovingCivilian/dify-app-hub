@@ -1552,7 +1552,7 @@ Spec §8 "Directory integration suite" (a separate Vitest project running `lib/d
 - Produces:
   - the Compose services `ldap-ad` (smblds; LDAPS on `127.0.0.1:10636`, StartTLS on `127.0.0.1:10389`) and `ldap-openldap` (osixia OpenLDAP 2.6.15; plain and StartTLS on `127.0.0.1:13890`, LDAPS on `127.0.0.1:16360`), profile `ldap`, started by name;
   - the test CA `e2e/fixtures/ldap/tls/ca.crt` (the `LDAP_CA_FILE` of every test configuration);
-  - from `__tests__/ldap/servers.ts`: `PASSWORD` (every seeded person's), `adLdaps`, `adStartTls`, `adPlain`, `openldapStartTls`, `openldapPlain` (each an `LdapConfig`), `TEST_DIRECTORIES` (`{ name, config, people: { alice, bob, carol, dave, erin, frank }, groups: { admins, engineering, backend, rnd } }` for the three working modes), and `rawClient(config)` (a bare ldapts client for the suite's own checks);
+  - from `__tests__/ldap/servers.ts`: `PASSWORD` (every seeded person's), `adLdaps`, `adStartTls`, `adPlain`, `openldapStartTls`, `openldapPlain` (each an `LdapConfig`), `TEST_DIRECTORIES` (`{ name, config, people: { alice, bob, carol, dave, erin, frank }, groups: { admins, engineering, backend, rnd }, emailDomain, emptyBaseDn }` for the three working modes), and `rawClient(config)` (a bare ldapts client for the suite's own checks);
   - the scripts `pnpm test` (`vitest run --project unit`) and `pnpm test:ldap` (`vitest run --project ldap --no-file-parallelism`).
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029, and in a dated note on ADR-0010):
@@ -2130,6 +2130,8 @@ export const TEST_DIRECTORIES = [
 			rnd: 'R&D (Berlin), Team',
 		},
 		emailDomain: 'e2e.hub.test',
+		/** A base the user filter matches nothing under: the `empty` safety stop (spec §6.4 step 2). */
+		emptyBaseDn: 'CN=Computers,DC=e2e,DC=hub,DC=test',
 	},
 	{
 		name: 'OpenLDAP over StartTLS',
@@ -2149,6 +2151,7 @@ export const TEST_DIRECTORIES = [
 			rnd: 'R&D (Berlin), Team',
 		},
 		emailDomain: 'openldap.hub.test',
+		emptyBaseDn: 'ou=groups,dc=openldap,dc=hub,dc=test',
 	},
 	{
 		name: 'OpenLDAP in plain',
@@ -2168,6 +2171,7 @@ export const TEST_DIRECTORIES = [
 			rnd: 'R&D (Berlin), Team',
 		},
 		emailDomain: 'openldap.hub.test',
+		emptyBaseDn: 'ou=groups,dc=openldap,dc=hub,dc=test',
 	},
 ] as const
 
@@ -3374,7 +3378,109 @@ Run: `pnpm exec vitest run __tests__/directory-connection.test.ts __tests__/dire
 
 - [ ] **Step 7: Write the integration tests against the test servers**
 
-CONNECTION-INTEGRATION-PLACEHOLDER
+Create `__tests__/ldap/connection.ldap.test.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest'
+
+import { withDirectory } from '@/lib/directory/connection'
+import { readEntry } from '@/lib/directory/entry'
+import { DirectoryRefusedError, DirectoryUnavailableError } from '@/lib/directory/errors'
+import {
+	findGroupByKey,
+	findLoginEntries,
+	isMemberOf,
+	listMemberKeys,
+	listUserEntries,
+	searchGroups,
+} from '@/lib/directory/operations'
+
+import { adLdaps, adPlain, adStartTls, TEST_DIRECTORIES } from './servers'
+
+// Spec §8: lib/directory/ against the real test directories, in the three working modes.
+describe.each(TEST_DIRECTORIES)(
+	'the directory connection: $name',
+	({ config, people, groups, emailDomain }) => {
+		it('finds one entry per login with a canonical key, none for a disabled person or an escaped wildcard', async () => {
+			await withDirectory(config, async client => {
+				const [alice] = await findLoginEntries(client, config, people.alice)
+				const entry = readEntry(alice!, config)
+				expect(entry?.key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+				expect(entry).toMatchObject({
+					username: people.alice,
+					email: `alice@${emailDomain}`,
+					name: 'Alice Admin',
+				})
+				expect(await findLoginEntries(client, config, people.carol)).toEqual([])
+				// Spec §7.2: the typed value is escaped, so `*` is a literal login, not a wildcard.
+				expect(await findLoginEntries(client, config, '*')).toEqual([])
+			})
+		})
+
+		it("lists every person the filter matches, past the server's size limit (decision ao)", async () => {
+			const entries = await withDirectory(config, client => listUserEntries(client, config))
+			const logins = entries.map(entry => readEntry(entry, config)?.username)
+			expect(logins).toEqual(expect.arrayContaining(['alice', 'bob', 'dave', 'erin', 'frank']))
+			expect(logins).not.toContain('carol')
+			// OpenLDAP lets the service account see five entries per search; paging got all nine.
+			if (config.idAttribute === 'entryUUID') expect(entries).toHaveLength(9)
+		})
+
+		it('finds groups by name and by key, and resolves nested and escaped memberships', async () => {
+			await withDirectory(config, async client => {
+				const found = await searchGroups(client, config, 'hub-')
+				expect(found.map(group => group.name)).toEqual(
+					expect.arrayContaining([groups.admins, groups.backend, groups.engineering]),
+				)
+				const engineering = await findGroupByKey(
+					client,
+					config,
+					found.find(group => group.name === groups.engineering)!.key,
+				)
+				expect(engineering?.name).toBe(groups.engineering)
+				const [bob] = await findLoginEntries(client, config, people.bob)
+				// bob is in hub-backend, which is in hub-engineering: the in-chain rule on AD, nestgroup on OpenLDAP.
+				expect(await isMemberOf(client, config, bob!.dn, engineering!.dn)).toBe(true)
+				expect(
+					(await listMemberKeys(client, config, engineering!.dn)).has(readEntry(bob!, config)!.key),
+				).toBe(true)
+				// A group DN with `(`, `)`, `&` and an escaped comma, and on AD a person DN with one (RFC 4514, RFC 4515).
+				const [rnd] = await searchGroups(client, config, 'R&D (Berlin)')
+				expect(rnd?.name).toBe(groups.rnd)
+				const rndGroup = await findGroupByKey(client, config, rnd!.key)
+				const [frank] = await findLoginEntries(client, config, people.frank)
+				expect(await isMemberOf(client, config, frank!.dn, rndGroup!.dn)).toBe(true)
+				expect(await isMemberOf(client, config, frank!.dn, engineering!.dn)).toBe(false)
+			})
+		})
+	},
+)
+
+describe('the directory connection refuses what it must (decision ab)', () => {
+	it('names an untrusted certificate and a closed port unreachable', async () => {
+		await expect(
+			withDirectory({ ...adLdaps, caFile: null }, async () => 'never'),
+		).rejects.toBeInstanceOf(DirectoryUnavailableError)
+		await expect(
+			withDirectory({ ...adLdaps, url: 'ldaps://127.0.0.1:1' }, async () => 'never'),
+		).rejects.toBeInstanceOf(DirectoryUnavailableError)
+	})
+
+	it("names a wrong service password and Samba's refusal of a plain simple bind as refused", async () => {
+		await expect(
+			withDirectory({ ...adLdaps, bindPassword: 'Wrong-Passw0rd' }, async () => 'never'),
+		).rejects.toBeInstanceOf(DirectoryRefusedError)
+		// "ldap server require strong auth = yes": strongerAuthRequired (8), as a signing-enforcing AD answers.
+		await expect(withDirectory(adPlain, async () => 'never')).rejects.toBeInstanceOf(
+			DirectoryRefusedError,
+		)
+	})
+
+	it("upgrades Samba's port 389 with StartTLS", async () => {
+		expect(await withDirectory(adStartTls, async () => 'bound')).toBe('bound')
+	})
+})
+```
 
 - [ ] **Step 8: Run them**
 
@@ -4079,7 +4185,92 @@ Run: `pnpm exec vitest run __tests__/directory-response-floor.test.ts __tests__/
 
 - [ ] **Step 8: Write the integration test against the test servers**
 
-SIGNIN-INTEGRATION-PLACEHOLDER
+Create `__tests__/ldap/sign-in.ldap.test.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest'
+
+import { withDirectory } from '@/lib/directory/connection'
+import { searchGroups } from '@/lib/directory/operations'
+import { checkDirectoryCredentials } from '@/lib/directory/sign-in'
+
+import { PASSWORD, TEST_DIRECTORIES } from './servers'
+
+describe.each(TEST_DIRECTORIES)(
+	'checkDirectoryCredentials: $name',
+	({ config, people, groups, emailDomain }) => {
+		/** A hub group `hub-g` linked to the named directory group. */
+		const linkTo = async (name: string) => {
+			const [group] = await withDirectory(config, client => searchGroups(client, config, name))
+			return [
+				{
+					groupId: 'hub-g',
+					directoryGroupId: group!.key,
+					directoryGroupName: group!.name,
+					missingSince: null,
+				},
+			]
+		}
+
+		it('signs a person in and finds the hub group linked to a parent of their group', async () => {
+			const check = await checkDirectoryCredentials(
+				config,
+				people.bob,
+				PASSWORD,
+				await linkTo(groups.engineering),
+			)
+			expect(check).toMatchObject({
+				ok: true,
+				groupIds: ['hub-g'],
+				entry: { username: people.bob, email: `bob@${emailDomain}` },
+			})
+		})
+
+		it('answers no group for a link the person is not in', async () => {
+			expect(
+				await checkDirectoryCredentials(
+					config,
+					people.alice,
+					PASSWORD,
+					await linkTo(groups.engineering),
+				),
+			).toMatchObject({
+				ok: true,
+				groupIds: [],
+			})
+		})
+
+		it('refuses a wrong password, an unknown and a disabled person, and a wildcard', async () => {
+			expect(await checkDirectoryCredentials(config, people.alice, 'Wrong-Passw0rd', [])).toEqual({
+				ok: false,
+				reason: 'wrong_password',
+			})
+			expect(await checkDirectoryCredentials(config, 'nobody', PASSWORD, [])).toEqual({
+				ok: false,
+				reason: 'unknown_user',
+			})
+			expect(await checkDirectoryCredentials(config, people.carol, PASSWORD, [])).toEqual({
+				ok: false,
+				reason: 'unknown_user',
+			})
+			expect(await checkDirectoryCredentials(config, '*', PASSWORD, [])).toEqual({
+				ok: false,
+				reason: 'unknown_user',
+			})
+		})
+
+		it('binds a person whose DN carries an escaped comma, and reads an entry without mail as no email', async () => {
+			expect(await checkDirectoryCredentials(config, people.frank, PASSWORD, [])).toMatchObject({
+				ok: true,
+			})
+			expect(await checkDirectoryCredentials(config, people.dave, PASSWORD, [])).toMatchObject({
+				ok: true,
+				entry: { email: null },
+			})
+		})
+	},
+)
+```
 
 - [ ] **Step 9: Run it**
 
@@ -6217,7 +6408,162 @@ Run: `pnpm exec vitest run __tests__/directory-sync.test.ts` Expected: PASS.
 
 - [ ] **Step 4: Write the integration test against the test servers**
 
-INTEGRATION-TEST-PLACEHOLDER
+Create `__tests__/ldap/sync.ldap.test.ts`. The directory is real; the database is an in-memory fake of the DAL's sync functions, so the suite needs no MySQL (the SQL is pinned in `__tests__/data-directory-sync.test.ts`, and `e2e/directory-sync.spec.ts` runs the whole chain, Task 14):
+
+```ts
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { MembershipRow, SyncAccount } from '@/lib/directory/plan'
+
+const store = vi.hoisted(() => ({
+	accounts: [] as SyncAccount[],
+	memberships: [] as MembershipRow[],
+	links: [] as {
+		groupId: string
+		directoryGroupId: string
+		directoryGroupName: string
+		missingSince: Date | null
+	}[],
+	deactivated: [] as string[],
+	reactivated: [] as string[],
+	updates: [] as unknown[],
+	added: [] as MembershipRow[],
+	removed: [] as MembershipRow[],
+}))
+vi.mock('@/db', () => ({ getDb: () => ({}) }))
+vi.mock('@/lib/data/directory', async importOriginal => ({
+	...(await importOriginal<typeof import('@/lib/data/directory')>()),
+	claimSyncRun: async () => true,
+	hasUnfinishedRunSince: async () => false,
+	finishSyncRun: async () => undefined,
+	pruneSyncRuns: async () => undefined,
+	listGroupLinks: async () => store.links,
+	listDirectoryAccounts: async () => store.accounts,
+	listDirectoryMemberships: async () => store.memberships,
+	deactivateDirectoryAccounts: async (ids: string[]) => (
+		store.deactivated.push(...ids),
+		ids.length
+	),
+	reactivateDirectoryAccounts: async (ids: string[]) => (
+		store.reactivated.push(...ids),
+		ids.length
+	),
+	refreshDirectoryAccount: async (update: unknown) => (
+		store.updates.push(update),
+		{ conflict: false }
+	),
+	refreshGroupLinks: async () => undefined,
+	applyMembershipChanges: async (plan: { add: MembershipRow[]; remove: MembershipRow[] }) => {
+		store.added.push(...plan.add)
+		store.removed.push(...plan.remove)
+		return { added: plan.add.length, removed: plan.remove.length, groupErrors: 0 }
+	},
+}))
+
+import { withDirectory } from '@/lib/directory/connection'
+import { readEntry } from '@/lib/directory/entry'
+import { findLoginEntries, searchGroups } from '@/lib/directory/operations'
+import { runSync } from '@/lib/directory/sync'
+
+import { TEST_DIRECTORIES } from './servers'
+
+beforeEach(() => {
+	for (const list of Object.values(store)) list.length = 0
+})
+
+describe.each(TEST_DIRECTORIES)(
+	'runSync against $name (spec §6.4)',
+	({ config, people, groups, emailDomain, emptyBaseDn }) => {
+		const keyOf = (login: string) =>
+			withDirectory(
+				config,
+				async client => readEntry((await findLoginEntries(client, config, login))[0]!, config)!.key,
+			)
+		const account = (id: string, key: string, deactivated = false): SyncAccount => ({
+			id,
+			directoryId: key,
+			directoryIdAttribute: config.idAttribute,
+			email: `${id}@old.example`,
+			name: 'Old Name',
+			directoryUsername: id,
+			directoryDeactivatedAt: deactivated ? new Date() : null,
+		})
+		const run = (overrides: Partial<typeof config> = {}) =>
+			runSync({
+				config: { ...config, ...overrides },
+				id: 'r1',
+				trigger: 'manual',
+				slot: 'manual:r1',
+			})
+
+		it('deactivates the absent, reactivates the returned, refreshes the present', async () => {
+			store.accounts = [
+				account('alice', await keyOf(people.alice)),
+				account('bob', await keyOf(people.bob), true),
+				account('ghost', '00000000-0000-4000-8000-000000000000'),
+			]
+			expect(await run()).toMatchObject({
+				status: 'finished',
+				outcome: 'succeeded',
+				errorCode: null,
+			})
+			expect(store.deactivated).toEqual(['ghost'])
+			expect(store.reactivated).toEqual(['bob'])
+			expect(store.updates).toContainEqual({
+				id: 'alice',
+				name: 'Alice Admin',
+				directoryUsername: people.alice,
+				email: `alice@${emailDomain}`,
+			})
+		})
+
+		it('fills a linked group with its nested members (spec §6.5)', async () => {
+			store.accounts = [
+				account('bob', await keyOf(people.bob)),
+				account('alice', await keyOf(people.alice)),
+			]
+			const [engineering] = await withDirectory(config, client =>
+				searchGroups(client, config, groups.engineering),
+			)
+			store.links = [
+				{
+					groupId: 'hub-eng',
+					directoryGroupId: engineering!.key,
+					directoryGroupName: 'old',
+					missingSince: null,
+				},
+			]
+			store.memberships = [{ groupId: 'hub-eng', userId: 'alice' }]
+			await run()
+			expect(store.added).toEqual([{ groupId: 'hub-eng', userId: 'bob' }])
+			expect(store.removed).toEqual([{ groupId: 'hub-eng', userId: 'alice' }])
+		})
+
+		it('stops on an empty answer and changes nothing', async () => {
+			store.accounts = [account('alice', await keyOf(people.alice))]
+			expect(await run({ userBaseDn: emptyBaseDn })).toMatchObject({
+				outcome: 'empty',
+				errorCode: null,
+			})
+			expect(store.deactivated).toEqual([])
+		})
+
+		it('fails without a write when the directory is unreachable', async () => {
+			store.accounts = [account('alice', await keyOf(people.alice))]
+			const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+			try {
+				expect(await run({ url: config.url.replace(/:\d+$/, ':1') })).toMatchObject({
+					outcome: 'failed',
+					errorCode: 'directory_unreachable',
+				})
+				expect(store.deactivated).toEqual([])
+			} finally {
+				log.mockRestore()
+			}
+		})
+	},
+)
+```
 
 - [ ] **Step 5: Run it**
 
