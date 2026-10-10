@@ -65,9 +65,12 @@ export const listGroupLinks = (): Promise<GroupLink[]> =>
 		.from(userGroupDirectoryLinks)
 
 /**
- * A locking read of the directory account with this key (ADR-0024 decision d; MySQL 8.4 "Locking Reads"). When no row
- * exists it locks the gap in the unique index, so a second first sign-in of the same person waits, or is rolled back as
- * a deadlock victim, instead of inserting a second account (decision e).
+ * A locking read of the directory account with this key (ADR-0024 decision d; MySQL 8.4 "Locking Reads"). The sign-in
+ * runs at READ COMMITTED (decision e), where a locking read "locks only index records, not the gaps before them" (MySQL
+ * 8.4 "Transaction Isolation Levels"): a found row is locked, so one person's sign-ins run one after another, and a
+ * missing key locks nothing. Two first sign-ins of one person still make one account: the unique index
+ * `users_directory_id_key` refuses the second insert (1062), or InnoDB rolls one transaction back (1213), and either
+ * runs once more and finds the account (decision e). No gap lock is needed for that.
  */
 export const lockDirectoryAccount = (tx: Pick<Tx, 'select'>, key: string) =>
 	tx
@@ -90,7 +93,10 @@ const emailTakenBy = (tx: Pick<Tx, 'select'>, email: string) =>
 /**
  * Sets the account's directory memberships to exactly these hub groups (decision f; spec §6.3 step 7). Its directory
  * rows anywhere else go, including a group whose links were removed; manual rows are never read or written (spec §2
- * #8). The remaining rows are read with a locking read before the insert (MySQL 8.4 "Locking Reads").
+ * #8). The rows that remain are read with a locking read (MySQL 8.4 "Locking Reads"), which sees the latest committed
+ * rows, so the insert adds only the missing ones. At the sign-in's READ COMMITTED, the delete and that read lock only
+ * this account's rows, not the gaps between them, so another person's membership insert never waits on them
+ * ("Transaction Isolation Levels"). The lock on the account row already serialises this person's own sign-ins.
  */
 export async function replaceDirectoryMemberships(
 	tx: Pick<Tx, 'select' | 'insert' | 'delete'>,
@@ -186,16 +192,30 @@ async function signInWithin(
 }
 
 /**
- * The sign-in's write (spec §6.3 step 7), in one transaction with a locking read of the account by its key: a known
- * account is refreshed (or refused while an admin has deactivated it); a new one is created as a `user` with no
- * password, unless the entry has no email or any account uses it. Run once more after a duplicate key or a deadlock
- * (decision e); any other failure propagates to the provider, which logs it and answers its generic error.
+ * The sign-in's write (spec §6.3 step 7), in one transaction with a locking read of the account by its key. A known
+ * account is refreshed, or refused while an admin has deactivated it. A new one is created as a `user` with no
+ * password, unless the entry has no email or any account uses it.
+ *
+ * The transaction sets READ COMMITTED itself (decision e). MySQL 8.4 "How to Minimize and Handle Deadlocks" says: "If
+ * you use locking reads (SELECT ... FOR UPDATE or SELECT ... FOR SHARE), try using a lower isolation level such as READ
+ * COMMITTED". At the default REPEATABLE READ, a locking read of a missing key takes a gap lock, and gap locks "can
+ * co-exist" (§17.7.1 "InnoDB Locking"). So two different people's first sign-ins in one gap of the key index would
+ * block each other's insert and deadlock. At READ COMMITTED, gap locking "is only used for foreign-key constraint
+ * checking and duplicate-key checking", and each consistent read takes "its own fresh snapshot", so the email check
+ * sees the latest committed accounts. The level applies to this one transaction only (MySQL 8.4 "SET TRANSACTION Statement").
+ * `createOwner` keeps REPEATABLE READ, because its guarantee is the gap lock (ADR-0024 decision d).
+ *
+ * After a duplicate key (1062) or a deadlock (1213) the transaction runs once more (decision e). Any other failure
+ * propagates to the provider, which logs it and answers its generic error.
  */
 export async function recordDirectorySignIn(
 	identity: DirectoryIdentity,
 	groupIds: readonly string[],
 ): Promise<DirectorySignInResult> {
-	const attempt = () => getDb().transaction(tx => signInWithin(tx, identity, groupIds))
+	const attempt = () =>
+		getDb().transaction(tx => signInWithin(tx, identity, groupIds), {
+			isolationLevel: 'read committed',
+		})
 	try {
 		return await attempt()
 	} catch (error) {

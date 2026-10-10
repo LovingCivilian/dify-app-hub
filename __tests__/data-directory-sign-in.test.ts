@@ -67,19 +67,23 @@ const mocks = vi.hoisted(() => {
 	}
 	const db = {
 		select: () => read(),
-		transaction: async (work: (t: typeof tx) => Promise<unknown>) => {
+		// A spy, so a test can assert the config each attempt was given (Drizzle MySqlTransactionConfig).
+		transaction: vi.fn(async (work: (t: typeof tx) => Promise<unknown>, _config?: unknown) => {
 			state.transactions += 1
 			const failure = state.failures.shift()
 			if (failure) throw failure
 			return work(tx)
-		},
+		}),
 	}
-	return { state, db, tx }
+	// getDb answers the fake; a test may hand it drizzle.mock() once to render a read's SQL.
+	const getDb = vi.fn((): unknown => db)
+	return { state, db, tx, getDb }
 })
-vi.mock('@/db', () => ({ getDb: () => mocks.db }))
+vi.mock('@/db', () => ({ getDb: () => mocks.getDb() }))
 
 import { userGroupMembers, users } from '@/db/schema'
 import {
+	listGroupLinks,
 	lockDirectoryAccount,
 	recordDirectorySignIn,
 	replaceDirectoryMemberships,
@@ -129,6 +133,21 @@ beforeEach(() => {
 		writes: [],
 		failures: [],
 		transactions: 0,
+	})
+	mocks.db.transaction.mockClear()
+})
+
+describe('listGroupLinks (spec §6.5)', () => {
+	it('reads every hub group link with its four columns', () => {
+		mocks.getDb.mockReturnValueOnce(drizzle.mock())
+		// Drizzle's select builder runs only when awaited, so on drizzle.mock() it renders without a connection.
+		const query = (
+			listGroupLinks() as unknown as { toSQL: () => { sql: string; params: unknown[] } }
+		).toSQL()
+		expect(query.sql).toBe(
+			'select `group_id`, `directory_group_id`, `directory_group_name`, `missing_since` from `user_group_directory_links`',
+		)
+		expect(query.params).toEqual([])
 	})
 })
 
@@ -285,6 +304,21 @@ describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 		mocks.state.failures = [deadlock, deadlock]
 		await expect(recordDirectorySignIn(identity, [])).rejects.toBe(deadlock)
 		expect(mocks.state.transactions).toBe(2)
+	})
+
+	it('runs each attempt at READ COMMITTED, where a locking read takes no gap lock (decision e)', async () => {
+		mocks.state.failures = [
+			Object.assign(new Error('deadlock'), { code: 'ER_LOCK_DEADLOCK', errno: 1213 }),
+		]
+		mocks.state.reads = [[known], []]
+		await recordDirectorySignIn({ ...identity, email: known.email }, [])
+		// MySQL 8.4 "How to Minimize and Handle Deadlocks" names READ COMMITTED for locking reads. At the default
+		// REPEATABLE READ, two people's first sign-ins in one gap of the key index would deadlock (§17.7.1).
+		expect(mocks.db.transaction).toHaveBeenCalledTimes(2)
+		for (const call of [1, 2])
+			expect(mocks.db.transaction).toHaveBeenNthCalledWith(call, expect.any(Function), {
+				isolationLevel: 'read committed',
+			})
 	})
 
 	it('propagates any other failure without a retry', async () => {
