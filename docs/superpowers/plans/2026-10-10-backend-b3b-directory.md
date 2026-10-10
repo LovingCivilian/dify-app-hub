@@ -42,7 +42,7 @@ Spec §3.2 (B3b data model), §6.3 last paragraph (the local provider refuses `l
 
 **Interfaces:**
 
-- Produces: `ACCOUNT_SOURCES`, `AccountSource` from `@/lib/auth/account-source`; `SYNC_TRIGGERS`, `SyncTrigger`, `SYNC_OUTCOMES`, `SyncOutcome`, `SYNC_ERROR_CODES`, `SyncErrorCode`, `LDAP_ENCRYPTIONS`, `LdapEncryption` from `@/lib/directory-status` (client-safe); the columns `users.source`, `users.directoryId`, `users.directoryIdAttribute`, `users.directoryUsername` and the nullable `users.password`; the tables `userGroupDirectoryLinks`, `directorySyncRuns`, all exported from `@/db/schema`; `isDeadlock(error)` from `@/lib/data/db-errors`; the refusal reason `'directory_account'` in `SignInRefusalReason`.
+- Produces: `ACCOUNT_SOURCES`, `AccountSource` from `@/lib/auth/account-source`; `SYNC_TRIGGERS`, `SyncTrigger`, `SYNC_OUTCOMES`, `SyncOutcome`, `SYNC_ERROR_CODES`, `SyncErrorCode`, `LDAP_ENCRYPTIONS`, `LdapEncryption`, `DIRECTORY_GROUP_SEARCH_LIMIT` from `@/lib/directory-status` (client-safe); the columns `users.source`, `users.directoryId`, `users.directoryIdAttribute`, `users.directoryUsername` and the nullable `users.password`; the tables `userGroupDirectoryLinks`, `directorySyncRuns`, all exported from `@/db/schema`; `isDeadlock(error)` from `@/lib/data/db-errors`; the refusal reason `'directory_account'` in `SignInRefusalReason`.
 
 **Deviation from the spec text (recorded in ADR-0029, Task 14):** the run table's trigger column is `run_trigger`, not `trigger`: `TRIGGER` is a reserved word in MySQL 8.4 ("Keywords and Reserved Words", marked (R)), and spec §3 itself asks that "Table and column names avoid reserved words". The run table also counts `group_errors` (spec §6.4 step 4: "count the error"), which the spec's list of counts leaves out.
 
@@ -218,6 +218,9 @@ export const SYNC_ERROR_CODES = [
 	'internal_error',
 ] as const
 export type SyncErrorCode = (typeof SYNC_ERROR_CODES)[number]
+
+/** Spec §6.5 "Linking": the most directory groups one search of the groups page shows. */
+export const DIRECTORY_GROUP_SEARCH_LIMIT = 20
 
 /** `LDAP_ENCRYPTION` (spec §7.1, §2 #18): chosen explicitly, no default. */
 export const LDAP_ENCRYPTIONS = ['ldaps', 'starttls', 'none'] as const
@@ -3229,6 +3232,7 @@ import 'server-only'
 
 import type { Client, Entry } from 'ldapts'
 
+import { DIRECTORY_GROUP_SEARCH_LIMIT } from '@/lib/directory-status'
 import type { LdapConfig } from '@/lib/env'
 
 import { attributeValue, bufferAttributes, entryAttributes, firstText } from './entry'
@@ -3243,8 +3247,8 @@ import { canonicalKey } from './keys'
 /** Spec §6.4 step 1: under Active Directory's MaxPageSize of 1,000 (MS-ADTS 3.1.1.3.4.6). */
 export const PAGE_SIZE = 500
 
-/** Spec §6.5 "Linking": the groups an admin's search shows. */
-export const GROUP_SEARCH_LIMIT = 20
+/** Spec §6.5 "Linking": the groups an admin's search shows (the groups page reads the same constant). */
+export const GROUP_SEARCH_LIMIT = DIRECTORY_GROUP_SEARCH_LIMIT
 
 /** Spec §6.3 step 3: at most two entries for the login; two means ambiguous. */
 export async function findLoginEntries(
@@ -6963,7 +6967,7 @@ Spec §6.5 "Linking" (a "Directory groups" field with search; a Server Action be
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
-- **ae. The search starts at two characters** and is debounced in the browser (300 ms, ahooks `useDebounceFn`), as antd's "Search and Select Users" demo debounces a remote search (`npx -y @ant-design/cli demo Select select-users --version 6.6.5`); the server bounds the result at twenty (spec §6.5) and the text at 64 characters. LINK-SEARCH-REFERENCES
+- **ae. The search starts at two characters** and is debounced in the browser (300 ms, ahooks `useDebounceFn`), as antd's "Search and Select Users" demo debounces a remote search (`npx -y @ant-design/cli demo Select select-users --version 6.6.5`); the server bounds the result at twenty (spec §6.5) and the text at 64 characters. No reference sets a minimum: Mattermost searches the directory's groups with free text on Enter (`mattermost@4d94455a:webapp/channels/src/components/admin_console/group_settings/groups_list/groups_list.tsx:284-319`) and GitLab offers "a dropdown list with matching CNs" as the admin types (`gitlabhq@0739b8bf:doc/user/group/access_and_permissions.md:303-313`), so the two characters are the hub's guard against one-letter substring searches of the whole directory; when twenty come back, the list says so and asks for a narrower search (`ad-and-reference-projects.md` B.7). The link stores the group's key, as Mattermost stores its Group ID attribute ("such as `entryUUID` or `objectGUID`", `mattermost/docs@bd09d959:source/administration-guide/onboard/ad-ldap-groups-synchronization.rst:46-48`), not Grafana's DN or GitLab's CN.
 - **af. Links are saved with the group, in its transaction**: removed links are deleted, new ones inserted, kept ones get the picked name. When the save leaves the group with no link, its `directory` memberships are deleted in the same transaction, since nothing would refresh them (decision g); with links left, the next sync, Sync now or each member's next directory sign-in recomputes them (spec §6.4 step 4, §6.3 step 7). The drawer's hint says so. The key the browser sends is checked against the canonical form; a key that matches no directory group is harmless and is marked missing by the next sync.
 
 - [ ] **Step 1: Move the key pattern to the client-safe vocabulary**
@@ -7522,6 +7526,8 @@ function DirectoryGroupSelect({
 	const { message } = App.useApp()
 	const [options, setOptions] = useState<{ value: string; label: string }[]>([])
 	const [fetching, setFetching] = useState(false)
+	const [limited, setLimited] = useState(false)
+	const { token } = theme.useToken()
 	// Only the latest search's answer is shown (the demo's "ajax callback order flow").
 	const latest = useRef(0)
 	const { run: search } = useDebounceFn(
@@ -7529,6 +7535,7 @@ function DirectoryGroupSelect({
 			latest.current += 1
 			const mine = latest.current
 			setOptions([])
+			setLimited(false)
 			if (text.trim().length < DIRECTORY_SEARCH_MIN) {
 				setFetching(false)
 				return
@@ -7537,8 +7544,10 @@ function DirectoryGroupSelect({
 			const result = await searchDirectoryGroupsAction(text)
 			if (mine !== latest.current) return
 			setFetching(false)
-			if (result.ok) setOptions(result.data.map(group => ({ value: group.key, label: group.name })))
-			else message.error(t(groupErrorKey(result.code)))
+			if (result.ok) {
+				setOptions(result.data.map(group => ({ value: group.key, label: group.name })))
+				setLimited(result.data.length >= DIRECTORY_GROUP_SEARCH_LIMIT)
+			} else message.error(t(groupErrorKey(result.code)))
 		},
 		{ wait: 300 },
 	)
@@ -7552,13 +7561,27 @@ function DirectoryGroupSelect({
 			getPopupContainer={drawerPopupContainer}
 			showSearch={{ filterOption: false, onSearch: search, autoClearSearchValue: false }}
 			notFoundContent={fetching ? <Spin size="small" /> : t('admin_groups.directory_groups_none')}
+			// Decision ae: twenty answers may not be all; the list says so (antd Select `popupRender`, 5.25.0).
+			popupRender={menu => (
+				<>
+					{menu}
+					{limited && (
+						<Typography.Paragraph
+							type="secondary"
+							style={{ margin: 0, padding: `${token.paddingXS}px ${token.paddingSM}px` }}
+						>
+							{t('admin_groups.directory_groups_limited', { count: DIRECTORY_GROUP_SEARCH_LIMIT })}
+						</Typography.Paragraph>
+					)}
+				</>
+			)}
 			placeholder={t('admin_groups.directory_groups_placeholder')}
 		/>
 	)
 }
 ```
 
-(imports: `useRef`, `useState` from `react`; `useDebounceFn` from `ahooks`; `Spin`, `Tag`, `Flex` from `antd`; `searchDirectoryGroupsAction`; `DIRECTORY_SEARCH_MIN`.) Calling the Server Action from the search handler without a transition is documented (Next `02-guides/server-actions.md`: Server Functions "can be invoked … in event handlers"); it changes nothing, so it needs no `refresh()`.
+(imports: `useRef`, `useState` from `react`; `useDebounceFn` from `ahooks`; `Spin`, `Tag`, `Flex`, `Typography`, `theme` from `antd`; `searchDirectoryGroupsAction`; `DIRECTORY_SEARCH_MIN`; `DIRECTORY_GROUP_SEARCH_LIMIT` from `@/lib/directory-status`.) Calling the Server Action from the search handler without a transition is documented (Next `02-guides/server-actions.md`: Server Functions "can be invoked … in event handlers"); it changes nothing, so it needs no `refresh()`.
 
 - [ ] **Step 9: The texts**
 
@@ -7571,6 +7594,7 @@ Add to `admin_groups` in each translation file:
 | `directory_groups_placeholder` | Type at least two characters to search the directory | 输入至少两个字符以搜索目录 | اكتب حرفين على الأقل للبحث في الدليل |
 | `directory_groups_hint` | Members of these directory groups, nested groups included, belong to this group. Changes apply at the next sync or the member's next directory sign-in; removing every link removes the directory members at once. | 这些目录群组（包括嵌套群组）的成员属于本群组。更改会在下次同步或该成员下次通过目录登录时生效；移除全部关联会立即移除目录成员。 | ينتمي أعضاء مجموعات الدليل هذه، بما فيها المجموعات المتداخلة، إلى هذه المجموعة. تسري التغييرات عند المزامنة التالية أو عند تسجيل دخول العضو التالي عبر الدليل؛ وإزالة كل الروابط تُزيل أعضاء الدليل فورًا. |
 | `directory_groups_none` | No matching directory group | 没有匹配的目录群组 | لا توجد مجموعة مطابقة في الدليل |
+| `directory_groups_limited` | Showing the first {{count}} matches; type more to narrow the search. | 仅显示前 {{count}} 个匹配项，请输入更多字符以缩小范围。 | تُعرض أول {{count}} نتيجة فقط؛ اكتب المزيد لتضييق البحث. |
 | `directory_group_missing` | {{name}} (not found) | {{name}}（未找到） | {{name}} (غير موجودة) |
 | `directory_members` | Directory members | 目录成员 | أعضاء الدليل |
 | `directory_members_hint` | Added by the directory sync; change them in the directory. | 由目录同步添加；请在目录中修改。 | أضافتهم مزامنة الدليل؛ غيّرهم في الدليل. |
@@ -7578,7 +7602,90 @@ Add to `admin_groups` in each translation file:
 
 - [ ] **Step 10: The e2e spec**
 
-LINK-E2E-PLACEHOLDER
+Create `e2e/directory-groups.spec.ts`:
+
+```ts
+import { expect, test } from '@playwright/test'
+import type { RowDataPacket } from 'mysql2/promise'
+
+import { deleteApp, deleteGroupsLike, grantAppToGroup, seedApp } from './fixtures/access'
+import { ADMIN_STATE } from './fixtures/constants'
+import { withDb } from './fixtures/db'
+import { DIRECTORY_PASSWORD, deleteDirectoryAccount } from './fixtures/directory'
+import { drawerOpened } from './fixtures/drawer'
+import { signInWithDirectory } from './fixtures/users'
+
+const tag = () => `dir-link-${test.info().project.name}`
+
+test.use({ storageState: ADMIN_STATE })
+
+// Spec §8 "Playwright" (B3b): "a link to a nested AD group grants an app". bob is in hub-backend, which is in
+// hub-engineering (e2e/fixtures/ldap/ad/entrypoint.d/20-seed.sh); the hub group links hub-engineering.
+test.describe('directory groups on the groups page (spec §6.5)', () => {
+	let appId: string | undefined
+	test.afterEach(async () => {
+		if (appId) await deleteApp(appId)
+		appId = undefined
+		await deleteGroupsLike(`${tag()}%`)
+		await deleteDirectoryAccount('bob@e2e.hub.test')
+	})
+
+	test('links a parent directory group; a member of its nested group gets the granted app at sign-in', async ({
+		page,
+		browser,
+	}) => {
+		await page.goto('/group-management')
+		await page.getByRole('button', { name: 'Add group' }).click()
+		const drawer = page.getByRole('dialog', { name: 'Add group' })
+		await drawerOpened(drawer)
+		await drawer.getByLabel('Name').fill(tag())
+		await drawer.getByLabel('Directory groups').fill('engin')
+		await page.getByTitle('hub-engineering', { exact: true }).click()
+		await drawer.getByRole('button', { name: 'Add', exact: true }).click()
+		await expect(page.getByText('Group added')).toBeVisible()
+		const row = page.getByRole('row', { name: new RegExp(tag()) })
+		await expect(row.getByText('hub-engineering', { exact: true })).toBeVisible()
+
+		const groupId = await withDb(async db => {
+			const [rows] = await db.execute<RowDataPacket[]>(
+				'SELECT id FROM user_groups WHERE name = ?',
+				[tag()],
+			)
+			return String(rows[0]!.id)
+		})
+		appId = await seedApp({ name: `${tag()} app`, accessMode: 'restricted' })
+		await grantAppToGroup(appId, groupId)
+
+		const bobContext = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+		try {
+			const bobPage = await bobContext.newPage()
+			await signInWithDirectory(bobPage, 'bob', DIRECTORY_PASSWORD)
+			await expect(bobPage).toHaveURL(/\/apps$/)
+			await expect(bobPage.getByText(`${tag()} app`)).toBeVisible()
+		} finally {
+			await bobContext.close()
+		}
+
+		// The sign-in wrote bob's directory membership; the drawer lists it read-only (spec §4.3).
+		await page.reload()
+		await row.getByRole('button', { name: 'Edit' }).click()
+		const edit = page.getByRole('dialog', { name: 'Edit group' })
+		await drawerOpened(edit)
+		await expect(edit.getByText(/Bob Builder/)).toBeVisible()
+		await expect(edit.getByText('Directory members')).toBeVisible()
+	})
+
+	test('a short search asks for more and searches nothing', async ({ page }) => {
+		await page.goto('/group-management')
+		await page.getByRole('button', { name: 'Add group' }).click()
+		const drawer = page.getByRole('dialog', { name: 'Add group' })
+		await drawerOpened(drawer)
+		await drawer.getByLabel('Directory groups').fill('e')
+		await expect(page.getByText('No matching directory group')).toBeVisible()
+		await drawer.getByRole('button', { name: 'Cancel' }).click()
+	})
+})
+```
 
 Run (with `pnpm dev` stopped): `pnpm exec playwright test e2e/directory-groups.spec.ts e2e/admin-groups.spec.ts` Expected: every test passes on the three projects.
 
