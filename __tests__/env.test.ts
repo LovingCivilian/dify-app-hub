@@ -268,4 +268,63 @@ describe('parseEnv', () => {
 			'LDAP_SYNC_TIMEZONE',
 		])
 	})
+
+	// croner's documented nicknames pass in 5-part mode; seven fields do not.
+	it('accepts a croner nickname and refuses seven fields', () => {
+		expect(
+			parseEnv({ ...base, ...ldapBlock, LDAP_SYNC_SCHEDULE: '@hourly' }).ldap?.syncSchedule,
+		).toBe('@hourly')
+		expect(keysOfFailure({ ...ldapBlock, LDAP_SYNC_SCHEDULE: '0 0 0 * * * 2030' })).toEqual([
+			'LDAP_SYNC_SCHEDULE',
+		])
+	})
+
+	it('checks the time zone on its own, even when the schedule is off, and stores its canonical name', () => {
+		expect(
+			keysOfFailure({
+				...ldapBlock,
+				LDAP_SYNC_SCHEDULE: 'off',
+				LDAP_SYNC_TIMEZONE: 'Mars/Olympus',
+			}),
+		).toEqual(['LDAP_SYNC_TIMEZONE'])
+		expect(
+			parseEnv({ ...base, ...ldapBlock, LDAP_SYNC_TIMEZONE: ' asia/riyadh ' }).ldap?.syncTimezone,
+		).toBe('Asia/Riyadh')
+	})
+
+	it('reads LDAP_ENCRYPTION leniently, like the SMTP flags', () => {
+		expect(parseEnv({ ...base, ...ldapBlock, LDAP_ENCRYPTION: ' None ' }).ldap?.encryption).toBe(
+			'none',
+		)
+		expect(
+			parseEnv({
+				...base,
+				...ldapBlock,
+				LDAP_URL: 'ldaps://dc.corp.example',
+				LDAP_ENCRYPTION: ' LDAPS ',
+			}).ldap?.encryption,
+		).toBe('ldaps')
+	})
+
+	it('trims non-secret values', () => {
+		expect(
+			parseEnv({ ...base, ...ldapBlock, LDAP_BIND_DN: ' CN=x ', LDAP_USER_BASE_DN: ' DC=a ' }).ldap,
+		).toMatchObject({ bindDn: 'CN=x', userBaseDn: 'DC=a' })
+	})
+
+	// zod 4's .default() skips the inner refinement, so each default is also passed explicitly to meet the parsers.
+	it('accepts every default filter and attribute when given explicitly', () => {
+		const defaults = parseEnv({ ...base, ...ldapBlock }).ldap!
+		const given = {
+			LDAP_USER_FILTER: defaults.userFilter,
+			LDAP_GROUP_FILTER: defaults.groupFilter,
+			LDAP_GROUP_MEMBER_FILTER: defaults.groupMemberFilter,
+			LDAP_LOGIN_ATTRIBUTE: defaults.loginAttribute,
+			LDAP_ID_ATTRIBUTE: defaults.idAttribute,
+			LDAP_EMAIL_ATTRIBUTE: defaults.emailAttribute,
+			LDAP_NAME_ATTRIBUTE: defaults.nameAttribute,
+			LDAP_GROUP_NAME_ATTRIBUTE: defaults.groupNameAttribute,
+		}
+		expect(parseEnv({ ...base, ...ldapBlock, ...given }).ldap).toEqual(defaults)
+	})
 })

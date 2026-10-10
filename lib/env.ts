@@ -67,6 +67,22 @@ const isMemberFilter = (value: string): boolean =>
 	value.includes(GROUP_DN_PLACEHOLDER) &&
 	isFilter(value.replaceAll(GROUP_DN_PLACEHOLDER, escapeFilter`${'CN=Sample Group,DC=example'}`))
 
+/**
+ * MDN, `Intl.DateTimeFormat()` constructor: `timeZone` is an IANA name or an offset identifier such as "+01:00", and an
+ * invalid value throws a RangeError. The canonical spelling is `resolvedOptions().timeZone` ("asia/riyadh" becomes
+ * "Asia/Riyadh"). Checked on its own so a bad zone is named even while the schedule is `off`.
+ */
+const isTimeZone = (value: string): boolean => {
+	try {
+		new Intl.DateTimeFormat(undefined, { timeZone: value })
+		return true
+	} catch {
+		return false
+	}
+}
+const canonicalTimeZone = (value: string): string =>
+	new Intl.DateTimeFormat(undefined, { timeZone: value }).resolvedOptions().timeZone
+
 const attribute = (fallback: string) =>
 	blankAsAbsent(z.string().trim().regex(ATTRIBUTE_NAME).default(fallback))
 const filter = (fallback: string) =>
@@ -81,7 +97,10 @@ const filter = (fallback: string) =>
 const ldapSchema = z
 	.object({
 		LDAP_URL: z.url({ protocol: /^ldaps?$/, hostname: /.+/ }),
-		LDAP_ENCRYPTION: z.enum(LDAP_ENCRYPTIONS),
+		LDAP_ENCRYPTION: z.preprocess(
+			value => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+			z.enum(LDAP_ENCRYPTIONS),
+		),
 		LDAP_CA_FILE: blankAsAbsent(z.string().trim().optional()),
 		LDAP_BIND_DN: z.string().trim().min(1),
 		LDAP_BIND_PASSWORD: z.string().min(1),
@@ -104,7 +123,14 @@ const ldapSchema = z
 				.default(`(memberOf:1.2.840.113556.1.4.1941:=${GROUP_DN_PLACEHOLDER})`),
 		),
 		LDAP_SYNC_SCHEDULE: blankAsAbsent(z.string().trim().default('0 * * * *')),
-		LDAP_SYNC_TIMEZONE: blankAsAbsent(z.string().trim().optional()),
+		LDAP_SYNC_TIMEZONE: blankAsAbsent(
+			z
+				.string()
+				.trim()
+				.refine(isTimeZone, 'a time zone name or offset')
+				.transform(canonicalTimeZone)
+				.optional(),
+		),
 	})
 	.superRefine(
 		(value, context) => {
@@ -117,29 +143,16 @@ const ldapSchema = z
 				})
 			const schedule = value.LDAP_SYNC_SCHEDULE
 			if (schedule.toLowerCase() === 'off') return
-			// Decision c: five fields, then croner's parser (a Cron without a function parses the pattern and schedules
-			// nothing, croner src/croner.ts:215-219), and a pattern that fires: one no date matches (`0 0 31 2 *`) parses,
-			// but its nextRun() answers null (croner dist/croner.d.ts: `Date | null`); then the time zone through a date
-			// conversion.
+			// Decision c: croner's `mode: '5-part'` (croner.d.ts: traditional five-field cron, anything else throws; a Cron
+			// without a function parses the pattern and schedules nothing), and a pattern that fires: one no date matches
+			// (`0 0 31 2 *`) parses, but its nextRun() answers null (`Date | null`).
 			try {
-				if (schedule.split(/\s+/).length !== 5) throw new Error('five fields')
-				if (new Cron(schedule).nextRun() === null) throw new Error('never runs')
+				if (new Cron(schedule, { mode: '5-part' }).nextRun() === null) throw new Error('never runs')
 			} catch {
 				context.addIssue({
 					code: 'custom',
 					path: ['LDAP_SYNC_SCHEDULE'],
 					message: 'a five-field cron expression that fires, or off',
-				})
-				return
-			}
-			if (value.LDAP_SYNC_TIMEZONE === undefined) return
-			try {
-				new Cron(schedule, { timezone: value.LDAP_SYNC_TIMEZONE }).nextRun()
-			} catch {
-				context.addIssue({
-					code: 'custom',
-					path: ['LDAP_SYNC_TIMEZONE'],
-					message: 'an IANA time zone',
 				})
 			}
 		},
