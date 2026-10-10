@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs'
 import type { Role } from '../../lib/auth/roles'
 
 import { withDb } from './db'
+import { waitForHydration } from './hydration'
 
 /**
  * An account written straight to the e2e MySQL with a bcrypt hash (charter §4.6: extra users through the
@@ -61,4 +62,10 @@ export const signInAs = async (page: Page, email: string, password: string) => {
 	await page.getByLabel('Password').fill(password)
 	await page.getByRole('button', { name: 'Log in' }).click()
 	await expect(page).toHaveURL(/\/apps$/)
+}
+
+/** Opens the users page and waits until its table has hydrated (the date in the table is the signal). */
+export const openUsers = async (page: Page) => {
+	await page.goto('/user-management')
+	await waitForHydration(page.getByRole('table').locator('time').first())
 }

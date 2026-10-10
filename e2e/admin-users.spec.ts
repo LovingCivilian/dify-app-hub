@@ -4,8 +4,7 @@ import type { RowDataPacket } from 'mysql2/promise'
 import { withDb } from './fixtures/db'
 import { drawerOpened } from './fixtures/drawer'
 import { e2eEnv } from './fixtures/env'
-import { waitForHydration } from './fixtures/hydration'
-import { deleteUsersLike, seedUser, signInAs } from './fixtures/users'
+import { deleteUsersLike, openUsers, seedUser, signInAs } from './fixtures/users'
 
 const row = (page: Page, email: string) => page.getByRole('row', { name: new RegExp(email) })
 
@@ -19,12 +18,6 @@ const ownerId = async () => {
 	})
 	expect(rows).toHaveLength(1)
 	return String(rows[0].id)
-}
-
-/** Opens the users page and waits until its table has hydrated (the date in the table is the signal). */
-const openUsers = async (page: Page) => {
-	await page.goto('/user-management')
-	await waitForHydration(page.getByRole('table').locator('time').first())
 }
 
 test.describe('user CRUD', () => {

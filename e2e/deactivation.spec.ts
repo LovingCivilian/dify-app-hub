@@ -1,18 +1,11 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 import { ADMIN_STATE } from './fixtures/constants'
-import { waitForHydration } from './fixtures/hydration'
-import { deleteUsersLike, seedUser, signInAs } from './fixtures/users'
+import { deleteUsersLike, openUsers, seedUser, signInAs } from './fixtures/users'
 
 const PASSWORD = 'deact-pass-1'
 const tag = () => `deact-${test.info().project.name}`
 const email = () => `${tag()}@e2e.local`
-
-/** Opens the users page and waits until its table has hydrated (the date in the table is the signal). */
-const openUsers = async (page: Page) => {
-	await page.goto('/user-management')
-	await waitForHydration(page.getByRole('table').locator('time').first())
-}
 
 test.use({ storageState: ADMIN_STATE })
 

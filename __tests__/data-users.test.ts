@@ -1,11 +1,16 @@
 import { drizzle } from 'drizzle-orm/mysql2'
-import { DrizzleQueryError } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
+import { DrizzleQueryError, type SQL } from 'drizzle-orm'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+const { database } = vi.hoisted(() => ({
+	/** The database a write test hands the DAL; the pure tests leave it unset, so any query throws. */
+	database: { value: undefined as unknown },
+}))
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 vi.mock('@/db', () => ({
 	getDb: () => {
-		throw new Error('not used by the pure tests')
+		if (!database.value) throw new Error('not used by the pure tests')
+		return database.value
 	},
 }))
 
@@ -24,6 +29,7 @@ import {
 	updateRefusal,
 	updateUser,
 } from '@/lib/data/users'
+import { passwordResetTokens, users } from '@/db/schema'
 
 const member = { id: 'u2', email: 'joe@example.com', name: null, role: 'user' as const }
 const owner = { id: 'o1', role: 'owner' as const }
@@ -227,7 +233,80 @@ describe('lockTarget (decision d, Review Focus 2)', () => {
 		expect(query.sql).toMatch(
 			/^select .* from `users` where `users`\.`id` = \? limit \? for update$/,
 		)
+		// setUserActive's no-op branch reads the admin marker from this row.
+		expect(query.sql).toMatch(/^select [^]*`admin_deactivated_at`[^]* from `users` /)
 		expect(query.params).toEqual(['u9', 1])
+	})
+})
+
+describe('setUserActive and pending reset links (controller ruling on C2)', () => {
+	type Write = { op: 'update' | 'delete'; table: unknown; condition: SQL }
+
+	/** A database that runs everything in its transaction: the target comes from the locking read, writes are recorded. */
+	const recordWrites = (target: { id: string; role: 'user'; adminDeactivatedAt: Date | null }) => {
+		const writes: Write[] = []
+		const tx = {
+			select: () => ({
+				from: () => ({
+					where: () => ({
+						limit: () => ({
+							for: (strength: string) =>
+								strength === 'update'
+									? Promise.resolve([target])
+									: Promise.reject(new Error(strength)),
+						}),
+					}),
+				}),
+			}),
+			update: (table: unknown) => ({
+				set: () => ({
+					where: (condition: SQL) => {
+						writes.push({ op: 'update', table, condition })
+						return Promise.resolve([{ affectedRows: 1 }])
+					},
+				}),
+			}),
+			delete: (table: unknown) => ({
+				where: (condition: SQL) => {
+					writes.push({ op: 'delete', table, condition })
+					return Promise.resolve([{ affectedRows: 1 }])
+				},
+			}),
+		}
+		// No update or delete outside the transaction: a write there would throw.
+		database.value = { transaction: (work: (t: typeof tx) => unknown) => work(tx) }
+		return writes
+	}
+	const ownerSession = { id: 'o1', email: 'owner@example.com', name: null, role: 'owner' as const }
+
+	afterEach(() => {
+		database.value = undefined
+	})
+
+	it("deactivation deletes the account's reset tokens in the same transaction as the marker", async () => {
+		const writes = recordWrites({ id: 'u9', role: 'user', adminDeactivatedAt: null })
+		expect(await setUserActive(ownerSession, 'u9', false)).toEqual({ ok: true, data: undefined })
+		expect(writes.map(write => [write.op, write.table])).toEqual([
+			['update', users],
+			['delete', passwordResetTokens],
+		])
+		const deleted = drizzle.mock().delete(passwordResetTokens).where(writes[1]!.condition).toSQL()
+		expect(deleted.sql).toBe(
+			'delete from `password_reset_tokens` where `password_reset_tokens`.`user_id` = ?',
+		)
+		expect(deleted.params).toEqual(['u9'])
+	})
+
+	it('deactivating an account an admin already deactivated deletes nothing', async () => {
+		const writes = recordWrites({ id: 'u9', role: 'user', adminDeactivatedAt: new Date() })
+		expect(await setUserActive(ownerSession, 'u9', false)).toEqual({ ok: true, data: undefined })
+		expect(writes).toEqual([])
+	})
+
+	it('reactivation clears the marker only: it deletes and restores no reset token', async () => {
+		const writes = recordWrites({ id: 'u9', role: 'user', adminDeactivatedAt: new Date() })
+		expect(await setUserActive(ownerSession, 'u9', true)).toEqual({ ok: true, data: undefined })
+		expect(writes.map(write => [write.op, write.table])).toEqual([['update', users]])
 	})
 })
 

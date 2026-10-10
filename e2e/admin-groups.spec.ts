@@ -5,7 +5,7 @@ import { deleteApp, deleteGroupsLike, grantAppToGroup, seedApp, seedGroup } from
 import { ADMIN_STATE } from './fixtures/constants'
 import { withDb } from './fixtures/db'
 import { waitForHydration } from './fixtures/hydration'
-import { deleteUsersLike, seedUser, signInAs } from './fixtures/users'
+import { deleteUsersLike, openUsers, seedUser, signInAs } from './fixtures/users'
 
 const PASSWORD = 'groups-pass-1'
 const tag = () => `grp-${test.info().project.name}`
@@ -58,6 +58,13 @@ test.describe('the groups page (B3 spec §4.3)', () => {
 		await expect(page.getByText('Group added')).toBeVisible()
 		const row = page.getByRole('row', { name: new RegExp(groupName()) })
 		await expect(row.getByRole('cell', { name: '1', exact: true })).toBeVisible()
+
+		// Spec §4.3: the users table shows each account's groups as read-only tags (listUsers' membership join).
+		const usersPage = await page.context().newPage()
+		await openUsers(usersPage)
+		const memberRow = usersPage.getByRole('row', { name: new RegExp(email()) })
+		await expect(memberRow.getByText(groupName(), { exact: true })).toBeVisible()
+		await usersPage.close()
 
 		await row.getByRole('button', { name: 'Edit' }).click()
 		await page.getByLabel('Name').fill(`${groupName()} renamed`)

@@ -284,9 +284,11 @@ export async function deleteUser(actor: SessionUser, id: string): Promise<Action
 
 /**
  * Deactivates or reactivates an account by the admin marker only (B3 spec §5). Deactivation stamps when and by whom
- * and bumps sessionVersion, so every token in use loses its id at its next request (ADR-0018's rule); reactivation
- * clears the marker and leaves those tokens revoked. The directory marker (B3b) is never touched here. The target is
- * read with a locking read and the rank checked against that row (ADR-0024 decision d). Idempotent (deviation 6).
+ * and bumps sessionVersion, so every token in use loses its id at its next request (ADR-0018's rule), and deletes the
+ * account's pending password reset links in the same transaction (documenso's disableUser expires them); reactivation
+ * clears the marker and restores neither the tokens nor the links. The directory marker (B3b) is never touched here.
+ * The target is read with a locking read and the rank checked against that row (ADR-0024 decision d). Idempotent
+ * (deviation 6).
  */
 export async function setUserActive(
 	actor: SessionUser,
@@ -313,6 +315,7 @@ export async function setUserActive(
 						},
 			)
 			.where(eq(users.id, id))
+		if (!active) await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, id))
 		return ok(undefined)
 	})
 }
