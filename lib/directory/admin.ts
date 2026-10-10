@@ -77,7 +77,10 @@ export async function getDirectoryStatus(actor: SessionUser): Promise<DirectoryS
 	const config = directoryConfig()
 	if (!config) return null
 	const nextRun = config.syncSchedule
-		? new Cron(config.syncSchedule, { timezone: config.syncTimezone ?? undefined }).nextRun()
+		? new Cron(config.syncSchedule, {
+				mode: '5-part',
+				timezone: config.syncTimezone ?? undefined,
+			}).nextRun()
 		: null
 	const run = await latestSyncRun()
 	return {

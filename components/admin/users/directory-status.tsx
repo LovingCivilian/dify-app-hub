@@ -13,6 +13,7 @@ import {
 	OUTCOME_COLORS,
 	OUTCOME_LABEL_KEYS,
 	syncErrorKey,
+	syncFailedKey,
 	TRIGGER_LABEL_KEYS,
 } from './directory-labels'
 import { userErrorKey } from './user-errors'
@@ -43,7 +44,7 @@ export default function DirectoryStatus({ status }: { status: DirectoryStatusDto
 					}),
 				)
 			else if (outcome === 'failed')
-				message.error(t('admin_users.sync_failed', { reason: t(syncErrorKey(errorCode ?? '')) }))
+				message.error(t(syncFailedKey(errorCode), { reason: t(syncErrorKey(errorCode ?? '')) }))
 			else
 				message.warning(
 					t(
@@ -122,7 +123,9 @@ export default function DirectoryStatus({ status }: { status: DirectoryStatusDto
 						{
 							key: 'counts',
 							label: t('admin_users.directory_counts'),
-							children: last ? t('admin_users.directory_counts_value', { ...last.counts }) : '—',
+							children: last?.finishedAt
+								? t('admin_users.directory_counts_value', { ...last.counts })
+								: '—',
 						},
 					]}
 				/>

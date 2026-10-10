@@ -115,8 +115,9 @@ export async function syncDirectoryAction(): Promise<
 		const result = await syncDirectoryNow(actor)
 		if (result === null) return fail('not_found')
 		// A manual slot is unique, so `skipped` cannot happen; both mean "another run has it".
-		if (result.status !== 'finished') return fail('sync_running')
+		// Refresh either way: after `sync_running` the panel shows the run that is going.
 		refresh()
+		if (result.status !== 'finished') return fail('sync_running')
 		return ok({ outcome: result.outcome, counts: result.counts, errorCode: result.errorCode })
 	} catch (error) {
 		return toActionFailure(error, 'syncDirectoryAction')

@@ -317,7 +317,7 @@
 		"directory_last_run": "آخر تشغيل",
 		"directory_never_run": "لم تُشغَّل بعد",
 		"directory_counts": "تغييرات آخر تشغيل",
-		"directory_counts_value": "{{entriesSeen}} إدخال · عُطّل {{deactivated}} · أُعيد تفعيل {{reactivated}} · حُدّث {{updated}} · تعارض في البريد {{conflicts}} · عضويات أُضيفت {{membershipsAdded}} · أُزيلت {{membershipsRemoved}} · أخطاء مجموعات {{groupErrors}}",
+		"directory_counts_value": "السجلات: {{entriesSeen}} · المعطّلة: {{deactivated}} · المعاد تفعيلها: {{reactivated}} · المحدّثة: {{updated}} · تعارضات البريد: {{conflicts}} · العضويات المضافة: {{membershipsAdded}} · العضويات المزالة: {{membershipsRemoved}} · أخطاء المجموعات: {{groupErrors}}",
 		"sync_succeeded": "اكتملت المزامنة: عُطّل {{deactivated}} وأُعيد تفعيل {{reactivated}}.",
 		"sync_failed": "فشلت المزامنة: {{reason}}. لم يُغيَّر شيء.",
 		"sync_stopped_empty": "توقفت المزامنة: لم يُرجع الدليل أي حساب، فلم يُغيَّر شيء. تحقق من LDAP_USER_BASE_DN وLDAP_USER_FILTER.",
@@ -326,7 +326,7 @@
 		"sync_outcome_running": "قيد التشغيل",
 		"sync_outcome_succeeded": "نجحت",
 		"sync_outcome_failed": "فشلت",
-		"sync_outcome_empty": "توقفت: لا إدخالات",
+		"sync_outcome_empty": "توقفت: لا سجلات",
 		"sync_outcome_id_attribute_changed": "توقفت: تغيّرت سمة المعرّف",
 		"sync_outcome_interrupted": "لم تكتمل",
 		"sync_trigger_schedule": "مجدولة",
@@ -335,7 +335,8 @@
 		"sync_error_directory_unreachable": "تعذّر الوصول إلى الدليل",
 		"sync_error_bind_refused": "رفض الدليل حساب الخدمة",
 		"sync_error_search_failed": "رفض الدليل عملية بحث",
-		"sync_error_internal_error": "خطأ داخلي (راجع سجل الخادم)"
+		"sync_error_internal_error": "خطأ داخلي (راجع سجل الخادم)",
+		"sync_failed_partial": "فشلت المزامنة: {{reason}}. طُبّقت التغييرات المحسوبة لهذا التشغيل، وسيكمل التشغيل التالي الباقي."
 	},
 	"admin_groups": {
 		"subtitle": "اجمع الحسابات في مجموعات لمنحها التطبيقات معًا",

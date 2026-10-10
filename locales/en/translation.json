@@ -317,7 +317,7 @@
 		"directory_last_run": "Last run",
 		"directory_never_run": "Not run yet",
 		"directory_counts": "Last run's changes",
-		"directory_counts_value": "{{entriesSeen}} entries · {{deactivated}} deactivated · {{reactivated}} reactivated · {{updated}} updated · {{conflicts}} email conflicts · {{membershipsAdded}} memberships added · {{membershipsRemoved}} removed · {{groupErrors}} group errors",
+		"directory_counts_value": "Entries: {{entriesSeen}} · Deactivated: {{deactivated}} · Reactivated: {{reactivated}} · Updated: {{updated}} · Email conflicts: {{conflicts}} · Memberships added: {{membershipsAdded}} · Memberships removed: {{membershipsRemoved}} · Group errors: {{groupErrors}}",
 		"sync_succeeded": "Sync finished: {{deactivated}} deactivated, {{reactivated}} reactivated.",
 		"sync_failed": "Sync failed: {{reason}}. Nothing was changed.",
 		"sync_stopped_empty": "Sync stopped: the directory returned no accounts, so nothing was changed. Check LDAP_USER_BASE_DN and LDAP_USER_FILTER.",
@@ -335,7 +335,8 @@
 		"sync_error_directory_unreachable": "the directory is unreachable",
 		"sync_error_bind_refused": "the directory refused the service account",
 		"sync_error_search_failed": "the directory refused a search",
-		"sync_error_internal_error": "an internal error (see the server log)"
+		"sync_error_internal_error": "an internal error (see the server log)",
+		"sync_failed_partial": "Sync failed: {{reason}}. The changes counted for the run were applied; the next run completes the rest."
 	},
 	"admin_groups": {
 		"subtitle": "Group accounts to give them apps together",

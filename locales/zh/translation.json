@@ -317,7 +317,7 @@
 		"directory_last_run": "上次运行",
 		"directory_never_run": "尚未运行",
 		"directory_counts": "上次运行的更改",
-		"directory_counts_value": "{{entriesSeen}} 个条目 · 停用 {{deactivated}} · 重新启用 {{reactivated}} · 更新 {{updated}} · 邮箱冲突 {{conflicts}} · 新增成员资格 {{membershipsAdded}} · 移除 {{membershipsRemoved}} · 群组错误 {{groupErrors}}",
+		"directory_counts_value": "条目：{{entriesSeen}} · 停用：{{deactivated}} · 重新启用：{{reactivated}} · 更新：{{updated}} · 邮箱冲突：{{conflicts}} · 新增成员资格：{{membershipsAdded}} · 移除成员资格：{{membershipsRemoved}} · 群组错误：{{groupErrors}}",
 		"sync_succeeded": "同步完成：停用 {{deactivated}} 个，重新启用 {{reactivated}} 个。",
 		"sync_failed": "同步失败：{{reason}}。未做任何更改。",
 		"sync_stopped_empty": "同步已停止：目录未返回任何账户，因此未做任何更改。请检查 LDAP_USER_BASE_DN 和 LDAP_USER_FILTER。",
@@ -335,7 +335,8 @@
 		"sync_error_directory_unreachable": "无法连接目录",
 		"sync_error_bind_refused": "目录拒绝了服务账户",
 		"sync_error_search_failed": "目录拒绝了一次搜索",
-		"sync_error_internal_error": "内部错误（请查看服务器日志）"
+		"sync_error_internal_error": "内部错误（请查看服务器日志）",
+		"sync_failed_partial": "同步失败：{{reason}}。本次运行统计的更改已生效，下次运行会完成其余部分。"
 	},
 	"admin_groups": {
 		"subtitle": "将账户分组，统一授予应用",

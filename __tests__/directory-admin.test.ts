@@ -113,6 +113,19 @@ describe('getDirectoryStatus (spec §6.6)', () => {
 		expect(new Date(status!.nextRun!).getTime()).toBeGreaterThan(Date.now())
 	})
 
+	it('reads the schedule in the configured time zone, five-part mode', async () => {
+		// 09:00 in Asia/Riyadh (UTC+3, no daylight saving) is 06:00 UTC.
+		mocks.directoryConfig.mockReturnValue({
+			...config,
+			syncSchedule: '0 9 * * *',
+			syncTimezone: 'Asia/Riyadh',
+		})
+		mocks.latestSyncRun.mockResolvedValue(null)
+		const status = await getDirectoryStatus(admin)
+		expect(new Date(status!.nextRun!).getUTCHours()).toBe(6)
+		expect(new Date(status!.nextRun!).getUTCMinutes()).toBe(0)
+	})
+
 	it('answers no next run with the schedule off, and "interrupted" for a run that outlived the guard (decision ap)', async () => {
 		mocks.directoryConfig.mockReturnValue({ ...config, syncSchedule: null })
 		mocks.latestSyncRun.mockResolvedValue({

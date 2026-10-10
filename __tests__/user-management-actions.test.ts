@@ -185,6 +185,8 @@ describe('user actions', () => {
 		expect(refresh).toHaveBeenCalledTimes(1)
 		syncDirectoryNow.mockResolvedValue({ status: 'running' })
 		expect(await syncDirectoryAction()).toEqual({ ok: false, code: 'sync_running' })
+		// The panel shows the run that is going: the route refreshes on sync_running too.
+		expect(refresh).toHaveBeenCalledTimes(2)
 		syncDirectoryNow.mockResolvedValue(null)
 		expect(await syncDirectoryAction()).toEqual({ ok: false, code: 'not_found' })
 		// A database failure out of the run is an operation_failed result, never a throw (carry, Task 10 note).
