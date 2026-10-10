@@ -191,6 +191,7 @@
 		"username": "用户名",
 		"username_placeholder": "你的目录用户名",
 		"username_required": "请输入用户名",
+		"username_hint": "只填用户名，不带域名：例如 jsmith，而不是 CORP\\jsmith 或 jsmith@corp.example.com",
 		"password": "密码",
 		"password_required": "请输入密码",
 		"new_password": "新密码",

@@ -27,6 +27,12 @@ test.describe('directory sign-in (ADR-0029)', () => {
 		await page.goto('/login')
 		await expect(page.getByRole('tab', { name: 'Directory account', selected: true })).toBeVisible()
 		await expect(page.getByLabel('Username')).toBeVisible()
+		await expect(
+			page.getByText(
+				'Your username only, without the domain: jsmith, not CORP\\jsmith or jsmith@corp.example.com',
+				{ exact: true },
+			),
+		).toBeVisible()
 		// Decision y's forgot-password link (local tab only) is checked live with SMTP on; .env.e2e has it off (ADR-0010).
 		await chooseLocalAccount(page)
 		await expect(page.getByLabel('Username')).toHaveCount(0)

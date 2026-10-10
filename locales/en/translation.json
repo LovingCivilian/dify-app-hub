@@ -191,6 +191,7 @@
 		"username": "Username",
 		"username_placeholder": "Your directory username",
 		"username_required": "Enter your username",
+		"username_hint": "Your username only, without the domain: jsmith, not CORP\\jsmith or jsmith@corp.example.com",
 		"password": "Password",
 		"password_required": "Enter your password",
 		"new_password": "New password",

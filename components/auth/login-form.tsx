@@ -63,6 +63,7 @@ function DirectoryForm({
 			<Form.Item
 				name="username"
 				label={t('auth.username')}
+				extra={t('auth.username_hint')}
 				rules={[{ required: true, whitespace: true, message: t('auth.username_required') }]}
 			>
 				<Input

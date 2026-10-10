@@ -191,6 +191,7 @@
 		"username": "اسم المستخدم",
 		"username_placeholder": "اسم المستخدم في الدليل",
 		"username_required": "أدخل اسم المستخدم الخاص بك",
+		"username_hint": "اسم المستخدم فقط، دون النطاق: مثلًا jsmith، وليس CORP\\jsmith أو jsmith@corp.example.com",
 		"password": "كلمة المرور",
 		"password_required": "أدخل كلمة المرور",
 		"new_password": "كلمة المرور الجديدة",
