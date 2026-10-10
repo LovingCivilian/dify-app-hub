@@ -29,7 +29,11 @@ export const missedRun = (lastDue: Date | undefined, lastSucceededStart: Date | 
 
 async function catchUp(config: LdapConfig, job: Cron): Promise<void> {
 	// croner's previousRuns(1): the latest pattern time strictly before now (library-apis.md §2).
-	const [lastDue] = job.previousRuns(1)
+	// A start inside a due second runs that slot: previousRuns(1) steps back from the current whole second, so
+	// `match` (README "Status") takes the second itself (spec §13: runs are idempotent).
+	const now = new Date()
+	const second = new Date(Math.floor(now.getTime() / 1000) * 1000)
+	const lastDue = job.match(now) ? second : job.previousRuns(1, now)[0]
 	const lastSucceeded = await lastSucceededSyncRun()
 	if (!missedRun(lastDue, lastSucceeded?.startedAt ?? null)) return
 	await runSync({ config, id: randomUUID(), trigger: 'startup', slot: startupSlot(lastDue!) })

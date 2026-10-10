@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => {
 	const jobs: { pattern: string; options: Record<string, unknown>; run: () => Promise<void> }[] = []
 	const lastDue = { value: new Date('2026-10-10T09:00:00Z') as Date | undefined }
+	const matches = { value: false }
 	class Cron {
 		constructor(pattern: string, options: Record<string, unknown>, run: () => Promise<void>) {
 			jobs.push({ pattern, options, run })
@@ -10,12 +11,16 @@ const mocks = vi.hoisted(() => {
 		previousRuns() {
 			return lastDue.value ? [lastDue.value] : []
 		}
+		match() {
+			return matches.value
+		}
 		stop() {}
 	}
 	return {
 		jobs,
 		Cron,
 		lastDue,
+		matches,
 		directoryConfig: vi.fn(),
 		runSync: vi.fn(),
 		lastSucceededSyncRun: vi.fn(),
@@ -52,6 +57,7 @@ beforeEach(() => {
 	mocks.lastSucceededSyncRun.mockReset()
 	mocks.lastSucceededSyncRun.mockResolvedValue({ startedAt: new Date('2026-10-10T09:00:05Z') })
 	mocks.lastDue.value = new Date('2026-10-10T09:00:00Z')
+	mocks.matches.value = false
 })
 afterEach(reset)
 
@@ -66,10 +72,10 @@ describe('missedRun (spec §6.4 "Missed run")', () => {
 })
 
 describe('croner and the environment check agree on the zone and the mode', () => {
-	// The environment stores any zone Intl accepts, canonical (offsets included); croner builds on Intl too.
+	// The environment takes IANA names only (spec §2 #14); croner's README documents `timezone` as an IANA name.
 	it.each([
 		['Asia/Riyadh', '2026-10-11T06:00:00.000Z'],
-		['+01:00', '2026-10-11T08:00:00.000Z'],
+		['Etc/GMT-1', '2026-10-11T08:00:00.000Z'],
 	])('schedules 09:00 in %s', async (timezone, expected) => {
 		const { Cron } = await vi.importActual<typeof import('croner')>('croner')
 		const job = new Cron('0 9 * * *', { mode: '5-part', timezone })
@@ -157,7 +163,58 @@ describe('startDirectorySchedule', () => {
 		mocks.directoryConfig.mockReturnValue(config)
 		startDirectorySchedule()
 		await vi.waitFor(() => expect(mocks.lastSucceededSyncRun).toHaveBeenCalled())
+		// Let the catch-up's own continuation settle (a macrotask drains every queued microtask) before asserting.
+		await new Promise(resolve => setTimeout(resolve, 0))
 		expect(mocks.runSync).not.toHaveBeenCalled()
+	})
+
+	it('runs the slot whose second the process starts in (croner match)', async () => {
+		mocks.directoryConfig.mockReturnValue(config)
+		mocks.matches.value = true
+		mocks.lastDue.value = new Date('2026-10-10T08:00:00Z')
+		mocks.lastSucceededSyncRun.mockResolvedValue({ startedAt: new Date('2026-10-10T08:00:02Z') })
+		vi.useFakeTimers({ toFake: ['Date'] })
+		vi.setSystemTime(new Date('2026-10-10T09:00:00.500Z'))
+		try {
+			startDirectorySchedule()
+			await vi.waitFor(() => expect(mocks.runSync).toHaveBeenCalledTimes(1))
+		} finally {
+			vi.useRealTimers()
+		}
+		expect(mocks.runSync).toHaveBeenCalledWith(
+			expect.objectContaining({ trigger: 'startup', slot: 'startup:2026-10-10T09:00Z' }),
+		)
+	})
+
+	it('logs a failing catch-up read or run instead of leaking a rejection', async () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+		try {
+			mocks.directoryConfig.mockReturnValue(config)
+			mocks.lastSucceededSyncRun.mockRejectedValue(new Error('db down'))
+			startDirectorySchedule()
+			await vi.waitFor(() => expect(error).toHaveBeenCalled())
+			error.mockClear()
+			reset()
+			mocks.lastSucceededSyncRun.mockResolvedValue(null)
+			mocks.runSync.mockRejectedValue(new Error('claim failed'))
+			startDirectorySchedule()
+			await vi.waitFor(() => expect(error).toHaveBeenCalled())
+		} finally {
+			error.mockRestore()
+		}
+	})
+
+	it('routes a failing scheduled run through the catch option to the log', () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+		try {
+			mocks.directoryConfig.mockReturnValue(config)
+			startDirectorySchedule()
+			const handler = mocks.jobs[0].options.catch as (error: unknown) => void
+			expect(() => handler(new Error('db'))).not.toThrow()
+			expect(error).toHaveBeenCalled()
+		} finally {
+			error.mockRestore()
+		}
 	})
 
 	it('warns once at start that passwords travel in clear with LDAP_ENCRYPTION=none (spec §6.2)', () => {

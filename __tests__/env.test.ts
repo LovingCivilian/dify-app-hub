@@ -292,6 +292,17 @@ describe('parseEnv', () => {
 		).toBe('Asia/Riyadh')
 	})
 
+	it('takes IANA time zone names only: offsets are refused, UTC and Etc/GMT-1 pass', () => {
+		for (const offset of ['+01:00', '-05:30'])
+			expect(keysOfFailure({ ...ldapBlock, LDAP_SYNC_TIMEZONE: offset })).toEqual([
+				'LDAP_SYNC_TIMEZONE',
+			])
+		for (const zone of ['UTC', 'Asia/Riyadh', 'Etc/GMT-1'])
+			expect(parseEnv({ ...base, ...ldapBlock, LDAP_SYNC_TIMEZONE: zone }).ldap?.syncTimezone).toBe(
+				zone,
+			)
+	})
+
 	it('reads LDAP_ENCRYPTION leniently, like the SMTP flags', () => {
 		expect(parseEnv({ ...base, ...ldapBlock, LDAP_ENCRYPTION: ' None ' }).ldap?.encryption).toBe(
 			'none',

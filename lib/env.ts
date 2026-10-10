@@ -72,16 +72,17 @@ const isMemberFilter = (value: string): boolean =>
  * invalid value throws a RangeError. The canonical spelling is `resolvedOptions().timeZone` ("asia/riyadh" becomes
  * "Asia/Riyadh"). Checked on its own so a bad zone is named even while the schedule is `off`.
  */
+const canonicalTimeZone = (value: string): string =>
+	new Intl.DateTimeFormat(undefined, { timeZone: value }).resolvedOptions().timeZone
+// An IANA name only (spec §2 #14, §7.1): Intl also takes offsets such as "+01:00" (MDN, Intl.DateTimeFormat() timeZone),
+// which croner documents only through its separate `utcOffset` option; IANA names the fixed ones too (UTC, Etc/GMT-1).
 const isTimeZone = (value: string): boolean => {
 	try {
-		new Intl.DateTimeFormat(undefined, { timeZone: value })
-		return true
+		return !/^[+-]/.test(canonicalTimeZone(value))
 	} catch {
 		return false
 	}
 }
-const canonicalTimeZone = (value: string): string =>
-	new Intl.DateTimeFormat(undefined, { timeZone: value }).resolvedOptions().timeZone
 
 const attribute = (fallback: string) =>
 	blankAsAbsent(z.string().trim().regex(ATTRIBUTE_NAME).default(fallback))
@@ -127,7 +128,7 @@ const ldapSchema = z
 			z
 				.string()
 				.trim()
-				.refine(isTimeZone, 'a time zone name or offset')
+				.refine(isTimeZone, 'an IANA time zone name')
 				.transform(canonicalTimeZone)
 				.optional(),
 		),
