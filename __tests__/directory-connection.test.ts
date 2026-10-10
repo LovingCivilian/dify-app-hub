@@ -238,7 +238,7 @@ describe('withDirectory: failures (decision q)', () => {
 		factory: string,
 		connect: (typeof workSockets)[number]['connect'],
 	) => {
-		const socket = { destroyed: false }
+		const socket = { destroyed: false, destroy: vi.fn() }
 		connect.mockReturnValueOnce(socket as never)
 		const create = mocks.state.options?.[factory] as (...args: unknown[]) => unknown
 		create(389, 'dc')
@@ -256,8 +256,28 @@ describe('withDirectory: failures (decision q)', () => {
 			}).catch(e => e)
 			expect(mocks.state.connected).toBe(true)
 			expect(error).toBeInstanceOf(DirectoryUnavailableError)
+			// A dead socket cannot carry the Unbind, so none is sent (RFC 4511 §4.3).
+			expect(mocks.state.calls).not.toContainEqual(['unbind'])
 		},
 	)
+
+	// After StartTLS, ldapts would wait the operation timer for an Unbind on the dead TLS socket: its 'close' handler,
+	// the one that settles a pending Unbind, sits on the TCP socket and fired at the drop.
+	it('releases a dead StartTLS connection without an Unbind, destroying every socket it opened', async () => {
+		const tcp = { destroyed: false, destroy: vi.fn() }
+		const secure = { destroyed: false, destroy: vi.fn() }
+		sockets.tcp.mockReturnValueOnce(tcp as never)
+		sockets.tls.mockReturnValueOnce(secure as never)
+		await withDirectory(config('ldap://dc', 'starttls'), async () => {
+			const options = mocks.state.options as Record<string, (...args: unknown[]) => unknown>
+			options.createConnection(389, 'dc')
+			options.createSecureConnection({ socket: tcp })
+			secure.destroyed = true
+			throw new Error('Connection closed before message response was received.')
+		}).catch(() => undefined)
+		expect(mocks.state.calls.map(call => call[0])).toEqual(['startTLS', 'bind'])
+		expect(tcp.destroy).toHaveBeenCalledOnce()
+	})
 
 	it.each(workSockets)(
 		'passes a bug through on a socket that is still open: $encryption',
@@ -269,6 +289,8 @@ describe('withDirectory: failures (decision q)', () => {
 					throw bug
 				}),
 			).rejects.toBe(bug)
+			// A live connection is released by its Unbind, as spec §6.2 asks.
+			expect(mocks.state.calls.at(-1)).toEqual(['unbind'])
 		},
 	)
 

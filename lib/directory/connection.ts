@@ -102,6 +102,12 @@ export async function withDirectory<T>(
 			throw error
 		}
 	} finally {
-		await client.unbind().catch(() => undefined)
+		// Spec §6.2's unbind() in `finally` releases the connection. A destroyed socket cannot carry the Unbind (RFC 4511
+		// §4.3: the client ends the session "upon transmission of the UnbindRequest"), and after StartTLS ldapts would
+		// wait the operation timer for one (its 'close' handler, which settles a pending Unbind, sits on the TCP socket
+		// and fired at the drop, `src/Client.ts:1015-1030`); the sockets the factories opened are destroyed instead
+		// (Node `socket.destroy()`, a no-op on one already destroyed).
+		if (sockets.some(socket => socket.destroyed)) for (const socket of sockets) socket.destroy()
+		else await client.unbind().catch(() => undefined)
 	}
 }
