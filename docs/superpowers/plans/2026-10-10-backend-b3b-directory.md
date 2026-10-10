@@ -8871,9 +8871,199 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ---
 
-### Task 15: Records
+### Task 15: Records — ADR-0029, the notes, `docs/ldap.md`, `docs/auth-gate.md`, `CLAUDE.md`, CII
 
-(DRAFT: being written)
+Spec §10 (the B3b record and its notes; `docs/auth-gate.md`, `docs/ldap.md`, `CLAUDE.md`), §7.1 (`docs/ldap.md`'s worked examples and the `none` trade-off), §12–§14. ADR-0015 (decisions in ADRs, `CLAUDE.md` under 200 lines). The spec calls this record ADR-0028; the sidebar took that number (ADR-0027's B3b notes), so it is ADR-0029.
+
+**Files:**
+
+- Create: `docs/decisions/0029-sign-directory-accounts-in-over-ldap-and-keep-them-in-step-with-a-scheduled-sync.md`, `docs/ldap.md`
+- Modify: `docs/decisions/README.md`, `docs/decisions/{0006,0010,0018,0024,0026,0027}-*.md` (dated notes), `docs/auth-gate.md`, `CLAUDE.md`, `.cii-assessment.md`
+
+- [ ] **Step 1: ADR-0029**
+
+Create it with the project's adr-skill (`.claude/skills/adr-skill`; its README's workflow: run the scripts from a temporary copy with `scripts/*.js` renamed to `.cjs`) as `proposed`, titled "Sign directory accounts in over LDAP and keep them in step with a scheduled sync", with `--update-index`. Fill it in MADR 4.0 form, each claim with the source this plan gives it:
+
+- **Context and Problem Statement:** the charter's B3 row; B3a built the audience (groups with `directory` memberships) and the off switch (the directory marker), and wrote neither; the owner's decisions of 2026-10-09 (spec §2 #4–#7, #10–#14, #16–#18); ADR-0027's B3b notes. The question: how do directory accounts sign in, how are they linked and kept in step, and how is that tested without the owner's directory?
+- **Decision Drivers:** no account takeover and linking by the entry's key only (ADR-0026; next-auth's FAQ on automatic linking); an unreachable or misconfigured directory changes nothing (GitLab's "All users are blocked if the LDAP server is unavailable" warning); one generic answer for every account-related refusal (OWASP "Authentication Responses"); passwords never in clear without the owner's explicit choice (RFC 4513 §5.1.3); documented approaches only, with reference projects where the docs are silent (ADR-0002); features both MySQL and PostgreSQL have (ADR-0004 note).
+- **Considered Options** (with the research's citations: `docs/superpowers/research/2026-10-09-backend-b3/ldap-client.md`, `periodic-jobs.md`, `ldap-reference-projects.md`, `e2e-ldap-server.md`, and `b3b-plan/`):
+  - the client: `ldapts` 9.2.0 (chosen; n8n and Backstage use it) / `ldapjs` (decommissioned 2024-05-14, archived) / `@infisical/ldapjs` (a vendor's republish) / `ldap-native` (a native build, one author) / `passport-ldapauth` (built on ldapjs, a Passport strategy) / `ldap-authentication` (a wrapper of ldapts, not needed);
+  - the schedule: croner from `instrumentation.ts` `register()` with a slot claim (chosen; Formbricks, Homarr, Rallly, ZTNet) / an external cron calling a secret route (Cal.com) / a worker container from the same image (Twenty, Langfuse) / a job queue (needs Redis); croner 10.0.1 (chosen; Homarr) / `node-cron` / `cron`;
+  - the link: the entry's `objectGUID`/`entryUUID` (chosen; Keycloak, Mattermost, Nextcloud, Rocket.Chat) / the DN (GitLab, Grafana, with an email fallback) / the email (Open WebUI) / the login name (LibreChat);
+  - the sign-in: a second Credentials provider `ldap` (chosen; next-auth "Multiple providers") / one form that tries both (Grafana, Rocket.Chat);
+  - an unknown username's timing: a response-time floor (chosen; Authelia) / a dummy bind (no surveyed project; AD's PDC forwarding would still differ) / nothing (Spring Security, django-auth-ldap, n8n);
+  - the test directories: smblds over LDAPS and OpenLDAP 2.6 over StartTLS and plain (chosen; os2mo and authentik run a Samba DC beside OpenLDAP) / OpenLDAP only (Mattermost, GitLab QA, ldapts) / smblds only;
+  - the test certificates: committed with a regeneration script (chosen; python-ldap, Node.js core, Go) / generated at test time (ldapts with node-forge, authentik) / generated in a container at start.
+- **Decision Outcome:** the data model of spec §3.2 as built (Task 1), the `LDAP_*` block (Task 2), the directory DAL (Tasks 3 and 9), the modules of `lib/directory/` (Tasks 5, 6, 7, 10, 11, 12, 14), the `ldap` provider and the session's `source` (Task 7), the login tabs and the account menu (Task 8), the groups page's links (Task 12), the users page's directory accounts and status panel (Tasks 13, 14), the test directories and `pnpm test:ldap` (Task 4); this plan's deviations 1–9 and decisions a–ao, each with its source, copied from the tasks.
+- **Consequences:** Good: a directory account can never take over a local one, and its Dify history (`users.id`) survives renames and moves; an unreachable directory, an empty answer or a changed id attribute changes nothing; the directory owns only its own marker and memberships, so it never undoes an admin's decision; one CI-free suite proves the AD and the generic paths in all three modes. Bad: `LDAP_ENCRYPTION=none` sends every directory password and the service account's in clear (spec §13), and a domain controller that starts requiring LDAP signing (a new Windows Server 2025 domain, or an unconfigured DC upgraded to 2025; Microsoft Learn, "LDAP signing for Active Directory Domain Services") ends it: every sign-in then answers "the directory is unreachable" and the log names result code 8; failed binds through the hub count toward the directory's lockout until throttling exists (spec §12); a wrong but non-empty filter deactivates the people it misses until the next correct sync (spec §13); the in-process schedule is reference-project practice where Next's docs are silent; the test servers cover Samba's AD, not Microsoft's (paging above 1,000, referrals, signing policy), so the owner's live check is the real test. Neutral: the e2e suite runs with the LDAP block on, so every spec sees the login tabs; the run table keeps 90 days.
+- **Implementation Plan:** affected paths (this plan's file structure); patterns to follow (every directory value in a filter goes through `lib/directory/filters.ts`; every directory connection through `withDirectory`, one per sign-in or sync; a new directory write touches only the directory's marker, the directory fields of `ldap` accounts or `directory` memberships; every failed directory sign-in goes through the response floor; the sync reads everything before it writes); patterns to avoid (binding with an unchecked password; a `sizeLimit` on a sync search; TLS options on the constructor for `ldap://`; linking by email, DN or login; an admin action writing the directory marker; a `register()` that can throw); configuration (the `LDAP_*` block, `docs/ldap.md`); migration steps (`pnpm db:migrate`; every existing account becomes `local`; the `CHECK` must hold, so a database whose `users.password` holds a NULL cannot be migrated until that row is fixed).
+- **Verification:** the vitest files and e2e specs of Tasks 1–14 by name; `pnpm test:ldap`; the migration on a copy of the local database (Task 16); the Docker gate (Task 16, unchecked until done); the owner's live check against their Active Directory (unchecked until done).
+- **More Information:** the spec and research paths; follow-ups: sign-in throttling for both tabs with AD's lockout in mind; "switch to directory sign-in" for a local account; recovery from a changed `LDAP_ID_ATTRIBUTE`; the inherited forgot and reset password for directory accounts (the `CHECK` refuses the write; the handler answers its failure).
+
+Copy the deviations and decisions into the ADR in this plan's words, with their sources; do not shorten a source to "see the plan".
+
+- [ ] **Step 2: The notes on earlier ADRs**
+
+Append a dated note under "More Information" in each (the README's rule: an accepted ADR changes only by a status change or a dated note):
+
+- `0026-…md`: "Note, 2026-10-10 (ADR-0029): the LDAP linking rule is built. A directory account is linked by `users.directory_id`, the entry's `objectGUID` as a lowercase GUID string in Microsoft's byte order or its `entryUUID` lowercased, with `directory_id_attribute` beside it; never by email, DN, UPN or login name. A first sign-in whose email any account uses is refused, so no directory sign-in takes over an account (`lib/data/directory.ts` `recordDirectorySignIn`)."
+- `0024-…md`: "Note, 2026-10-10 (ADR-0029): `lib/data/directory.ts` is the second actor-less DAL module, after `lib/data/setup.ts`; its guard is its input (values from a successful bind or a complete directory search). `updateUserRole` is the role-only edit of a directory account under the rank map, and `updateUser` refuses an `ldap` target; `lockTarget` also reads `source`."
+- `0027-…md`: "Note, 2026-10-10 (ADR-0029): the B3b notes are built. The `ldap` provider refuses an account an admin deactivated after the bind, inside the sign-in transaction; every refused directory sign-in waits for a response-time floor, so an unknown username answers in the same time as a wrong password; the sync and the sign-in write only `directory_deactivated_at` and `directory` memberships. The users page offers Deactivate while the admin marker is empty, also for an account the directory has deactivated."
+- `0018-…md`: "Note, 2026-10-10 (ADR-0029): the directory sync's deactivation bumps `sessionVersion` like the admin's, so a person removed from the directory is signed out at the next request after the sync; the token and the session carry the account's `source`, refreshed from the row with the role."
+- `0010-…md`: "Note, 2026-10-10 (ADR-0029): `docker-compose.e2e.yml` gains two LDAP test directories under the profile `ldap`, started by name: `ldap-ad` (smblds, LDAPS) by the Playwright global setup, both by `pnpm test:ldap` (a Vitest project of its own). `.env.e2e` holds the `LDAP_*` block with the schedule off, so the login page shows its tabs in every spec; the local sign-in helpers choose 'Local account'. A test CA and server certificate are committed under `e2e/fixtures/ldap/tls/` with their regeneration script."
+- `0006-…md`: "Note, 2026-10-10 (ADR-0029): directory accounts sign in on the login page's 'Directory account' tab through next-auth's `/api/auth/callback/ldap`, under the public `/api/auth` prefix; deny by default is unchanged."
+
+Add the row for 0029 to `docs/decisions/README.md` if `--update-index` did not.
+
+- [ ] **Step 3: `docs/ldap.md`**
+
+Create it:
+
+````markdown
+# Directory (LDAP) sign-in and sync
+
+ADR-0029. People in the company directory sign in on the login page's "Directory account" tab with their directory username and password. Their hub account is created at the first sign-in and linked to their entry by its key (`objectGUID` on Active Directory, `entryUUID` elsewhere), never by email. A scheduled sync, and Sync now on the users page, deactivate the accounts whose entry is gone or disabled, reactivate those that come back, refresh names and emails, and keep the members of hub groups linked to directory groups. Roles stay in the hub: a new directory account is a `user`, and the owner or an admin promotes it.
+
+## Settings
+
+Setting `LDAP_URL` turns the directory on; the keys marked required must then be set, or the first request fails with their names. The defaults are Active Directory's. Copy the block from `.env.template`.
+
+| Variable | Required / default | Notes |
+| --- | --- | --- |
+| `LDAP_URL` | required | `ldaps://host:636` or `ldap://host:389` |
+| `LDAP_ENCRYPTION` | required | `ldaps` (with `ldaps://`), `starttls` or `none` (with `ldap://`) |
+| `LDAP_CA_FILE` | optional | a PEM file with the CA that signed the directory's certificate, mounted into the container; Node's trust store otherwise. No setting skips certificate verification |
+| `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD` | required | a read-only service account |
+| `LDAP_USER_BASE_DN` | required | where people are searched |
+| `LDAP_USER_FILTER` | `(&(objectCategory=person)(objectClass=user)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))` | enabled AD users; a person the filter does not match cannot sign in and is deactivated by the sync |
+| `LDAP_LOGIN_ATTRIBUTE` | `sAMAccountName` | what people type as their username |
+| `LDAP_ID_ATTRIBUTE` | `objectGUID` | the link; do not change it once accounts exist (the sync then stops with "ID attribute changed") |
+| `LDAP_EMAIL_ATTRIBUTE`, `LDAP_NAME_ATTRIBUTE` | `mail`, `displayName` | an entry without an email cannot get an account |
+| `LDAP_GROUP_BASE_DN` | `LDAP_USER_BASE_DN` | where the groups page searches directory groups |
+| `LDAP_GROUP_FILTER`, `LDAP_GROUP_NAME_ATTRIBUTE` | `(objectClass=group)`, `cn` |  |
+| `LDAP_GROUP_MEMBER_FILTER` | `(memberOf:1.2.840.113556.1.4.1941:={group_dn})` | `{group_dn}` is replaced by a linked group's DN; the default includes nested groups |
+| `LDAP_SYNC_SCHEDULE` | `0 * * * *` | a five-field cron expression, or `off` |
+| `LDAP_SYNC_TIMEZONE` | the server's zone (UTC in the image) | an IANA name such as `Asia/Riyadh` |
+
+Every filter must be wrapped in parentheses and parse as an LDAP filter; attribute settings must be attribute names. The hub writes the values people type (and the directory's own values) into its filters escaped.
+
+## Active Directory
+
+```dotenv
+LDAP_URL=ldaps://dc01.corp.example:636
+LDAP_ENCRYPTION=ldaps
+LDAP_CA_FILE=/run/secrets/corp-root-ca.pem
+LDAP_BIND_DN=CN=svc-hub,OU=Service Accounts,DC=corp,DC=example
+LDAP_BIND_PASSWORD=…
+LDAP_USER_BASE_DN=OU=Staff,DC=corp,DC=example
+```
+
+- **The service account** needs read access to the people and groups under the two base DNs, including `objectGUID`, `userAccountControl`, `mail`, `displayName` and `memberOf`. A plain domain user has it in a default domain, through "Pre-Windows 2000 Compatible Access" (Microsoft Learn, "Active Directory security groups"); a hardened domain may have removed that, and the service account then needs an explicit read grant. It needs no write right.
+- **Nested groups** are resolved by the default member filter (`LDAP_MATCHING_RULE_IN_CHAIN`); Microsoft notes that such queries "may be more processor intensive" on large group trees.
+- **Disabled accounts** are left out by the default user filter, so a person disabled in AD cannot sign in and is deactivated at the next sync.
+
+## OpenLDAP and other LDAPv3 servers
+
+```dotenv
+LDAP_URL=ldap://ldap.corp.example:389
+LDAP_ENCRYPTION=starttls
+LDAP_BIND_DN=cn=svc-hub,dc=corp,dc=example
+LDAP_USER_BASE_DN=ou=people,dc=corp,dc=example
+LDAP_USER_FILTER=(&(objectClass=inetOrgPerson)(!(pwdAccountLockedTime=*)))
+LDAP_LOGIN_ATTRIBUTE=uid
+LDAP_ID_ATTRIBUTE=entryUUID
+LDAP_GROUP_BASE_DN=ou=groups,dc=corp,dc=example
+LDAP_GROUP_FILTER=(objectClass=groupOfNames)
+LDAP_GROUP_MEMBER_FILTER=(memberOf={group_dn})
+```
+
+`memberOf` exists only with the memberof overlay; nested groups need the nestgroup overlay with `memberof-filter` (OpenLDAP 2.6.8 and later). Without them, write a member filter for your server. An Active Directory filter on another server matches nothing without an error: the sync then stops with "no entries" and changes nothing.
+
+## Encryption, and moving off `none`
+
+`LDAP_ENCRYPTION=none` sends every person's directory password, and the service account's, in clear between the hub and the directory (RFC 4513 §5.1.3: a simple bind with a password "is not suitable for authentication in environments without confidentiality protection"). The hub logs a warning at start and the users page shows "Unencrypted connection". It also stops working when the domain controller requires LDAP signing: a new Windows Server 2025 domain does by default, and so does a domain controller upgraded to 2025 that had no signing policy (Microsoft Learn, "LDAP signing for Active Directory Domain Services"). Sign-ins then say "The directory is unreachable" and the log names result code 8 (`StrongAuthRequiredError`).
+
+To move to `ldaps`:
+
+1. The domain controller needs a certificate for Server Authentication whose subject or DNS name is the DC's fully qualified name; installing it is enough ("There's no user interface for configuring LDAPS", Microsoft Learn).
+2. Set `LDAP_URL=ldaps://<the DC's FQDN>:636` and `LDAP_ENCRYPTION=ldaps`. A URL by IP address works only if the certificate also names that IP.
+3. Mount the enterprise root CA into the hub container and point `LDAP_CA_FILE` at it.
+4. If the container cannot resolve the DC's name, map it with Compose's `extra_hosts` (`- "dc01.corp.example=10.0.0.5"`).
+
+Channel binding does not apply to simple binds over TLS (Microsoft Learn, "LDAP channel binding for AD DS").
+
+## The sync
+
+- **When:** at `LDAP_SYNC_SCHEDULE` in `LDAP_SYNC_TIMEZONE`, once at start when a due run was missed, and on Sync now. Several hub containers run each scheduled time once. No run starts while another has been going for less than 30 minutes; a run that died with its container shows "Did not finish". In a zone with daylight saving, a time that falls in the skipped hour runs at the end of it; the default hourly schedule is not affected.
+- **What:** the people the user filter matches are compared with the hub's directory accounts by key. Absent → deactivated and signed out at their next request; back → reactivated; present → name, email and username refreshed (an email another account has is kept and counted as a conflict). People without a hub account are ignored: accounts are created at first sign-in. Each hub group linked to directory groups gets the hub accounts found in any of them as its directory members; members added by hand stay.
+- **Safety stops** (nothing changes, the run says why): the directory did not answer, refused the service account or a search ("failed"); it returned no entries ("no entries": check the base DN and the filter); an account was linked with another `LDAP_ID_ATTRIBUTE` ("ID attribute changed": put the old value back).
+- **History:** the users page shows the last run, its counts, the next run and Sync now; runs are kept 90 days.
+- **Admin and directory deactivation** are separate: the directory never lifts an admin's deactivation, and an admin's Reactivate does not undo the directory's.
+
+## Logs
+
+Each refused sign-in logs one line, `authorizeDirectory: sign-in refused` with the username and a reason: `unknown_user`, `ambiguous_user`, `wrong_password`, `invalid_entry` (no valid key), `entry_without_email`, `email_in_use`, `account_inactive` (deactivated by an admin), `directory_off`. A failure of the directory logs its error class and LDAP result code, never a password. Each sync logs one `directorySync: run finished` line with the outcome, the error code and the counts.
+
+## Checking a new directory
+
+1. From the hub's container, the directory's port answers (TCP only):
+
+   ```bash
+   docker compose exec -T app node -e "const s=require('node:net').connect({host:process.argv[1],port:Number(process.argv[2]),timeout:5000});s.on('connect',()=>{console.log('open');s.destroy()}).on('timeout',()=>{console.log('timeout');s.destroy()}).on('error',e=>console.log('error',e.code))" <DC address> 389
+   ```
+
+2. Start with `LDAP_SYNC_SCHEDULE=off`, sign in as yourself on the Directory tab, and check your account on the users page (Directory, your username, the user role).
+3. Run Sync now: the counts should be plausible (no mass deactivation).
+4. Link a hub group to a directory group, grant it an app, and sign in as a member of a nested group.
+5. Then set the schedule.
+
+## Known limits
+
+- Sign-in attempts are not throttled yet, and every failed directory sign-in counts toward the directory's lockout policy.
+- A local account cannot be switched to directory sign-in yet; the person keeps both or an admin resolves it.
+- Changing `LDAP_ID_ATTRIBUTE` after accounts exist is not supported.
+- Forgot and reset password are for local accounts; a directory account's password is the directory's.
+````
+
+- [ ] **Step 4: `docs/auth-gate.md`**
+
+- In the opening paragraph, after the deactivation sentence: "Directory accounts (ADR-0029) sign in on the login page's Directory tab through a second Credentials provider, `ldap`; every account-related refusal answers the same generic message, and only a directory that does not answer is named."
+- In "Where it lives", the `lib/auth/options.ts` bullet gains: "Two providers: `credentials` (`authorizeCredentials`, which also refuses an account the directory owns, after the same bcrypt work) and `ldap` (`authorizeDirectory` in `lib/auth/directory-provider.ts`: search, the linked groups, then the person's bind; the DAL's sign-in transaction; a response-time floor on every refusal). The token and the session carry the account's `source`, refreshed from the row."
+- A new bullet after the Data Access Layer bullet: "The directory (ADR-0029): `lib/directory/` (server-only: keys, filters, entries, the connection, the sign-in check, the sync and its schedule, the admin functions) and `lib/data/directory.ts` (the second actor-less DAL module; it writes only the directory marker, the directory fields of `ldap` accounts and `directory` memberships). The schedule starts in `instrumentation.ts` `register()`, which never throws. Settings and operations: `docs/ldap.md`."
+- "Known limits": the B3b sentence becomes "Directory sign-in and its sync are in (ADR-0029); sign-in throttling is not, so failed directory binds count toward the directory's lockout." Add: "The inherited reset handler could only reach a directory account through a link issued with SMTP on; the `users_source_credentials` CHECK refuses the password write (error 3819) and the handler answers its existing failure."
+
+- [ ] **Step 5: `CLAUDE.md`**
+
+- Decisions list: after ADR-0028, "- ADR-0029 Directory (LDAP) sign-in and sync: ldapts 9.2.0 and croner 10.0.1; a second Credentials provider `ldap` and the login tabs; accounts linked by `objectGUID`/`entryUUID` in `users.directory_id`, created at first sign-in as `user`, never by email; the sync from `instrumentation.ts` with a slot claim and safety stops, writing only the directory marker and `directory` memberships; group links on the groups page; status and Sync now on the users page; `LDAP_ENCRYPTION` including `none`; the `pnpm test:ldap` suite against smblds and OpenLDAP; proposed in B3b's PR."
+- "Where things are", the backend bullet gains `lib/directory/`, `lib/data/directory.ts`, `lib/auth/{account-source,directory-provider}.ts`, `lib/directory-status.ts`, `instrumentation.ts`, `docs/ldap.md`, `e2e/fixtures/{directory.ts,ldap/}`, `__tests__/ldap/`.
+- "Local testing": a short paragraph: "`pnpm test:ldap` runs the directory suite (a Vitest project of its own) against two test directories in `docker-compose.e2e.yml` (profile `ldap`: `ldap-ad` smblds on 127.0.0.1:10636/10389, `ldap-openldap` on 13890/16360); it starts and stops them. `pnpm test:e2e` starts `ldap-ad` with MySQL. The test CA is committed in `e2e/fixtures/ldap/tls/` (`generate.sh` remakes it)."
+- "Next step": the owner's live check of B3b against their Active Directory (`docs/ldap.md` "Checking a new directory"), then frontend phase 2.
+- "Open follow-ups": move B3b out of "the backend rework" item; keep sign-in throttling, "switch to directory sign-in", recovery from a changed `LDAP_ID_ATTRIBUTE`, the inherited reset handler for directory accounts.
+- Keep the file under 200 lines (`wc -l CLAUDE.md`); shorten wording, not facts.
+
+- [ ] **Step 6: Check and commit the records**
+
+```bash
+pnpm exec oxfmt --write docs/decisions/0029-*.md docs/decisions/README.md docs/decisions/0006-*.md docs/decisions/0010-*.md docs/decisions/0018-*.md docs/decisions/0024-*.md docs/decisions/0026-*.md docs/decisions/0027-*.md docs/ldap.md docs/auth-gate.md CLAUDE.md
+wc -l CLAUDE.md
+git add docs/decisions/0029-*.md docs/decisions/README.md docs/decisions/0006-*.md docs/decisions/0010-*.md docs/decisions/0018-*.md docs/decisions/0024-*.md docs/decisions/0026-*.md docs/decisions/0027-*.md docs/ldap.md docs/auth-gate.md CLAUDE.md
+git commit -m "docs: record ADR-0029, the B3b notes, docs/ldap.md and the CLAUDE.md pointers
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
+```
+
+- [ ] **Step 7: The CII assessment (its own commit)**
+
+Re-check `.cii-assessment.md` per AGENTS.md: #19 (the vitest count and file count from `pnpm test`'s summary, plus the `pnpm test:ldap` suite), #20 (the Playwright spec count, `ls e2e/*.spec.ts | wc -l`), #25 and #26 (directory input validated with zod and escaped in every filter; TLS verified always; the generic sign-in answer and the response floor), and the change log line. If anything changed:
+
+```bash
+git add .cii-assessment.md
+git commit -m "docs: update CII assessment
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
+```
 
 ---
 
