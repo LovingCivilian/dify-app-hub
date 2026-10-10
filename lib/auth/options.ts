@@ -73,7 +73,11 @@ async function findAccount(email: string, password: string): Promise<User | null
 export async function authorizeCredentials(
 	credentials: Record<'email' | 'password', string> | undefined,
 ): Promise<User | null> {
-	if (!credentials?.email || !credentials?.password) return null
+	if (!credentials?.email || !credentials?.password) {
+		// As on the directory tab (lib/auth/directory-provider.ts): one line, a fixed reason, none of the body's values.
+		logSignInRefusal('authorizeCredentials', 'invalid_input', {})
+		return null
+	}
 	try {
 		return await findAccount(credentials.email, credentials.password)
 	} catch (error) {

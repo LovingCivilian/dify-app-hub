@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
 	directoryConfig: vi.fn(),
@@ -41,6 +41,8 @@ const account = {
 
 let warn: ReturnType<typeof vi.spyOn>
 let error: ReturnType<typeof vi.spyOn>
+/** The provider's clock (`performance.now()`), passed through until a test queues its readings. */
+let now: MockInstance<typeof performance.now>
 beforeEach(() => {
 	for (const fn of Object.values(mocks)) fn.mockReset()
 	mocks.directoryConfig.mockReturnValue(config)
@@ -49,14 +51,17 @@ beforeEach(() => {
 	mocks.recordDirectorySignIn.mockResolvedValue({ ok: true, account, emailConflict: false })
 	warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 	error = vi.spyOn(console, 'error').mockImplementation(() => {})
+	now = vi.spyOn(performance, 'now')
 	return () => {
 		warn.mockRestore()
 		error.mockRestore()
+		now.mockRestore()
 	}
 })
 
 describe('authorizeDirectory (spec §6.3, §7.3)', () => {
 	it('signs a directory account in, keyed by its entry, and records the duration for the floor', async () => {
+		now.mockReturnValueOnce(1_000).mockReturnValueOnce(1_250)
 		expect(
 			await authorizeDirectory({
 				username: ' alice ',
@@ -79,7 +84,9 @@ describe('authorizeDirectory (spec §6.3, §7.3)', () => {
 			},
 			['g1'],
 		)
+		// Decision t: the floor learns this sign-in's duration, from its start to its answer.
 		expect(mocks.record).toHaveBeenCalledTimes(1)
+		expect(mocks.record).toHaveBeenCalledWith(250)
 		expect(mocks.pad).not.toHaveBeenCalled()
 	})
 
@@ -89,16 +96,26 @@ describe('authorizeDirectory (spec §6.3, §7.3)', () => {
 		expect(mocks.checkDirectoryCredentials).toHaveBeenCalledWith(config, 'alice', '   ', [])
 	})
 
-	it('refuses bad input before the directory (decision w)', async () => {
-		for (const input of [
+	// OWASP Logging Cheat Sheet, "Which events to log": "Input validation failures". One line with a fixed reason and
+	// no value of the body: a refused body's username is not a trusted subject, and nothing about an account was
+	// consulted, so nothing is padded.
+	it('refuses bad input before the directory, and logs it without its values (decision w)', async () => {
+		const inputs = [
 			undefined,
 			{},
 			{ username: 'alice', password: '' },
 			{ username: ' ', password: 'x' },
 			{ username: 'a'.repeat(256), password: 'x' },
-		])
-			expect(await authorizeDirectory(input)).toBeNull()
+			{ username: 'alice', password: 'p'.repeat(1_025) },
+			{ username: 42, password: 'x' },
+		]
+		for (const input of inputs) expect(await authorizeDirectory(input)).toBeNull()
 		expect(mocks.checkDirectoryCredentials).not.toHaveBeenCalled()
+		expect(warn.mock.calls).toEqual(
+			inputs.map(() => ['authorizeDirectory: sign-in refused', { reason: 'invalid_input' }]),
+		)
+		expect(mocks.pad).not.toHaveBeenCalled()
+		expect(mocks.record).not.toHaveBeenCalled()
 	})
 
 	it.each([
@@ -130,15 +147,44 @@ describe('authorizeDirectory (spec §6.3, §7.3)', () => {
 		'answers null when %s, logs the reason with the username, and pads the time (decision t)',
 		async (_name, arrange, reason) => {
 			arrange()
+			now.mockReturnValueOnce(1_000)
 			expect(await authorizeDirectory({ username: 'alice', password: 'secret-pass' })).toBeNull()
 			expect(warn).toHaveBeenCalledWith('authorizeDirectory: sign-in refused', {
 				username: 'alice',
 				reason,
 			})
 			expect(JSON.stringify(warn.mock.calls)).not.toContain('secret-pass')
+			// The floor counts from the sign-in's start, and a refusal teaches it nothing.
 			expect(mocks.pad).toHaveBeenCalledTimes(1)
+			expect(mocks.pad).toHaveBeenCalledWith(1_000)
+			expect(mocks.record).not.toHaveBeenCalled()
 		},
 	)
+
+	// Decision t: the floor is the answer's time, so the refusal waits for it.
+	it('holds a refusal until the floor has passed', async () => {
+		let release = () => {}
+		mocks.pad.mockReturnValue(
+			new Promise<void>(resolve => {
+				release = resolve
+			}),
+		)
+		mocks.checkDirectoryCredentials.mockResolvedValue({ ok: false, reason: 'wrong_password' })
+		let answered = false
+		const answer = authorizeDirectory({ username: 'alice', password: 'x' }).then(result => {
+			answered = true
+			return result
+		})
+		// The event loop "executes tasks in `process.nextTick queue` first, and then executes `promises microtask queue`,
+		// and then executes `macrotask queue`" (Node docs, "Understanding setImmediate()"), so all the work that does not
+		// wait on the floor has run here.
+		await new Promise(resolve => setImmediate(resolve))
+		expect(mocks.pad).toHaveBeenCalledTimes(1)
+		expect(answered).toBe(false)
+		release()
+		expect(await answer).toBeNull()
+		expect(answered).toBe(true)
+	})
 
 	it('logs an email kept because another account has it', async () => {
 		mocks.recordDirectorySignIn.mockResolvedValue({ ok: true, account, emailConflict: true })

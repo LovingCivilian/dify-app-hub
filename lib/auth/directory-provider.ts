@@ -31,7 +31,12 @@ export const directoryCredentialsSchema = z.object({
  */
 export async function authorizeDirectory(credentials: unknown): Promise<User | null> {
 	const parsed = directoryCredentialsSchema.safeParse(credentials)
-	if (!parsed.success) return null
+	if (!parsed.success) {
+		// OWASP Logging "Which events to log": "Input validation failures". No subject: the username of a body the schema
+		// refused is not trusted, and no value of the body is logged. Unpadded: no account was consulted.
+		logSignInRefusal('authorizeDirectory', 'invalid_input', {})
+		return null
+	}
 	const { username, password } = parsed.data
 	const startedAt = performance.now()
 	const refuse = async (reason: SignInRefusalReason) => {

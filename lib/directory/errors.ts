@@ -13,10 +13,15 @@ export class DirectoryUnavailableError extends Error {
 	}
 }
 
-/** The directory answered the connection's set-up with a result code: the service account's bind or StartTLS refused. */
+/**
+ * The directory answered with a result code that refuses the connection, not a person's credentials. Either it refused
+ * the connection's set-up: the service account's bind or StartTLS (decision q). Or, during a sign-in, it refused for the
+ * connection (decision u): strongerAuthRequired (8) or confidentialityRequired (13) on the person's bind, or busy (51) or
+ * unavailable (52) on any of the sign-in's operations, which RFC 4511 Appendix A defines by the server's state.
+ */
 export class DirectoryRefusedError extends Error {
 	constructor(options: { cause: unknown }) {
-		super('The directory refused the service account', options)
+		super('The directory refused the connection', options)
 		this.name = 'DirectoryRefusedError'
 	}
 }

@@ -85,11 +85,24 @@ describe('authOptions', () => {
 
 // B1 follow-up (follow-ups.md, Tests): nothing called authorize.
 describe('authorizeCredentials', () => {
-	it('refuses missing credentials without a query', async () => {
-		expect(await authorizeCredentials(undefined)).toBeNull()
-		expect(await authorizeCredentials({ email: '', password: 'x' })).toBeNull()
-		expect(await authorizeCredentials({ email: 'jane@example.com', password: '' })).toBeNull()
-		expect(limit).not.toHaveBeenCalled()
+	// OWASP Logging Cheat Sheet, "Which events to log": "Input validation failures"; one line with a fixed reason and
+	// none of the body's values, as on the directory tab.
+	it('refuses missing credentials without a query, and logs it without their values', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+		try {
+			expect(await authorizeCredentials(undefined)).toBeNull()
+			expect(await authorizeCredentials({ email: '', password: 'x' })).toBeNull()
+			expect(await authorizeCredentials({ email: 'jane@example.com', password: '' })).toBeNull()
+			expect(limit).not.toHaveBeenCalled()
+			expect(warn.mock.calls).toEqual(
+				Array.from({ length: 3 }, () => [
+					'authorizeCredentials: sign-in refused',
+					{ reason: 'invalid_input' },
+				]),
+			)
+		} finally {
+			warn.mockRestore()
+		}
 	})
 
 	it('refuses an unknown email and a wrong password', async () => {

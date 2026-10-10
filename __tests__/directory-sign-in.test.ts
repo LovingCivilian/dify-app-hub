@@ -154,9 +154,33 @@ describe('checkDirectoryCredentials (spec §6.3)', () => {
 		}
 	})
 
+	// Decision u: busy (51) and unavailable (52) describe the server, not the operation (RFC 4511 Appendix A), so the
+	// service account's searches answer them as the bind does: the directory is unreachable, whoever is signing in.
+	it('reads busy on the login search and unavailable on a group lookup as the directory refusing (decision u)', async () => {
+		const busy = new BusyError('busy')
+		mocks.findLoginEntries.mockRejectedValueOnce(busy)
+		const fromSearch = await checkDirectoryCredentials(config, 'alice', 'x', links).catch(
+			(error: unknown) => error,
+		)
+		expect(fromSearch).toBeInstanceOf(DirectoryRefusedError)
+		expect((fromSearch as Error).cause).toBe(busy)
+
+		const unavailable = new UnavailableError('shutting down')
+		mocks.findGroupByKey.mockRejectedValueOnce(unavailable)
+		const fromLookup = await checkDirectoryCredentials(config, 'alice', 'x', links).catch(
+			(error: unknown) => error,
+		)
+		expect(fromLookup).toBeInstanceOf(DirectoryRefusedError)
+		expect((fromLookup as Error).cause).toBe(unavailable)
+		expect(mocks.bind).not.toHaveBeenCalled()
+	})
+
 	it('passes any other directory answer through', async () => {
 		const other = new NoSuchObjectError('gone')
 		mocks.bind.mockRejectedValue(other)
+		await expect(checkDirectoryCredentials(config, 'alice', 'x', links)).rejects.toBe(other)
+		// Only 51 and 52 are read by the server's state: any other code from a search stays as it is (`Default`).
+		mocks.findLoginEntries.mockRejectedValueOnce(other)
 		await expect(checkDirectoryCredentials(config, 'alice', 'x', links)).rejects.toBe(other)
 	})
 })

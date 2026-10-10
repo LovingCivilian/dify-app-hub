@@ -36,12 +36,20 @@ const causeFields = (cause: unknown) => {
 }
 
 /**
- * A directory error's cause: a result error or a socket error with an errno as describeError reduces it; any other
- * error by its name, its string code and Node's own message, so a TLS error's `cert` (the peer's whole certificate) and
- * `host` never reach the log (OWASP Logging Cheat Sheet, "Data to exclude").
+ * A directory error's cause: a result error, a directory error or a socket error with an errno as describeError reduces
+ * it; any other error by its name, its string code and Node's own message, so a TLS error's `cert` (the peer's whole
+ * certificate) and `host` never reach the log (OWASP Logging Cheat Sheet, "Data to exclude").
  */
 const directoryCause = (cause: unknown): unknown => {
-	if (cause instanceof ResultCodeError || driverFields(cause)) return describeError(cause)
+	// A directory error inside another, such as a refusal the person's bind met while the socket died (connection.ts wraps
+	// it as unreachable), keeps its own reduced cause, so the log still names the result code (decision u).
+	if (
+		cause instanceof ResultCodeError ||
+		cause instanceof DirectoryUnavailableError ||
+		cause instanceof DirectoryRefusedError ||
+		driverFields(cause)
+	)
+		return describeError(cause)
 	if (!(cause instanceof Error)) return cause
 	const code = 'code' in cause && typeof cause.code === 'string' ? cause.code : undefined
 	return code === undefined
@@ -74,11 +82,14 @@ export const logActionError = (error: unknown, context: string): void => {
 }
 
 /**
- * The fixed reason codes of a refused sign-in (B3 spec §7.3). Local: `account_inactive`, `directory_account`. Directory:
- * `directory_off`, the check's `unknown_user`, `ambiguous_user`, `invalid_entry`, `wrong_password`, and the DAL's
- * `account_inactive`, `entry_without_email`, `email_in_use` (ADR-0029).
+ * The fixed reason codes of a refused sign-in (B3 spec §7.3). Both providers: `invalid_input`, a body their input check
+ * refuses, logged without a subject (OWASP Logging Cheat Sheet, "Which events to log": "Input validation failures").
+ * Local: `account_inactive`, `directory_account`. Directory: `directory_off`, the check's `unknown_user`,
+ * `ambiguous_user`, `invalid_entry`, `wrong_password`, and the DAL's `account_inactive`, `entry_without_email`,
+ * `email_in_use` (ADR-0029).
  */
 export type SignInRefusalReason =
+	| 'invalid_input'
 	| 'account_inactive'
 	| 'directory_account'
 	| 'directory_off'

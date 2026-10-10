@@ -26,6 +26,7 @@ describe('logSignInRefusal', () => {
 		expectTypeOf(logSignInRefusal)
 			.parameter(1)
 			.toEqualTypeOf<
+				| 'invalid_input'
 				| 'account_inactive'
 				| 'directory_account'
 				| 'directory_off'
@@ -58,6 +59,27 @@ describe('describeError and the directory (spec §7.3)', () => {
 			name: 'DirectoryUnavailableError',
 			cause: { name: 'Error', code: 'ECONNREFUSED', errno: -111 },
 		})
+	})
+
+	// Decision u: a refusal the person's bind met while the socket died reaches the log with its result code (review M4).
+	it('keeps the result code of a refusal wrapped as unreachable', async () => {
+		const { UnavailableError } = await import('ldapts')
+		const { DirectoryRefusedError, DirectoryUnavailableError } =
+			await import('@/lib/directory/errors')
+		const refused = new DirectoryRefusedError({
+			cause: new UnavailableError(
+				'00002024: SvcErr: DSID-031A1254, problem 5003 (WILL_NOT_PERFORM)',
+			),
+		})
+		const described = describeError(new DirectoryUnavailableError({ cause: refused }))
+		expect(described).toEqual({
+			name: 'DirectoryUnavailableError',
+			cause: {
+				name: 'DirectoryRefusedError',
+				cause: { name: 'UnavailableError', code: 52 },
+			},
+		})
+		expect(JSON.stringify(described)).not.toContain('DSID')
 	})
 
 	// Node's TLS error carries the peer's whole certificate (`cert`) and the host; the log keeps its name, code and text.
