@@ -2,7 +2,7 @@
 status: proposed
 date: 2026-10-10
 decision-makers: LovingCivilian (fork owner)
-consulted: Claude Code session (B3a run, Task 4b)
+consulted: Claude Code session (B3a run)
 ---
 
 # Navigate the admin area in a sidebar shared with the chat
@@ -57,7 +57,7 @@ Chosen option: a sidebar for the admin area that matches the chat's, one shared 
 
 ### Verification
 
-- [x] `e2e/shell.spec.ts` (the sidebar entries, collapse and expand by pointer and by Enter and Space on the trigger, the drawer below `md`), `e2e/ssr-first-paint.spec.ts`, `e2e/page-headers.spec.ts`, `e2e/smoke.spec.ts` and `e2e/chat.spec.ts` on the three projects (Task 4b's full run: 488 passed, 20 skipped, 0 failed).
+- [x] `e2e/shell.spec.ts` (the sidebar entries, collapse and expand by pointer and by Enter and Space on the trigger, the drawer below `md`), `e2e/ssr-first-paint.spec.ts`, `e2e/page-headers.spec.ts`, `e2e/smoke.spec.ts` and `e2e/chat.spec.ts` on the three projects. Result as run on the branch: 2026-10-09, `pnpm exec playwright test` (full suite) after the change: 488 passed, 20 skipped, 0 failed.
 - [x] `npx -y @ant-design/cli lint ./` at zero findings.
 - [ ] The owner's two look calls (below) and the browser check.
 
@@ -85,4 +85,4 @@ Look questions put to the owner, not yet answered when this was written:
 - A separator above the light trigger bar, which antd draws without one. The documented route is the Layout token `lightTriggerBg` in the root `XProvider` theme (antd Layout and theme tokens).
 - The dev indicator's corner: `bottom-right` today; `devIndicators: false` is the other documented option.
 
-Sources: antd 6.6.5 Layout (Sider API: `collapsible`, `collapsed`, `onCollapse`, `trigger`, `collapsedWidth`, `theme`, `width`, `breakpoint`; Layout `hasSider`; demos "Sider", "Header Sider 2", "Custom trigger", "Responsive") and Menu (`inlineCollapsed`, `tooltip`) through `npx -y @ant-design/cli doc|demo`; Next 16.3.4 `devIndicators` (`node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/devIndicators.md`); WAI-ARIA APG Disclosure and Landmark Regions; WHATWG HTML "The aside element"; MDN "Element: click event"; Playwright "Navigations > Hydration" (the desktop test waits for hydration, as `openUsers` does). Reference projects: refine `acc3d793` (`packages/antd/src/components/themedLayout/sider/index.tsx`), Ant Design Pro / pro-components `e3d860f7` (`SiderMenu`), Grafana `320f74d5` (`AppChrome.tsx`), LibreChat. Related: ADR-0011 (viewport-bound shells), ADR-0018, ADR-0020, ADR-0021, ADR-0027.
+Sources: antd 6.6.5 Layout (Sider API: `collapsible`, `collapsed`, `onCollapse`, `trigger`, `collapsedWidth`, `theme`, `width`, `breakpoint`; Layout `hasSider`; demos "Sider", "Header Sider 2", "Custom trigger", "Responsive") and Menu (`inlineCollapsed`, `tooltip`) through `npx -y @ant-design/cli doc|demo`; Next 16.3.4 `devIndicators` (`node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/devIndicators.md`); WAI-ARIA APG Disclosure and Landmark Regions; WHATWG HTML "The aside element"; MDN "Element: click event"; Playwright "Navigations > Hydration" (the desktop test waits for hydration, as `openUsers` does). Reference projects: refine `refinedev/refine@acc3d7936ee8` (`packages/antd/src/components/themedLayout/sider/index.tsx:277-300`, a `Drawer` on mobile at `:195`, collapsed state not persisted in `packages/antd/src/contexts/themedLayoutContext/index.tsx:17-19`), Ant Design Pro / pro-components `ant-design/pro-components@e3d860f7` (`src/layout/components/SiderMenu/SiderMenu.tsx:342-356,420-430,479-492`, `SiderMenu/index.tsx:81-87`, `src/layout/ProLayout.tsx:581-586`), Grafana `grafana/grafana@320f74d5` (`public/app/core/components/AppChrome/AppChrome.tsx:259-311`), LibreChat. Related: ADR-0011 (viewport-bound shells), ADR-0018, ADR-0020, ADR-0021, ADR-0027.
