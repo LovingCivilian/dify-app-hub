@@ -22,6 +22,7 @@ import {
 	settingsOf,
 	syncApp,
 	toAdminAppDto,
+	toAdminAppDtos,
 	toAppDto,
 	toChatAppDto,
 	updateApp,
@@ -148,6 +149,29 @@ describe('toAdminAppDto', () => {
 		)
 		expect(dto.access).toEqual({ mode: 'restricted', groupIds: ['g1'], userIds: ['u1'] })
 		expect(dto).not.toHaveProperty('apiKey')
+	})
+})
+
+describe('toAdminAppDtos (listAdminApps)', () => {
+	it('gives each app only its own grants, grouped once, and keeps the apps’ order', () => {
+		const dtos = toAdminAppDtos(
+			[
+				{ ...row, id: 'a1', accessMode: 'restricted' },
+				{ ...row, id: 'a2', accessMode: 'restricted' },
+				{ ...row, id: 'a3', accessMode: 'everyone' },
+			],
+			[
+				{ appId: 'a2', groupId: 'g2' },
+				{ appId: 'a1', groupId: 'g1' },
+				{ appId: 'a2', groupId: 'g3' },
+			],
+			[{ appId: 'a1', userId: 'u1' }],
+		)
+		expect(dtos.map(dto => [dto.id, dto.access])).toEqual([
+			['a1', { mode: 'restricted', groupIds: ['g1'], userIds: ['u1'] }],
+			['a2', { mode: 'restricted', groupIds: ['g2', 'g3'], userIds: [] }],
+			['a3', { mode: 'everyone', groupIds: [], userIds: [] }],
+		])
 	})
 })
 

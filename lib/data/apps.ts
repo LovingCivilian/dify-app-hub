@@ -187,10 +187,15 @@ export const toChatAppDto = (row: DtoRow): ChatAppDto => ({
 	settings: settingsOf(row),
 })
 
+type AdminDtoRow = DtoRow & { accessMode: AccessMode }
+type GroupGrant = { appId: string; groupId: string }
+type UserGrant = { appId: string; userId: string }
+
+/** One app with its access; only the grants of this app count, whatever lists it is handed. */
 export const toAdminAppDto = (
-	row: DtoRow & { accessMode: AccessMode },
-	groupGrants: { appId: string; groupId: string }[],
-	userGrants: { appId: string; userId: string }[],
+	row: AdminDtoRow,
+	groupGrants: readonly GroupGrant[],
+	userGrants: readonly UserGrant[],
 ): AdminAppDto => ({
 	...toAppDto(row),
 	access: {
@@ -199,6 +204,17 @@ export const toAdminAppDto = (
 		userIds: userGrants.filter(grant => grant.appId === row.id).map(grant => grant.userId),
 	},
 })
+
+/** The apps with their access, each grant list grouped once by app (MDN `Map.groupBy`); the apps' order stays. */
+export const toAdminAppDtos = (
+	rows: readonly AdminDtoRow[],
+	groupGrants: readonly GroupGrant[],
+	userGrants: readonly UserGrant[],
+): AdminAppDto[] => {
+	const groupsOf = Map.groupBy(groupGrants, grant => grant.appId)
+	const usersOf = Map.groupBy(userGrants, grant => grant.appId)
+	return rows.map(row => toAdminAppDto(row, groupsOf.get(row.id) ?? [], usersOf.get(row.id) ?? []))
+}
 
 /** The grant rows an access setting stores (spec §4.4): none while open to everyone (deviation 4), each id once. */
 export const grantRowsFor = (appId: string, access: AppAccessSettings) =>
@@ -434,7 +450,7 @@ export async function listAdminApps(actor: SessionUser): Promise<AdminAppDto[]> 
 			.from(appGroupGrants),
 		db.select({ appId: appUserGrants.appId, userId: appUserGrants.userId }).from(appUserGrants),
 	])
-	return rows.map(row => toAdminAppDto(row, groupGrants, userGrants))
+	return toAdminAppDtos(rows, groupGrants, userGrants)
 }
 
 /** Null for a missing app and for one the actor may not use alike (spec §4.2: no difference to probe). */

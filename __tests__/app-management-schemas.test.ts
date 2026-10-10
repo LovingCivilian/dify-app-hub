@@ -74,4 +74,14 @@ describe('accessSchema (B3 spec §4.4)', () => {
 		expect(accessSchema.safeParse({ mode: 'restricted', groupIds: ['g1'] }).success).toBe(false)
 		expect(accessSchema.safeParse({ mode: 'restricted', userIds: [''] }).success).toBe(false)
 	})
+
+	it('bounds the grant lists at 1,000 groups and 10,000 accounts', () => {
+		const ids = (count: number, id: string) => Array.from({ length: count }, () => id)
+		const access = (lists: { groupIds?: string[]; userIds?: string[] }) =>
+			accessSchema.safeParse({ mode: 'restricted', ...lists }).success
+		expect(access({ groupIds: ids(1000, groupId) })).toBe(true)
+		expect(access({ groupIds: ids(1001, groupId) })).toBe(false)
+		expect(access({ userIds: ids(10_000, 'u1') })).toBe(true)
+		expect(access({ userIds: ids(10_001, 'u1') })).toBe(false)
+	})
 })

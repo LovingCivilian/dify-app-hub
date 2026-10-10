@@ -4,15 +4,13 @@ import { Descriptions, Divider, Flex, Form, Input, Radio, Select, Switch, Tag } 
 import { useTranslation } from 'react-i18next'
 
 import { accountOptionLabel } from '@/components/admin/account-option'
+import { drawerPopupContainer } from '@/components/admin/drawer-popup-container'
 import { APP_MODE_OPTION_KEYS, APP_MODE_OPTIONS } from '@/components/apps/app-modes'
 import type { GroupOption } from '@/lib/data/groups'
 import type { UserOption } from '@/lib/data/users'
 
 import type { AdminAppRow } from './admin-app-row'
 import { validateApiBase } from './api-base-rule'
-
-/** antd Select's documented fix for a popup inside another popup layer: render it in the trigger's parent. */
-const popupInDrawer = (trigger: HTMLElement) => trigger.parentElement ?? document.body
 
 /**
  * The settings form's fields; `record` shows the app's Dify info above them when editing. The access pickers show
@@ -138,9 +136,7 @@ export default function AppSettingsFields({
 					>
 						<Select
 							mode="multiple"
-							// The popup stays inside the drawer's body (antd Select `getPopupContainer`, as the groups drawer): on a
-							// phone a popup in <body> sat past the screen's edge and shifted the page under the drawer's mask.
-							getPopupContainer={popupInDrawer}
+							getPopupContainer={drawerPopupContainer}
 							allowClear
 							showSearch={{ optionFilterProp: 'label' }}
 							placeholder={t('app_setting.access_groups_placeholder')}
@@ -154,7 +150,7 @@ export default function AppSettingsFields({
 					>
 						<Select
 							mode="multiple"
-							getPopupContainer={popupInDrawer}
+							getPopupContainer={drawerPopupContainer}
 							allowClear
 							showSearch={{ optionFilterProp: 'label' }}
 							placeholder={t('app_setting.access_people_placeholder')}

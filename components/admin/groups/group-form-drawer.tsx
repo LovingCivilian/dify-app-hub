@@ -10,6 +10,7 @@ import {
 	type GroupFormInput,
 } from '@/app/(admin)/group-management/schemas'
 import { accountOptionLabel } from '@/components/admin/account-option'
+import { drawerPopupContainer } from '@/components/admin/drawer-popup-container'
 import { useActionTransition } from '@/hooks/use-action-transition'
 import type { GroupDto } from '@/lib/data/groups'
 import type { UserOption } from '@/lib/data/users'
@@ -84,9 +85,7 @@ function GroupForm({
 			>
 				<Select
 					mode="multiple"
-					// The popup stays inside the drawer's body (antd Select `getPopupContainer`): on a narrow viewport a popup
-					// in <body> overflowed the screen and shifted the page.
-					getPopupContainer={trigger => trigger.parentElement ?? document.body}
+					getPopupContainer={drawerPopupContainer}
 					allowClear
 					showSearch={{ optionFilterProp: 'label' }}
 					placeholder={t('admin_groups.members_placeholder')}
