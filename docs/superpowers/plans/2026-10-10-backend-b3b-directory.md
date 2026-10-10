@@ -5886,15 +5886,16 @@ Spec §6.4 "Claim" and "A run" (claim the slot, read everything, the safety stop
 
 - Consumes: `withDirectory` (Task 6), `listUserEntries`, `findGroupByKey`, `listMemberKeys` from `@/lib/directory/operations` (Task 6), `DirectoryUnavailableError`, `DirectoryRefusedError` from `@/lib/directory/errors` (Task 6), `readEntry` from `@/lib/directory/entry` (Task 5), `planAccountChanges`, `planDirectoryMemberships`, `type LinkLookup` from `@/lib/directory/plan` (Task 9), the sync functions of `@/lib/data/directory` (Tasks 3 and 9), `ResultCodeError` from `ldapts`.
 - Produces, from `@/lib/directory/sync`:
-  - `type SyncAttempt = { status: 'skipped' } | { status: 'finished'; outcome: Exclude<SyncOutcome, 'running'>; counts: SyncRunCounts; errorCode: SyncErrorCode | null }`
+  - `type SyncAttempt = { status: 'skipped' } | { status: 'running' } | { status: 'finished'; outcome: Exclude<SyncOutcome, 'running'>; counts: SyncRunCounts; errorCode: SyncErrorCode | null }`
   - `runSync(run: { config: LdapConfig; id: string; trigger: SyncTrigger; slot: string }): Promise<SyncAttempt>`
-  - `runManualSync(config: LdapConfig): Promise<SyncAttempt | { status: 'running' }>`
+  - `runManualSync(config: LdapConfig): Promise<SyncAttempt>`
   - `scheduleSlot(at: Date): string`, `startupSlot(due: Date): string` (`schedule:2026-10-09T13:00Z`, `startup:…`)
-  - `MANUAL_GUARD_MS` (30 minutes), `RUN_RETENTION_MS` (90 days)
+  - `RUNNING_GUARD_MS` (30 minutes), `RUN_RETENTION_MS` (90 days)
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
 - **z. Everything is read before anything is written.** The paged user search, every linked group's lookup and member search run on one connection (spec §6.2: one client per sync), and only then do the accounts and memberships change; any connection, TLS, bind, search or page failure in that phase fails the run with nothing written (spec §6.4 step 2, GitLab's warning that "All users are blocked if the LDAP server is unavailable when an LDAP user synchronization is run", `gitlabhq@0739b8bf:doc/administration/auth/ldap/ldap_synchronization.md:196-200`). A linked group's own result-code error (the directory answered, for that group) is that group's error only (spec §6.4 step 4); a transport failure there fails the run.
+- **au. No run starts while another is going, whatever its trigger.** Before it claims its slot, every run (scheduled, startup or manual) checks for a run that started less than 30 minutes ago and has not finished, and skips; the slot's unique key then stops a second container. Keycloak runs every sync, scheduled or manual, through one cluster-wide key with a timeout of at least 30 seconds and answers "Synchronization ignored as it's already in progress" (`keycloak@c7de391a:model/storage-private/src/main/java/org/keycloak/storage/UserStorageSyncTask.java:159-188`); Mattermost's `SaveOnce` inserts a job only while none of its type is pending or in progress (`mattermost@4d94455a:server/channels/store/sqlstore/job_store.go:81-135`). The spec names the check for Sync now; a check and then an insert can still race, which the idempotent reconciliation absorbs (spec §6.4 "Claim"; `ad-and-reference-projects.md` B.4).
 - **aa. A failed run records the counts it reached**, so a write phase cut by a database error shows what it changed; the reconciliation is idempotent and the next run completes it (spec §6.4 "Claim").
 
 - [ ] **Step 1: Write the failing unit tests**
@@ -5969,6 +5970,7 @@ const run = { config, id: 'r1', trigger: 'schedule' as const, slot: 'schedule:20
 beforeEach(() => {
 	for (const fn of Object.values(mocks)) fn.mockReset()
 	mocks.claimSyncRun.mockResolvedValue(true)
+	mocks.hasUnfinishedRunSince.mockResolvedValue(false)
 	mocks.withDirectory.mockImplementation((_config: unknown, work: (client: unknown) => unknown) =>
 		work({}),
 	)
@@ -6177,13 +6179,23 @@ describe('runSync (spec §6.4)', () => {
 	})
 })
 
+describe('the running guard (decision au)', () => {
+	it.each(['schedule', 'startup', 'manual'] as const)(
+		'refuses a %s run while a run started in the last 30 minutes has not finished',
+		async trigger => {
+			mocks.hasUnfinishedRunSince.mockResolvedValue(true)
+			expect(await runSync({ ...run, trigger })).toEqual({ status: 'running' })
+			expect(mocks.claimSyncRun).not.toHaveBeenCalled()
+			const [since] = mocks.hasUnfinishedRunSince.mock.calls[0]
+			expect(Math.round((Date.now() - (since as Date).getTime()) / 60_000)).toBe(30)
+		},
+	)
+})
+
 describe('runManualSync (spec §6.4 "Claim")', () => {
-	it('is refused while a run started in the last 30 minutes has not finished', async () => {
+	it('is refused like every run while another is going', async () => {
 		mocks.hasUnfinishedRunSince.mockResolvedValue(true)
 		expect(await runManualSync(config)).toEqual({ status: 'running' })
-		expect(mocks.claimSyncRun).not.toHaveBeenCalled()
-		const [since] = mocks.hasUnfinishedRunSince.mock.calls[0]
-		expect(Math.round((Date.now() - (since as Date).getTime()) / 60_000)).toBe(30)
 	})
 
 	it('claims a manual slot named after its run id', async () => {
@@ -6242,8 +6254,11 @@ import { planAccountChanges, planDirectoryMemberships, type LinkLookup } from '.
  * and by Sync now (lib/directory/admin.ts).
  */
 
-/** Spec §6.4: a manual run is refused while a run that started less than 30 minutes ago has no finished_at. */
-export const MANUAL_GUARD_MS = 30 * 60 * 1000
+/**
+ * Spec §6.4: no run starts while a run that started less than 30 minutes ago has no finished_at (decision au: every
+ * trigger, not only Sync now). A run older than that is taken to have died with its container.
+ */
+export const RUNNING_GUARD_MS = 30 * 60 * 1000
 
 /** Spec §3.2: runs older than 90 days are deleted by the run itself. */
 export const RUN_RETENTION_MS = 90 * 24 * 60 * 60 * 1000
@@ -6258,6 +6273,7 @@ export const startupSlot = (due: Date): string => `startup:${minute(due)}`
 
 export type SyncAttempt =
 	| { status: 'skipped' }
+	| { status: 'running' }
 	| {
 			status: 'finished'
 			outcome: Exclude<SyncOutcome, 'running'>
@@ -6365,6 +6381,11 @@ export async function runSync(run: {
 	trigger: SyncTrigger
 	slot: string
 }): Promise<SyncAttempt> {
+	// Decision au: Keycloak's one sync key for every trigger; the slot claim below then stops a second container.
+	if (await hasUnfinishedRunSince(new Date(Date.now() - RUNNING_GUARD_MS))) {
+		console.info('directorySync: a run is going, this one is skipped', { trigger: run.trigger })
+		return { status: 'running' }
+	}
 	if (
 		!(await claimSyncRun({
 			id: run.id,
@@ -6395,12 +6416,8 @@ export async function runSync(run: {
 	return { status: 'finished', outcome, counts, errorCode }
 }
 
-/** Sync now (spec §6.6): refused while another run is going (spec §6.4 "Claim"); its slot is `manual:<run id>`. */
-export async function runManualSync(
-	config: LdapConfig,
-): Promise<SyncAttempt | { status: 'running' }> {
-	if (await hasUnfinishedRunSince(new Date(Date.now() - MANUAL_GUARD_MS)))
-		return { status: 'running' }
+/** Sync now (spec §6.6): its slot is `manual:<run id>`; refused while another run is going, as every run is. */
+export async function runManualSync(config: LdapConfig): Promise<SyncAttempt> {
 	const id = randomUUID()
 	return runSync({ config, id, trigger: 'manual', slot: `manual:${id}` })
 }
