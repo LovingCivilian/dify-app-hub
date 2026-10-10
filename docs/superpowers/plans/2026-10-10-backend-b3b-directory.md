@@ -8278,7 +8278,596 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 14: The status panel and Sync now
 
-(DRAFT: being written)
+Spec §6.6 (on the users page, for accounts with admin rights, when the `LDAP_*` block is set: the last run with its time, trigger, outcome, counts and error code; the next scheduled run or "off"; the encryption mode with an "Unencrypted connection" tag for `none`; a Sync now button, a Server Action that runs the sync and returns its outcome), §7.3 (the action code `sync_running`), §8 "Playwright" (Sync now deactivates and signs out a removed entry and reactivates it when it returns; the status panel). Review Focus: lines 3 and 5.
+
+**Files:**
+
+- Create: `components/admin/users/directory-status.tsx`, `components/admin/users/directory-labels.ts`, `__tests__/directory-labels.test.ts`, `e2e/directory-sync.spec.ts`
+- Modify: `lib/directory/admin.ts`, `lib/action-result.ts`, `app/(admin)/user-management/{actions,page}.ts(x)`, `components/admin/users/{user-management,user-errors}.ts(x)`, `locales/{en,zh,ar}/translation.json`, `__tests__/directory-admin.test.ts`, `__tests__/user-management-actions.test.ts`, `__tests__/user-errors.test.ts`, `__tests__/user-management-page.test.ts`
+
+**Interfaces:**
+
+- Consumes: `runManualSync`, `RUNNING_GUARD_MS`, `SyncAttempt` (Task 10); `latestSyncRun`, `SyncRunRecord`, `SyncRunCounts` (Task 9); `directoryConfig` (Task 2); `SYNC_OUTCOMES`, `SYNC_TRIGGERS`, `SYNC_ERROR_CODES` (Task 1); `Cron` from `croner` (`nextRun()`).
+- Produces: from `@/lib/directory/admin`: `interface DirectoryRunDto { trigger: SyncTrigger; startedAt: string; finishedAt: string | null; outcome: SyncOutcome | 'interrupted'; errorCode: string | null; counts: SyncRunCounts }`, `interface DirectoryStatusDto { encryption: LdapEncryption; schedule: string | null; timezone: string | null; nextRun: string | null; lastRun: DirectoryRunDto | null }`, `getDirectoryStatus(actor): Promise<DirectoryStatusDto | null>`, `syncDirectoryNow(actor): Promise<SyncAttempt | null>`; the action code `sync_running`; `syncDirectoryAction(): Promise<ActionResult<{ outcome: Exclude<SyncOutcome, 'running'>; counts: SyncRunCounts; errorCode: SyncErrorCode | null }>>`.
+
+Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
+
+- **at. A run still `running` past the 30-minute guard shows as "Did not finish"**: its container stopped mid-run (spec §13: "a run cut by a restart is repeated by the startup catch-up or the next slot"), and the next run is no longer held back by it (decision au). Mattermost's job table shows each job's status, finish time and details, the error first (`mattermost@4d94455a:webapp/channels/src/components/admin_console/jobs/table.tsx:64-74, 255-290`); Grafana's LDAP page shows "Next synchronization" (`grafana@7b702d79:public/app/features/admin/ldap/LdapSyncInfo.tsx:12-29`); the panel shows both, and an error as its translated code, never raw text (spec §7.3; `ad-and-reference-projects.md` B.4).
+- **av. Sync now waits for its run** inside the Server Action and answers the outcome (spec §6.6), as Mattermost's "AD/LDAP Synchronize Now" starts a job the admin then watches (`admin_definition_ldap_wizard.tsx:655-666`). The self-hosted Node server sets no duration limit on a Server Action (Next `02-guides/self-hosting.md`); a directory of tens of thousands of entries pages in seconds to minutes (spec §6.4 step 1), within AD's 900-second idle limit.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `__tests__/directory-admin.test.ts` (mock `@/lib/data/directory` with `latestSyncRun: vi.fn()` and `@/lib/directory/sync` with `runManualSync: vi.fn()`, `RUNNING_GUARD_MS: 30 * 60 * 1000`, both in the hoisted `mocks`):
+
+```ts
+describe('getDirectoryStatus (spec §6.6)', () => {
+	const config = {
+		url: 'ldap://10.0.0.5',
+		encryption: 'none',
+		syncSchedule: '0 * * * *',
+		syncTimezone: 'UTC',
+	}
+
+	it('refuses a non-admin actor, and answers null while LDAP is off', async () => {
+		await expect(getDirectoryStatus(user)).rejects.toMatchObject({ code: 'forbidden' })
+		mocks.directoryConfig.mockReturnValue(null)
+		expect(await getDirectoryStatus(admin)).toBeNull()
+	})
+
+	it('shows the mode, the next run from the cron expression, and the last run', async () => {
+		mocks.directoryConfig.mockReturnValue(config)
+		const startedAt = new Date(Date.now() - 60_000)
+		mocks.latestSyncRun.mockResolvedValue({
+			id: 'r1',
+			trigger: 'schedule',
+			startedAt,
+			finishedAt: new Date(),
+			outcome: 'succeeded',
+			errorCode: null,
+			counts: {
+				entriesSeen: 3,
+				deactivated: 1,
+				reactivated: 0,
+				updated: 0,
+				conflicts: 0,
+				groupErrors: 0,
+				membershipsAdded: 0,
+				membershipsRemoved: 0,
+			},
+		})
+		const status = await getDirectoryStatus(admin)
+		expect(status).toMatchObject({
+			encryption: 'none',
+			schedule: '0 * * * *',
+			timezone: 'UTC',
+			lastRun: {
+				trigger: 'schedule',
+				outcome: 'succeeded',
+				startedAt: startedAt.toISOString(),
+				counts: { deactivated: 1 },
+			},
+		})
+		// croner's nextRun(): the next full hour.
+		expect(new Date(status!.nextRun!).getUTCMinutes()).toBe(0)
+		expect(new Date(status!.nextRun!).getTime()).toBeGreaterThan(Date.now())
+	})
+
+	it('answers no next run with the schedule off, and "interrupted" for a run that outlived the guard (decision at)', async () => {
+		mocks.directoryConfig.mockReturnValue({ ...config, syncSchedule: null })
+		mocks.latestSyncRun.mockResolvedValue({
+			id: 'r1',
+			trigger: 'manual',
+			startedAt: new Date(Date.now() - 31 * 60 * 1000),
+			finishedAt: null,
+			outcome: 'running',
+			errorCode: null,
+			counts: {
+				entriesSeen: 0,
+				deactivated: 0,
+				reactivated: 0,
+				updated: 0,
+				conflicts: 0,
+				groupErrors: 0,
+				membershipsAdded: 0,
+				membershipsRemoved: 0,
+			},
+		})
+		expect(await getDirectoryStatus(admin)).toMatchObject({
+			nextRun: null,
+			lastRun: { outcome: 'interrupted' },
+		})
+	})
+})
+
+describe('syncDirectoryNow', () => {
+	it('refuses a non-admin actor before any run, answers null while LDAP is off, and runs a manual sync', async () => {
+		await expect(syncDirectoryNow(user)).rejects.toMatchObject({ code: 'forbidden' })
+		expect(mocks.runManualSync).not.toHaveBeenCalled()
+		mocks.directoryConfig.mockReturnValue(null)
+		expect(await syncDirectoryNow(admin)).toBeNull()
+		mocks.directoryConfig.mockReturnValue({ url: 'ldaps://dc' })
+		mocks.runManualSync.mockResolvedValue({ status: 'running' })
+		expect(await syncDirectoryNow(admin)).toEqual({ status: 'running' })
+		expect(mocks.runManualSync).toHaveBeenCalledWith({ url: 'ldaps://dc' })
+	})
+})
+```
+
+(and import `getDirectoryStatus`, `syncDirectoryNow`.)
+
+In `__tests__/user-management-actions.test.ts`, hoist `syncDirectoryNow: vi.fn()` with `vi.mock('@/lib/directory/admin', () => ({ syncDirectoryNow }))`, import `syncDirectoryAction`, add `['syncDirectoryAction', () => syncDirectoryAction()]` to the refusal `it.each` (and `syncDirectoryNow` to its not-called loop), and append:
+
+```ts
+it('runs Sync now and answers the outcome, sync_running while one is going, not_found while LDAP is off', async () => {
+	const counts = {
+		entriesSeen: 3,
+		deactivated: 1,
+		reactivated: 0,
+		updated: 0,
+		conflicts: 0,
+		groupErrors: 0,
+		membershipsAdded: 0,
+		membershipsRemoved: 0,
+	}
+	syncDirectoryNow.mockResolvedValue({
+		status: 'finished',
+		outcome: 'succeeded',
+		counts,
+		errorCode: null,
+	})
+	expect(await syncDirectoryAction()).toEqual({
+		ok: true,
+		data: { outcome: 'succeeded', counts, errorCode: null },
+	})
+	expect(syncDirectoryNow).toHaveBeenCalledWith(admin)
+	expect(refresh).toHaveBeenCalledTimes(1)
+	syncDirectoryNow.mockResolvedValue({ status: 'running' })
+	expect(await syncDirectoryAction()).toEqual({ ok: false, code: 'sync_running' })
+	syncDirectoryNow.mockResolvedValue(null)
+	expect(await syncDirectoryAction()).toEqual({ ok: false, code: 'not_found' })
+})
+```
+
+In `__tests__/user-errors.test.ts`, add `sync_running` → `admin_users.sync_running` and `directory_unavailable` → `admin_users.directory_unavailable`.
+
+In `__tests__/user-management-page.test.ts`, mock `@/lib/directory/admin` (`getDirectoryStatus: vi.fn(async () => null)`) and expect the page to hand `directory: null` to `UserManagement`, and the status when it answers one.
+
+Create `__tests__/directory-labels.test.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest'
+
+import {
+	OUTCOME_LABEL_KEYS,
+	syncErrorKey,
+	TRIGGER_LABEL_KEYS,
+} from '@/components/admin/users/directory-labels'
+import { SYNC_ERROR_CODES, SYNC_OUTCOMES, SYNC_TRIGGERS } from '@/lib/directory-status'
+import en from '@/locales/en/translation.json'
+
+const has = (key: string) =>
+	key.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown>)?.[part], en) !==
+	undefined
+
+// Every outcome, trigger and error code a run can record has a text (spec §7.3: codes, never a server message).
+describe('the directory labels', () => {
+	it('name every outcome, trigger and error code', () => {
+		for (const outcome of [...SYNC_OUTCOMES, 'interrupted' as const])
+			expect(has(OUTCOME_LABEL_KEYS[outcome])).toBe(true)
+		for (const trigger of SYNC_TRIGGERS) expect(has(TRIGGER_LABEL_KEYS[trigger])).toBe(true)
+		for (const code of SYNC_ERROR_CODES) expect(has(syncErrorKey(code))).toBe(true)
+		expect(syncErrorKey('something_new')).toBe('admin_users.sync_error_internal_error')
+	})
+})
+```
+
+Run: `pnpm exec vitest run __tests__/directory-admin.test.ts __tests__/user-management-actions.test.ts __tests__/user-errors.test.ts __tests__/user-management-page.test.ts __tests__/directory-labels.test.ts` Expected: FAIL.
+
+- [ ] **Step 2: The admin functions**
+
+Append to `lib/directory/admin.ts` (import `Cron` from `croner`; `latestSyncRun`, `type SyncRunCounts`, `type SyncRunRecord` from `@/lib/data/directory`; `runManualSync`, `RUNNING_GUARD_MS`, `type SyncAttempt` from `./sync`; the vocabulary types from `@/lib/directory-status`):
+
+```ts
+export interface DirectoryRunDto {
+	trigger: SyncTrigger
+	startedAt: string
+	finishedAt: string | null
+	/** `interrupted`: still `running` after the guard, so its container stopped mid-run (decision at). */
+	outcome: SyncOutcome | 'interrupted'
+	errorCode: string | null
+	counts: SyncRunCounts
+}
+
+export interface DirectoryStatusDto {
+	encryption: LdapEncryption
+	schedule: string | null
+	timezone: string | null
+	nextRun: string | null
+	lastRun: DirectoryRunDto | null
+}
+
+const toRunDto = (run: SyncRunRecord, now: number): DirectoryRunDto => ({
+	trigger: run.trigger,
+	startedAt: run.startedAt.toISOString(),
+	finishedAt: run.finishedAt?.toISOString() ?? null,
+	outcome:
+		run.outcome === 'running' && now - run.startedAt.getTime() > RUNNING_GUARD_MS
+			? 'interrupted'
+			: run.outcome,
+	errorCode: run.errorCode,
+	counts: run.counts,
+})
+
+/**
+ * Spec §6.6: the directory's state for the users page, or null while LDAP is off. The next run is croner's `nextRun()`
+ * on a job without a function, which schedules nothing (croner `src/croner.ts:215-219`).
+ */
+export async function getDirectoryStatus(actor: SessionUser): Promise<DirectoryStatusDto | null> {
+	assertAdmin(actor)
+	const config = directoryConfig()
+	if (!config) return null
+	const nextRun = config.syncSchedule
+		? new Cron(config.syncSchedule, { timezone: config.syncTimezone ?? undefined }).nextRun()
+		: null
+	const run = await latestSyncRun()
+	return {
+		encryption: config.encryption,
+		schedule: config.syncSchedule,
+		timezone: config.syncTimezone,
+		nextRun: nextRun?.toISOString() ?? null,
+		lastRun: run ? toRunDto(run, Date.now()) : null,
+	}
+}
+
+/** Sync now (spec §6.6, decision av): one manual run, waited for; null while LDAP is off. */
+export async function syncDirectoryNow(actor: SessionUser): Promise<SyncAttempt | null> {
+	assertAdmin(actor)
+	const config = directoryConfig()
+	if (!config) return null
+	return runManualSync(config)
+}
+```
+
+- [ ] **Step 3: The action**
+
+`lib/action-result.ts`: add `| 'sync_running'` after `directory_unavailable`.
+
+In `app/(admin)/user-management/actions.ts`, import `ok`, `syncDirectoryNow`, and the types, and add:
+
+```ts
+export async function syncDirectoryAction(): Promise<
+	ActionResult<{
+		outcome: Exclude<SyncOutcome, 'running'>
+		counts: SyncRunCounts
+		errorCode: SyncErrorCode | null
+	}>
+> {
+	try {
+		const actor = await requireAdmin()
+		const result = await syncDirectoryNow(actor)
+		if (result === null) return fail('not_found')
+		// A manual slot is unique, so `skipped` cannot happen; both mean "another run has it".
+		if (result.status !== 'finished') return fail('sync_running')
+		refresh()
+		return ok({ outcome: result.outcome, counts: result.counts, errorCode: result.errorCode })
+	} catch (error) {
+		return toActionFailure(error, 'syncDirectoryAction')
+	}
+}
+```
+
+`components/admin/users/user-errors.ts`: `case 'sync_running': return 'admin_users.sync_running' as const` and `case 'directory_unavailable': return 'admin_users.directory_unavailable' as const`.
+
+- [ ] **Step 4: The labels and the panel**
+
+Create `components/admin/users/directory-labels.ts`:
+
+```ts
+import type { SyncOutcome, SyncTrigger } from '@/lib/directory-status'
+
+/** Each run outcome's label key and tag colour (spec §6.6; decision at adds `interrupted`). */
+export const OUTCOME_LABEL_KEYS = {
+	running: 'admin_users.sync_outcome_running',
+	succeeded: 'admin_users.sync_outcome_succeeded',
+	failed: 'admin_users.sync_outcome_failed',
+	empty: 'admin_users.sync_outcome_empty',
+	id_attribute_changed: 'admin_users.sync_outcome_id_attribute_changed',
+	interrupted: 'admin_users.sync_outcome_interrupted',
+} as const satisfies Record<SyncOutcome | 'interrupted', string>
+
+export const OUTCOME_COLORS = {
+	running: 'processing',
+	succeeded: 'success',
+	failed: 'error',
+	empty: 'warning',
+	id_attribute_changed: 'warning',
+	interrupted: 'default',
+} as const satisfies Record<SyncOutcome | 'interrupted', string>
+
+export const TRIGGER_LABEL_KEYS = {
+	schedule: 'admin_users.sync_trigger_schedule',
+	startup: 'admin_users.sync_trigger_startup',
+	manual: 'admin_users.sync_trigger_manual',
+} as const satisfies Record<SyncTrigger, string>
+
+/** A run's fixed error code as its text; an unknown code reads as the internal one (spec §7.3). */
+export const syncErrorKey = (code: string) => {
+	switch (code) {
+		case 'directory_unreachable':
+			return 'admin_users.sync_error_directory_unreachable' as const
+		case 'bind_refused':
+			return 'admin_users.sync_error_bind_refused' as const
+		case 'search_failed':
+			return 'admin_users.sync_error_search_failed' as const
+		default:
+			return 'admin_users.sync_error_internal_error' as const
+	}
+}
+```
+
+Create `components/admin/users/directory-status.tsx`:
+
+```tsx
+'use client'
+
+import { SyncOutlined } from '@ant-design/icons'
+import { App, Button, Card, Descriptions, Space, Tag, Typography } from 'antd'
+import { useTranslation } from 'react-i18next'
+
+import { syncDirectoryAction } from '@/app/(admin)/user-management/actions'
+import ClientDateTime from '@/components/admin/client-date-time'
+import { useActionTransition } from '@/hooks/use-action-transition'
+import type { DirectoryStatusDto } from '@/lib/directory/admin'
+
+import {
+	OUTCOME_COLORS,
+	OUTCOME_LABEL_KEYS,
+	syncErrorKey,
+	TRIGGER_LABEL_KEYS,
+} from './directory-labels'
+import { userErrorKey } from './user-errors'
+
+/**
+ * The directory's status on the users page (spec §6.6): the connection's encryption, the next run, the last run with
+ * its counts, and Sync now. Shown to accounts with admin rights while LDAP is configured (the page passes null otherwise).
+ */
+export default function DirectoryStatus({ status }: { status: DirectoryStatusDto }) {
+	const { t } = useTranslation()
+	const { message } = App.useApp()
+	const { pending, run } = useActionTransition()
+	const last = status.lastRun
+
+	const syncNow = () =>
+		run(async () => {
+			const result = await syncDirectoryAction()
+			if (!result.ok) {
+				message.error(t(userErrorKey(result.code)))
+				return
+			}
+			const { outcome, counts, errorCode } = result.data
+			if (outcome === 'succeeded')
+				message.success(
+					t('admin_users.sync_succeeded', {
+						deactivated: counts.deactivated,
+						reactivated: counts.reactivated,
+					}),
+				)
+			else if (outcome === 'failed')
+				message.error(t('admin_users.sync_failed', { reason: t(syncErrorKey(errorCode ?? '')) }))
+			else
+				message.warning(
+					t(
+						outcome === 'empty'
+							? 'admin_users.sync_stopped_empty'
+							: 'admin_users.sync_stopped_id_attribute',
+					),
+				)
+		})
+
+	return (
+		<Card
+			size="small"
+			title={t('admin_users.directory_title')}
+			extra={
+				<Button
+					icon={<SyncOutlined />}
+					loading={pending}
+					onClick={() => void syncNow()}
+				>
+					{t('admin_users.sync_now')}
+				</Button>
+			}
+		>
+			<Descriptions
+				size="small"
+				column={{ xs: 1, md: 2 }}
+				items={[
+					{
+						key: 'connection',
+						label: t('admin_users.directory_connection'),
+						children:
+							status.encryption === 'none' ? (
+								<Tag color="warning">{t('admin_users.directory_unencrypted')}</Tag>
+							) : (
+								<Tag color="success">
+									{t(
+										status.encryption === 'ldaps'
+											? 'admin_users.directory_ldaps'
+											: 'admin_users.directory_starttls',
+									)}
+								</Tag>
+							),
+					},
+					{
+						key: 'next',
+						label: t('admin_users.directory_next_run'),
+						children: status.nextRun ? (
+							<ClientDateTime value={status.nextRun} />
+						) : (
+							t('admin_users.directory_schedule_off')
+						),
+					},
+					{
+						key: 'last',
+						label: t('admin_users.directory_last_run'),
+						children: last ? (
+							<Space wrap>
+								<ClientDateTime value={last.startedAt} />
+								<Tag>{t(TRIGGER_LABEL_KEYS[last.trigger])}</Tag>
+								<Tag color={OUTCOME_COLORS[last.outcome]}>
+									{t(OUTCOME_LABEL_KEYS[last.outcome])}
+								</Tag>
+								{last.errorCode && (
+									<Typography.Text type="danger">{t(syncErrorKey(last.errorCode))}</Typography.Text>
+								)}
+							</Space>
+						) : (
+							t('admin_users.directory_never_run')
+						),
+					},
+					{
+						key: 'counts',
+						label: t('admin_users.directory_counts'),
+						children: last ? t('admin_users.directory_counts_value', last.counts) : '—',
+					},
+				]}
+			/>
+		</Card>
+	)
+}
+```
+
+Check `Descriptions` `items` and `column` (responsive object) and `Card` `size`/`extra` with `npx -y @ant-design/cli info Descriptions --version 6.6.5` and `… info Card …` before relying on them (rule R0).
+
+In `components/admin/users/user-management.tsx`, add the prop `directory: DirectoryStatusDto | null` and render `{directory && <DirectoryStatus status={directory} />}` between the page header and the search row. In `app/(admin)/user-management/page.tsx`, read it beside the users:
+
+```tsx
+const [users, directory] = await Promise.all([listUsers(user), getDirectoryStatus(user)])
+return (
+	<UserManagement
+		users={users}
+		directory={directory}
+		currentUser={{ id: user.id, role: user.role }}
+	/>
+)
+```
+
+- [ ] **Step 5: The texts**
+
+Add to `admin_users` in each translation file:
+
+| Key | en | zh | ar |
+| --- | --- | --- | --- |
+| `directory_title` | Directory sync | 目录同步 | مزامنة الدليل |
+| `sync_now` | Sync now | 立即同步 | مزامنة الآن |
+| `directory_connection` | Connection | 连接 | الاتصال |
+| `directory_unencrypted` | Unencrypted connection | 未加密的连接 | اتصال غير مشفّر |
+| `directory_ldaps` | LDAPS | LDAPS | LDAPS |
+| `directory_starttls` | StartTLS | StartTLS | StartTLS |
+| `directory_next_run` | Next run | 下次运行 | التشغيل التالي |
+| `directory_schedule_off` | Off | 已关闭 | متوقفة |
+| `directory_last_run` | Last run | 上次运行 | آخر تشغيل |
+| `directory_never_run` | Not run yet | 尚未运行 | لم تُشغَّل بعد |
+| `directory_counts` | Last run's changes | 上次运行的更改 | تغييرات آخر تشغيل |
+| `directory_counts_value` | {{entriesSeen}} entries · {{deactivated}} deactivated · {{reactivated}} reactivated · {{updated}} updated · {{conflicts}} email conflicts · {{membershipsAdded}} memberships added · {{membershipsRemoved}} removed · {{groupErrors}} group errors | {{entriesSeen}} 个条目 · 停用 {{deactivated}} · 重新启用 {{reactivated}} · 更新 {{updated}} · 邮箱冲突 {{conflicts}} · 新增成员资格 {{membershipsAdded}} · 移除 {{membershipsRemoved}} · 群组错误 {{groupErrors}} | {{entriesSeen}} إدخال · عُطّل {{deactivated}} · أُعيد تفعيل {{reactivated}} · حُدّث {{updated}} · تعارض في البريد {{conflicts}} · عضويات أُضيفت {{membershipsAdded}} · أُزيلت {{membershipsRemoved}} · أخطاء مجموعات {{groupErrors}} |
+| `sync_succeeded` | Sync finished: {{deactivated}} deactivated, {{reactivated}} reactivated. | 同步完成：停用 {{deactivated}} 个，重新启用 {{reactivated}} 个。 | اكتملت المزامنة: عُطّل {{deactivated}} وأُعيد تفعيل {{reactivated}}. |
+| `sync_failed` | Sync failed: {{reason}}. Nothing was changed. | 同步失败：{{reason}}。未做任何更改。 | فشلت المزامنة: {{reason}}. لم يُغيَّر شيء. |
+| `sync_stopped_empty` | Sync stopped: the directory returned no accounts, so nothing was changed. Check LDAP_USER_BASE_DN and LDAP_USER_FILTER. | 同步已停止：目录未返回任何账户，因此未做任何更改。请检查 LDAP_USER_BASE_DN 和 LDAP_USER_FILTER。 | توقفت المزامنة: لم يُرجع الدليل أي حساب، فلم يُغيَّر شيء. تحقق من LDAP_USER_BASE_DN وLDAP_USER_FILTER. |
+| `sync_stopped_id_attribute` | Sync stopped: accounts were linked by another LDAP_ID_ATTRIBUTE, so nothing was changed. | 同步已停止：账户是通过另一个 LDAP_ID_ATTRIBUTE 关联的，因此未做任何更改。 | توقفت المزامنة: رُبطت الحسابات بقيمة أخرى لـ LDAP_ID_ATTRIBUTE، فلم يُغيَّر شيء. |
+| `sync_running` | A sync is already running. Try again when it has finished. | 已有同步正在运行，请在其完成后重试。 | هناك مزامنة قيد التشغيل. حاول مرة أخرى بعد انتهائها. |
+| `directory_unavailable` | The directory is unreachable. Try again later. | 无法连接目录，请稍后重试。 | تعذّر الوصول إلى الدليل. حاول مرة أخرى لاحقًا. |
+| `sync_outcome_running` | Running | 运行中 | قيد التشغيل |
+| `sync_outcome_succeeded` | Succeeded | 成功 | نجحت |
+| `sync_outcome_failed` | Failed | 失败 | فشلت |
+| `sync_outcome_empty` | Stopped: no entries | 已停止：无条目 | توقفت: لا إدخالات |
+| `sync_outcome_id_attribute_changed` | Stopped: ID attribute changed | 已停止：ID 属性已更改 | توقفت: تغيّرت سمة المعرّف |
+| `sync_outcome_interrupted` | Did not finish | 未完成 | لم تكتمل |
+| `sync_trigger_schedule` | Scheduled | 计划任务 | مجدولة |
+| `sync_trigger_startup` | At start-up | 启动时 | عند بدء التشغيل |
+| `sync_trigger_manual` | Manual | 手动 | يدوية |
+| `sync_error_directory_unreachable` | the directory is unreachable | 无法连接目录 | تعذّر الوصول إلى الدليل |
+| `sync_error_bind_refused` | the directory refused the service account | 目录拒绝了服务账户 | رفض الدليل حساب الخدمة |
+| `sync_error_search_failed` | the directory refused a search | 目录拒绝了一次搜索 | رفض الدليل عملية بحث |
+| `sync_error_internal_error` | an internal error (see the server log) | 内部错误（请查看服务器日志） | خطأ داخلي (راجع سجل الخادم) |
+
+- [ ] **Step 6: The e2e spec**
+
+Create `e2e/directory-sync.spec.ts`:
+
+```ts
+import { expect, test } from '@playwright/test'
+
+import { ADMIN_STATE } from './fixtures/constants'
+import { DIRECTORY_PASSWORD, deleteDirectoryAccount, samba } from './fixtures/directory'
+import { openUsers, signInWithDirectory } from './fixtures/users'
+
+test.use({ storageState: ADMIN_STATE })
+
+// Spec §8 "Playwright" (B3b): Sync now deactivates and signs out a removed entry and reactivates it when it returns;
+// the status panel. bob is a person of the smblds seed; the test disables him in the directory and restores him.
+test.describe('Sync now (spec §6.6)', () => {
+	test.afterEach(async () => {
+		samba(['user', 'enable', 'bob'])
+		await deleteDirectoryAccount('bob@e2e.hub.test')
+	})
+
+	test('deactivates and signs out a disabled person, then reactivates them when enabled again', async ({
+		page,
+		browser,
+	}) => {
+		const bobContext = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+		try {
+			const bobPage = await bobContext.newPage()
+			await signInWithDirectory(bobPage, 'bob', DIRECTORY_PASSWORD)
+			await expect(bobPage).toHaveURL(/\/apps$/)
+
+			await openUsers(page)
+			const panel = page.locator('.ant-card').filter({ hasText: 'Directory sync' })
+			await expect(panel.getByText('LDAPS', { exact: true })).toBeVisible()
+			// .env.e2e sets LDAP_SYNC_SCHEDULE=off.
+			await expect(panel.getByText('Off', { exact: true })).toBeVisible()
+
+			samba(['user', 'disable', 'bob'])
+			await panel.getByRole('button', { name: 'Sync now' }).click()
+			await expect(page.getByText(/^Sync finished:/)).toBeVisible()
+			await page.getByPlaceholder('Search users').fill('bob@e2e.hub.test')
+			const row = page.getByRole('row', { name: /bob@e2e\.hub\.test/ })
+			await expect(row.getByText('Not in directory', { exact: true })).toBeVisible()
+			await expect(panel.getByText('Succeeded', { exact: true })).toBeVisible()
+			// The directory's deactivation bumped sessionVersion: bob's open session ends at its next request.
+			await bobPage.goto('/apps')
+			await expect(bobPage).toHaveURL(/\/login/)
+
+			samba(['user', 'enable', 'bob'])
+			await panel.getByRole('button', { name: 'Sync now' }).click()
+			await expect(row.getByText('Active', { exact: true })).toBeVisible()
+			await signInWithDirectory(bobPage, 'bob', DIRECTORY_PASSWORD)
+			await expect(bobPage).toHaveURL(/\/apps$/)
+		} finally {
+			await bobContext.close()
+		}
+	})
+})
+```
+
+The `empty` safety stop is proven by `pnpm test:ldap` (Task 10's integration test runs the sync against a base with no matching entry on both servers) and by the plan's unit tests, not here: the e2e app's settings are fixed for the run (ADR-0010: no test switches in product code), so no spec can point it at an empty base. This is deviation 5 (Task 15).
+
+Run (with `pnpm dev` stopped): `pnpm exec playwright test e2e/directory-sync.spec.ts e2e/admin-users.spec.ts e2e/directory-accounts.spec.ts` Expected: every test passes on the three projects.
+
+- [ ] **Step 7: Verify and commit**
+
+```bash
+pnpm exec next typegen && pnpm exec tsc --noEmit
+pnpm exec oxlint <every changed .ts/.tsx file>
+pnpm exec oxfmt --write <every changed file> && pnpm exec oxfmt --check <every changed file>
+npx -y @ant-design/cli lint ./
+pnpm test
+git add lib/directory/admin.ts lib/action-result.ts "app/(admin)/user-management/actions.ts" "app/(admin)/user-management/page.tsx" components/admin/users/directory-status.tsx components/admin/users/directory-labels.ts components/admin/users/user-management.tsx components/admin/users/user-errors.ts locales/en/translation.json locales/zh/translation.json locales/ar/translation.json e2e/directory-sync.spec.ts __tests__/directory-admin.test.ts __tests__/user-management-actions.test.ts __tests__/user-errors.test.ts __tests__/user-management-page.test.ts __tests__/directory-labels.test.ts
+git commit -m "feat(users): show the directory sync's status and add Sync now
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
+```
 
 ---
 
