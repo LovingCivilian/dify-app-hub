@@ -2,7 +2,7 @@
 # the two LDAP test directories (profile `ldap`) are started by name: ldap-ad by e2e/global-setup.ts, both by
 # __tests__/ldap/global-setup.ts (pnpm test:ldap). Stop them with:
 #   docker compose -f docker-compose.e2e.yml down             (MySQL)
-#   docker compose -f docker-compose.e2e.yml down ldap-ad ldap-openldap
+#   docker compose -f docker-compose.e2e.yml down -v ldap-ad ldap-openldap
 #   docker compose -f docker-compose.e2e.yml --profile ldap down -v   (everything)
 name: dify-app-hub-e2e
 
@@ -54,7 +54,10 @@ services:
       - /var/log/samba:mode=0755
       - /root:mode=0700
       - /etc/dropbear:mode=0700
-    mem_limit: 256m # pre-flight 2026-10-10: peak 106–120 MiB (provisioning; cgroup memory.peak), 72–99 MiB at rest and under load
+    # Measured 2026-10-10 (cgroup memory.peak; the peak is the provisioning): 106–120 MiB on a warm start (pre-flight),
+    # 185 MiB on a cold first start (mostly reclaimable page cache; about 80 MiB anon + tmpfs + kernel); 72–99 MiB at
+    # rest and under load. The limit held on every start (memory.events max 0).
+    mem_limit: 256m
     healthcheck:
       test:
         - CMD
@@ -108,7 +111,9 @@ services:
       - ./e2e/fixtures/ldap/openldap/data/70-e2e-tree.ldif:/container/services/openldap-bootstrap/assets/ldif/data/custom/70-e2e-tree.ldif:ro
       - ./e2e/fixtures/ldap/openldap/data/80-e2e-people.ldif:/container/services/openldap-bootstrap/assets/ldif/data/custom/80-e2e-people.ldif:ro
       - ./e2e/fixtures/ldap/openldap/data/90-e2e-groups.ldif:/container/services/openldap-bootstrap/assets/ldif/data/custom/90-e2e-groups.ldif:ro
-    mem_limit: 64m # pre-flight 2026-10-10: peak 22 MiB under load (cgroup memory.peak), 8 MiB at rest
+    # Measured 2026-10-10 (cgroup memory.peak): 22 MiB under load (pre-flight) and 19 MiB on a warm start, 34.5 MiB on
+    # a cold first start (mostly page cache; about 9 MiB anon + kernel); 8 MiB at rest. The limit held (memory.events max 0).
+    mem_limit: 64m
     healthcheck:
       test:
         - CMD

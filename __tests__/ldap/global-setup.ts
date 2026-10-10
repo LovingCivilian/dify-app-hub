@@ -15,7 +15,16 @@ export default function setup() {
 			stdio: 'inherit',
 		})
 	} catch (error) {
-		down()
+		try {
+			down()
+		} catch (downError) {
+			// Both fail when Docker itself is unreachable; a failed stop must not hide why the start failed, so both
+			// errors travel together (MDN "AggregateError": "when several errors need to be wrapped in a single error").
+			throw new AggregateError(
+				[error, downError],
+				'The LDAP test directories did not start, and stopping them failed',
+			)
+		}
 		throw error
 	}
 	return down

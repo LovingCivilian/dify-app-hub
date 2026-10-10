@@ -65,25 +65,31 @@ export const openldapPlain: LdapConfig = {
 	encryption: 'none',
 }
 
+/** The seeded logins (sAMAccountName on smblds, uid on OpenLDAP): both directories use the same ones. */
+const PEOPLE = {
+	alice: 'alice',
+	bob: 'bob',
+	carol: 'carol',
+	dave: 'dave',
+	erin: 'erin',
+	frank: 'frank',
+} as const
+
+/** The seeded groups' names (cn): both directories use the same ones. */
+const GROUPS = {
+	admins: 'hub-admins',
+	engineering: 'hub-engineering',
+	backend: 'hub-backend',
+	rnd: 'R&D (Berlin), Team',
+} as const
+
 /** The three working modes of spec §8, with the seeded names each directory uses. */
 export const TEST_DIRECTORIES = [
 	{
 		name: 'smblds over LDAPS',
 		config: adLdaps,
-		people: {
-			alice: 'alice',
-			bob: 'bob',
-			carol: 'carol',
-			dave: 'dave',
-			erin: 'erin',
-			frank: 'frank',
-		},
-		groups: {
-			admins: 'hub-admins',
-			engineering: 'hub-engineering',
-			backend: 'hub-backend',
-			rnd: 'R&D (Berlin), Team',
-		},
+		people: PEOPLE,
+		groups: GROUPS,
 		emailDomain: 'e2e.hub.test',
 		/** A base the user filter matches nothing under: the `empty` safety stop (spec §6.4 step 2). */
 		emptyBaseDn: 'CN=Computers,DC=e2e,DC=hub,DC=test',
@@ -91,40 +97,16 @@ export const TEST_DIRECTORIES = [
 	{
 		name: 'OpenLDAP over StartTLS',
 		config: openldapStartTls,
-		people: {
-			alice: 'alice',
-			bob: 'bob',
-			carol: 'carol',
-			dave: 'dave',
-			erin: 'erin',
-			frank: 'frank',
-		},
-		groups: {
-			admins: 'hub-admins',
-			engineering: 'hub-engineering',
-			backend: 'hub-backend',
-			rnd: 'R&D (Berlin), Team',
-		},
+		people: PEOPLE,
+		groups: GROUPS,
 		emailDomain: 'openldap.hub.test',
 		emptyBaseDn: 'ou=groups,dc=openldap,dc=hub,dc=test',
 	},
 	{
 		name: 'OpenLDAP in plain',
 		config: openldapPlain,
-		people: {
-			alice: 'alice',
-			bob: 'bob',
-			carol: 'carol',
-			dave: 'dave',
-			erin: 'erin',
-			frank: 'frank',
-		},
-		groups: {
-			admins: 'hub-admins',
-			engineering: 'hub-engineering',
-			backend: 'hub-backend',
-			rnd: 'R&D (Berlin), Team',
-		},
+		people: PEOPLE,
+		groups: GROUPS,
 		emailDomain: 'openldap.hub.test',
 		emptyBaseDn: 'ou=groups,dc=openldap,dc=hub,dc=test',
 	},

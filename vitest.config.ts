@@ -1,6 +1,9 @@
 import path from 'path'
 import { configDefaults, defineConfig } from 'vitest/config'
 
+/** The directory suite's files: one glob on both sides, so none falls between the two projects. */
+const LDAP_TESTS = '**/*.ldap.test.ts'
+
 export default defineConfig({
 	test: {
 		environment: 'node',
@@ -15,15 +18,18 @@ export default defineConfig({
 				extends: true,
 				test: {
 					name: 'unit',
-					exclude: [...configDefaults.exclude, 'e2e/**', 'tmp/**', '**/*.ldap.test.ts'],
+					exclude: [...configDefaults.exclude, 'e2e/**', 'tmp/**', LDAP_TESTS],
 				},
 			},
 			{
 				extends: true,
 				test: {
 					name: 'ldap',
-					include: ['__tests__/ldap/**/*.ldap.test.ts'],
+					include: [LDAP_TESTS],
 					globalSetup: ['./__tests__/ldap/global-setup.ts'],
+					// The files share the two servers, so they run one at a time (Vitest recipes, "Parallel and
+					// Sequential Test Files": a project of its own with `fileParallelism: false`).
+					fileParallelism: false,
 					hookTimeout: 120_000,
 					testTimeout: 30_000,
 				},
