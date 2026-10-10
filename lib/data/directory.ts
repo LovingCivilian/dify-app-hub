@@ -1,20 +1,29 @@
 import 'server-only'
 
-import { and, eq, notInArray } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, notInArray, sql } from 'drizzle-orm'
 
 import { getDb, type Db } from '@/db'
-import { userGroupDirectoryLinks, userGroupMembers, users } from '@/db/schema'
+import { directorySyncRuns, userGroupDirectoryLinks, userGroupMembers, users } from '@/db/schema'
 import type { Role } from '@/lib/auth/roles'
+import type {
+	AccountUpdate,
+	LinkRefresh,
+	MembershipPlan,
+	MembershipRow,
+	SyncAccount,
+} from '@/lib/directory/plan'
+import type { SyncErrorCode, SyncOutcome, SyncTrigger } from '@/lib/directory-status'
 
-import { isDeadlock, isDuplicateEntry } from './db-errors'
+import { isDeadlock, isDuplicateEntry, isMissingReference } from './db-errors'
 
 /*
  * The directory Data Access Layer (B3 spec §6.1, ADR-0029). It takes no actor: its callers are the `ldap` provider,
  * before any session exists, and the directory sync, which acts for no person. It is the second actor-less module after
  * lib/data/setup.ts (ADR-0024 deviation 2), and its guard is its input: every function takes values read from a
  * successful directory bind or from a complete, error-free directory search, never raw form input. It writes only what
- * the directory owns (ADR-0027): `directory_deactivated_at`, the directory fields of `ldap` accounts, and `directory`
- * memberships; never the admin marker, a role, a password or a `manual` membership.
+ * the directory owns (ADR-0027): `directory_deactivated_at` (with a `sessionVersion` bump), the directory fields of
+ * `ldap` accounts, and `directory` memberships, the links' names and `missing_since`, and the sync's run rows; never
+ * the admin marker, a role, a password or a `manual` membership.
  */
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
@@ -222,4 +231,337 @@ export async function recordDirectorySignIn(
 		if (isDuplicateEntry(error) || isDeadlock(error)) return attempt()
 		throw error
 	}
+}
+
+/**
+ * Decision ae: at most 1,000 ids per statement, each its own statement. Drizzle's mysql2 session sends a query through
+ * mysql2's `query`, which fills the values in on the client (mysql2 docs; not a prepared `execute`), so a statement is
+ * bounded by `max_allowed_packet` (64 MB by default, MySQL 8.4 "Packet Too Large"); 1,000 ids also stay under the
+ * 65,535 placeholders of a prepared statement (ER_PS_MANY_PARAM, 1390).
+ */
+const BATCH = 1_000
+const batches = <T>(items: readonly T[]): T[][] =>
+	Array.from({ length: Math.ceil(items.length / BATCH) }, (_, index) =>
+		items.slice(index * BATCH, (index + 1) * BATCH),
+	)
+
+/** Every hub `ldap` account, active or not (spec §6.4 step 3). */
+export const listDirectoryAccounts = (): Promise<SyncAccount[]> =>
+	getDb()
+		.select({
+			id: users.id,
+			directoryId: users.directoryId,
+			directoryIdAttribute: users.directoryIdAttribute,
+			email: users.email,
+			name: users.name,
+			directoryUsername: users.directoryUsername,
+			directoryDeactivatedAt: users.directoryDeactivatedAt,
+		})
+		.from(users)
+		.where(eq(users.source, 'ldap'))
+
+/** Every `directory` membership (spec §2 #8: the sync's own rows). */
+export const listDirectoryMemberships = (): Promise<MembershipRow[]> =>
+	getDb()
+		.select({ groupId: userGroupMembers.groupId, userId: userGroupMembers.userId })
+		.from(userGroupMembers)
+		.where(eq(userGroupMembers.source, 'directory'))
+
+/**
+ * Directory deactivation (spec §6.4 step 3, ADR-0027): the directory marker and a sessionVersion bump in one write, so
+ * every token in use loses its id at its next request (ADR-0018's rule); only on `ldap` accounts the directory has not
+ * marked yet, never the admin marker. The count is the rows changed: the WHERE excludes marked rows, so mysql2's
+ * found-rows count (its default `FOUND_ROWS` flag) equals the changed rows.
+ */
+export async function deactivateDirectoryAccounts(
+	ids: readonly string[],
+	at: Date,
+): Promise<number> {
+	let changed = 0
+	for (const part of batches(ids)) {
+		const [result] = await getDb()
+			.update(users)
+			.set({ directoryDeactivatedAt: at, sessionVersion: sql`${users.sessionVersion} + 1` })
+			.where(
+				and(
+					eq(users.source, 'ldap'),
+					inArray(users.id, part),
+					isNull(users.directoryDeactivatedAt),
+				),
+			)
+		changed += result.affectedRows
+	}
+	return changed
+}
+
+/** The entry matches again: the directory's marker lifts (spec §2 #12); old tokens stay revoked (sessionVersion). */
+export async function reactivateDirectoryAccounts(ids: readonly string[]): Promise<number> {
+	let changed = 0
+	for (const part of batches(ids)) {
+		const [result] = await getDb()
+			.update(users)
+			.set({ directoryDeactivatedAt: null })
+			.where(
+				and(
+					eq(users.source, 'ldap'),
+					inArray(users.id, part),
+					isNotNull(users.directoryDeactivatedAt),
+				),
+			)
+		changed += result.affectedRows
+	}
+	return changed
+}
+
+/**
+ * One account's refreshed directory fields (spec §6.4 step 3). A new email the unique index refuses (1062: another
+ * account has it) is dropped and the other fields written: the row keeps its old email and the run counts a conflict
+ * (spec §2 #11, decision ac).
+ */
+export async function refreshDirectoryAccount(
+	update: AccountUpdate,
+): Promise<{ conflict: boolean }> {
+	const fields = {
+		name: update.name,
+		...(update.directoryUsername !== null ? { directoryUsername: update.directoryUsername } : {}),
+	}
+	const where = and(eq(users.id, update.id), eq(users.source, 'ldap'))
+	if (update.email !== null) {
+		try {
+			await getDb()
+				.update(users)
+				.set({ ...fields, email: update.email })
+				.where(where)
+			return { conflict: false }
+		} catch (error) {
+			if (!isDuplicateEntry(error)) throw error
+		}
+		await getDb().update(users).set(fields).where(where)
+		return { conflict: true }
+	}
+	await getDb().update(users).set(fields).where(where)
+	return { conflict: false }
+}
+
+const directoryRows = (groupId: string, userIds: readonly string[]) =>
+	userIds.map(userId => ({ groupId, userId, source: 'directory' as const }))
+
+/**
+ * Applies the planned `directory` memberships per hub group (spec §2 #8: manual rows untouched). An insert refused as a
+ * duplicate (a sign-in added the row meanwhile) or a missing reference (the group or the account was deleted during
+ * the run) is retried row by row: a duplicate is already there, a missing reference counts as a group error.
+ */
+export async function applyMembershipChanges(
+	plan: Pick<MembershipPlan, 'add' | 'remove'>,
+): Promise<{ added: number; removed: number; groupErrors: number }> {
+	const db = getDb()
+	let added = 0
+	let removed = 0
+	let groupErrors = 0
+	for (const [groupId, rows] of Map.groupBy(plan.remove, row => row.groupId))
+		for (const part of batches(rows.map(row => row.userId))) {
+			const [result] = await db
+				.delete(userGroupMembers)
+				.where(
+					and(
+						eq(userGroupMembers.groupId, groupId),
+						eq(userGroupMembers.source, 'directory'),
+						inArray(userGroupMembers.userId, part),
+					),
+				)
+			removed += result.affectedRows
+		}
+	for (const [groupId, rows] of Map.groupBy(plan.add, row => row.groupId))
+		for (const part of batches(rows.map(row => row.userId))) {
+			try {
+				await db.insert(userGroupMembers).values(directoryRows(groupId, part))
+				added += part.length
+			} catch (error) {
+				if (!isDuplicateEntry(error) && !isMissingReference(error)) throw error
+				for (const userId of part) {
+					try {
+						await db.insert(userGroupMembers).values(directoryRows(groupId, [userId]))
+						added += 1
+					} catch (rowError) {
+						if (isMissingReference(rowError)) groupErrors += 1
+						else if (!isDuplicateEntry(rowError)) throw rowError
+					}
+				}
+			}
+		}
+	return { added, removed, groupErrors }
+}
+
+/** A found link's name is refreshed and its `missing_since` cleared; a missing one is stamped once (spec §3.2). */
+export async function refreshGroupLinks(
+	refreshes: readonly LinkRefresh[],
+	at: Date,
+): Promise<void> {
+	const db = getDb()
+	for (const refresh of refreshes) {
+		const link = and(
+			eq(userGroupDirectoryLinks.groupId, refresh.groupId),
+			eq(userGroupDirectoryLinks.directoryGroupId, refresh.directoryGroupId),
+		)
+		if (refresh.name !== null)
+			await db
+				.update(userGroupDirectoryLinks)
+				.set({ directoryGroupName: refresh.name, missingSince: null })
+				.where(link)
+		else
+			await db
+				.update(userGroupDirectoryLinks)
+				.set({ missingSince: at })
+				.where(and(link, isNull(userGroupDirectoryLinks.missingSince)))
+	}
+}
+
+export interface SyncRunCounts {
+	entriesSeen: number
+	deactivated: number
+	reactivated: number
+	updated: number
+	conflicts: number
+	groupErrors: number
+	membershipsAdded: number
+	membershipsRemoved: number
+}
+
+export const EMPTY_COUNTS: SyncRunCounts = {
+	entriesSeen: 0,
+	deactivated: 0,
+	reactivated: 0,
+	updated: 0,
+	conflicts: 0,
+	groupErrors: 0,
+	membershipsAdded: 0,
+	membershipsRemoved: 0,
+}
+
+/**
+ * Claims a run's slot (spec §6.4 "Claim"): the unique key refuses a second insert for the same slot (1062), and that
+ * caller skips. Documenso builds a deterministic id per cron slot so that racing instances "collide on the primary key
+ * instead of creating duplicates" (`documenso@38ecb217:packages/lib/jobs/client/local.ts:19-22`); GoodJob and Solid
+ * Queue keep a unique index per scheduled time (`ad-and-reference-projects.md` B.9).
+ */
+export async function claimSyncRun(run: {
+	id: string
+	slot: string
+	trigger: SyncTrigger
+	startedAt: Date
+}): Promise<boolean> {
+	try {
+		await getDb().insert(directorySyncRuns).values({
+			id: run.id,
+			slot: run.slot,
+			runTrigger: run.trigger,
+			startedAt: run.startedAt,
+			outcome: 'running',
+		})
+		return true
+	} catch (error) {
+		if (isDuplicateEntry(error)) return false
+		throw error
+	}
+}
+
+/** A run started after `since` that has not finished (spec §6.4: no second run while one is going). */
+export async function hasUnfinishedRunSince(since: Date): Promise<boolean> {
+	const [row] = await getDb()
+		.select({ id: directorySyncRuns.id })
+		.from(directorySyncRuns)
+		.where(and(isNull(directorySyncRuns.finishedAt), gt(directorySyncRuns.startedAt, since)))
+		.limit(1)
+	return row !== undefined
+}
+
+export async function finishSyncRun(
+	id: string,
+	outcome: Exclude<SyncOutcome, 'running'>,
+	counts: SyncRunCounts,
+	errorCode: SyncErrorCode | null,
+	at: Date,
+): Promise<void> {
+	await getDb()
+		.update(directorySyncRuns)
+		.set({ ...counts, outcome, errorCode, finishedAt: at })
+		.where(eq(directorySyncRuns.id, id))
+}
+
+/** Spec §3.2: runs older than 90 days are deleted by the run itself. */
+export async function pruneSyncRuns(before: Date): Promise<void> {
+	await getDb().delete(directorySyncRuns).where(lt(directorySyncRuns.startedAt, before))
+}
+
+export interface SyncRunRecord {
+	id: string
+	trigger: SyncTrigger
+	startedAt: Date
+	finishedAt: Date | null
+	outcome: SyncOutcome
+	errorCode: string | null
+	counts: SyncRunCounts
+}
+
+const runColumns = {
+	id: directorySyncRuns.id,
+	trigger: directorySyncRuns.runTrigger,
+	startedAt: directorySyncRuns.startedAt,
+	finishedAt: directorySyncRuns.finishedAt,
+	outcome: directorySyncRuns.outcome,
+	errorCode: directorySyncRuns.errorCode,
+	entriesSeen: directorySyncRuns.entriesSeen,
+	deactivated: directorySyncRuns.deactivated,
+	reactivated: directorySyncRuns.reactivated,
+	updated: directorySyncRuns.updated,
+	conflicts: directorySyncRuns.conflicts,
+	groupErrors: directorySyncRuns.groupErrors,
+	membershipsAdded: directorySyncRuns.membershipsAdded,
+	membershipsRemoved: directorySyncRuns.membershipsRemoved,
+}
+
+const toRunRecord = ({
+	id,
+	trigger,
+	startedAt,
+	finishedAt,
+	outcome,
+	errorCode,
+	...counts
+}: {
+	id: string
+	trigger: SyncTrigger
+	startedAt: Date
+	finishedAt: Date | null
+	outcome: SyncOutcome
+	errorCode: string | null
+} & SyncRunCounts): SyncRunRecord => ({
+	id,
+	trigger,
+	startedAt,
+	finishedAt,
+	outcome,
+	errorCode,
+	counts,
+})
+
+/** The newest run, for the status panel (spec §6.6). */
+export async function latestSyncRun(): Promise<SyncRunRecord | null> {
+	const [row] = await getDb()
+		.select(runColumns)
+		.from(directorySyncRuns)
+		.orderBy(desc(directorySyncRuns.startedAt))
+		.limit(1)
+	return row ? toRunRecord(row) : null
+}
+
+/** The newest succeeded run, for the startup catch-up (spec §6.4 "Missed run"). */
+export async function lastSucceededSyncRun(): Promise<SyncRunRecord | null> {
+	const [row] = await getDb()
+		.select(runColumns)
+		.from(directorySyncRuns)
+		.where(eq(directorySyncRuns.outcome, 'succeeded'))
+		.orderBy(desc(directorySyncRuns.startedAt))
+		.limit(1)
+	return row ? toRunRecord(row) : null
 }
