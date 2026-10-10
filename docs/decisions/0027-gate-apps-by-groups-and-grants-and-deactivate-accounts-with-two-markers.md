@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-10
 decision-makers: LovingCivilian (fork owner)
 consulted: Claude Code session (B3 brainstorm, B3a plan and run)
