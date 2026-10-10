@@ -12,7 +12,7 @@ import {
 	searchGroups,
 } from '@/lib/directory/operations'
 
-import { adLdaps, adPlain, adStartTls, TEST_DIRECTORIES } from './servers'
+import { adLdaps, adPlain, adStartTls, openldapStartTls, TEST_DIRECTORIES } from './servers'
 
 // Spec §8: lib/directory/ against the real test directories, in the three working modes.
 describe.each(TEST_DIRECTORIES)(
@@ -84,6 +84,16 @@ describe('the directory connection refuses what it must (decision q)', () => {
 		).rejects.toBeInstanceOf(DirectoryUnavailableError)
 	})
 
+	// Review Focus 4 "a wrong CA" on the StartTLS upgrade (Node `tls.connect` with `socket` verifies as a direct connection).
+	it.each([adStartTls, openldapStartTls])(
+		'names an untrusted certificate on the StartTLS upgrade unreachable: $url',
+		async config => {
+			await expect(
+				withDirectory({ ...config, caFile: null }, async () => 'never'),
+			).rejects.toBeInstanceOf(DirectoryUnavailableError)
+		},
+	)
+
 	it("names a wrong service password and Samba's refusal of a plain simple bind as refused", async () => {
 		await expect(
 			withDirectory({ ...adLdaps, bindPassword: 'Wrong-Passw0rd' }, async () => 'never'),
@@ -107,5 +117,17 @@ describe('the directory connection refuses what it must (decision q)', () => {
 				return client.search(config.userBaseDn, { scope: 'base', attributes: ['1.1'] })
 			}),
 		).rejects.toBeInstanceOf(DirectoryUnavailableError)
+	})
+
+	// Decision q: a dropped socket is the directory's failure; on an open connection (after StartTLS, the TCP socket
+	// under the TLS one included) a bug in the work passes through as the bug it is.
+	it.each(TEST_DIRECTORIES)('passes a bug in the work through: $name', async ({ config }) => {
+		const bug = new TypeError('x is undefined')
+		await expect(
+			withDirectory(config, async client => {
+				await client.search(config.userBaseDn, { scope: 'base', attributes: ['1.1'] })
+				throw bug
+			}),
+		).rejects.toBe(bug)
 	})
 })

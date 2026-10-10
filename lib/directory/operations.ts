@@ -110,6 +110,15 @@ export async function listMemberKeys(
 	return keys
 }
 
+/**
+ * The order of the groups an admin's search shows: one collation wherever the hub runs, not the process's default
+ * locale (`localeCompare` delegates to `Intl.Collator`, and a missing `locales` means "The implementation's default
+ * locale will be used", MDN `Intl` "Locales argument"). English uses CLDR's root order ("The root collation order is valid for this language", CLDR `common/collation/en.xml`);
+ * one `Intl.Collator`, whose `compare` is bound for sorting (MDN `Intl.Collator.prototype.compare`), as Grafana sorts
+ * (`new Intl.Collator('en', …).compare`, `packages/grafana-data/src/field/fieldComparers.ts:56`).
+ */
+const byName = new Intl.Collator('en').compare
+
 /** Spec §6.5 "Linking": up to twenty groups whose name contains the text, by name; entries without a valid key are left out. */
 export async function searchGroups(
 	client: Client,
@@ -128,5 +137,5 @@ export async function searchGroups(
 			const key = canonicalKey(attributeValue(entry, config.idAttribute), config.idAttribute)
 			return key ? [{ key, name: nameOf(entry, config.groupNameAttribute) ?? entry.dn }] : []
 		})
-		.sort((a, b) => a.name.localeCompare(b.name))
+		.sort((a, b) => byName(a.name, b.name))
 }

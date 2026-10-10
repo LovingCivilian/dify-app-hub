@@ -114,6 +114,7 @@ describe('withDirectory: the three modes (spec §6.2, decisions p and r)', () =>
 	it('none: plain, no TLS at all, no CA read', async () => {
 		await withDirectory(config('ldap://10.0.0.5:389', 'none'), async () => undefined)
 		expect(mocks.state.options).not.toHaveProperty('tlsOptions')
+		expect(mocks.state.options).not.toHaveProperty('createSecureConnection')
 		expect(mocks.state.calls.map(call => call[0])).toEqual(['bind', 'unbind'])
 		expect(readFile).not.toHaveBeenCalled()
 	})
@@ -136,6 +137,8 @@ describe('withDirectory: the three modes (spec §6.2, decisions p and r)', () =>
 		for (const [url, encryption, factory, socket] of [
 			['ldaps://dc.corp.example:636', 'ldaps', 'createSecureConnection', 'tls socket'],
 			['ldap://dc.corp.example:389', 'starttls', 'createConnection', 'tcp socket'],
+			// The StartTLS upgrade's factory: ldapts calls it once per startTLS() (README "Custom connection factories").
+			['ldap://dc.corp.example:389', 'starttls', 'createSecureConnection', 'tls socket'],
 			['ldap://dc.corp.example:389', 'none', 'createConnection', 'tcp socket'],
 		] as const) {
 			await withDirectory(config(url, encryption), async () => undefined)
@@ -213,6 +216,61 @@ describe('withDirectory: failures (decision q)', () => {
 			}),
 		).rejects.toBe(bug)
 	})
+
+	// The socket the work runs on, by mode: the direct TLS one, the StartTLS upgrade's, the plain one.
+	const workSockets = [
+		{
+			url: 'ldaps://dc',
+			encryption: 'ldaps',
+			factory: 'createSecureConnection',
+			connect: sockets.tls,
+		},
+		{
+			url: 'ldap://dc',
+			encryption: 'starttls',
+			factory: 'createSecureConnection',
+			connect: sockets.tls,
+		},
+		{ url: 'ldap://dc', encryption: 'none', factory: 'createConnection', connect: sockets.tcp },
+	] as const
+	/** Opens the connection through the factory the client was given, as ldapts does, and answers its socket. */
+	const openThroughFactory = (
+		factory: string,
+		connect: (typeof workSockets)[number]['connect'],
+	) => {
+		const socket = { destroyed: false }
+		connect.mockReturnValueOnce(socket as never)
+		const create = mocks.state.options?.[factory] as (...args: unknown[]) => unknown
+		create(389, 'dc')
+		return socket
+	}
+
+	// A reset (ECONNRESET): ldapts rejects the request in flight before its 'close' handler clears `connected`, and
+	// after StartTLS that handler stays on the TCP socket; the socket the hub's factory opened is already destroyed.
+	it.each(workSockets)(
+		'makes a failure on a destroyed socket a DirectoryUnavailableError while ldapts still reports connected: $encryption',
+		async ({ url, encryption, factory, connect }) => {
+			const error = await withDirectory(config(url, encryption), async () => {
+				openThroughFactory(factory, connect).destroyed = true
+				throw new Error('Socket error. Message type: SearchRequest (0x63)')
+			}).catch(e => e)
+			expect(mocks.state.connected).toBe(true)
+			expect(error).toBeInstanceOf(DirectoryUnavailableError)
+		},
+	)
+
+	it.each(workSockets)(
+		'passes a bug through on a socket that is still open: $encryption',
+		async ({ url, encryption, factory, connect }) => {
+			const bug = new TypeError('x is undefined')
+			await expect(
+				withDirectory(config(url, encryption), async () => {
+					openThroughFactory(factory, connect)
+					throw bug
+				}),
+			).rejects.toBe(bug)
+		},
+	)
 
 	it('reads a missing CA file as a configuration error, before any client exists', async () => {
 		const missing = Object.assign(new Error('ENOENT'), { code: 'ENOENT', errno: -2 })

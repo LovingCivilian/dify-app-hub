@@ -58,13 +58,31 @@ export async function withDirectory<T>(
 	work: (client: Client) => Promise<T>,
 ): Promise<T> {
 	const tlsOptions = config.encryption === 'none' ? undefined : await tlsOptionsFor(config)
+	// The sockets the factories opened (decision q). On a reset, ldapts rejects the request in flight before it destroys
+	// the socket, and clears `isConnected` only on 'close' (`src/Client.ts:949-1013`); after StartTLS it never does, since
+	// those handlers stay on the TCP socket while the client moves to the TLS one (`:282-288`). Node marks a socket
+	// `destroyed` as soon as destroy() is called (stream docs, `writable.destroyed`).
+	const sockets: net.Socket[] = []
+	const opening = <S extends net.Socket>(connect: (...args: unknown[]) => S) =>
+		oncePerClient((...args) => {
+			const socket = connect(...args)
+			sockets.push(socket)
+			return socket
+		})
 	const client = new Client({
 		url: config.url,
 		connectTimeout: CONNECT_TIMEOUT_MS,
 		timeout: OPERATION_TIMEOUT_MS,
 		...(config.encryption === 'ldaps'
-			? { tlsOptions, createSecureConnection: oncePerClient(connectTls) as typeof tls.connect }
-			: { createConnection: oncePerClient(connectTcp) as typeof net.connect }),
+			? { tlsOptions, createSecureConnection: opening(connectTls) as typeof tls.connect }
+			: {
+					createConnection: opening(connectTcp) as typeof net.connect,
+					// StartTLS upgrades the socket through this factory, once (`startTLS()`, README "Custom connection
+					// factories"); plain never calls it.
+					...(config.encryption === 'starttls'
+						? { createSecureConnection: opening(connectTls) as typeof tls.connect }
+						: {}),
+				}),
 	})
 	try {
 		try {
@@ -78,7 +96,8 @@ export async function withDirectory<T>(
 		try {
 			return await work(client)
 		} catch (error) {
-			if (!(error instanceof ResultCodeError) && !client.isConnected)
+			const dropped = !client.isConnected || sockets.some(socket => socket.destroyed)
+			if (!(error instanceof ResultCodeError) && dropped)
 				throw new DirectoryUnavailableError({ cause: error })
 			throw error
 		}

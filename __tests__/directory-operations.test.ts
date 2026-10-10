@@ -120,4 +120,23 @@ describe('the searches name their limits (decision s)', () => {
 			filter: '(&(objectClass=group)(cn=*eta*))',
 		})
 	})
+
+	// One fixed collation, the same in the container, on a developer's machine and here (MDN `Intl`: without `locales`,
+	// "The implementation's default locale will be used"): CLDR's root order, which English uses (`collation/en.xml`).
+	// A Swedish default would put `Ärger` after `Zeta`, and code-unit order `Zeta` first.
+	it('the admin group search: sorted in English collation whatever the machine', async () => {
+		const { client } = clientAnswering(
+			['Zeta', 'beta', 'Ärger', 'alpha'].map((cn, i) => ({
+				dn: `CN=${cn}`,
+				objectGUID: Buffer.alloc(16, i + 1),
+				cn,
+			})),
+		)
+		expect((await searchGroups(client, config, 'a')).map(group => group.name)).toEqual([
+			'alpha',
+			'Ärger',
+			'beta',
+			'Zeta',
+		])
+	})
 })
