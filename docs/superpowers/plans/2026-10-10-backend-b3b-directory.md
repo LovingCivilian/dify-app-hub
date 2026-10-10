@@ -167,7 +167,7 @@ Spec §3.2 (B3b data model), §6.3 last paragraph (the local provider refuses `l
 
 **Interfaces:**
 
-- Produces: `ACCOUNT_SOURCES`, `AccountSource` from `@/lib/auth/account-source`; `SYNC_TRIGGERS`, `SyncTrigger`, `SYNC_OUTCOMES`, `SyncOutcome`, `SYNC_ERROR_CODES`, `SyncErrorCode`, `LDAP_ENCRYPTIONS`, `LdapEncryption`, `DIRECTORY_GROUP_SEARCH_LIMIT` from `@/lib/directory-status` (client-safe); the columns `users.source`, `users.directoryId`, `users.directoryIdAttribute`, `users.directoryUsername` and the nullable `users.password`; the tables `userGroupDirectoryLinks`, `directorySyncRuns`, all exported from `@/db/schema`; `isDeadlock(error)` from `@/lib/data/db-errors`; the refusal reason `'directory_account'` in `SignInRefusalReason`.
+- Produces: `ACCOUNT_SOURCES`, `AccountSource` from `@/lib/auth/account-source`; `SYNC_TRIGGERS`, `SyncTrigger`, `SYNC_OUTCOMES`, `SyncOutcome`, `SYNC_ERROR_CODES`, `SyncErrorCode`, `LDAP_ENCRYPTIONS`, `LdapEncryption`, `DIRECTORY_KEY_PATTERN`, `DIRECTORY_GROUP_SEARCH_LIMIT` from `@/lib/directory-status` (client-safe); the columns `users.source`, `users.directoryId`, `users.directoryIdAttribute`, `users.directoryUsername` and the nullable `users.password`; the tables `userGroupDirectoryLinks`, `directorySyncRuns`, all exported from `@/db/schema`; `isDeadlock(error)` from `@/lib/data/db-errors`; the refusal reason `'directory_account'` in `SignInRefusalReason`.
 
 **Deviation from the spec text (recorded in ADR-0029, Task 15):** the run table's trigger column is `run_trigger`, not `trigger`: `TRIGGER` is a reserved word in MySQL 8.4 ("Keywords and Reserved Words", marked (R)), and spec §3 itself asks that "Table and column names avoid reserved words". The run table also counts `group_errors` (spec §6.4 step 4: "count the error"), which the spec's list of counts leaves out.
 
@@ -344,6 +344,13 @@ export const SYNC_ERROR_CODES = [
 ] as const
 export type SyncErrorCode = (typeof SYNC_ERROR_CODES)[number]
 
+/**
+ * A directory key in canonical text (spec §3.2): a lowercase 8-4-4-4-12 UUID (RFC 9562 §4). Client-safe, because the
+ * groups form validates the keys it sends with it (Task 12).
+ */
+export const DIRECTORY_KEY_PATTERN =
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
 /** Spec §6.5 "Linking": the most directory groups one search of the groups page shows. */
 export const DIRECTORY_GROUP_SEARCH_LIMIT = 20
 
@@ -501,10 +508,12 @@ export { directorySyncRuns, userGroupDirectoryLinks } from './directory'
 - [ ] **Step 5: Generate the migration and read it**
 
 ```bash
-pnpm db:generate --name b3b-directory
+env DATABASE_URL=mysql://e2e:e2e@127.0.0.1:3307/e2e pnpm db:generate --name b3b-directory
 ```
 
-drizzle-kit reads `DATABASE_URL` from the environment only to connect, which `generate` does not do; if it asks for it, run `env DATABASE_URL=mysql://e2e:e2e@127.0.0.1:3307/e2e pnpm db:generate --name b3b-directory`. Read the generated `db/migrations/<timestamp>_b3b-directory/migration.sql` by hand. Expected: two `CREATE TABLE`, `MODIFY COLUMN \`password\` varchar(255)`, four `ALTER TABLE \`users\` ADD`, the unique index, one `ADD CONSTRAINT … FOREIGN KEY … ON DELETE CASCADE`, and the `CHECK`after the column changes. If the foreign key lacks`ON DELETE CASCADE` (the drizzle-kit defect, spec §3.2), stop and report NEEDS_CONTEXT: do not edit generated SQL by hand.
+`generate` connects to nothing; `drizzle.config.ts` only needs a URL to load (B3a's pre-flight generated with a dummy one).
+
+Read the generated `db/migrations/<timestamp>_b3b-directory/migration.sql` by hand. Expected: two `CREATE TABLE`, `MODIFY COLUMN \`password\` varchar(255)`, four `ALTER TABLE \`users\` ADD`, the unique index, one `ADD CONSTRAINT … FOREIGN KEY … ON DELETE CASCADE`, and the `CHECK`after the column changes. If the foreign key lacks`ON DELETE CASCADE` (the drizzle-kit defect, spec §3.2), stop and report NEEDS_CONTEXT: do not edit generated SQL by hand.
 
 - [ ] **Step 6: Run the schema test and apply the migration to the e2e database**
 
@@ -2565,7 +2574,7 @@ describe('groupSearchFilter (spec §6.5 "Linking")', () => {
 })
 ```
 
-(If `Filter.escape` writes the Buffer bytes in uppercase hex, change the expected `\\90\\39…` string to the case it writes and say so in the report; RFC 4515 §3 accepts both, `HEX = DIGIT / %x41-46 / %x61-66`.)
+(ldapts writes each byte as two lowercase hex digits, `src/filters/Filter.ts` `escape` at `ldapts@b38cfc3`; RFC 4515 §3 accepts either case.)
 
 Create `__tests__/directory-entry.test.ts`:
 
@@ -2657,14 +2666,15 @@ Run: `pnpm exec vitest run __tests__/directory-keys.test.ts __tests__/directory-
 ```ts
 import 'server-only'
 
+import { DIRECTORY_KEY_PATTERN } from '@/lib/directory-status'
+
 /*
  * A directory entry's key (B3 spec §3.2, §6.3 step 6): the only link between an account and its entry (ADR-0026),
  * stored as lowercase GUID text. `objectGUID` arrives as 16 bytes in Microsoft's byte order; `entryUUID` as text.
  */
 
-/** The canonical key text: a lowercase 8-4-4-4-12 UUID (RFC 9562 §4). */
-export const DIRECTORY_KEY_PATTERN =
-	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+/** The canonical key text (Task 1's client-safe vocabulary, so the groups form shares it). */
+export { DIRECTORY_KEY_PATTERN }
 
 /** Decision s: binary when the id attribute is `objectGUID`, compared without case (Keycloak's `isObjectGUID`). */
 export const isBinaryKeyAttribute = (attribute: string): boolean =>
@@ -3348,7 +3358,7 @@ export async function withDirectory<T>(
 }
 ```
 
-If TypeScript refuses either `as typeof …` assertion, report it with the compiler's message (NEEDS_CONTEXT); do not add `@ts-expect-error`.
+A function taking `unknown[]` is assignable to every overload of `net.connect` and `tls.connect`, so TypeScript accepts the assertions in both places; no `@ts-expect-error` is needed.
 
 - [ ] **Step 4: Write `lib/directory/operations.ts`**
 
@@ -7100,31 +7110,19 @@ Spec §6.5 "Linking" (a "Directory groups" field with search; a Server Action be
 **Files:**
 
 - Create: `lib/directory/admin.ts`, `__tests__/directory-admin.test.ts`, `e2e/directory-groups.spec.ts`
-- Modify: `lib/directory-status.ts` (`DIRECTORY_KEY_PATTERN` moves here, Task 5's `keys.ts` imports it), `lib/directory/keys.ts`, `lib/action-result.ts`, `lib/action-failure.ts`, `lib/data/groups.ts`, `app/(admin)/group-management/{page,actions,schemas}.ts(x)`, `components/admin/groups/{group-management,group-form-drawer,group-errors}.ts(x)`, `locales/{en,zh,ar}/translation.json`, `__tests__/{data-groups,group-management-actions,group-management-schemas,group-errors,action-failure,directory-keys}.test.ts`
+- Modify: `lib/action-result.ts`, `lib/action-failure.ts`, `lib/data/groups.ts`, `app/(admin)/group-management/{page,actions,schemas}.ts(x)`, `components/admin/groups/{group-management,group-form-drawer,group-errors}.ts(x)`, `locales/{en,zh,ar}/translation.json`, `__tests__/{data-groups,group-management-actions,group-management-schemas,group-errors,action-failure}.test.ts`
 
 **Interfaces:**
 
 - Consumes: `withDirectory` and `searchGroups` (Task 6), `directoryConfig`, `isDirectoryConfigured` (Task 2), `DirectoryUnavailableError` (Task 6), `userGroupDirectoryLinks` (Task 1), `userGroupMembers`; `assertAdmin` from `@/lib/auth/session`.
-- Produces: `DIRECTORY_KEY_PATTERN` from `@/lib/directory-status` (client-safe); the action code `directory_unavailable`; `searchDirectoryGroups(actor: SessionUser, text: string): Promise<DirectoryGroupOption[]>` and `interface DirectoryGroupOption { key: string; name: string }` from `@/lib/directory/admin`; `searchDirectoryGroupsAction(text: unknown): Promise<ActionResult<DirectoryGroupOption[]>>`; `GroupDto.directoryLinks: { id: string; name: string; missingSince: string | null }[]`; `GroupInput.directoryGroups: { id: string; name: string }[]`; `DIRECTORY_SEARCH_MIN` (2) and `directoryGroupSearchSchema` in the groups `schemas.ts`.
+- Produces: the action code `directory_unavailable`; `searchDirectoryGroups(actor: SessionUser, text: string): Promise<DirectoryGroupOption[]>` and `interface DirectoryGroupOption { key: string; name: string }` from `@/lib/directory/admin`; `searchDirectoryGroupsAction(text: unknown): Promise<ActionResult<DirectoryGroupOption[]>>`; `GroupDto.directoryLinks: { id: string; name: string; missingSince: string | null }[]`; `GroupInput.directoryGroups: { id: string; name: string }[]`; `DIRECTORY_SEARCH_MIN` (2) and `directoryGroupSearchSchema` in the groups `schemas.ts`.
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
 - **al. The search starts at two characters** and is debounced in the browser (300 ms, ahooks `useDebounceFn`), as antd's "Search and Select Users" demo debounces a remote search (`npx -y @ant-design/cli demo Select select-users --version 6.6.5`); the server bounds the result at twenty (spec §6.5) and the text at 64 characters. No reference sets a minimum: Mattermost searches the directory's groups with free text on Enter (`mattermost@4d94455a:webapp/channels/src/components/admin_console/group_settings/groups_list/groups_list.tsx:284-319`) and GitLab offers "a dropdown list with matching CNs" as the admin types (`gitlabhq@0739b8bf:doc/user/group/access_and_permissions.md:303-313`), so the two characters are the hub's guard against one-letter substring searches of the whole directory; when twenty come back, the list says so and asks for a narrower search (`ad-and-reference-projects.md` B.7). The link stores the group's key, as Mattermost stores its Group ID attribute ("such as `entryUUID` or `objectGUID`", `mattermost/docs@bd09d959:source/administration-guide/onboard/ad-ldap-groups-synchronization.rst:46-48`), not Grafana's DN or GitLab's CN.
 - **am. Links are saved with the group, in its transaction**: removed links are deleted, new ones inserted, kept ones get the picked name. When the save leaves the group with no link, its `directory` memberships are deleted in the same transaction, since nothing would refresh them (decision f); with links left, the next sync, Sync now or each member's next directory sign-in recomputes them (spec §6.4 step 4, §6.3 step 7). The drawer's hint says so. The key the browser sends is checked against the canonical form; a key that matches no directory group is harmless and is marked missing by the next sync.
 
-- [ ] **Step 1: Move the key pattern to the client-safe vocabulary**
-
-Group ids from the form are validated in `app/(admin)/group-management/schemas.ts`, which client components import, so the pattern cannot live in the server-only `lib/directory/keys.ts`. Add to `lib/directory-status.ts`:
-
-```ts
-/** A directory key in canonical text (spec §3.2): a lowercase 8-4-4-4-12 UUID (RFC 9562 §4). */
-export const DIRECTORY_KEY_PATTERN =
-	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-```
-
-In `lib/directory/keys.ts`, replace its own `DIRECTORY_KEY_PATTERN` declaration by `import { DIRECTORY_KEY_PATTERN } from '@/lib/directory-status'` and `export { DIRECTORY_KEY_PATTERN }` (so Task 5's test keeps importing it from there).
-
-- [ ] **Step 2: Write the failing tests**
+- [ ] **Step 1: Write the failing tests**
 
 Create `__tests__/directory-admin.test.ts`:
 
@@ -7382,7 +7380,7 @@ In `__tests__/group-errors.test.ts`, add `['directory_unavailable', 'admin_group
 
 Run: `pnpm exec vitest run __tests__/directory-admin.test.ts __tests__/group-management-schemas.test.ts __tests__/data-groups.test.ts __tests__/group-management-actions.test.ts __tests__/action-failure.test.ts __tests__/group-errors.test.ts` Expected: FAIL.
 
-- [ ] **Step 3: The action code and its mapping**
+- [ ] **Step 2: The action code and its mapping**
 
 `lib/action-result.ts`: add `| 'directory_unavailable'` to `ActionErrorCode` (after `dify_unreachable`).
 
@@ -7398,7 +7396,7 @@ if (error instanceof DirectoryUnavailableError) {
 
 `components/admin/groups/group-errors.ts`: `case 'directory_unavailable': return 'admin_groups.directory_unavailable' as const`.
 
-- [ ] **Step 4: `lib/directory/admin.ts`**
+- [ ] **Step 3: `lib/directory/admin.ts`**
 
 ```ts
 import 'server-only'
@@ -7431,7 +7429,7 @@ export async function searchDirectoryGroups(
 }
 ```
 
-- [ ] **Step 5: The schemas and the action**
+- [ ] **Step 4: The schemas and the action**
 
 In `app/(admin)/group-management/schemas.ts`, import `DIRECTORY_KEY_PATTERN` from `@/lib/directory-status` and add:
 
@@ -7475,7 +7473,7 @@ export async function searchDirectoryGroupsAction(
 }
 ```
 
-- [ ] **Step 6: The groups DAL**
+- [ ] **Step 5: The groups DAL**
 
 In `lib/data/groups.ts`:
 
@@ -7570,7 +7568,7 @@ if (currentLinks.length > 0 && input.directoryGroups.length === 0)
 
 and add to `__tests__/data-groups.test.ts`'s link describe a render of that last delete through a small exported builder if you extract one (`removeDirectoryMembers(tx, groupId)`, asserting `source = 'directory'`); extract it, so the SQL is pinned.
 
-- [ ] **Step 7: The page and the table**
+- [ ] **Step 6: The page and the table**
 
 `app/(admin)/group-management/page.tsx` passes `directoryEnabled={isDirectoryConfigured()}` to `GroupManagement`, which passes it to the drawer and, in the table, adds a column after the members when it is true:
 
@@ -7605,7 +7603,7 @@ and add to `__tests__/data-groups.test.ts`'s link describe a render of that last
 
 The members count already counts each account once (B3a).
 
-- [ ] **Step 8: The drawer**
+- [ ] **Step 7: The drawer**
 
 In `components/admin/groups/group-form-drawer.tsx`:
 
@@ -7725,7 +7723,7 @@ function DirectoryGroupSelect({
 
 (imports: `useRef`, `useState` from `react`; `useDebounceFn` from `ahooks`; `Spin`, `Tag`, `Flex`, `Typography`, `theme` from `antd`; `searchDirectoryGroupsAction`; `DIRECTORY_SEARCH_MIN`; `DIRECTORY_GROUP_SEARCH_LIMIT` from `@/lib/directory-status`.) Calling the Server Action from the search handler without a transition is documented (Next `02-guides/server-actions.md`: Server Functions "can be invoked … in event handlers"); it changes nothing, so it needs no `refresh()`.
 
-- [ ] **Step 9: The texts**
+- [ ] **Step 8: The texts**
 
 Add to `admin_groups` in each translation file:
 
@@ -7742,7 +7740,7 @@ Add to `admin_groups` in each translation file:
 | `directory_members_hint` | Added by the directory sync; change them in the directory. | 由目录同步添加；请在目录中修改。 | أضافتهم مزامنة الدليل؛ غيّرهم في الدليل. |
 | `directory_unavailable` | The directory is unreachable. Try again later. | 无法连接目录，请稍后重试。 | تعذّر الوصول إلى الدليل. حاول مرة أخرى لاحقًا. |
 
-- [ ] **Step 10: The e2e spec**
+- [ ] **Step 9: The e2e spec**
 
 Create `e2e/directory-groups.spec.ts`:
 
@@ -7831,7 +7829,7 @@ test.describe('directory groups on the groups page (spec §6.5)', () => {
 
 Run (with `pnpm dev` stopped): `pnpm exec playwright test e2e/directory-groups.spec.ts e2e/admin-groups.spec.ts` Expected: every test passes on the three projects.
 
-- [ ] **Step 11: Verify and commit**
+- [ ] **Step 10: Verify and commit**
 
 ```bash
 pnpm exec next typegen && pnpm exec tsc --noEmit
@@ -7839,7 +7837,7 @@ pnpm exec oxlint <every changed file>
 pnpm exec oxfmt --write <every changed file> && pnpm exec oxfmt --check <every changed file>
 npx -y @ant-design/cli lint ./
 pnpm test
-git add lib/directory-status.ts lib/directory/keys.ts lib/directory/admin.ts lib/action-result.ts lib/action-failure.ts lib/data/groups.ts "app/(admin)/group-management/page.tsx" "app/(admin)/group-management/actions.ts" "app/(admin)/group-management/schemas.ts" components/admin/groups/group-management.tsx components/admin/groups/group-form-drawer.tsx components/admin/groups/group-errors.ts locales/en/translation.json locales/zh/translation.json locales/ar/translation.json e2e/directory-groups.spec.ts __tests__/directory-admin.test.ts __tests__/data-groups.test.ts __tests__/group-management-actions.test.ts __tests__/group-management-schemas.test.ts __tests__/group-errors.test.ts __tests__/action-failure.test.ts
+git add lib/directory/admin.ts lib/action-result.ts lib/action-failure.ts lib/data/groups.ts "app/(admin)/group-management/page.tsx" "app/(admin)/group-management/actions.ts" "app/(admin)/group-management/schemas.ts" components/admin/groups/group-management.tsx components/admin/groups/group-form-drawer.tsx components/admin/groups/group-errors.ts locales/en/translation.json locales/zh/translation.json locales/ar/translation.json e2e/directory-groups.spec.ts __tests__/directory-admin.test.ts __tests__/data-groups.test.ts __tests__/group-management-actions.test.ts __tests__/group-management-schemas.test.ts __tests__/group-errors.test.ts __tests__/action-failure.test.ts
 git commit -m "feat(groups): link hub groups to directory groups
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
