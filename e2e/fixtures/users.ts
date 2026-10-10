@@ -45,6 +45,32 @@ export const seedUser = async ({
 	return id
 }
 
+/**
+ * A directory account written straight to the e2e MySQL (no password, source `ldap`, a key), as the first directory
+ * sign-in creates one (ADR-0029). Its email must carry the project name; the spec deletes it with deleteUsersLike.
+ */
+export const seedDirectoryUser = async ({
+	email,
+	name,
+	username,
+	notInDirectorySince = null,
+}: {
+	email: string
+	name: string
+	username: string
+	notInDirectorySince?: Date | null
+}): Promise<string> => {
+	const id = randomUUID()
+	await withDb(async db => {
+		await db.execute('DELETE FROM users WHERE email = ?', [email])
+		await db.execute(
+			"INSERT INTO users (id, name, email, password, source, directory_id, directory_id_attribute, directory_username, directory_deactivated_at) VALUES (?, ?, ?, NULL, 'ldap', ?, 'objectGUID', ?, ?)",
+			[id, name, email, randomUUID(), username, notInDirectorySince],
+		)
+	})
+	return id
+}
+
 /** Deletes the accounts whose email matches a LIKE pattern, and their reset tokens. */
 export const deleteUsersLike = (pattern: string) =>
 	withDb(async db => {

@@ -47,7 +47,11 @@ import styles from './user-management.module.css'
 import { userErrorKey } from './user-errors'
 import UserFormDrawer from './user-form-drawer'
 
-/** The user table (charter §4.2): the role column, Server Actions for every write; the status column shows Active or Deactivated (ADR-0027) instead of the fixed tag; dates format in the browser. */
+/**
+ * The user table (charter §4.2): the role column, Server Actions for every write; the source column tells local and
+ * directory accounts apart (ADR-0029); the status column shows Active, or a tag per deactivation marker (ADR-0027);
+ * dates format in the browser.
+ */
 export default function UserManagement({
 	users,
 	currentUser,
@@ -69,8 +73,10 @@ export default function UserManagement({
 		setEditing(user)
 		setDrawerOpen(true)
 	}
-	// The id too (ADR-0026): an id copied from Dify's logs or Langfuse finds its account.
-	const shown = users.filter(user => matchesQuery([user.name, user.email, user.id], query))
+	// The id too (ADR-0026): an id copied from Dify's logs or Langfuse finds its account; and a directory login name.
+	const shown = users.filter(user =>
+		matchesQuery([user.name, user.email, user.id, user.directoryUsername ?? ''], query),
+	)
 	// Who deactivated an account, by name or email; null when that account no longer exists.
 	const nameOf = (id: string | null) => {
 		const found = users.find(user => user.id === id)
@@ -109,6 +115,24 @@ export default function UserManagement({
 					</div>
 				</Space>
 			),
+		},
+		{
+			title: t('admin_users.column_source'),
+			key: 'source',
+			render: (_, user) =>
+				user.source === 'ldap' ? (
+					<Space
+						orientation="vertical"
+						size={0}
+					>
+						<Tag color="blue">{t('admin_users.source_directory')}</Tag>
+						{user.directoryUsername && (
+							<Typography.Text type="secondary">{user.directoryUsername}</Typography.Text>
+						)}
+					</Space>
+				) : (
+					<Tag>{t('admin_users.source_local')}</Tag>
+				),
 		},
 		{
 			// ADR-0026: the account id is the Dify end user; the owner copies it into Dify's log search or Langfuse.
@@ -155,32 +179,56 @@ export default function UserManagement({
 			render: (_, user) => {
 				if (user.active) return <Tag color="green">{t('admin_users.status_active')}</Tag>
 				const deactivation = user.adminDeactivation
-				if (!deactivation) return <Tag color="red">{t('admin_users.status_deactivated')}</Tag>
-				const by = nameOf(deactivation.by)
-				// Who and when are in the tooltip only, so it opens on keyboard focus too: the tag takes focus and the
+				const by = deactivation ? nameOf(deactivation.by) : null
+				// Who and when are in the tooltips only, so each opens on keyboard focus too: the tag takes focus and the
 				// trigger includes `focus` (antd Tooltip FAQ, "How to support keyboard accessibility?"; WAI-ARIA APG,
 				// "Tooltip Pattern"); antd describes the tag by the open tooltip (`aria-describedby`).
 				return (
-					<Tooltip
-						trigger={['hover', 'focus']}
-						title={
-							<>
-								<div>
-									{by
-										? t('admin_users.deactivated_by', { name: by })
-										: t('admin_users.deactivated_by_unknown')}
-								</div>
-								<ClientDateTime value={deactivation.at} />
-							</>
-						}
+					<Flex
+						wrap
+						gap="small"
 					>
-						<Tag
-							color="red"
-							tabIndex={0}
-						>
-							{t('admin_users.status_deactivated')}
-						</Tag>
-					</Tooltip>
+						{deactivation && (
+							<Tooltip
+								trigger={['hover', 'focus']}
+								title={
+									<>
+										<div>
+											{by
+												? t('admin_users.deactivated_by', { name: by })
+												: t('admin_users.deactivated_by_unknown')}
+										</div>
+										<ClientDateTime value={deactivation.at} />
+									</>
+								}
+							>
+								<Tag
+									color="red"
+									tabIndex={0}
+								>
+									{t('admin_users.status_deactivated')}
+								</Tag>
+							</Tooltip>
+						)}
+						{user.directoryDeactivation && (
+							<Tooltip
+								trigger={['hover', 'focus']}
+								title={
+									<>
+										<div>{t('admin_users.not_in_directory_since')}</div>
+										<ClientDateTime value={user.directoryDeactivation.at} />
+									</>
+								}
+							>
+								<Tag
+									color="orange"
+									tabIndex={0}
+								>
+									{t('admin_users.status_not_in_directory')}
+								</Tag>
+							</Tooltip>
+						)}
+					</Flex>
 				)
 			},
 		},
@@ -199,7 +247,10 @@ export default function UserManagement({
 			key: 'actions',
 			render: (_, user) => (
 				<Space>
-					{(user.id === currentUser.id || canManage(currentUser.role, user.role)) && (
+					{/* Your own directory row has nothing you may edit: its name, email and password are the directory's,
+					    and your role is fixed (decision an). */}
+					{((user.id === currentUser.id && user.source === 'local') ||
+						canManage(currentUser.role, user.role)) && (
 						<Button
 							type="text"
 							icon={<EditOutlined />}
@@ -208,7 +259,9 @@ export default function UserManagement({
 							{t('common.edit')}
 						</Button>
 					)}
-					{canManage(currentUser.role, user.role) && user.active && (
+					{/* Decision ao: offered while the admin marker is empty, so an account the directory has deactivated
+					    can be kept off when the directory lists it again (ADR-0027's two markers). */}
+					{canManage(currentUser.role, user.role) && !user.adminDeactivation && (
 						<Popconfirm
 							title={t('admin_users.deactivate_confirm_title')}
 							description={t('admin_users.deactivate_confirm_description')}
@@ -245,7 +298,11 @@ export default function UserManagement({
 					{canManage(currentUser.role, user.role) && (
 						<Popconfirm
 							title={t('admin_users.delete_confirm_title')}
-							description={t('admin_users.delete_confirm_description')}
+							description={t(
+								user.source === 'ldap'
+									? 'admin_users.delete_directory_confirm_description'
+									: 'admin_users.delete_confirm_description',
+							)}
 							okText={t('common.delete')}
 							okButtonProps={{ danger: true }}
 							cancelText={t('common.cancel')}

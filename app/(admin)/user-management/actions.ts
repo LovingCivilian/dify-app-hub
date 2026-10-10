@@ -5,9 +5,14 @@ import { refresh } from 'next/cache'
 import { invalidInput, toActionFailure } from '@/lib/action-failure'
 import { fail, type ActionResult } from '@/lib/action-result'
 import { requireAdmin } from '@/lib/auth/session'
-import { createUser, deleteUser, setUserActive, updateUser } from '@/lib/data/users'
+import { createUser, deleteUser, setUserActive, updateUser, updateUserRole } from '@/lib/data/users'
 
-import { createUserInputSchema, userIdSchema, userInputSchema } from './schemas'
+import {
+	createUserInputSchema,
+	userIdSchema,
+	userInputSchema,
+	userRoleInputSchema,
+} from './schemas'
 
 /*
  * Thin Server Actions (charter §4.2): verify the admin, validate, call the DAL, refresh the route (next/cache
@@ -42,6 +47,20 @@ export async function updateUserAction(id: string, input: unknown): Promise<Acti
 		return result
 	} catch (error) {
 		return toActionFailure(error, 'updateUserAction')
+	}
+}
+
+export async function updateUserRoleAction(id: string, input: unknown): Promise<ActionResult> {
+	try {
+		const actor = await requireAdmin()
+		if (!userIdSchema.safeParse(id).success) return fail('not_found')
+		const parsed = userRoleInputSchema.safeParse(input)
+		if (!parsed.success) return invalidInput(parsed.error)
+		const result = await updateUserRole(actor, id, parsed.data.role)
+		if (result.ok) refresh()
+		return result
+	} catch (error) {
+		return toActionFailure(error, 'updateUserRoleAction')
 	}
 }
 

@@ -16,6 +16,9 @@ export const userInputSchema = z.object({
 
 export const createUserInputSchema = userInputSchema.extend({ password: passwordField })
 
+/** A directory account's edit (decision an): the role alone. */
+export const userRoleInputSchema = z.object({ role: z.enum(ROLES) })
+
 /**
  * Account ids are not checked as UUIDs (decision h): rows older than this line's generator may use another
  * format; the column is varchar(36), and an unknown id answers not_found.

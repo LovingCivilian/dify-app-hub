@@ -296,7 +296,16 @@
 		"reactivate_success": "تمت إعادة تفعيل الحساب",
 		"cannot_deactivate_self": "لا يمكنك تعطيل حسابك",
 		"deactivated_by": "عطّله {{name}}",
-		"deactivated_by_unknown": "عطّله حساب لم يعد موجودًا"
+		"deactivated_by_unknown": "عطّله حساب لم يعد موجودًا",
+		"column_source": "المصدر",
+		"source_local": "محلي",
+		"source_directory": "الدليل",
+		"status_not_in_directory": "غير موجود في الدليل",
+		"not_in_directory_since": "غير موجود في الدليل منذ",
+		"directory_username": "اسم المستخدم في الدليل",
+		"directory_account": "حساب الدليل",
+		"directory_fields_hint": "يأتي الاسم والبريد الإلكتروني من الدليل، ويُحدَّثان عند كل تسجيل دخول عبر الدليل وكل مزامنة.",
+		"delete_directory_confirm_description": "حذف حساب الدليل هذا؟ عند تسجيل دخوله التالي عبر الدليل سيحصل الشخص على حساب جديد بسجل Dify جديد. للإبقاء على الحساب، عطّله بدلًا من ذلك."
 	},
 	"admin_groups": {
 		"subtitle": "اجمع الحسابات في مجموعات لمنحها التطبيقات معًا",

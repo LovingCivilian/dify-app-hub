@@ -5,6 +5,7 @@ import { asc, desc, eq, sql } from 'drizzle-orm'
 import { getDb, type Db } from '@/db'
 import { passwordResetTokens, userGroupMembers, userGroups, users } from '@/db/schema'
 import { fail, ok, type ActionErrorCode, type ActionResult } from '@/lib/action-result'
+import type { AccountSource } from '@/lib/auth/account-source'
 import { isActive } from '@/lib/auth/account-status'
 import { hashPassword, verifyPassword } from '@/lib/auth/password'
 import { canManage, type Role } from '@/lib/auth/roles'
@@ -29,10 +30,16 @@ export interface UserDto {
 	name: string | null
 	email: string
 	role: Role
+	/** Who owns the account's identity (ADR-0029). */
+	source: AccountSource
+	/** The directory login name of a directory account. */
+	directoryUsername: string | null
 	/** Both deactivation markers empty (ADR-0027). */
 	active: boolean
 	/** Set while an admin has deactivated the account: when, and that admin's id (null when the record names nobody). */
 	adminDeactivation: { at: string; by: string | null } | null
+	/** Set while the directory sync has found the account missing (ADR-0027's directory marker): since when. */
+	directoryDeactivation: { at: string } | null
 	/** The groups it belongs to, by any source, each once. */
 	groups: { id: string; name: string }[]
 	createdAt: string
@@ -53,6 +60,8 @@ const dtoColumns = {
 	name: users.name,
 	email: users.email,
 	role: users.role,
+	source: users.source,
+	directoryUsername: users.directoryUsername,
 	adminDeactivatedAt: users.adminDeactivatedAt,
 	adminDeactivatedBy: users.adminDeactivatedBy,
 	directoryDeactivatedAt: users.directoryDeactivatedAt,
@@ -66,6 +75,8 @@ type UserDtoRow = Pick<
 	| 'name'
 	| 'email'
 	| 'role'
+	| 'source'
+	| 'directoryUsername'
 	| 'adminDeactivatedAt'
 	| 'adminDeactivatedBy'
 	| 'directoryDeactivatedAt'
@@ -81,9 +92,14 @@ export const toUserDto = (
 	name: row.name,
 	email: row.email,
 	role: row.role,
+	source: row.source,
+	directoryUsername: row.directoryUsername,
 	active: isActive(row),
 	adminDeactivation: row.adminDeactivatedAt
 		? { at: row.adminDeactivatedAt.toISOString(), by: row.adminDeactivatedBy }
+		: null,
+	directoryDeactivation: row.directoryDeactivatedAt
+		? { at: row.directoryDeactivatedAt.toISOString() }
 		: null,
 	groups,
 	createdAt: row.createdAt.toISOString(),
@@ -167,7 +183,12 @@ export const deactivateRefusal = (pair: ActorAndTarget): ActionErrorCode | null 
  */
 export const lockTarget = (tx: Pick<Tx, 'select'>, id: string) =>
 	tx
-		.select({ id: users.id, role: users.role, adminDeactivatedAt: users.adminDeactivatedAt })
+		.select({
+			id: users.id,
+			role: users.role,
+			adminDeactivatedAt: users.adminDeactivatedAt,
+			source: users.source,
+		})
 		.from(users)
 		.where(eq(users.id, id))
 		.limit(1)
@@ -242,8 +263,9 @@ export async function createUser(
 }
 
 /**
- * Updates name, email and, for an account the actor's rank manages, the role and the password: a password set here
- * revokes that account's sessions (sessionVersion + 1; charter §4.2 "a password change revokes every session").
+ * Updates a local account's name, email and, for an account the actor's rank manages, the role and the password: a
+ * password set here revokes that account's sessions (sessionVersion + 1; charter §4.2 "a password change revokes every
+ * session"). A directory account is refused (decision an; updateUserRole changes its role).
  */
 export async function updateUser(
 	actor: SessionUser,
@@ -251,12 +273,27 @@ export async function updateUser(
 	input: UserInput,
 ): Promise<ActionResult> {
 	assertAdmin(actor)
+	const db = getDb()
+	if (input.password) {
+		// A directory account has no hub password (decision an): refused on a plain read before the hash, so a refused
+		// write costs no bcrypt work, as Grafana's AdminUpdateUserPassword and Mattermost's UpdatePasswordAsUser refuse an
+		// external account on a read before they hash. The locked row below decides again (decision d).
+		const [current] = await db
+			.select({ source: users.source })
+			.from(users)
+			.where(eq(users.id, id))
+			.limit(1)
+		if (current?.source === 'ldap') return fail('forbidden')
+	}
 	// Hashed before the transaction so the row lock is held for the queries only.
 	const passwordHash = input.password ? await hashPassword(input.password) : undefined
 	try {
-		return await getDb().transaction(async tx => {
+		return await db.transaction(async tx => {
 			const [target] = await lockTarget(tx, id)
 			if (!target) return fail('not_found')
+			// Decision an: a directory account's name and email are the directory's and it has no hub password; its role
+			// changes through updateUserRole.
+			if (target.source === 'ldap') return fail('forbidden')
 			const refusal = updateRefusal({ actor, target, input })
 			if (refusal) return fail(refusal)
 			const [taken] = await emailTakenBy(tx, input.email)
@@ -278,6 +315,27 @@ export async function updateUser(
 		if (isDuplicateEntry(error)) return fail('email_in_use')
 		throw error
 	}
+}
+
+/**
+ * Changes an account's role only (decision an): the edit of a directory account, whose other fields the directory owns.
+ * The rank map applies against the locked target row as in updateUser (ADR-0024 decision d): your own role is fixed,
+ * and another account's only within the roles the actor's rank manages.
+ */
+export async function updateUserRole(
+	actor: SessionUser,
+	id: string,
+	role: Role,
+): Promise<ActionResult> {
+	assertAdmin(actor)
+	return getDb().transaction(async tx => {
+		const [target] = await lockTarget(tx, id)
+		if (!target) return fail('not_found')
+		const refusal = updateRefusal({ actor, target, input: { role } })
+		if (refusal) return fail(refusal)
+		await tx.update(users).set({ role }).where(eq(users.id, id))
+		return ok(undefined)
+	})
 }
 
 /** Deletes an account the actor's rank manages, and its reset tokens (decision e). */

@@ -296,7 +296,16 @@
 		"reactivate_success": "账户已重新启用",
 		"cannot_deactivate_self": "你不能停用自己的账户",
 		"deactivated_by": "由 {{name}} 停用",
-		"deactivated_by_unknown": "由一个已不存在的账户停用"
+		"deactivated_by_unknown": "由一个已不存在的账户停用",
+		"column_source": "来源",
+		"source_local": "本地",
+		"source_directory": "目录",
+		"status_not_in_directory": "不在目录中",
+		"not_in_directory_since": "自以下时间起在目录中未找到",
+		"directory_username": "目录用户名",
+		"directory_account": "目录账户",
+		"directory_fields_hint": "姓名和邮箱来自目录，每次目录登录和同步时都会更新。",
+		"delete_directory_confirm_description": "确定要删除这个目录账户吗？此人下次通过目录登录时会获得一个新账户和新的 Dify 记录。如需保留该账户，请改为停用。"
 	},
 	"admin_groups": {
 		"subtitle": "将账户分组，统一授予应用",

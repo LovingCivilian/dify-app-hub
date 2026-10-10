@@ -1,19 +1,32 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getServerSession, createUser, updateUser, deleteUser, setUserActive, refresh } = vi.hoisted(
-	() => ({
-		getServerSession: vi.fn(),
-		createUser: vi.fn(),
-		updateUser: vi.fn(),
-		deleteUser: vi.fn(),
-		setUserActive: vi.fn(),
-		refresh: vi.fn(),
-	}),
-)
+const {
+	getServerSession,
+	createUser,
+	updateUser,
+	updateUserRole,
+	deleteUser,
+	setUserActive,
+	refresh,
+} = vi.hoisted(() => ({
+	getServerSession: vi.fn(),
+	createUser: vi.fn(),
+	updateUser: vi.fn(),
+	updateUserRole: vi.fn(),
+	deleteUser: vi.fn(),
+	setUserActive: vi.fn(),
+	refresh: vi.fn(),
+}))
 vi.mock('next-auth/next', () => ({ getServerSession }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
-vi.mock('@/lib/data/users', () => ({ createUser, updateUser, deleteUser, setUserActive }))
+vi.mock('@/lib/data/users', () => ({
+	createUser,
+	updateUser,
+	updateUserRole,
+	deleteUser,
+	setUserActive,
+}))
 vi.mock('next/cache', () => ({ refresh }))
 
 import {
@@ -22,13 +35,22 @@ import {
 	deleteUserAction,
 	reactivateUserAction,
 	updateUserAction,
+	updateUserRoleAction,
 } from '@/app/(admin)/user-management/actions'
 
 const admin = { id: 'a1', email: 'admin@example.com', name: 'Admin', role: 'admin' }
 const input = { name: 'Jane', email: 'jane@example.com', role: 'user', password: 'password-1' }
 
 beforeEach(() => {
-	for (const fn of [getServerSession, createUser, updateUser, deleteUser, setUserActive, refresh])
+	for (const fn of [
+		getServerSession,
+		createUser,
+		updateUser,
+		updateUserRole,
+		deleteUser,
+		setUserActive,
+		refresh,
+	])
 		fn.mockReset()
 	getServerSession.mockResolvedValue({ user: admin })
 })
@@ -37,6 +59,7 @@ describe('user actions', () => {
 	it.each([
 		['createUserAction', () => createUserAction(input)],
 		['updateUserAction', () => updateUserAction('u9', input)],
+		['updateUserRoleAction', () => updateUserRoleAction('u9', { role: 'user' })],
 		['deleteUserAction', () => deleteUserAction('u9')],
 		['deactivateUserAction', () => deactivateUserAction('u9')],
 		['reactivateUserAction', () => reactivateUserAction('u9')],
@@ -47,7 +70,7 @@ describe('user actions', () => {
 			expect(await call()).toEqual({ ok: false, code: 'forbidden' })
 			getServerSession.mockResolvedValue(null)
 			expect(await call()).toEqual({ ok: false, code: 'unauthorized' })
-			for (const fn of [createUser, updateUser, deleteUser, setUserActive, refresh])
+			for (const fn of [createUser, updateUser, updateUserRole, deleteUser, setUserActive, refresh])
 				expect(fn).not.toHaveBeenCalled()
 		},
 	)
@@ -102,5 +125,24 @@ describe('user actions', () => {
 		expect(setUserActive).toHaveBeenLastCalledWith(admin, 'u9', true)
 		expect(refresh).toHaveBeenCalledTimes(2)
 		expect(await deactivateUserAction('x'.repeat(37))).toEqual({ ok: false, code: 'not_found' })
+	})
+
+	it('changes a role through the DAL with the verified admin, and refuses anything but a role', async () => {
+		updateUserRole.mockResolvedValue({ ok: true, data: undefined })
+		expect(await updateUserRoleAction('u9', { role: 'admin', password: 'sneaky-1' })).toEqual({
+			ok: true,
+			data: undefined,
+		})
+		// zod's object strips unknown keys (zod 4 "Objects"): only the role reaches the DAL.
+		expect(updateUserRole).toHaveBeenCalledWith(admin, 'u9', 'admin')
+		expect(refresh).toHaveBeenCalledTimes(1)
+		expect(await updateUserRoleAction('u9', { role: 'superuser' })).toMatchObject({
+			ok: false,
+			code: 'invalid_input',
+		})
+		expect(await updateUserRoleAction('', { role: 'user' })).toEqual({
+			ok: false,
+			code: 'not_found',
+		})
 	})
 })

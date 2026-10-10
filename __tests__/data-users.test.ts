@@ -2,11 +2,18 @@ import { drizzle } from 'drizzle-orm/mysql2'
 import { DrizzleQueryError, type SQL } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { database } = vi.hoisted(() => ({
+const { database, hashPassword } = vi.hoisted(() => ({
 	/** The database a write test hands the DAL; the pure tests leave it unset, so any query throws. */
 	database: { value: undefined as unknown },
+	/** bcrypt's work, watched so a refusal can be shown to come before it. */
+	hashPassword: vi.fn((password: string) => Promise.resolve(`hash:${password}`)),
 }))
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
+// Vitest "Mocking Specific Exports of a Module": the rest of the module keeps its own behaviour.
+vi.mock(import('@/lib/auth/password'), async importOriginal => ({
+	...(await importOriginal()),
+	hashPassword,
+}))
 vi.mock('@/db', () => ({
 	getDb: () => {
 		if (!database.value) throw new Error('not used by the pure tests')
@@ -29,6 +36,7 @@ import {
 	toUserDtos,
 	updateRefusal,
 	updateUser,
+	updateUserRole,
 } from '@/lib/data/users'
 import { passwordResetTokens, users } from '@/db/schema'
 
@@ -47,6 +55,8 @@ describe('toUserDto', () => {
 				name: null,
 				email: 'a@b.c',
 				role: 'admin',
+				source: 'local' as const,
+				directoryUsername: null,
 				adminDeactivatedAt: null,
 				adminDeactivatedBy: null,
 				directoryDeactivatedAt: null,
@@ -58,8 +68,11 @@ describe('toUserDto', () => {
 			name: null,
 			email: 'a@b.c',
 			role: 'admin',
+			source: 'local',
+			directoryUsername: null,
 			active: true,
 			adminDeactivation: null,
+			directoryDeactivation: null,
 			groups: [],
 			createdAt: '2026-01-15T09:05:00.000Z',
 			updatedAt: '2026-01-15T09:05:00.000Z',
@@ -77,6 +90,8 @@ describe('toUserDto with markers and groups', () => {
 					name: null,
 					email: 'a@b.c',
 					role: 'user',
+					source: 'local' as const,
+					directoryUsername: null,
 					adminDeactivatedAt: at,
 					adminDeactivatedBy: 'o1',
 					directoryDeactivatedAt: null,
@@ -100,6 +115,8 @@ describe('toUserDto with markers and groups', () => {
 				name: null,
 				email: 'a@b.c',
 				role: 'user',
+				source: 'local' as const,
+				directoryUsername: null,
 				adminDeactivatedAt: null,
 				adminDeactivatedBy: null,
 				directoryDeactivatedAt: at,
@@ -118,6 +135,8 @@ describe('toUserDtos (listUsers)', () => {
 			name: null,
 			email: `${id}@b.c`,
 			role: 'user' as const,
+			source: 'local' as const,
+			directoryUsername: null,
 			adminDeactivatedAt: null,
 			adminDeactivatedBy: null,
 			directoryDeactivatedAt: null,
@@ -359,7 +378,128 @@ describe('the users DAL refuses a non-admin actor before any query (Review Focus
 		['updateUser', () => updateUser(member, 'u9', { name: 'N', email: 'n@e.com', role: 'user' })],
 		['deleteUser', () => deleteUser(member, 'u9')],
 		['setUserActive', () => setUserActive(member, 'u9', false)],
+		['updateUserRole', () => updateUserRole(member, 'u9', 'user')],
 	] as const)('%s', async (_name, call) => {
 		await expect(call()).rejects.toMatchObject({ name: 'AuthError', code: 'forbidden' })
+	})
+})
+
+describe('directory accounts (spec §6.3, decision an)', () => {
+	it('shows a directory account with its source, username and the directory marker', () => {
+		const at = new Date('2026-10-10T08:00:00.000Z')
+		expect(
+			toUserDto({
+				id: 'd1',
+				name: 'Bob',
+				email: 'bob@example.com',
+				role: 'user',
+				source: 'ldap',
+				directoryUsername: 'bob',
+				adminDeactivatedAt: null,
+				adminDeactivatedBy: null,
+				directoryDeactivatedAt: at,
+				createdAt: at,
+				updatedAt: at,
+			}),
+		).toMatchObject({
+			source: 'ldap',
+			directoryUsername: 'bob',
+			active: false,
+			adminDeactivation: null,
+			directoryDeactivation: { at: '2026-10-10T08:00:00.000Z' },
+		})
+	})
+
+	it('reads the source under the lock', () => {
+		expect(lockTarget(drizzle.mock(), 'u9').toSQL().sql).toMatch(
+			/^select [^]*`source`[^]* from `users` /,
+		)
+	})
+
+	/** A database whose transaction answers the locking read with `target` and records updates. */
+	const withTarget = (target: {
+		id: string
+		role: 'user' | 'admin'
+		adminDeactivatedAt: null
+		source: 'local' | 'ldap'
+	}) => {
+		const updates: { values: unknown; condition: SQL }[] = []
+		const tx = {
+			select: () => ({
+				from: () => ({
+					where: () => ({
+						// The locking read (lockTarget) ends in .for('update'); a plain read (the email check) awaits
+						// .limit() itself and finds the email free, so a refusal that came too late would reach the write.
+						limit: () =>
+							Object.assign(Promise.resolve([]), {
+								for: (strength: string) =>
+									strength === 'update'
+										? Promise.resolve([target])
+										: Promise.reject(new Error(strength)),
+							}),
+					}),
+				}),
+			}),
+			update: () => ({
+				set: (values: unknown) => ({
+					where: (condition: SQL) => {
+						updates.push({ values, condition })
+						return Promise.resolve([{ affectedRows: 1 }])
+					},
+				}),
+			}),
+		}
+		database.value = {
+			// The plain read before the hash finds the same account; nothing outside the transaction writes.
+			select: () => ({
+				from: () => ({ where: () => ({ limit: () => Promise.resolve([target]) }) }),
+			}),
+			transaction: (work: (t: typeof tx) => unknown) => work(tx),
+		}
+		return updates
+	}
+
+	afterEach(() => {
+		database.value = undefined
+		hashPassword.mockClear()
+	})
+
+	it('refuses the full edit of a directory account, before any hash work or write', async () => {
+		const updates = withTarget({ id: 'd1', role: 'user', adminDeactivatedAt: null, source: 'ldap' })
+		expect(
+			await updateUser({ id: 'o1', email: 'o@e.com', name: null, role: 'owner' }, 'd1', {
+				name: 'N',
+				email: 'n@e.com',
+				role: 'user',
+				password: 'password-1',
+			}),
+		).toEqual({ ok: false, code: 'forbidden' })
+		expect(hashPassword).not.toHaveBeenCalled()
+		expect(updates).toEqual([])
+		// Without a password, the locked row refuses it as well.
+		expect(
+			await updateUser({ id: 'o1', email: 'o@e.com', name: null, role: 'owner' }, 'd1', {
+				name: 'N',
+				email: 'n@e.com',
+				role: 'user',
+			}),
+		).toEqual({ ok: false, code: 'forbidden' })
+		expect(updates).toEqual([])
+	})
+
+	it('changes only the role, under the rank map', async () => {
+		const owner = { id: 'o1', email: 'o@e.com', name: null, role: 'owner' as const }
+		let updates = withTarget({ id: 'd1', role: 'user', adminDeactivatedAt: null, source: 'ldap' })
+		expect(await updateUserRole(owner, 'd1', 'admin')).toEqual({ ok: true, data: undefined })
+		expect(updates.map(update => update.values)).toEqual([{ role: 'admin' }])
+
+		// An admin cannot promote (ADR-0024's rank map) and cannot change its own role.
+		const anAdmin = { id: 'a1', email: 'a@e.com', name: null, role: 'admin' as const }
+		updates = withTarget({ id: 'd1', role: 'user', adminDeactivatedAt: null, source: 'ldap' })
+		expect(await updateUserRole(anAdmin, 'd1', 'admin')).toEqual({ ok: false, code: 'forbidden' })
+		expect(updates).toEqual([])
+		updates = withTarget({ id: 'a1', role: 'admin', adminDeactivatedAt: null, source: 'ldap' })
+		expect(await updateUserRole(anAdmin, 'a1', 'user')).toEqual({ ok: false, code: 'forbidden' })
+		expect(updates).toEqual([])
 	})
 })

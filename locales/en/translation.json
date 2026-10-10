@@ -296,7 +296,16 @@
 		"reactivate_success": "Account reactivated",
 		"cannot_deactivate_self": "You cannot deactivate your own account",
 		"deactivated_by": "Deactivated by {{name}}",
-		"deactivated_by_unknown": "Deactivated by an account that no longer exists"
+		"deactivated_by_unknown": "Deactivated by an account that no longer exists",
+		"column_source": "Source",
+		"source_local": "Local",
+		"source_directory": "Directory",
+		"status_not_in_directory": "Not in directory",
+		"not_in_directory_since": "Not found in the directory since",
+		"directory_username": "Directory username",
+		"directory_account": "Directory account",
+		"directory_fields_hint": "The name and email come from the directory and are updated at each directory sign-in and sync.",
+		"delete_directory_confirm_description": "Delete this directory account? At their next directory sign-in the person gets a new account with a new Dify history. To keep the account, deactivate it instead."
 	},
 	"admin_groups": {
 		"subtitle": "Group accounts to give them apps together",
