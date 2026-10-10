@@ -54,9 +54,14 @@ import {
 	CONNECT_TIMEOUT_MS,
 	oncePerClient,
 	OPERATION_TIMEOUT_MS,
+	readCaFile,
 	withDirectory,
 } from '@/lib/directory/connection'
-import { DirectoryRefusedError, DirectoryUnavailableError } from '@/lib/directory/errors'
+import {
+	DirectoryConfigError,
+	DirectoryRefusedError,
+	DirectoryUnavailableError,
+} from '@/lib/directory/errors'
 
 const base = {
 	bindDn: 'CN=svc,DC=corp',
@@ -294,12 +299,51 @@ describe('withDirectory: failures (decision q)', () => {
 		},
 	)
 
-	it('reads a missing CA file as a configuration error, before any client exists', async () => {
-		const missing = Object.assign(new Error('ENOENT'), { code: 'ENOENT', errno: -2 })
-		readFile.mockRejectedValue(missing)
-		await expect(withDirectory(config('ldaps://dc', 'ldaps'), async () => undefined)).rejects.toBe(
-			missing,
-		)
-		expect(mocks.state.options).toBeUndefined()
+	// Final review I1: Node's error names the path (`path`, and the message; Node "Class: SystemError"), so the read
+	// failure is wrapped in an error that names the setting instead, which lib/error-log.ts reduces to its code.
+	it.each([
+		['ldaps://dc.corp.example:636', 'ldaps'],
+		['ldap://dc.corp.example:389', 'starttls'],
+	] as const)(
+		'%s (%s): an unreadable CA file is a DirectoryConfigError naming LDAP_CA_FILE, before any client exists',
+		async (url, encryption) => {
+			const missing = Object.assign(
+				new Error("ENOENT: no such file or directory, open '/run/ca.pem'"),
+				{ code: 'ENOENT', errno: -2, syscall: 'open', path: '/run/ca.pem' },
+			)
+			readFile.mockRejectedValue(missing)
+			const failure = withDirectory(config(url, encryption), async () => undefined)
+			await expect(failure).rejects.toBeInstanceOf(DirectoryConfigError)
+			await expect(failure).rejects.toMatchObject({
+				name: 'DirectoryConfigError',
+				setting: 'LDAP_CA_FILE',
+				cause: missing,
+			})
+			expect(readFile).toHaveBeenCalledWith('/run/ca.pem')
+			expect(mocks.state.options).toBeUndefined()
+			expect(mocks.state.calls).toEqual([])
+		},
+	)
+})
+
+describe('readCaFile (final review I1)', () => {
+	it('answers the file as read', async () => {
+		await expect(readCaFile('/run/ca.pem')).resolves.toEqual(Buffer.from('PEM'))
+		expect(readFile).toHaveBeenCalledWith('/run/ca.pem')
+	})
+
+	it('wraps any failed read, a directory given as the file included', async () => {
+		const directory = Object.assign(new Error('EISDIR: illegal operation on a directory, read'), {
+			code: 'EISDIR',
+			errno: -21,
+			syscall: 'read',
+		})
+		readFile.mockRejectedValue(directory)
+		await expect(readCaFile('/run/secrets')).rejects.toMatchObject({
+			name: 'DirectoryConfigError',
+			setting: 'LDAP_CA_FILE',
+			message: 'LDAP_CA_FILE cannot be read',
+			cause: directory,
+		})
 	})
 })

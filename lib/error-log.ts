@@ -3,7 +3,11 @@ import 'server-only'
 import { DrizzleQueryError } from 'drizzle-orm'
 import { ResultCodeError } from 'ldapts'
 
-import { DirectoryRefusedError, DirectoryUnavailableError } from '@/lib/directory/errors'
+import {
+	DirectoryConfigError,
+	DirectoryRefusedError,
+	DirectoryUnavailableError,
+} from '@/lib/directory/errors'
 
 /*
  * Server error logging without secrets (decision g). A leaf module: it imports drizzle-orm, ldapts and the directory's
@@ -70,6 +74,12 @@ export const describeError = (error: unknown): unknown => {
 	if (error instanceof ResultCodeError) return { name: error.name, code: error.code }
 	if (error instanceof DirectoryUnavailableError || error instanceof DirectoryRefusedError)
 		return { name: error.name, cause: directoryCause(error.cause) }
+	// A setting the hub cannot use (final review I1): its name, and the cause's string code only (Node: "error.code is
+	// the most stable way to identify an error"), since a file error's `path` and message carry the path.
+	if (error instanceof DirectoryConfigError) {
+		const { code } = causeFields(error.cause)
+		return { name: error.name, setting: error.setting, cause: code === undefined ? {} : { code } }
+	}
 	if (error instanceof DrizzleQueryError) return { name: error.name, ...causeFields(error.cause) }
 	const driver = driverFields(error)
 	if (driver && error instanceof Error) return { name: error.name, ...driver }

@@ -42,7 +42,11 @@ vi.mock('@/lib/directory/operations', () => ({
 }))
 vi.mock('@/lib/directory/connection', () => ({ withDirectory: mocks.withDirectory }))
 
-import { DirectoryRefusedError, DirectoryUnavailableError } from '@/lib/directory/errors'
+import {
+	DirectoryConfigError,
+	DirectoryRefusedError,
+	DirectoryUnavailableError,
+} from '@/lib/directory/errors'
 import { runManualSync, runSync, scheduleSlot, startupSlot } from '@/lib/directory/sync'
 
 const config = {
@@ -207,6 +211,37 @@ describe('runSync (spec §6.4)', () => {
 				code,
 				expect.any(Date),
 			)
+		} finally {
+			log.mockRestore()
+		}
+	})
+
+	// Final review I1: the run keeps `internal_error` for a CA file it cannot read (no new code); its log names the
+	// setting and the read's code, never the path (lib/error-log.ts).
+	it('fails as internal_error when LDAP_CA_FILE cannot be read, its log naming the setting', async () => {
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+		try {
+			const cause = Object.assign(
+				new Error("ENOENT: no such file or directory, open '/run/ca.pem'"),
+				{
+					code: 'ENOENT',
+					errno: -2,
+					path: '/run/ca.pem',
+				},
+			)
+			mocks.withDirectory.mockRejectedValue(new DirectoryConfigError('LDAP_CA_FILE', { cause }))
+			expect(await runSync(run)).toMatchObject({
+				status: 'finished',
+				outcome: 'failed',
+				errorCode: 'internal_error',
+			})
+			expect(log).toHaveBeenCalledWith('directorySync:', {
+				name: 'DirectoryConfigError',
+				setting: 'LDAP_CA_FILE',
+				cause: { code: 'ENOENT' },
+			})
+			expect(JSON.stringify(log.mock.calls)).not.toContain('/run/ca.pem')
+			expect(mocks.deactivateDirectoryAccounts).not.toHaveBeenCalled()
 		} finally {
 			log.mockRestore()
 		}

@@ -105,4 +105,26 @@ describe('describeError and the directory (spec §7.3)', () => {
 			cause: { name: 'Error', message: 'Connection timeout' },
 		})
 	})
+
+	// Final review I1: Node's file error carries the path in `path` and in its message (Node "Class: SystemError"); the
+	// OWASP Logging Cheat Sheet lists file paths among the data to treat with care before logging. The log names the
+	// setting and keeps the cause to its code.
+	it('keeps an unreadable LDAP_CA_FILE to the setting and the cause’s code, never the path', async () => {
+		const { readFile } = await import('node:fs/promises')
+		const { DirectoryConfigError } = await import('@/lib/directory/errors')
+		const path = '/nonexistent/dify-app-hub-corp-root-ca.pem'
+		const cause = await readFile(path).catch((error: unknown) => error)
+		expect(cause).toMatchObject({ code: 'ENOENT', path })
+		const described = describeError(new DirectoryConfigError('LDAP_CA_FILE', { cause }))
+		expect(described).toEqual({
+			name: 'DirectoryConfigError',
+			setting: 'LDAP_CA_FILE',
+			cause: { code: 'ENOENT' },
+		})
+		expect(JSON.stringify(described)).not.toContain('corp-root-ca')
+		// A cause without a string code keeps nothing of its message, which may hold the path.
+		expect(
+			describeError(new DirectoryConfigError('LDAP_CA_FILE', { cause: new Error(`open ${path}`) })),
+		).toStrictEqual({ name: 'DirectoryConfigError', setting: 'LDAP_CA_FILE', cause: {} })
+	})
 })

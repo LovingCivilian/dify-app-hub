@@ -11,9 +11,13 @@ export async function register(): Promise<void> {
 		const { startDirectorySchedule } = await import('./lib/directory/schedule')
 		startDirectorySchedule()
 	} catch (error) {
-		console.error(
-			'instrumentation: the directory schedule did not start:',
-			error instanceof Error ? error.name : 'unknown error',
+		// Final review M9: logged through describeError (decision g), so the cause stays readable without a secret.
+		// lib/error-log.ts imports ldapts, Node-only like the schedule, so it is imported here as well; if it cannot load
+		// either, the error's name is logged, and still nothing escapes.
+		const described = await import('./lib/error-log').then(
+			({ describeError }) => describeError(error),
+			() => (error instanceof Error ? error.name : 'unknown error'),
 		)
+		console.error('instrumentation: the directory schedule did not start:', described)
 	}
 }

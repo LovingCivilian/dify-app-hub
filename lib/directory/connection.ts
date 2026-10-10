@@ -8,11 +8,25 @@ import { Client, ResultCodeError } from 'ldapts'
 
 import type { LdapConfig } from '@/lib/env'
 
-import { DirectoryRefusedError, DirectoryUnavailableError } from './errors'
+import { DirectoryConfigError, DirectoryRefusedError, DirectoryUnavailableError } from './errors'
 
 /** Spec §6.2: both timeouts set (ldapts' defaults are off, `src/Client.ts:200-201`); constants, not settings (spec §7.1). */
 export const CONNECT_TIMEOUT_MS = 5_000
 export const OPERATION_TIMEOUT_MS = 15_000
+
+/**
+ * Reads `LDAP_CA_FILE` (decision q: a file that cannot be read is a configuration error, not an unreachable directory).
+ * Any failed read becomes a DirectoryConfigError naming the setting, so the log can name it without the path (final
+ * review I1). The connection reads the file each time, so a replaced file needs no restart; the start reads it once
+ * through this function too (lib/directory/schedule.ts).
+ */
+export async function readCaFile(caFile: string): Promise<Buffer> {
+	try {
+		return await readFile(caFile)
+	} catch (error) {
+		throw new DirectoryConfigError('LDAP_CA_FILE', { cause: error })
+	}
+}
 
 /**
  * Decision r: TLS 1.2 or later, the CA when set, the URL's host checked by name, and the certificate verified even
@@ -27,7 +41,7 @@ async function tlsOptionsFor(config: LdapConfig): Promise<tls.ConnectionOptions>
 		...(net.isIP(host) === 0 ? { servername: host } : {}),
 		minVersion: 'TLSv1.2',
 		rejectUnauthorized: true,
-		...(config.caFile ? { ca: [await readFile(config.caFile)] } : {}),
+		...(config.caFile ? { ca: [await readCaFile(config.caFile)] } : {}),
 	}
 }
 

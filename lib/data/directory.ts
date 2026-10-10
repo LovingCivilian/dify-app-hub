@@ -79,7 +79,7 @@ export const listGroupLinks = (): Promise<GroupLink[]> =>
  * 8.4 "Transaction Isolation Levels"): a found row is locked, so one person's sign-ins run one after another, and a
  * missing key locks nothing. Two first sign-ins of one person still make one account: the unique index
  * `users_directory_id_key` refuses the second insert (1062), or InnoDB rolls one transaction back (1213), and either
- * runs once more and finds the account (decision e). No gap lock is needed for that.
+ * runs again and finds the account (decision e). No gap lock is needed for that.
  */
 export const lockDirectoryAccount = (tx: Pick<Tx, 'select'>, key: string) =>
 	tx
@@ -201,6 +201,17 @@ async function signInWithin(
 }
 
 /**
+ * A deadlocked sync statement or sign-in makes up to three attempts in all, then throws the last error (final review
+ * M1), as Prisma's documented helper does, `withRetry(run, attempts = 3)`
+ * (`prisma/docs@c05758d0:apps/docs/content/docs/orm/fundamentals/transactions.mdx:90-104`), and as Ghost retries a
+ * deadlocked install write, `attempt < 2`
+ * (`TryGhost/Ghost@25b7dfad:ghost/core/server/services/app-installations/service.ts:374`); Directus makes four attempts
+ * with a growing delay (`directus@8e140f94:api/src/utils/transaction.ts:29-50`). No delay: Prisma's and Ghost's run
+ * again at once, and MySQL's guidance names none ("Deadlocks are not dangerous. Just try again.").
+ */
+const DEADLOCK_ATTEMPTS = 3
+
+/**
  * The sign-in's write (spec §6.3 step 7), in one transaction with a locking read of the account by its key. A known
  * account is refreshed, or refused while an admin has deactivated it. A new one is created as a `user` with no
  * password, unless the entry has no email or any account uses it.
@@ -214,22 +225,27 @@ async function signInWithin(
  * sees the latest committed accounts. The level applies to this one transaction only (MySQL 8.4 "SET TRANSACTION Statement").
  * `createOwner` keeps REPEATABLE READ, because its guarantee is the gap lock (ADR-0024 decision d).
  *
- * After a duplicate key (1062) or a deadlock (1213) the transaction runs once more (decision e). Any other failure
- * propagates to the provider, which logs it and answers its generic error.
+ * The transaction runs again after a deadlock (1213), within the sync statements' bound of DEADLOCK_ATTEMPTS in all,
+ * and after a duplicate key (1062) once: the retry then finds the account the other sign-in wrote, or the email taken
+ * (decision e). Any other failure, or one past the bound, propagates to the provider, which logs it and answers its
+ * generic error.
  */
 export async function recordDirectorySignIn(
 	identity: DirectoryIdentity,
 	groupIds: readonly string[],
 ): Promise<DirectorySignInResult> {
-	const attempt = () =>
-		getDb().transaction(tx => signInWithin(tx, identity, groupIds), {
-			isolationLevel: 'read committed',
-		})
-	try {
-		return await attempt()
-	} catch (error) {
-		if (isDuplicateEntry(error) || isDeadlock(error)) return attempt()
-		throw error
+	let duplicateRetried = false
+	for (let attempt = 1; ; attempt += 1) {
+		try {
+			return await getDb().transaction(tx => signInWithin(tx, identity, groupIds), {
+				isolationLevel: 'read committed',
+			})
+		} catch (error) {
+			const duplicate = isDuplicateEntry(error)
+			const again = isDeadlock(error) || (duplicate && !duplicateRetried)
+			if (!again || attempt === DEADLOCK_ATTEMPTS) throw error
+			duplicateRetried ||= duplicate
+		}
 	}
 }
 
@@ -246,21 +262,20 @@ const batches = <T>(items: readonly T[]): T[][] =>
 	)
 
 /**
- * Runs one of the sync's statements, and once more when InnoDB rolled it back as a deadlock's victim (1213). Under
- * autocommit each statement "forms a single transaction on its own" (MySQL 8.4 "autocommit, Commit, and Rollback"), and
- * a deadlock rolls the whole transaction back ("InnoDB Error Handling"), so the statement runs again from a clean
- * state: "Always be prepared to re-issue a transaction if it fails due to deadlock" ("How to Minimize and Handle
- * Deadlocks"). A second deadlock propagates: the run fails, and the next run completes the reconciliation, which is
- * idempotent (spec §6.4 "Claim"). The sign-in's retry is the same rule (recordDirectorySignIn); Laravel's
- * `DB::transaction($callback, $attempts)` and Prisma's documented `withRetry` re-issue a deadlocked transaction the same
- * way and throw once the attempts are spent.
+ * Runs one of the sync's statements, and again when InnoDB rolled it back as a deadlock's victim (1213), up to
+ * DEADLOCK_ATTEMPTS attempts in all. Under autocommit each statement "forms a single transaction on its own" (MySQL 8.4
+ * "autocommit, Commit, and Rollback"), and a deadlock rolls the whole transaction back ("InnoDB Error Handling"), so
+ * the statement runs again from a clean state: "Always be prepared to re-issue a transaction if it fails due to
+ * deadlock" ("How to Minimize and Handle Deadlocks"). The last attempt's deadlock propagates: the run fails, and the
+ * next run completes the reconciliation, which is idempotent (spec §6.4 "Claim"). Any other error is not re-issued.
  */
 async function reissueOnDeadlock<T>(statement: () => Promise<T>): Promise<T> {
-	try {
-		return await statement()
-	} catch (error) {
-		if (isDeadlock(error)) return statement()
-		throw error
+	for (let attempt = 1; ; attempt += 1) {
+		try {
+			return await statement()
+		} catch (error) {
+			if (!isDeadlock(error) || attempt === DEADLOCK_ATTEMPTS) throw error
+		}
 	}
 }
 

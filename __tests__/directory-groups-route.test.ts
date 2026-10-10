@@ -13,7 +13,11 @@ vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 vi.mock('@/lib/directory/admin', () => ({ searchDirectoryGroups }))
 
 import { GET } from '@/app/api/directory/groups/route'
-import { DirectoryRefusedError, DirectoryUnavailableError } from '@/lib/directory/errors'
+import {
+	DirectoryConfigError,
+	DirectoryRefusedError,
+	DirectoryUnavailableError,
+} from '@/lib/directory/errors'
 
 const owner = { id: 'o1', email: 'owner@example.com', name: 'Owner', role: 'owner' }
 const admin = { id: 'a1', email: 'admin@example.com', name: 'Admin', role: 'admin' }
@@ -125,6 +129,40 @@ describe('GET /api/directory/groups (spec §6.5, decision al)', () => {
 				name: 'NoSuchObjectError',
 				code: 32,
 			})
+		} finally {
+			log.mockRestore()
+		}
+	})
+
+	// Final review I1: the route keeps its 500 envelope for a CA file it cannot read; the log names the setting.
+	it('answers an unreadable LDAP_CA_FILE as a 500, logged by the setting and the code only', async () => {
+		getServerSession.mockResolvedValue({ user: admin })
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+		try {
+			const cause = Object.assign(
+				new Error("ENOENT: no such file or directory, open '/run/ca.pem'"),
+				{
+					code: 'ENOENT',
+					errno: -2,
+					path: '/run/ca.pem',
+				},
+			)
+			searchDirectoryGroups.mockRejectedValueOnce(
+				new DirectoryConfigError('LDAP_CA_FILE', { cause }),
+			)
+			const response = await get('?q=eng')
+			expect(response.status).toBe(500)
+			await expect(response.json()).resolves.toEqual({
+				code: 'internal_error',
+				message: 'Internal Server Error',
+				status: 500,
+			})
+			expect(log).toHaveBeenCalledWith('GET /api/directory/groups:', {
+				name: 'DirectoryConfigError',
+				setting: 'LDAP_CA_FILE',
+				cause: { code: 'ENOENT' },
+			})
+			expect(JSON.stringify(log.mock.calls)).not.toContain('/run/ca.pem')
 		} finally {
 			log.mockRestore()
 		}

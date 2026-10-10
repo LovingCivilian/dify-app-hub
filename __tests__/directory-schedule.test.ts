@@ -34,6 +34,10 @@ vi.mock('@/lib/directory/sync', () => ({
 	startupSlot: (at: Date) => `startup:${at.toISOString().slice(0, 16)}Z`,
 }))
 vi.mock('@/lib/data/directory', () => ({ lastSucceededSyncRun: mocks.lastSucceededSyncRun }))
+// The startup check reads LDAP_CA_FILE through lib/directory/connection.ts, which stays real; only the file system is
+// faked, as in the connection test.
+const { readFile } = vi.hoisted(() => ({ readFile: vi.fn() }))
+vi.mock('node:fs/promises', () => ({ readFile }))
 
 import { missedRun, startDirectorySchedule } from '@/lib/directory/schedule'
 
@@ -58,6 +62,8 @@ beforeEach(() => {
 	mocks.lastSucceededSyncRun.mockResolvedValue({ startedAt: new Date('2026-10-10T09:00:05Z') })
 	mocks.lastDue.value = new Date('2026-10-10T09:00:00Z')
 	mocks.matches.value = false
+	readFile.mockReset()
+	readFile.mockResolvedValue(Buffer.from('PEM'))
 })
 afterEach(reset)
 
@@ -231,6 +237,99 @@ describe('startDirectorySchedule', () => {
 			expect(warn).toHaveBeenCalledTimes(1)
 			expect(String(warn.mock.calls[0][0])).toMatch(/LDAP_ENCRYPTION=none/)
 		} finally {
+			warn.mockRestore()
+		}
+	})
+})
+
+// Final review I1: a CA file the hub cannot read refuses every directory sign-in and sync, so the start names it once,
+// whether the schedule is on or off, by the setting and the error's code (Node "Class: SystemError": `code`), never the
+// path, which Node's error carries in `path` and in its message (OWASP Logging Cheat Sheet: file paths are data to treat
+// with care before logging).
+describe('the LDAP_CA_FILE check at start', () => {
+	const caFile = '/run/secrets/corp-root-ca.pem'
+	const missing = () =>
+		Object.assign(new Error(`ENOENT: no such file or directory, open '${caFile}'`), {
+			code: 'ENOENT',
+			errno: -2,
+			syscall: 'open',
+			path: caFile,
+		})
+	// Lets the check's read and its log settle (a macrotask drains every queued microtask).
+	const settle = () => new Promise(resolve => setTimeout(resolve, 0))
+
+	it('names an unreadable file once, with the schedule off, by the setting and the code only', async () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+		try {
+			readFile.mockRejectedValue(missing())
+			mocks.directoryConfig.mockReturnValue({ ...config, caFile, syncSchedule: null })
+			startDirectorySchedule()
+			startDirectorySchedule()
+			await vi.waitFor(() => expect(error).toHaveBeenCalled())
+			await settle()
+			expect(readFile).toHaveBeenCalledTimes(1)
+			expect(readFile).toHaveBeenCalledWith(caFile)
+			expect(error).toHaveBeenCalledTimes(1)
+			expect(error).toHaveBeenCalledWith('directorySchedule:', {
+				name: 'DirectoryConfigError',
+				setting: 'LDAP_CA_FILE',
+				cause: { code: 'ENOENT' },
+			})
+			expect(JSON.stringify(error.mock.calls)).not.toContain('corp-root-ca')
+			expect(mocks.jobs).toEqual([])
+		} finally {
+			error.mockRestore()
+		}
+	})
+
+	it('checks the file with the schedule on too, beside the job', async () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+		try {
+			readFile.mockRejectedValue(missing())
+			mocks.directoryConfig.mockReturnValue({ ...config, caFile })
+			startDirectorySchedule()
+			await vi.waitFor(() =>
+				expect(error).toHaveBeenCalledWith('directorySchedule:', {
+					name: 'DirectoryConfigError',
+					setting: 'LDAP_CA_FILE',
+					cause: { code: 'ENOENT' },
+				}),
+			)
+			expect(mocks.jobs).toHaveLength(1)
+		} finally {
+			error.mockRestore()
+		}
+	})
+
+	it('logs nothing for a readable file, and reads none without a file or with LDAP_ENCRYPTION=none', async () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+		try {
+			mocks.directoryConfig.mockReturnValue({ ...config, caFile, syncSchedule: null })
+			startDirectorySchedule()
+			await vi.waitFor(() => expect(readFile).toHaveBeenCalledWith(caFile))
+			await settle()
+			expect(error).not.toHaveBeenCalled()
+
+			readFile.mockClear()
+			reset()
+			mocks.directoryConfig.mockReturnValue({ ...config, caFile: null, syncSchedule: null })
+			startDirectorySchedule()
+			reset()
+			// The connection reads the file only for TLS (lib/directory/connection.ts), so the check does too.
+			mocks.directoryConfig.mockReturnValue({
+				...config,
+				url: 'ldap://10.0.0.5',
+				encryption: 'none',
+				caFile,
+				syncSchedule: null,
+			})
+			startDirectorySchedule()
+			await settle()
+			expect(readFile).not.toHaveBeenCalled()
+			expect(error).not.toHaveBeenCalled()
+		} finally {
+			error.mockRestore()
 			warn.mockRestore()
 		}
 	})

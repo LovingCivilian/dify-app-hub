@@ -21,7 +21,11 @@ vi.mock('@/lib/directory/response-floor', () => ({
 }))
 
 import { authorizeDirectory } from '@/lib/auth/directory-provider'
-import { DirectoryRefusedError, DirectoryUnavailableError } from '@/lib/directory/errors'
+import {
+	DirectoryConfigError,
+	DirectoryRefusedError,
+	DirectoryUnavailableError,
+} from '@/lib/directory/errors'
 
 const config = { idAttribute: 'objectGUID' }
 const entry = {
@@ -217,5 +221,31 @@ describe('authorizeDirectory (spec §6.3, §7.3)', () => {
 		await expect(authorizeDirectory({ username: 'alice', password: 'x' })).rejects.toThrow(
 			'Default',
 		)
+	})
+
+	// Final review I1: a CA file the hub cannot read keeps the generic `Default` (no new vocabulary); the log names the
+	// setting and the read's code, never the path.
+	it('throws Default when LDAP_CA_FILE cannot be read, its log naming the setting', async () => {
+		const cause = Object.assign(
+			new Error("ENOENT: no such file or directory, open '/run/ca.pem'"),
+			{
+				code: 'ENOENT',
+				errno: -2,
+				path: '/run/ca.pem',
+			},
+		)
+		mocks.checkDirectoryCredentials.mockRejectedValue(
+			new DirectoryConfigError('LDAP_CA_FILE', { cause }),
+		)
+		await expect(authorizeDirectory({ username: 'alice', password: 'x' })).rejects.toThrow(
+			'Default',
+		)
+		expect(error).toHaveBeenCalledWith('authorizeDirectory:', {
+			name: 'DirectoryConfigError',
+			setting: 'LDAP_CA_FILE',
+			cause: { code: 'ENOENT' },
+		})
+		expect(JSON.stringify(error.mock.calls)).not.toContain('/run/ca.pem')
+		expect(mocks.pad).not.toHaveBeenCalled()
 	})
 })

@@ -25,3 +25,23 @@ export class DirectoryRefusedError extends Error {
 		this.name = 'DirectoryRefusedError'
 	}
 }
+
+/** The directory settings the hub can check only by using them (a file to read); lib/env.ts checks the rest. */
+export type DirectorySetting = 'LDAP_CA_FILE'
+
+/**
+ * A directory setting the hub cannot use, found before any connection to the directory (final review I1): the CA file
+ * of `LDAP_CA_FILE` that cannot be read. The log names the setting and the cause's code only (lib/error-log.ts): Node's file error
+ * carries the path in `path` and in its message (Node "Class: SystemError"), and the OWASP Logging Cheat Sheet lists
+ * file paths among the data to treat with care before logging. The sign-in answers `Default`, the sync records
+ * `internal_error` and the groups route answers 500, as for any other error that is not the directory's.
+ */
+export class DirectoryConfigError extends Error {
+	readonly setting: DirectorySetting
+
+	constructor(setting: DirectorySetting, options: { cause: unknown }) {
+		super(`${setting} cannot be read`, options)
+		this.name = 'DirectoryConfigError'
+		this.setting = setting
+	}
+}

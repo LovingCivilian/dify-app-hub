@@ -9,6 +9,7 @@ import { logActionError } from '@/lib/error-log'
 import type { LdapConfig } from '@/lib/env'
 
 import { directoryConfig } from './config'
+import { readCaFile } from './connection'
 import { runSync, scheduleSlot, startupSlot } from './sync'
 
 /*
@@ -40,9 +41,27 @@ async function catchUp(config: LdapConfig, job: Cron): Promise<void> {
 }
 
 /**
+ * A CA file that cannot be read refuses every directory sign-in and sync, so the start reads it once, as the connection
+ * does (readCaFile), and logs the DirectoryConfigError, which names `LDAP_CA_FILE` and the error's code, never the path
+ * (final review I1). Logged, not thrown (decision ai): local sign-ins keep working. Authelia and Keycloak load their
+ * trusted certificates at start and report a file they cannot read there, and Grafana returns the read's error from
+ * each connection; all three messages carry the path, which the hub's log leaves out:
+ * `authelia@2ed18389:internal/utils/crypto.go:373-374,389-390` with `internal/commands/root.go:85-98`,
+ * `keycloak@c7de391a:quarkus/runtime/src/main/java/org/keycloak/quarkus/runtime/KeycloakRecorder.java:190-214` with
+ * `services/src/main/java/org/keycloak/truststore/TruststoreBuilder.java:269-300`, and
+ * `grafana@7b702d79:pkg/services/ldap/ldap.go:100-104,304-316`.
+ */
+const checkCaFile = (caFile: string): Promise<void> =>
+	readCaFile(caFile).then(
+		() => undefined,
+		(error: unknown) => logActionError(error, 'directorySchedule'),
+	)
+
+/**
  * Starts the schedule once per process (a development reload re-evaluates modules, so the state lives on globalThis,
- * Rallly's guard): nothing while LDAP is off or LDAP_SYNC_SCHEDULE is `off`; a warning for `none` (spec §6.2); one
- * croner job (decision aj) and a startup catch-up. A bad LDAP block is logged and left to the first request (decision ai).
+ * Rallly's guard): nothing while LDAP is off; a warning for `none` (spec §6.2) and the CA file's check, with the
+ * schedule on or off; then, unless LDAP_SYNC_SCHEDULE is `off`, one croner job (decision aj) and a startup catch-up. A
+ * bad LDAP block is logged and left to the first request (decision ai).
  */
 export function startDirectorySchedule(): void {
 	if (globalForSchedule.difyAppHubDirectorySchedule) return
@@ -60,6 +79,8 @@ export function startDirectorySchedule(): void {
 		console.warn(
 			'directorySchedule: LDAP_ENCRYPTION=none: directory passwords and the service account travel unencrypted (docs/ldap.md)',
 		)
+	// The connection reads the CA file only for TLS (connection.ts), so the check does too.
+	else if (config.caFile) void checkCaFile(config.caFile)
 	if (config.syncSchedule === null) return
 	const job = new Cron(
 		config.syncSchedule,
