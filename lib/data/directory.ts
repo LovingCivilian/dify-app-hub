@@ -245,6 +245,25 @@ const batches = <T>(items: readonly T[]): T[][] =>
 		items.slice(index * BATCH, (index + 1) * BATCH),
 	)
 
+/**
+ * Runs one of the sync's statements, and once more when InnoDB rolled it back as a deadlock's victim (1213). Under
+ * autocommit each statement "forms a single transaction on its own" (MySQL 8.4 "autocommit, Commit, and Rollback"), and
+ * a deadlock rolls the whole transaction back ("InnoDB Error Handling"), so the statement runs again from a clean
+ * state: "Always be prepared to re-issue a transaction if it fails due to deadlock" ("How to Minimize and Handle
+ * Deadlocks"). A second deadlock propagates: the run fails, and the next run completes the reconciliation, which is
+ * idempotent (spec §6.4 "Claim"). The sign-in's retry is the same rule (recordDirectorySignIn); Laravel's
+ * `DB::transaction($callback, $attempts)` and Prisma's documented `withRetry` re-issue a deadlocked transaction the same
+ * way and throw once the attempts are spent.
+ */
+async function reissueOnDeadlock<T>(statement: () => Promise<T>): Promise<T> {
+	try {
+		return await statement()
+	} catch (error) {
+		if (isDeadlock(error)) return statement()
+		throw error
+	}
+}
+
 /** Every hub `ldap` account, active or not (spec §6.4 step 3). */
 export const listDirectoryAccounts = (): Promise<SyncAccount[]> =>
 	getDb()
@@ -279,16 +298,18 @@ export async function deactivateDirectoryAccounts(
 ): Promise<number> {
 	let changed = 0
 	for (const part of batches(ids)) {
-		const [result] = await getDb()
-			.update(users)
-			.set({ directoryDeactivatedAt: at, sessionVersion: sql`${users.sessionVersion} + 1` })
-			.where(
-				and(
-					eq(users.source, 'ldap'),
-					inArray(users.id, part),
-					isNull(users.directoryDeactivatedAt),
+		const [result] = await reissueOnDeadlock(() =>
+			getDb()
+				.update(users)
+				.set({ directoryDeactivatedAt: at, sessionVersion: sql`${users.sessionVersion} + 1` })
+				.where(
+					and(
+						eq(users.source, 'ldap'),
+						inArray(users.id, part),
+						isNull(users.directoryDeactivatedAt),
+					),
 				),
-			)
+		)
 		changed += result.affectedRows
 	}
 	return changed
@@ -298,16 +319,18 @@ export async function deactivateDirectoryAccounts(
 export async function reactivateDirectoryAccounts(ids: readonly string[]): Promise<number> {
 	let changed = 0
 	for (const part of batches(ids)) {
-		const [result] = await getDb()
-			.update(users)
-			.set({ directoryDeactivatedAt: null })
-			.where(
-				and(
-					eq(users.source, 'ldap'),
-					inArray(users.id, part),
-					isNotNull(users.directoryDeactivatedAt),
+		const [result] = await reissueOnDeadlock(() =>
+			getDb()
+				.update(users)
+				.set({ directoryDeactivatedAt: null })
+				.where(
+					and(
+						eq(users.source, 'ldap'),
+						inArray(users.id, part),
+						isNotNull(users.directoryDeactivatedAt),
+					),
 				),
-			)
+		)
 		changed += result.affectedRows
 	}
 	return changed
@@ -316,31 +339,33 @@ export async function reactivateDirectoryAccounts(ids: readonly string[]): Promi
 /**
  * One account's refreshed directory fields (spec §6.4 step 3). A new email the unique index refuses (1062: another
  * account has it) is dropped and the other fields written: the row keeps its old email and the run counts a conflict
- * (spec §2 #11, decision ac).
+ * (spec §2 #11, decision ac). `updated` says the write matched the account: mysql2 connects with `FOUND_ROWS` by
+ * default, so `affectedRows` is the rows the WHERE matched, not only those it changed (MySQL 8.4 C API
+ * "mysql_affected_rows()": with CLIENT_FOUND_ROWS "the affected-rows value is the number of rows 'found'"). An account
+ * deleted during the run matches nothing, and is counted neither updated nor in conflict.
  */
 export async function refreshDirectoryAccount(
 	update: AccountUpdate,
-): Promise<{ conflict: boolean }> {
+): Promise<{ updated: boolean; conflict: boolean }> {
 	const fields = {
 		name: update.name,
 		...(update.directoryUsername !== null ? { directoryUsername: update.directoryUsername } : {}),
 	}
 	const where = and(eq(users.id, update.id), eq(users.source, 'ldap'))
+	const write = async (values: typeof fields & { email?: string }) => {
+		const [result] = await reissueOnDeadlock(() => getDb().update(users).set(values).where(where))
+		return result.affectedRows > 0
+	}
 	if (update.email !== null) {
 		try {
-			await getDb()
-				.update(users)
-				.set({ ...fields, email: update.email })
-				.where(where)
-			return { conflict: false }
+			return { updated: await write({ ...fields, email: update.email }), conflict: false }
 		} catch (error) {
 			if (!isDuplicateEntry(error)) throw error
 		}
-		await getDb().update(users).set(fields).where(where)
-		return { conflict: true }
+		const updated = await write(fields)
+		return { updated, conflict: updated }
 	}
-	await getDb().update(users).set(fields).where(where)
-	return { conflict: false }
+	return { updated: await write(fields), conflict: false }
 }
 
 const directoryRows = (groupId: string, userIds: readonly string[]) =>
@@ -349,7 +374,8 @@ const directoryRows = (groupId: string, userIds: readonly string[]) =>
 /**
  * Applies the planned `directory` memberships per hub group (spec §2 #8: manual rows untouched). An insert refused as a
  * duplicate (a sign-in added the row meanwhile) or a missing reference (the group or the account was deleted during
- * the run) is retried row by row: a duplicate is already there, a missing reference counts as a group error.
+ * the run) is retried row by row: a duplicate is already there; a missing reference marks its hub group, and
+ * `groupErrors` counts the hub groups so marked, once each (spec §6.4 step 4 counts an error per group).
  */
 export async function applyMembershipChanges(
 	plan: Pick<MembershipPlan, 'add' | 'remove'>,
@@ -357,39 +383,43 @@ export async function applyMembershipChanges(
 	const db = getDb()
 	let added = 0
 	let removed = 0
-	let groupErrors = 0
+	const failedGroups = new Set<string>()
 	for (const [groupId, rows] of Map.groupBy(plan.remove, row => row.groupId))
 		for (const part of batches(rows.map(row => row.userId))) {
-			const [result] = await db
-				.delete(userGroupMembers)
-				.where(
-					and(
-						eq(userGroupMembers.groupId, groupId),
-						eq(userGroupMembers.source, 'directory'),
-						inArray(userGroupMembers.userId, part),
+			const [result] = await reissueOnDeadlock(() =>
+				db
+					.delete(userGroupMembers)
+					.where(
+						and(
+							eq(userGroupMembers.groupId, groupId),
+							eq(userGroupMembers.source, 'directory'),
+							inArray(userGroupMembers.userId, part),
+						),
 					),
-				)
+			)
 			removed += result.affectedRows
 		}
+	const insert = (groupId: string, userIds: readonly string[]) =>
+		reissueOnDeadlock(() => db.insert(userGroupMembers).values(directoryRows(groupId, userIds)))
 	for (const [groupId, rows] of Map.groupBy(plan.add, row => row.groupId))
 		for (const part of batches(rows.map(row => row.userId))) {
 			try {
-				await db.insert(userGroupMembers).values(directoryRows(groupId, part))
+				await insert(groupId, part)
 				added += part.length
 			} catch (error) {
 				if (!isDuplicateEntry(error) && !isMissingReference(error)) throw error
 				for (const userId of part) {
 					try {
-						await db.insert(userGroupMembers).values(directoryRows(groupId, [userId]))
+						await insert(groupId, [userId])
 						added += 1
 					} catch (rowError) {
-						if (isMissingReference(rowError)) groupErrors += 1
+						if (isMissingReference(rowError)) failedGroups.add(groupId)
 						else if (!isDuplicateEntry(rowError)) throw rowError
 					}
 				}
 			}
 		}
-	return { added, removed, groupErrors }
+	return { added, removed, groupErrors: failedGroups.size }
 }
 
 /** A found link's name is refreshed and its `missing_since` cleared; a missing one is stamped once (spec §3.2). */
@@ -403,16 +433,21 @@ export async function refreshGroupLinks(
 			eq(userGroupDirectoryLinks.groupId, refresh.groupId),
 			eq(userGroupDirectoryLinks.directoryGroupId, refresh.directoryGroupId),
 		)
-		if (refresh.name !== null)
-			await db
-				.update(userGroupDirectoryLinks)
-				.set({ directoryGroupName: refresh.name, missingSince: null })
-				.where(link)
+		const name = refresh.name
+		if (name !== null)
+			await reissueOnDeadlock(() =>
+				db
+					.update(userGroupDirectoryLinks)
+					.set({ directoryGroupName: name, missingSince: null })
+					.where(link),
+			)
 		else
-			await db
-				.update(userGroupDirectoryLinks)
-				.set({ missingSince: at })
-				.where(and(link, isNull(userGroupDirectoryLinks.missingSince)))
+			await reissueOnDeadlock(() =>
+				db
+					.update(userGroupDirectoryLinks)
+					.set({ missingSince: at })
+					.where(and(link, isNull(userGroupDirectoryLinks.missingSince))),
+			)
 	}
 }
 
@@ -451,13 +486,15 @@ export async function claimSyncRun(run: {
 	startedAt: Date
 }): Promise<boolean> {
 	try {
-		await getDb().insert(directorySyncRuns).values({
-			id: run.id,
-			slot: run.slot,
-			runTrigger: run.trigger,
-			startedAt: run.startedAt,
-			outcome: 'running',
-		})
+		await reissueOnDeadlock(() =>
+			getDb().insert(directorySyncRuns).values({
+				id: run.id,
+				slot: run.slot,
+				runTrigger: run.trigger,
+				startedAt: run.startedAt,
+				outcome: 'running',
+			}),
+		)
 		return true
 	} catch (error) {
 		if (isDuplicateEntry(error)) return false
@@ -482,15 +519,19 @@ export async function finishSyncRun(
 	errorCode: SyncErrorCode | null,
 	at: Date,
 ): Promise<void> {
-	await getDb()
-		.update(directorySyncRuns)
-		.set({ ...counts, outcome, errorCode, finishedAt: at })
-		.where(eq(directorySyncRuns.id, id))
+	await reissueOnDeadlock(() =>
+		getDb()
+			.update(directorySyncRuns)
+			.set({ ...counts, outcome, errorCode, finishedAt: at })
+			.where(eq(directorySyncRuns.id, id)),
+	)
 }
 
 /** Spec §3.2: runs older than 90 days are deleted by the run itself. */
 export async function pruneSyncRuns(before: Date): Promise<void> {
-	await getDb().delete(directorySyncRuns).where(lt(directorySyncRuns.startedAt, before))
+	await reissueOnDeadlock(() =>
+		getDb().delete(directorySyncRuns).where(lt(directorySyncRuns.startedAt, before)),
+	)
 }
 
 export interface SyncRunRecord {

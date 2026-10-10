@@ -24,7 +24,10 @@ export interface SyncEntry {
 	name: string | null
 }
 
-/** One account's refreshed directory fields; `email` null keeps the stored email, `directoryUsername` null the stored name. */
+/**
+ * One account's refreshed directory fields. `email` null keeps the stored email; `directoryUsername` (the login
+ * attribute's value) null keeps the stored username.
+ */
 export interface AccountUpdate {
 	id: string
 	name: string | null

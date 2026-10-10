@@ -2,8 +2,9 @@ import type { SQL } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/mysql2'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// A database fake that records each write's table, values and condition, and each read's table and condition, so a
-// test renders it on drizzle.mock().
+// A database fake that records each write's table, values and condition, and each read's columns, table, condition,
+// order and limit, so a test renders it on drizzle.mock(). A read answers `rows` at every step, as Drizzle's query
+// builders are awaitable at each step.
 const mocks = vi.hoisted(() => {
 	type Write = {
 		op: 'insert' | 'update' | 'delete'
@@ -11,13 +12,31 @@ const mocks = vi.hoisted(() => {
 		values?: unknown
 		condition?: unknown
 	}
+	type Read = {
+		fields: unknown
+		table: unknown
+		condition?: unknown
+		order?: unknown[]
+		limit?: number
+	}
 	const state = {
 		writes: [] as Write[],
-		reads: [] as { table: unknown; condition: unknown }[],
+		reads: [] as Read[],
 		rows: [] as unknown[],
 		affectedRows: 1,
 		failures: [] as unknown[],
 	}
+	type Query = Promise<unknown[]> & {
+		where: (condition: unknown) => Query
+		orderBy: (...order: unknown[]) => Query
+		limit: (limit: number) => Query
+	}
+	const read = (record: Read): Query =>
+		Object.assign(Promise.resolve(state.rows), {
+			where: (condition: unknown) => read(Object.assign(record, { condition })),
+			orderBy: (...order: unknown[]) => read(Object.assign(record, { order })),
+			limit: (limit: number) => read(Object.assign(record, { limit })),
+		})
 	const result = () => {
 		const failure = state.failures.shift()
 		return failure
@@ -25,14 +44,12 @@ const mocks = vi.hoisted(() => {
 			: Promise.resolve([{ affectedRows: state.affectedRows }])
 	}
 	const db = {
-		select: () => ({
-			from: (table: unknown) => ({
-				where: (condition: unknown) => {
-					state.reads.push({ table, condition })
-					const rows = Promise.resolve(state.rows)
-					return Object.assign(rows, { limit: () => rows })
-				},
-			}),
+		select: (fields?: unknown) => ({
+			from: (table: unknown) => {
+				const record: Read = { fields, table }
+				state.reads.push(record)
+				return read(record)
+			},
 		}),
 		insert: (table: unknown) => ({
 			values: (values: unknown) => {
@@ -67,7 +84,10 @@ import {
 	EMPTY_COUNTS,
 	finishSyncRun,
 	hasUnfinishedRunSince,
+	lastSucceededSyncRun,
+	latestSyncRun,
 	listDirectoryAccounts,
+	listDirectoryMemberships,
 	pruneSyncRuns,
 	reactivateDirectoryAccounts,
 	refreshDirectoryAccount,
@@ -91,13 +111,18 @@ const duplicate = () => Object.assign(new Error('dup'), { code: 'ER_DUP_ENTRY', 
 const missing = () =>
 	Object.assign(new Error('fk'), { code: 'ER_NO_REFERENCED_ROW_2', errno: 1452 })
 
-const renderRead = (read: (typeof mocks.state.reads)[number]) =>
-	drizzle
+const renderRead = (read: (typeof mocks.state.reads)[number]) => {
+	const query = drizzle
 		.mock()
-		.select()
+		.select(read.fields as Record<string, typeof users.id>)
 		.from(read.table as typeof users)
-		.where(read.condition as SQL)
-		.toSQL()
+		.where(read.condition as SQL | undefined)
+		.orderBy(...((read.order ?? []) as SQL[]))
+		.$dynamic()
+	return (read.limit === undefined ? query : query.limit(read.limit)).toSQL()
+}
+const deadlock = () =>
+	Object.assign(new Error('deadlock'), { code: 'ER_LOCK_DEADLOCK', errno: 1213 })
 
 beforeEach(() => {
 	mocks.state.writes = []
@@ -126,6 +151,17 @@ describe('deactivateDirectoryAccounts (spec §6.4 step 3, ADR-0027)', () => {
 		mocks.state.affectedRows = 10
 		expect(await deactivateDirectoryAccounts(ids, new Date())).toBe(30)
 		expect(mocks.state.writes).toHaveLength(3)
+		const placeholders = (index: number) => {
+			const { sql, params } = render(mocks.state.writes[index])
+			const list = /`users`\.`id` in \(([^)]*)\)/.exec(sql)![1]
+			return {
+				count: list.split(', ').length,
+				ids: params.filter(param => ids.includes(param as string)),
+			}
+		}
+		expect(placeholders(0)).toEqual({ count: 1_000, ids: ids.slice(0, 1_000) })
+		expect(placeholders(1)).toEqual({ count: 1_000, ids: ids.slice(1_000, 2_000) })
+		expect(placeholders(2)).toEqual({ count: 500, ids: ids.slice(2_000) })
 	})
 
 	it('writes nothing for no ids', async () => {
@@ -148,7 +184,7 @@ describe('refreshDirectoryAccount (decision ac)', () => {
 	const update = { id: 'a', name: 'Alice', directoryUsername: 'alice', email: 'new@example.com' }
 
 	it('writes the new email with the other fields when the index takes it', async () => {
-		expect(await refreshDirectoryAccount(update)).toEqual({ conflict: false })
+		expect(await refreshDirectoryAccount(update)).toEqual({ updated: true, conflict: false })
 		expect(mocks.state.writes[0].values).toEqual({
 			name: 'Alice',
 			directoryUsername: 'alice',
@@ -161,7 +197,7 @@ describe('refreshDirectoryAccount (decision ac)', () => {
 
 	it('keeps the old email when another account has it (1062), and says so', async () => {
 		mocks.state.failures = [duplicate()]
-		expect(await refreshDirectoryAccount(update)).toEqual({ conflict: true })
+		expect(await refreshDirectoryAccount(update)).toEqual({ updated: true, conflict: true })
 		expect(mocks.state.writes.map(write => write.values)).toEqual([
 			{ name: 'Alice', directoryUsername: 'alice', email: 'new@example.com' },
 			{ name: 'Alice', directoryUsername: 'alice' },
@@ -169,8 +205,22 @@ describe('refreshDirectoryAccount (decision ac)', () => {
 	})
 
 	it('writes no email when the plan keeps it, and a null username is not written', async () => {
-		await refreshDirectoryAccount({ ...update, email: null, directoryUsername: null })
+		expect(
+			await refreshDirectoryAccount({ ...update, email: null, directoryUsername: null }),
+		).toEqual({ updated: true, conflict: false })
 		expect(mocks.state.writes[0].values).toEqual({ name: 'Alice' })
+	})
+
+	// mysql2's FOUND_ROWS default: affectedRows counts the matched rows, so 0 means the account is gone.
+	it('reports an account deleted during the run as not updated, with or without a new email', async () => {
+		mocks.state.affectedRows = 0
+		expect(await refreshDirectoryAccount(update)).toEqual({ updated: false, conflict: false })
+		expect(await refreshDirectoryAccount({ ...update, email: null })).toEqual({
+			updated: false,
+			conflict: false,
+		})
+		mocks.state.failures = [duplicate()]
+		expect(await refreshDirectoryAccount(update)).toEqual({ updated: false, conflict: false })
 	})
 })
 
@@ -206,6 +256,21 @@ describe('applyMembershipChanges (spec §2 #8: directory rows only)', () => {
 		})
 		expect(result).toEqual({ added: 0, removed: 0, groupErrors: 1 })
 		expect(mocks.state.writes.filter(write => write.op === 'insert')).toHaveLength(3)
+	})
+
+	// Spec §6.4 step 4 counts an error per group: two refused rows of one group are one group error.
+	it('counts each hub group with refused rows once', async () => {
+		mocks.state.failures = [missing(), missing(), missing(), missing(), missing()]
+		const result = await applyMembershipChanges({
+			add: [
+				{ groupId: 'g1', userId: 'a' },
+				{ groupId: 'g1', userId: 'b' },
+				{ groupId: 'g2', userId: 'c' },
+			],
+			remove: [],
+		})
+		expect(result).toEqual({ added: 0, removed: 0, groupErrors: 2 })
+		expect(mocks.state.writes.filter(write => write.op === 'insert')).toHaveLength(5)
 	})
 })
 
@@ -261,7 +326,7 @@ describe('the run rows (spec §6.4 "Claim", §3.2)', () => {
 		mocks.state.rows = [{ id: 'r1' }]
 		expect(await hasUnfinishedRunSince(new Date('2026-10-10T09:30:00Z'))).toBe(true)
 		expect(renderRead(mocks.state.reads[0]).sql).toMatch(
-			/where \(\(\(`directory_sync_runs`\.`finished_at` is null\)\) and \(`directory_sync_runs`\.`started_at` > \?\)\)$/,
+			/where \(\(\(`directory_sync_runs`\.`finished_at` is null\)\) and \(`directory_sync_runs`\.`started_at` > \?\)\) limit \?$/,
 		)
 		mocks.state.rows = []
 		expect(await hasUnfinishedRunSince(new Date('2026-10-10T09:30:00Z'))).toBe(false)
@@ -298,5 +363,107 @@ describe('the run rows (spec §6.4 "Claim", §3.2)', () => {
 		const { sql, params } = renderRead(mocks.state.reads[0])
 		expect(sql).toMatch(/from `users` where `users`\.`source` = \?$/)
 		expect(params).toEqual(['ldap'])
+	})
+
+	it('reads only directory memberships (spec §2 #8)', async () => {
+		await listDirectoryMemberships()
+		const { sql, params } = renderRead(mocks.state.reads[0])
+		expect(sql).toBe(
+			'select `group_id`, `user_id` from `user_group_members` where `user_group_members`.`source` = ?',
+		)
+		expect(params).toEqual(['directory'])
+	})
+
+	const runRow = {
+		id: 'r1',
+		trigger: 'schedule',
+		startedAt: new Date('2026-10-10T10:00:00Z'),
+		finishedAt: new Date('2026-10-10T10:01:00Z'),
+		outcome: 'succeeded',
+		errorCode: null,
+		...EMPTY_COUNTS,
+		deactivated: 2,
+	}
+	const runRecord = {
+		id: 'r1',
+		trigger: 'schedule',
+		startedAt: runRow.startedAt,
+		finishedAt: runRow.finishedAt,
+		outcome: 'succeeded',
+		errorCode: null,
+		counts: { ...EMPTY_COUNTS, deactivated: 2 },
+	}
+
+	it('reads the newest run, its counts nested (spec §6.6)', async () => {
+		mocks.state.rows = [runRow]
+		expect(await latestSyncRun()).toEqual(runRecord)
+		const { sql, params } = renderRead(mocks.state.reads[0])
+		expect(sql).toMatch(
+			/^select `id`, `run_trigger`, `started_at`, .* from `directory_sync_runs` order by `directory_sync_runs`\.`started_at` desc limit \?$/,
+		)
+		expect(params).toEqual([1])
+		mocks.state.rows = []
+		expect(await latestSyncRun()).toBeNull()
+	})
+
+	it('reads the newest succeeded run (spec §6.4 "Missed run")', async () => {
+		mocks.state.rows = [runRow]
+		expect(await lastSucceededSyncRun()).toEqual(runRecord)
+		const { sql, params } = renderRead(mocks.state.reads[0])
+		expect(sql).toMatch(
+			/ from `directory_sync_runs` where `directory_sync_runs`\.`outcome` = \? order by `directory_sync_runs`\.`started_at` desc limit \?$/,
+		)
+		expect(params).toEqual(['succeeded', 1])
+		mocks.state.rows = []
+		expect(await lastSucceededSyncRun()).toBeNull()
+	})
+})
+
+// M1: each of the sync's statements runs once more after a deadlock (MySQL 8.4 "How to Minimize and Handle
+// Deadlocks": "Always be prepared to re-issue a transaction if it fails due to deadlock"); a second deadlock throws.
+describe('a deadlocked sync statement is re-issued once', () => {
+	const at = new Date('2026-10-10T10:00:00Z')
+	const writes: [string, () => Promise<unknown>][] = [
+		['deactivateDirectoryAccounts', () => deactivateDirectoryAccounts(['a'], at)],
+		['reactivateDirectoryAccounts', () => reactivateDirectoryAccounts(['a'])],
+		[
+			'refreshDirectoryAccount',
+			() => refreshDirectoryAccount({ id: 'a', name: 'A', directoryUsername: 'a', email: null }),
+		],
+		[
+			'applyMembershipChanges (remove)',
+			() => applyMembershipChanges({ add: [], remove: [{ groupId: 'g1', userId: 'a' }] }),
+		],
+		[
+			'applyMembershipChanges (add)',
+			() => applyMembershipChanges({ add: [{ groupId: 'g1', userId: 'a' }], remove: [] }),
+		],
+		[
+			'refreshGroupLinks (found)',
+			() => refreshGroupLinks([{ groupId: 'g1', directoryGroupId: 'd1', name: 'Engineering' }], at),
+		],
+		[
+			'refreshGroupLinks (missing)',
+			() => refreshGroupLinks([{ groupId: 'g1', directoryGroupId: 'd1', name: null }], at),
+		],
+		[
+			'claimSyncRun',
+			() => claimSyncRun({ id: 'r1', slot: 'manual:r1', trigger: 'manual', startedAt: at }),
+		],
+		['finishSyncRun', () => finishSyncRun('r1', 'succeeded', EMPTY_COUNTS, null, at)],
+		['pruneSyncRuns', () => pruneSyncRuns(at)],
+	]
+
+	it.each(writes)('%s: a deadlock, then the same statement once more', async (_, write) => {
+		mocks.state.failures = [deadlock()]
+		await write()
+		expect(mocks.state.writes).toHaveLength(2)
+		expect(mocks.state.writes[1]).toEqual(mocks.state.writes[0])
+	})
+
+	it.each(writes)('%s: two deadlocks throw, with no third attempt', async (_, write) => {
+		mocks.state.failures = [deadlock(), deadlock()]
+		await expect(write()).rejects.toMatchObject({ code: 'ER_LOCK_DEADLOCK' })
+		expect(mocks.state.writes).toHaveLength(2)
 	})
 })
