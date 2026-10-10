@@ -1,12 +1,16 @@
 import 'server-only'
 
 import { DrizzleQueryError } from 'drizzle-orm'
+import { ResultCodeError } from 'ldapts'
+
+import { DirectoryRefusedError, DirectoryUnavailableError } from '@/lib/directory/errors'
 
 /*
- * Server error logging without secrets (decision g). A leaf module: it imports drizzle-orm only, so the auth options
- * can log a sign-in failure without importing lib/action-failure.ts, whose AuthError import from lib/auth/session.ts
- * would close a cycle back to lib/auth/options.ts (MDN "JavaScript modules", "Cyclic imports": "You should usually
- * avoid cyclic imports"; "Move the shared code into a third module").
+ * Server error logging without secrets (decision g). A leaf module: it imports drizzle-orm, ldapts and the directory's
+ * error classes only (lib/directory/errors.ts imports nothing of the hub's), so the auth options can log a sign-in
+ * failure without importing lib/action-failure.ts, whose AuthError import from lib/auth/session.ts would close a cycle
+ * back to lib/auth/options.ts (MDN "JavaScript modules", "Cyclic imports": "You should usually avoid cyclic imports";
+ * "Move the shared code into a third module").
  */
 
 const driverFields = (value: unknown) =>
@@ -32,6 +36,20 @@ const causeFields = (cause: unknown) => {
 }
 
 /**
+ * A directory error's cause: a result error or a socket error with an errno as describeError reduces it; any other
+ * error by its name, its string code and Node's own message, so a TLS error's `cert` (the peer's whole certificate) and
+ * `host` never reach the log (OWASP Logging Cheat Sheet, "Data to exclude").
+ */
+const directoryCause = (cause: unknown): unknown => {
+	if (cause instanceof ResultCodeError || driverFields(cause)) return describeError(cause)
+	if (!(cause instanceof Error)) return cause
+	const code = 'code' in cause && typeof cause.code === 'string' ? cause.code : undefined
+	return code === undefined
+		? { name: cause.name, message: cause.message }
+		: { name: cause.name, code, message: cause.message }
+}
+
+/**
  * What the server log may carry for an error (decision g). Drizzle's DrizzleQueryError puts the query's
  * parameters in its message (node_modules/drizzle-orm/errors.js), and mysql2's error carries the SQL and the
  * duplicate value: a users write would log the bcrypt hash, an apps write the API key. A DrizzleQueryError is
@@ -39,6 +57,11 @@ const causeFields = (cause: unknown) => {
  * errors) by name, code and errno; any other error as it is.
  */
 export const describeError = (error: unknown): unknown => {
+	// Spec §7.3: an ldapts result error by its class and LDAP result code (its message carries the server's diagnostic
+	// text); a directory error by its name and its cause, reduced (directoryCause).
+	if (error instanceof ResultCodeError) return { name: error.name, code: error.code }
+	if (error instanceof DirectoryUnavailableError || error instanceof DirectoryRefusedError)
+		return { name: error.name, cause: directoryCause(error.cause) }
 	if (error instanceof DrizzleQueryError) return { name: error.name, ...causeFields(error.cause) }
 	const driver = driverFields(error)
 	if (driver && error instanceof Error) return { name: error.name, ...driver }
