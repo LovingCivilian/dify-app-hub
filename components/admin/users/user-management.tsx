@@ -40,11 +40,13 @@ import SearchInput from '@/components/shell/search-input'
 import { useActionTransition } from '@/hooks/use-action-transition'
 import { canManage, MANAGEABLE_ROLES, type Role } from '@/lib/auth/roles'
 import type { UserDto } from '@/lib/data/users'
+import type { DirectoryStatusDto } from '@/lib/directory/admin'
 import { matchesQuery } from '@/lib/match-query'
 
 import { ROLE_LABEL_KEYS } from './role-labels'
 import styles from './user-management.module.css'
 import { userErrorKey } from './user-errors'
+import DirectoryStatus from './directory-status'
 import UserFormDrawer from './user-form-drawer'
 
 /**
@@ -54,9 +56,11 @@ import UserFormDrawer from './user-form-drawer'
  */
 export default function UserManagement({
 	users,
+	directory,
 	currentUser,
 }: {
 	users: UserDto[]
+	directory: DirectoryStatusDto | null
 	currentUser: { id: string; role: Role }
 }) {
 	const { t } = useTranslation()
@@ -345,6 +349,7 @@ export default function UserManagement({
 					</Button>
 				}
 			/>
+			{directory && <DirectoryStatus status={directory} />}
 			<Row>
 				<Col
 					xs={24}

@@ -9,6 +9,7 @@ export type ActionErrorCode =
 	| 'cannot_deactivate_self'
 	| 'not_found'
 	| 'dify_unreachable'
+	| 'sync_running'
 	| 'operation_failed'
 
 export interface ActionFailure {

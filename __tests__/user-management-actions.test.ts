@@ -8,6 +8,7 @@ const {
 	deleteUser,
 	setUserActive,
 	refresh,
+	syncDirectoryNow,
 } = vi.hoisted(() => ({
 	getServerSession: vi.fn(),
 	createUser: vi.fn(),
@@ -16,6 +17,7 @@ const {
 	deleteUser: vi.fn(),
 	setUserActive: vi.fn(),
 	refresh: vi.fn(),
+	syncDirectoryNow: vi.fn(),
 }))
 vi.mock('next-auth/next', () => ({ getServerSession }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
@@ -27,6 +29,7 @@ vi.mock('@/lib/data/users', () => ({
 	deleteUser,
 	setUserActive,
 }))
+vi.mock('@/lib/directory/admin', () => ({ syncDirectoryNow }))
 vi.mock('next/cache', () => ({ refresh }))
 
 import {
@@ -34,6 +37,7 @@ import {
 	deactivateUserAction,
 	deleteUserAction,
 	reactivateUserAction,
+	syncDirectoryAction,
 	updateUserAction,
 	updateUserRoleAction,
 } from '@/app/(admin)/user-management/actions'
@@ -50,6 +54,7 @@ beforeEach(() => {
 		deleteUser,
 		setUserActive,
 		refresh,
+		syncDirectoryNow,
 	])
 		fn.mockReset()
 	getServerSession.mockResolvedValue({ user: admin })
@@ -63,6 +68,7 @@ describe('user actions', () => {
 		['deleteUserAction', () => deleteUserAction('u9')],
 		['deactivateUserAction', () => deactivateUserAction('u9')],
 		['reactivateUserAction', () => reactivateUserAction('u9')],
+		['syncDirectoryAction', () => syncDirectoryAction()],
 	] as const)(
 		'%s refuses a user-role session and a missing one before the DAL',
 		async (_name, call) => {
@@ -70,7 +76,15 @@ describe('user actions', () => {
 			expect(await call()).toEqual({ ok: false, code: 'forbidden' })
 			getServerSession.mockResolvedValue(null)
 			expect(await call()).toEqual({ ok: false, code: 'unauthorized' })
-			for (const fn of [createUser, updateUser, updateUserRole, deleteUser, setUserActive, refresh])
+			for (const fn of [
+				createUser,
+				updateUser,
+				updateUserRole,
+				deleteUser,
+				setUserActive,
+				syncDirectoryNow,
+				refresh,
+			])
 				expect(fn).not.toHaveBeenCalled()
 		},
 	)
@@ -144,5 +158,37 @@ describe('user actions', () => {
 			ok: false,
 			code: 'not_found',
 		})
+	})
+
+	it('runs Sync now and answers the outcome, sync_running while one is going, not_found while LDAP is off', async () => {
+		const counts = {
+			entriesSeen: 3,
+			deactivated: 1,
+			reactivated: 0,
+			updated: 0,
+			conflicts: 0,
+			groupErrors: 0,
+			membershipsAdded: 0,
+			membershipsRemoved: 0,
+		}
+		syncDirectoryNow.mockResolvedValue({
+			status: 'finished',
+			outcome: 'succeeded',
+			counts,
+			errorCode: null,
+		})
+		expect(await syncDirectoryAction()).toEqual({
+			ok: true,
+			data: { outcome: 'succeeded', counts, errorCode: null },
+		})
+		expect(syncDirectoryNow).toHaveBeenCalledWith(admin)
+		expect(refresh).toHaveBeenCalledTimes(1)
+		syncDirectoryNow.mockResolvedValue({ status: 'running' })
+		expect(await syncDirectoryAction()).toEqual({ ok: false, code: 'sync_running' })
+		syncDirectoryNow.mockResolvedValue(null)
+		expect(await syncDirectoryAction()).toEqual({ ok: false, code: 'not_found' })
+		// A database failure out of the run is an operation_failed result, never a throw (carry, Task 10 note).
+		syncDirectoryNow.mockRejectedValue(new Error('db down'))
+		expect(await syncDirectoryAction()).toEqual({ ok: false, code: 'operation_failed' })
 	})
 })

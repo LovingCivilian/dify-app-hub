@@ -15,6 +15,8 @@ export const userErrorKey = (code: ActionErrorCode) => {
 			return 'admin_users.cannot_delete_self' as const
 		case 'cannot_deactivate_self':
 			return 'admin_users.cannot_deactivate_self' as const
+		case 'sync_running':
+			return 'admin_users.sync_running' as const
 		case 'invalid_input':
 			return 'admin_users.invalid_input' as const
 		default:

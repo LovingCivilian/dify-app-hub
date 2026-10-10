@@ -3,9 +3,12 @@
 import { refresh } from 'next/cache'
 
 import { invalidInput, toActionFailure } from '@/lib/action-failure'
-import { fail, type ActionResult } from '@/lib/action-result'
+import { fail, ok, type ActionResult } from '@/lib/action-result'
 import { requireAdmin } from '@/lib/auth/session'
+import type { SyncRunCounts } from '@/lib/data/directory'
 import { createUser, deleteUser, setUserActive, updateUser, updateUserRole } from '@/lib/data/users'
+import { syncDirectoryNow } from '@/lib/directory/admin'
+import type { SyncErrorCode, SyncOutcome } from '@/lib/directory-status'
 
 import {
 	createUserInputSchema,
@@ -97,5 +100,25 @@ export async function reactivateUserAction(id: string): Promise<ActionResult> {
 		return result
 	} catch (error) {
 		return toActionFailure(error, 'reactivateUserAction')
+	}
+}
+
+export async function syncDirectoryAction(): Promise<
+	ActionResult<{
+		outcome: Exclude<SyncOutcome, 'running'>
+		counts: SyncRunCounts
+		errorCode: SyncErrorCode | null
+	}>
+> {
+	try {
+		const actor = await requireAdmin()
+		const result = await syncDirectoryNow(actor)
+		if (result === null) return fail('not_found')
+		// A manual slot is unique, so `skipped` cannot happen; both mean "another run has it".
+		if (result.status !== 'finished') return fail('sync_running')
+		refresh()
+		return ok({ outcome: result.outcome, counts: result.counts, errorCode: result.errorCode })
+	} catch (error) {
+		return toActionFailure(error, 'syncDirectoryAction')
 	}
 }

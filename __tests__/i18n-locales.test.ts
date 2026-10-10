@@ -63,7 +63,11 @@ describe('locale files', () => {
 
 	it('write the Arabic file in Arabic script', () => {
 		// Keys that are legitimately Latin-only (product names, format strings) are listed here.
-		const latinOnly = new Set<string>()
+		// The directory connection's protocol names (spec §6.6) stay as written in every language.
+		const latinOnly = new Set<string>([
+			'admin_users.directory_ldaps',
+			'admin_users.directory_starttls',
+		])
 		const notArabic = Object.entries(translations.ar)
 			.filter(([key, value]) => !latinOnly.has(key) && !/[؀-ۿ]/.test(value))
 			.map(([key]) => key)
