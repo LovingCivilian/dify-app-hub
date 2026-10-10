@@ -12,6 +12,7 @@ import {
 	Space,
 	Table,
 	type TableProps,
+	Tag,
 	Typography,
 	theme,
 } from 'antd'
@@ -31,13 +32,19 @@ import { matchesQuery } from '@/lib/match-query'
 import { groupErrorKey } from './group-errors'
 import GroupFormDrawer from './group-form-drawer'
 
-/** The groups table (B3 spec §4.3): search, member and app counts, Server Actions for every write. */
+/**
+ * The groups table (B3 spec §4.3): search, member and app counts, the linked directory groups while the directory is
+ * configured (spec §6.5), Server Actions for every write.
+ */
 export default function GroupManagement({
 	groups,
 	users,
+	directoryEnabled,
 }: {
 	groups: GroupDto[]
 	users: UserOption[]
+	/** Whether the `LDAP_*` block is set: the directory groups column and field show only then. */
+	directoryEnabled: boolean
 }) {
 	const { t } = useTranslation()
 	const { token } = theme.useToken()
@@ -79,6 +86,32 @@ export default function GroupManagement({
 			// Distinct accounts: from B3b a person can be a manual and a directory member of one group.
 			render: (_, group) => new Set(group.members.map(member => member.userId)).size,
 		},
+		...(directoryEnabled
+			? [
+					{
+						title: t('admin_groups.column_directory_groups'),
+						key: 'directoryGroups',
+						render: (_: unknown, group: GroupDto) =>
+							group.directoryLinks.length ? (
+								<Flex
+									wrap
+									gap="small"
+								>
+									{group.directoryLinks.map(link => (
+										<Tag
+											key={link.id}
+											color={link.missingSince ? 'warning' : 'blue'}
+										>
+											{link.missingSince
+												? t('admin_groups.directory_group_missing', { name: link.name })
+												: link.name}
+										</Tag>
+									))}
+								</Flex>
+							) : null,
+					},
+				]
+			: []),
 		{ title: t('admin_groups.column_apps'), key: 'apps', render: (_, group) => group.appCount },
 		{
 			title: t('common.created_at'),
@@ -172,6 +205,7 @@ export default function GroupManagement({
 				open={drawerOpen}
 				group={editing}
 				users={users}
+				directoryEnabled={directoryEnabled}
 				onClose={() => setDrawerOpen(false)}
 				onClosed={() => setEditing(undefined)}
 			/>

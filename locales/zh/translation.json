@@ -326,7 +326,17 @@
 		"update_success": "群组已更新",
 		"not_found": "群组不存在",
 		"name_in_use": "已存在同名群组",
-		"invalid_input": "请检查填写的内容后重试。你选择的账户可能已被删除。"
+		"invalid_input": "请检查填写的内容后重试。你选择的账户可能已被删除。",
+		"column_directory_groups": "目录群组",
+		"directory_groups": "目录群组",
+		"directory_groups_placeholder": "输入至少两个字符以搜索目录",
+		"directory_groups_hint": "这些目录群组（包括嵌套群组）的成员属于本群组。更改会在下次同步或该成员下次通过目录登录时生效；移除全部关联会立即移除目录成员。",
+		"directory_groups_none": "没有匹配的目录群组",
+		"directory_groups_limited": "仅显示前 {{limit}} 个匹配项，请输入更多字符以缩小范围。",
+		"directory_group_missing": "{{name}}（未找到）",
+		"directory_members": "目录成员",
+		"directory_members_hint": "由目录同步添加；请在目录中修改。",
+		"directory_unavailable": "无法连接目录，请稍后重试。"
 	},
 	"admin_apps": {
 		"subtitle": "管理在应用中心发布的 Dify 应用",

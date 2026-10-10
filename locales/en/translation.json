@@ -326,7 +326,17 @@
 		"update_success": "Group updated",
 		"not_found": "Group not found",
 		"name_in_use": "A group with this name already exists",
-		"invalid_input": "Check the fields and try again. An account you chose may have been deleted."
+		"invalid_input": "Check the fields and try again. An account you chose may have been deleted.",
+		"column_directory_groups": "Directory groups",
+		"directory_groups": "Directory groups",
+		"directory_groups_placeholder": "Type at least two characters to search the directory",
+		"directory_groups_hint": "Members of these directory groups, nested groups included, belong to this group. Changes apply at the next sync or the member's next directory sign-in; removing every link removes the directory members at once.",
+		"directory_groups_none": "No matching directory group",
+		"directory_groups_limited": "Showing the first {{limit}} matches; type more to narrow the search.",
+		"directory_group_missing": "{{name}} (not found)",
+		"directory_members": "Directory members",
+		"directory_members_hint": "Added by the directory sync; change them in the directory.",
+		"directory_unavailable": "The directory is unreachable. Try again later."
 	},
 	"admin_apps": {
 		"subtitle": "Manage the Dify apps published in the hub",

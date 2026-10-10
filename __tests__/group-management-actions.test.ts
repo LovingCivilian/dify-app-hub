@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getServerSession, refresh, writes, locked, manual } = vi.hoisted(() => ({
+const { getServerSession, refresh, writes, locked, manual, links } = vi.hoisted(() => ({
 	getServerSession: vi.fn(),
 	refresh: vi.fn(),
 	writes: { insert: vi.fn(), update: vi.fn(), delete: vi.fn() },
@@ -8,24 +8,29 @@ const { getServerSession, refresh, writes, locked, manual } = vi.hoisted(() => (
 	locked: { value: undefined as { id: string } | undefined },
 	/** The group's manual members the locking read finds (manualMembersOf). */
 	manual: { value: [] as { userId: string }[] },
+	/** The group's directory links the locking read finds (linksOf). */
+	links: { value: [] as { directoryGroupId: string; directoryGroupName: string }[] },
 }))
 vi.mock('next-auth/next', () => ({ getServerSession }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
 vi.mock('next/cache', () => ({ refresh }))
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
-vi.mock('@/db', () => {
-	// Both reads are locking reads: lockGroup ends in .limit(1).for('update'), manualMembersOf in .where().for('update').
+vi.mock('@/db', async () => {
+	// A factory may return a promise (Vitest `vi.mock`), so it imports the table the fake tells apart.
+	const { userGroupDirectoryLinks } = await import('@/db/schema')
+	// Every read is a locking read: lockGroup ends in .limit(1).for('update'), manualMembersOf and linksOf in
+	// .where().for('update').
 	const forUpdate = (rows: () => unknown[]) => (strength: string) =>
 		strength === 'update' ? Promise.resolve(rows()) : Promise.reject(new Error(`lock ${strength}`))
-	const query = {
-		from: () => query,
+	// The fake answers by table: the group's lock (limit().for()), its manual members or its links (where().for()).
+	const queryOn = (table: unknown) => ({
 		where: () => ({
 			limit: () => ({ for: forUpdate(() => (locked.value ? [locked.value] : [])) }),
-			for: forUpdate(() => manual.value),
+			for: forUpdate(() => (table === userGroupDirectoryLinks ? links.value : manual.value)),
 		}),
-	}
+	})
 	const db = {
-		select: () => query,
+		select: () => ({ from: queryOn }),
 		insert: () => ({ values: writes.insert }),
 		update: () => ({ set: () => ({ where: writes.update }) }),
 		delete: () => ({ where: writes.delete }),
@@ -61,6 +66,7 @@ beforeEach(() => {
 	}
 	locked.value = { id: groupId }
 	manual.value = []
+	links.value = []
 	for (const fn of dal) fn.mockClear()
 })
 
@@ -190,5 +196,38 @@ describe('the owner', () => {
 		writes.delete.mockResolvedValueOnce([{ affectedRows: 0 }])
 		expect(await deleteGroupAction(groupId)).toEqual({ ok: false, code: 'not_found' })
 		expect(await deleteGroupAction('nope')).toEqual({ ok: false, code: 'not_found' })
+	})
+
+	it('saves the directory links with the group, and drops the directory members when no link is left (decision am)', async () => {
+		const key = 'b95f3990-b59a-4a1b-9e96-86c66cb18d99'
+		expect(
+			await updateGroupAction(groupId, {
+				...input,
+				directoryGroups: [{ id: key, name: 'Engineering' }],
+			}),
+		).toEqual({
+			ok: true,
+			data: undefined,
+		})
+		expect(writes.insert.mock.calls.some(([rows]) => JSON.stringify(rows).includes(key))).toBe(true)
+
+		for (const fn of Object.values(writes)) fn.mockClear()
+		links.value = [{ directoryGroupId: key, directoryGroupName: 'Engineering' }]
+		expect(await updateGroupAction(groupId, { ...input, directoryGroups: [] })).toEqual({
+			ok: true,
+			data: undefined,
+		})
+		// The link, then the group's directory memberships (SQL pinned in data-groups.test.ts).
+		expect(writes.delete).toHaveBeenCalledTimes(2)
+	})
+
+	it('refuses a key that is not canonical, before any write', async () => {
+		expect(
+			await updateGroupAction(groupId, {
+				...input,
+				directoryGroups: [{ id: 'CN=Engineering', name: 'Engineering' }],
+			}),
+		).toMatchObject({ ok: false, code: 'invalid_input' })
+		expect(anyWrite()).toBe(false)
 	})
 })
