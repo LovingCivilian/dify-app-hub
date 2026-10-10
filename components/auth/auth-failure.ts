@@ -6,11 +6,18 @@ export const resetFailureKey = (status: number) =>
 
 /**
  * next-auth's sign-in error as a translation key. `CredentialsSignin` is its code for an authorize() that returned
- * null, a wrong email or password (next-auth Pages, "Error codes"); any other code is a failure the user cannot fix
- * by retyping, such as the `Default` that `authorizeCredentials` throws when the database fails.
+ * null (next-auth Pages, "Error codes"), named by the tab's identifier (decision z); `DirectoryUnavailable` is the
+ * `ldap` provider's thrown code when the directory does not answer (spec §7.3); any other code is a failure the user
+ * cannot fix by retyping, such as the `Default` both providers throw when the database fails.
  */
-export const loginFailureKey = (error: string) =>
-	error === 'CredentialsSignin' ? ('auth.login_failed' as const) : ('auth.login_error' as const)
+export const loginFailureKey = (error: string, mode: 'directory' | 'local') => {
+	if (error === 'CredentialsSignin')
+		return mode === 'directory'
+			? ('auth.directory_login_failed' as const)
+			: ('auth.login_failed' as const)
+	if (error === 'DirectoryUnavailable') return 'auth.directory_unavailable' as const
+	return 'auth.login_error' as const
+}
 
 /**
  * The first-run action's failure code as a translation key (charter §4.5): forbidden once any account exists

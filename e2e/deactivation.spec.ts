@@ -1,7 +1,13 @@
 import { expect, test } from '@playwright/test'
 
 import { ADMIN_STATE } from './fixtures/constants'
-import { deleteUsersLike, openUsers, seedUser, signInAs } from './fixtures/users'
+import {
+	chooseLocalAccount,
+	deleteUsersLike,
+	openUsers,
+	seedUser,
+	signInAs,
+} from './fixtures/users'
 
 const PASSWORD = 'deact-pass-1'
 const tag = () => `deact-${test.info().project.name}`
@@ -51,6 +57,7 @@ test.describe('deactivation (B3 spec §5)', () => {
 
 			await userPage.goto('/apps')
 			await expect(userPage).toHaveURL(/\/login/)
+			await chooseLocalAccount(userPage)
 			await userPage.getByLabel('Email').fill(email())
 			await userPage.getByLabel('Password').fill(PASSWORD)
 			await userPage.getByRole('button', { name: 'Log in' }).click()

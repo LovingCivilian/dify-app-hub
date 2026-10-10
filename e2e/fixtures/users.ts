@@ -55,13 +55,36 @@ export const deleteUsersLike = (pattern: string) =>
 		await db.execute('DELETE FROM users WHERE email LIKE ?', [pattern])
 	})
 
-/** Signs in through the login form and waits for the landing page. */
+/**
+ * The login page shows the two tabs in the e2e suite (decision aa): local accounts sign in on "Local account". A click
+ * that lands before React has hydrated the form does nothing (e2e/fixtures/hydration.ts), and choosing a tab is
+ * idempotent, so the click is retried until the local form shows (Playwright "Assertions", `expect.toPass`; its
+ * timeout defaults to 0, so it is given expect's).
+ */
+export const chooseLocalAccount = async (page: Page) => {
+	await expect(async () => {
+		await page.getByRole('tab', { name: 'Local account' }).click()
+		await expect(page.getByLabel('Email')).toBeVisible({ timeout: 1_000 })
+	}).toPass({ timeout: 30_000 })
+}
+
+/** Signs in through the login form's local tab and waits for the landing page. */
 export const signInAs = async (page: Page, email: string, password: string) => {
 	await page.goto('/login')
+	await chooseLocalAccount(page)
 	await page.getByLabel('Email').fill(email)
 	await page.getByLabel('Password').fill(password)
 	await page.getByRole('button', { name: 'Log in' }).click()
 	await expect(page).toHaveURL(/\/apps$/)
+}
+
+/** Signs in through the directory tab, the login page's default (spec §6.3). */
+export const signInWithDirectory = async (page: Page, username: string, password: string) => {
+	await page.goto('/login')
+	await expect(page.getByRole('tab', { name: 'Directory account', selected: true })).toBeVisible()
+	await page.getByLabel('Username').fill(username)
+	await page.getByLabel('Password').fill(password)
+	await page.getByRole('button', { name: 'Log in' }).click()
 }
 
 /** Opens the users page and waits until its table has hydrated (the date in the table is the signal). */

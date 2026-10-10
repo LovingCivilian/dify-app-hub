@@ -30,6 +30,12 @@ describe('getAccountMenuItems', () => {
 		expect(onChangePassword).toHaveBeenCalledTimes(1)
 		expect(onLogout).toHaveBeenCalledTimes(1)
 	})
+
+	// Decision v: a directory account has no hub password; the menu leaves the entry out (GitLab hides it).
+	it('leaves out change password without its handler', () => {
+		const items = getAccountMenuItems({ email: 'bob@corp.example', t, onLogout: vi.fn() })
+		expect(items.map(item => item?.key)).toEqual(['account', 'logout'])
+	})
 })
 
 describe('sign-outs', () => {
