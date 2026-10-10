@@ -1,6 +1,6 @@
 # Directory (LDAP) sign-in and sync
 
-ADR-0029. People in the company directory sign in on the login page's "Directory account" tab with their directory username and password. Their hub account is created at the first sign-in and linked to their entry by its key (`objectGUID` on Active Directory, `entryUUID` elsewhere), never by email. A scheduled sync, and Sync now on the users page, deactivate the accounts whose entry is gone or disabled, reactivate those that come back, refresh names and emails, and keep the members of hub groups linked to directory groups. Roles stay in the hub: a new directory account is a `user`, and the owner or an admin promotes it.
+ADR-0029. People in the company directory sign in on the login page's "Directory account" tab with their directory username and password; they type the username without the domain (`jsmith`, not `CORP\jsmith` or `jsmith@corp.example.com`), as the tab's hint says. Their hub account is created at the first sign-in and linked to their entry by its key (`objectGUID` on Active Directory, `entryUUID` elsewhere), never by email. A scheduled sync, and Sync now on the users page, deactivate the accounts whose entry is gone or disabled, reactivate those that come back, refresh names and emails, and keep the members of hub groups linked to directory groups. Roles stay in the hub: a new directory account is a `user`, and the owner or an admin promotes it.
 
 ## Settings
 
