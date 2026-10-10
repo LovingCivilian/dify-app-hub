@@ -419,7 +419,7 @@ describe('directory accounts (spec §6.3, decision an)', () => {
 	/** A database whose transaction answers the locking read with `target` and records updates. */
 	const withTarget = (target: {
 		id: string
-		role: 'user' | 'admin'
+		role: 'user' | 'admin' | 'owner'
 		adminDeactivatedAt: null
 		source: 'local' | 'ldap'
 	}) => {
@@ -501,5 +501,34 @@ describe('directory accounts (spec §6.3, decision an)', () => {
 		updates = withTarget({ id: 'a1', role: 'admin', adminDeactivatedAt: null, source: 'ldap' })
 		expect(await updateUserRole(anAdmin, 'a1', 'user')).toEqual({ ok: false, code: 'forbidden' })
 		expect(updates).toEqual([])
+	})
+
+	it('refuses your own row outright, even with the role it has (ADR-0024 decision c)', async () => {
+		const owner = { id: 'o1', email: 'o@e.com', name: null, role: 'owner' as const }
+		const anAdmin = { id: 'a1', email: 'a@e.com', name: null, role: 'admin' as const }
+		// Same-role inputs, which updateRefusal lets through for updateUser's own-name edit: here nothing is written.
+		let updates = withTarget({ id: 'a1', role: 'admin', adminDeactivatedAt: null, source: 'ldap' })
+		expect(await updateUserRole(anAdmin, 'a1', 'admin')).toEqual({ ok: false, code: 'forbidden' })
+		expect(updates).toEqual([])
+		updates = withTarget({ id: 'o1', role: 'owner', adminDeactivatedAt: null, source: 'local' })
+		expect(await updateUserRole(owner, 'o1', 'owner')).toEqual({ ok: false, code: 'forbidden' })
+		expect(updates).toEqual([])
+	})
+
+	it('answers not_found for an unknown id before the hash', async () => {
+		database.value = {
+			// The plain read before the hash finds no account; the transaction is never reached.
+			select: () => ({ from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }) }),
+			transaction: () => Promise.reject(new Error('no transaction for an unknown id')),
+		}
+		expect(
+			await updateUser({ id: 'o1', email: 'o@e.com', name: null, role: 'owner' }, 'gone', {
+				name: 'N',
+				email: 'n@e.com',
+				role: 'user',
+				password: 'password-1',
+			}),
+		).toEqual({ ok: false, code: 'not_found' })
+		expect(hashPassword).not.toHaveBeenCalled()
 	})
 })

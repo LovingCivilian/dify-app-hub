@@ -283,7 +283,9 @@ export async function updateUser(
 			.from(users)
 			.where(eq(users.id, id))
 			.limit(1)
-		if (current?.source === 'ldap') return fail('forbidden')
+		// An unknown id costs no bcrypt work either.
+		if (!current) return fail('not_found')
+		if (current.source === 'ldap') return fail('forbidden')
 	}
 	// Hashed before the transaction so the row lock is held for the queries only.
 	const passwordHash = input.password ? await hashPassword(input.password) : undefined
@@ -319,8 +321,9 @@ export async function updateUser(
 
 /**
  * Changes an account's role only (decision an): the edit of a directory account, whose other fields the directory owns.
- * The rank map applies against the locked target row as in updateUser (ADR-0024 decision d): your own role is fixed,
- * and another account's only within the roles the actor's rank manages.
+ * The rank map applies against the locked target row as in updateUser (ADR-0024 decision d): another account's role
+ * changes only within the roles the actor's rank manages. Your own row is refused outright, even with the role it has,
+ * since your own role is fixed (ADR-0024 decision c) and there is nothing else to write here.
  */
 export async function updateUserRole(
 	actor: SessionUser,
@@ -331,6 +334,8 @@ export async function updateUserRole(
 	return getDb().transaction(async tx => {
 		const [target] = await lockTarget(tx, id)
 		if (!target) return fail('not_found')
+		// Decided on the locked row's id, as updateRefusal decides its own-row rule.
+		if (target.id === actor.id) return fail('forbidden')
 		const refusal = updateRefusal({ actor, target, input: { role } })
 		if (refusal) return fail(refusal)
 		await tx.update(users).set({ role }).where(eq(users.id, id))

@@ -38,7 +38,7 @@ import PageHeader from '@/components/shell/page-header'
 import ClientDateTime from '@/components/admin/client-date-time'
 import SearchInput from '@/components/shell/search-input'
 import { useActionTransition } from '@/hooks/use-action-transition'
-import { canManage, type Role } from '@/lib/auth/roles'
+import { canManage, MANAGEABLE_ROLES, type Role } from '@/lib/auth/roles'
 import type { UserDto } from '@/lib/data/users'
 import { matchesQuery } from '@/lib/match-query'
 
@@ -77,6 +77,14 @@ export default function UserManagement({
 	const shown = users.filter(user =>
 		matchesQuery([user.name, user.email, user.id, user.directoryUsername ?? ''], query),
 	)
+	// Edit is offered only where something can be changed, as every action the rank map denies is left out (ADR-0024).
+	// A local account: your own name and email, or an account your rank manages. A directory account offers its role
+	// alone (decision an): only an account your rank manages, and only when your rank can give it another role (the
+	// owner; an admin gives the user role only). Your own directory row never qualifies: nobody manages their own rank.
+	const canEdit = (user: UserDto) =>
+		user.source === 'ldap'
+			? canManage(currentUser.role, user.role) && MANAGEABLE_ROLES[currentUser.role].length > 1
+			: user.id === currentUser.id || canManage(currentUser.role, user.role)
 	// Who deactivated an account, by name or email; null when that account no longer exists.
 	const nameOf = (id: string | null) => {
 		const found = users.find(user => user.id === id)
@@ -247,10 +255,7 @@ export default function UserManagement({
 			key: 'actions',
 			render: (_, user) => (
 				<Space>
-					{/* Your own directory row has nothing you may edit: its name, email and password are the directory's,
-					    and your role is fixed (decision an). */}
-					{((user.id === currentUser.id && user.source === 'local') ||
-						canManage(currentUser.role, user.role)) && (
+					{canEdit(user) && (
 						<Button
 							type="text"
 							icon={<EditOutlined />}
