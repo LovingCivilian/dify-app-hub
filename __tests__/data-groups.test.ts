@@ -141,13 +141,12 @@ describe('the groups DAL refuses a non-admin actor before any query', () => {
 })
 
 describe('the directory links of a group (decision am)', () => {
-	it('diffs the links by key: removes the dropped, inserts the new, renames the kept', () => {
+	// Task 12 review M1: a kept link is no write, so it keeps its stored name, which the directory owns (the sync refreshes
+	// it), whatever name the browser sends for it.
+	it('diffs the links by key: removes the dropped, inserts the new, leaves the kept as stored', () => {
 		expect(
 			directoryLinkChanges(
-				[
-					{ directoryGroupId: 'k1', directoryGroupName: 'Old' },
-					{ directoryGroupId: 'k2', directoryGroupName: 'Two' },
-				],
+				[{ directoryGroupId: 'k1' }, { directoryGroupId: 'k2' }],
 				[
 					{ id: 'k1', name: 'New' },
 					{ id: 'k3', name: 'Three' },
@@ -156,8 +155,20 @@ describe('the directory links of a group (decision am)', () => {
 		).toEqual({
 			add: [{ id: 'k3', name: 'Three' }],
 			remove: ['k2'],
-			rename: [{ id: 'k1', name: 'New' }],
 		})
+	})
+
+	// Task 12 review M7: a key sent twice is one link, with the last name sent.
+	it('adds a key sent twice once, with its last name', () => {
+		expect(
+			directoryLinkChanges(
+				[],
+				[
+					{ id: 'k1', name: 'First' },
+					{ id: 'k1', name: 'Last' },
+				],
+			),
+		).toEqual({ add: [{ id: 'k1', name: 'Last' }], remove: [] })
 	})
 
 	it('reads the links with a locking read and deletes only the named ones', () => {

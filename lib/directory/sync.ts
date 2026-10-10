@@ -26,7 +26,7 @@ import { logActionError } from '@/lib/error-log'
 import type { LdapConfig } from '@/lib/env'
 
 import { withDirectory } from './connection'
-import { readEntry, type DirectoryEntry } from './entry'
+import { cutToColumn, readEntry, type DirectoryEntry } from './entry'
 import { DirectoryRefusedError, DirectoryUnavailableError } from './errors'
 import { findGroupByKey, listMemberKeys, listUserEntries } from './operations'
 import { planAccountChanges, planDirectoryMemberships, type LinkLookup } from './plan'
@@ -72,16 +72,6 @@ const errorCodeOf = (error: unknown): SyncErrorCode => {
 	return 'internal_error'
 }
 
-/**
- * `directory_group_name` is varchar(255), and MySQL's strict mode refuses a longer value ("values that exceed the
- * column length are not stored, and an error results", MySQL 8.4 "The CHAR and VARCHAR Types"), which would fail the
- * run. findGroupByKey falls back to the DN for a group without a name, so the name is cut here, by code points as
- * readEntry cuts an entry's texts (MDN `Array.from()`: a string's iterator yields code points).
- */
-const GROUP_NAME_MAX = 255
-const groupNameForColumn = (name: string): string =>
-	Array.from(name).slice(0, GROUP_NAME_MAX).join('')
-
 interface DirectorySnapshot {
 	entries: DirectoryEntry[]
 	lookups: LinkLookup[]
@@ -105,7 +95,9 @@ async function lookUpLinks(
 				group
 					? {
 							status: 'found',
-							name: groupNameForColumn(group.name),
+							// `directory_group_name` is varchar(255): findGroupByKey falls back to the DN for a group without a
+							// name, and a longer value would fail the run (cutToColumn).
+							name: cutToColumn(group.name),
 							memberKeys: await listMemberKeys(client, config, group.dn),
 						}
 					: { status: 'missing' },

@@ -51,13 +51,15 @@ export interface GroupOption {
 
 /**
  * What the group drawer sends (validated by the action's schema); `memberIds` are the manual members,
- * `directoryGroups` the linked directory groups by key, with the name the search showed (decision am).
+ * `directoryGroups` the linked directory groups by key, with the name the search showed (decision am). An absent
+ * `directoryGroups` leaves the links as they are (decision am, as GitLab's "Update group attributes" and Mattermost's
+ * `GroupPatch` change only the attributes sent).
  */
 export interface GroupInput {
 	name: string
 	description: string
 	memberIds: string[]
-	directoryGroups: { id: string; name: string }[]
+	directoryGroups?: { id: string; name: string }[]
 }
 
 export const toGroupDto = (
@@ -168,10 +170,7 @@ const manualRows = (groupId: string, userIds: readonly string[]) =>
 /** The group's links, with a locking read (MySQL 8.4 "Locking Reads"), before the save changes them. */
 export const linksOf = (tx: Pick<Tx, 'select'>, groupId: string) =>
 	tx
-		.select({
-			directoryGroupId: userGroupDirectoryLinks.directoryGroupId,
-			directoryGroupName: userGroupDirectoryLinks.directoryGroupName,
-		})
+		.select({ directoryGroupId: userGroupDirectoryLinks.directoryGroupId })
 		.from(userGroupDirectoryLinks)
 		.where(eq(userGroupDirectoryLinks.groupId, groupId))
 		.for('update')
@@ -192,23 +191,21 @@ export const removeDirectoryMembers = (tx: Pick<Tx, 'delete'>, groupId: string) 
 		.delete(userGroupMembers)
 		.where(and(eq(userGroupMembers.groupId, groupId), eq(userGroupMembers.source, 'directory')))
 
-/** Decision am: what a save changes in the links, by key; a kept link takes the picked name. */
+/**
+ * Decision am: what a save changes in the links, by key: the new ones with the name the search showed (a key sent twice
+ * once, its last name, MDN `Map`: a repeated key replaces the value) and the dropped ones. A kept link is no write and
+ * keeps its stored name, which the directory owns and the sync refreshes (the directory writes the links' names and
+ * `missing_since`, ADR-0027: each writer changes only what it owns).
+ */
 export const directoryLinkChanges = (
-	current: readonly { directoryGroupId: string; directoryGroupName: string }[],
+	current: readonly { directoryGroupId: string }[],
 	next: readonly { id: string; name: string }[],
-): {
-	add: { id: string; name: string }[]
-	remove: string[]
-	rename: { id: string; name: string }[]
-} => {
-	const now = new Map(current.map(link => [link.directoryGroupId, link.directoryGroupName]))
+): { add: { id: string; name: string }[]; remove: string[] } => {
+	const now = new Set(current.map(link => link.directoryGroupId))
 	const wanted = new Map(next.map(link => [link.id, link.name]))
 	return {
 		add: [...wanted].filter(([id]) => !now.has(id)).map(([id, name]) => ({ id, name })),
-		remove: [...now.keys()].filter(id => !wanted.has(id)),
-		rename: [...wanted]
-			.filter(([id, name]) => now.has(id) && now.get(id) !== name)
-			.map(([id, name]) => ({ id, name })),
+		remove: [...now].filter(id => !wanted.has(id)),
 	}
 }
 
@@ -274,17 +271,15 @@ export async function createGroup(
 	assertAdmin(actor)
 	const id = crypto.randomUUID()
 	const memberIds = [...new Set(input.memberIds)]
-	// Decision am: each directory group once per key, the last name kept (MDN `Map`: a repeated key replaces the value).
-	const unique = [...new Map(input.directoryGroups.map(link => [link.id, link.name]))].map(
-		([key, name]) => ({ id: key, name }),
-	)
+	// Decision am: each directory group once per key, the last name kept (directoryLinkChanges against no link).
+	const { add: links } = directoryLinkChanges([], input.directoryGroups ?? [])
 	try {
 		await getDb().transaction(async tx => {
 			await tx
 				.insert(userGroups)
 				.values({ id, name: input.name, description: input.description || null })
 			if (memberIds.length) await tx.insert(userGroupMembers).values(manualRows(id, memberIds))
-			if (unique.length) await tx.insert(userGroupDirectoryLinks).values(linkRows(id, unique))
+			if (links.length) await tx.insert(userGroupDirectoryLinks).values(linkRows(id, links))
 		})
 	} catch (error) {
 		const refusal = refusalOf(error)
@@ -295,8 +290,9 @@ export async function createGroup(
 }
 
 /**
- * Renames and re-describes the group, replaces its manual members and its directory links (decision am); its directory
- * members stay while a link is left, for the next sync or sign-in to recompute (spec §2 #8, §6.4 step 4).
+ * Renames and re-describes the group, replaces its manual members and, when the input carries them, its directory links
+ * (decision am); its directory members stay while a link is left, for the next sync or sign-in to recompute (spec §2
+ * #8, §6.4 step 4).
  */
 export async function updateGroup(
 	actor: SessionUser,
@@ -319,23 +315,17 @@ export async function updateGroup(
 			)
 			if (remove.length) await removeManualMembers(tx, id, remove)
 			if (add.length) await tx.insert(userGroupMembers).values(manualRows(id, add))
-			const currentLinks = await linksOf(tx, id)
-			const links = directoryLinkChanges(currentLinks, input.directoryGroups)
-			if (links.remove.length) await removeLinks(tx, id, links.remove)
-			if (links.add.length) await tx.insert(userGroupDirectoryLinks).values(linkRows(id, links.add))
-			for (const link of links.rename)
-				await tx
-					.update(userGroupDirectoryLinks)
-					.set({ directoryGroupName: link.name })
-					.where(
-						and(
-							eq(userGroupDirectoryLinks.groupId, id),
-							eq(userGroupDirectoryLinks.directoryGroupId, link.id),
-						),
-					)
-			// Decision am: with no link left, nothing would refresh the group's directory members, so they go now.
-			if (currentLinks.length > 0 && input.directoryGroups.length === 0)
-				await removeDirectoryMembers(tx, id)
+			// Decision am: an absent field leaves the links, and so the directory members, as they are.
+			if (input.directoryGroups !== undefined) {
+				const currentLinks = await linksOf(tx, id)
+				const links = directoryLinkChanges(currentLinks, input.directoryGroups)
+				if (links.remove.length) await removeLinks(tx, id, links.remove)
+				if (links.add.length)
+					await tx.insert(userGroupDirectoryLinks).values(linkRows(id, links.add))
+				// Decision am: with no link left, nothing would refresh the group's directory members, so they go now.
+				if (currentLinks.length > 0 && input.directoryGroups.length === 0)
+					await removeDirectoryMembers(tx, id)
+			}
 			return ok(undefined)
 		})
 	} catch (error) {

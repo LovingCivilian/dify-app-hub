@@ -1,27 +1,10 @@
 'use client'
 
-import { useDebounceFn, useUnmount } from 'ahooks'
-import {
-	App,
-	Button,
-	Drawer,
-	Flex,
-	Form,
-	type FormInstance,
-	Input,
-	Select,
-	Space,
-	Spin,
-	Tag,
-	Typography,
-	theme,
-} from 'antd'
-import { useRef, useState } from 'react'
+import { App, Button, Drawer, Flex, Form, type FormInstance, Input, Select, Space, Tag } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 import { createGroupAction, updateGroupAction } from '@/app/(admin)/group-management/actions'
 import {
-	DIRECTORY_SEARCH_MIN,
 	GROUP_DESCRIPTION_MAX,
 	GROUP_NAME_MAX,
 	type GroupFormInput,
@@ -31,125 +14,15 @@ import { drawerPopupContainer } from '@/components/admin/drawer-popup-container'
 import { useActionTransition } from '@/hooks/use-action-transition'
 import type { GroupDto } from '@/lib/data/groups'
 import type { UserOption } from '@/lib/data/users'
-import { readDifyError } from '@/lib/dify/browser'
-import type { DirectoryGroupOption } from '@/lib/directory/admin'
-import { DIRECTORY_GROUP_SEARCH_LIMIT } from '@/lib/directory-status'
 
-import { directorySearchErrorKey, groupErrorKey } from './group-errors'
+import DirectoryGroupSelect, { type DirectoryGroupValue } from './directory-group-select'
+import { groupErrorKey } from './group-errors'
 
 const GROUP_FORM_ID = 'group-form'
-
-/** A picked directory group as the Select holds it (antd Select `labelInValue`: the value is `{ value, label }`). */
-type DirectoryGroupValue = { value: string; label: string }
 
 /** The form's values: the schema's input, with the directory groups as the Select holds them (decision am). */
 type GroupFormValues = Omit<GroupFormInput, 'directoryGroups'> & {
 	directoryGroups?: DirectoryGroupValue[]
-}
-
-/**
- * The directory groups field (spec §6.5): a debounced remote search of GET /api/directory/groups (decision al), after
- * antd's "Search and Select Users" demo, which fetches its options the same way. Each search aborts the one before it
- * (MDN AbortController), so only the latest answer is shown, and leaving the drawer aborts the last one (ahooks
- * `useUnmount`). Form.Item hands its control an `id`, which the label's `for` and `scrollToField` need (antd Form FAQ:
- * "Make sure that it hasn't been ignored in your custom form control").
- */
-function DirectoryGroupSelect({
-	id,
-	value,
-	onChange,
-}: {
-	id?: string
-	value?: DirectoryGroupValue[]
-	onChange?: (value: DirectoryGroupValue[]) => void
-}) {
-	const { t } = useTranslation()
-	const { message } = App.useApp()
-	const [options, setOptions] = useState<DirectoryGroupValue[]>([])
-	const [fetching, setFetching] = useState(false)
-	const [limited, setLimited] = useState(false)
-	const [tooShort, setTooShort] = useState(true)
-	const { token } = theme.useToken()
-	const request = useRef<AbortController | null>(null)
-	useUnmount(() => request.current?.abort())
-	const { run: search } = useDebounceFn(
-		async (text: string) => {
-			request.current?.abort()
-			request.current = null
-			setOptions([])
-			setLimited(false)
-			// Counted in code points, as the route's zod `min` counts them (Zod 4.5, "String length counts code points").
-			const short = Array.from(text.trim()).length < DIRECTORY_SEARCH_MIN
-			setTooShort(short)
-			setFetching(!short)
-			// Decision al: a text under two characters never reaches the directory (the route refuses it too).
-			if (short) return
-			const controller = new AbortController()
-			request.current = controller
-			try {
-				const response = await fetch(`/api/directory/groups?${new URLSearchParams({ q: text })}`, {
-					signal: controller.signal,
-				})
-				if (!response.ok) {
-					// The envelope's code, never its English message (charter §4.5).
-					const { code } = await readDifyError(response)
-					if (!controller.signal.aborted) message.error(t(directorySearchErrorKey(code)))
-					return
-				}
-				const groups = (await response.json()) as DirectoryGroupOption[]
-				if (controller.signal.aborted) return
-				setOptions(groups.map(group => ({ value: group.key, label: group.name })))
-				setLimited(groups.length >= DIRECTORY_GROUP_SEARCH_LIMIT)
-			} catch {
-				// An aborted search was replaced or left; anything else is a network failure.
-				if (!controller.signal.aborted) message.error(t(directorySearchErrorKey(undefined)))
-			} finally {
-				if (request.current === controller) {
-					request.current = null
-					setFetching(false)
-				}
-			}
-		},
-		{ wait: 300 },
-	)
-	return (
-		<Select
-			id={id}
-			mode="multiple"
-			labelInValue
-			value={value}
-			onChange={onChange}
-			options={options}
-			getPopupContainer={drawerPopupContainer}
-			showSearch={{ filterOption: false, onSearch: search, autoClearSearchValue: false }}
-			notFoundContent={
-				fetching ? (
-					<Spin size="small" />
-				) : (
-					t(
-						tooShort
-							? 'admin_groups.directory_groups_placeholder'
-							: 'admin_groups.directory_groups_none',
-					)
-				)
-			}
-			// Decision al: twenty answers may not be all; the list says so (antd Select `popupRender`, 5.25.0).
-			popupRender={menu => (
-				<>
-					{menu}
-					{limited && (
-						<Typography.Paragraph
-							type="secondary"
-							style={{ margin: 0, padding: `${token.paddingXS}px ${token.paddingSM}px` }}
-						>
-							{t('admin_groups.directory_groups_limited', { limit: DIRECTORY_GROUP_SEARCH_LIMIT })}
-						</Typography.Paragraph>
-					)}
-				</>
-			)}
-			placeholder={t('admin_groups.directory_groups_placeholder')}
-		/>
-	)
 }
 
 /**
@@ -195,15 +68,19 @@ function GroupForm({
 						}
 					: { name: '', description: '', memberIds: [], directoryGroups: [] }
 			}
-			onFinish={values =>
+			// onFinish carries the registered fields only (@rc-component/form `validateFields`), so without the directory
+			// groups field the input has no `directoryGroups`, which the DAL reads as "leave the links" (decision am).
+			onFinish={({ directoryGroups, ...values }) =>
 				onSave(
-					{
-						...values,
-						directoryGroups: (values.directoryGroups ?? []).map(({ value, label }) => ({
-							id: value,
-							name: String(label),
-						})),
-					},
+					directoryGroups
+						? {
+								...values,
+								directoryGroups: directoryGroups.map(({ value, label }) => ({
+									id: value,
+									name: String(label),
+								})),
+							}
+						: values,
 					form,
 				)
 			}
@@ -270,19 +147,15 @@ function GroupForm({
 					</Flex>
 				</Form.Item>
 			)}
-			{/*
-			 * Hidden, not left out, while the directory is off: onFinish carries the registered fields only, so a form
-			 * without the field would save no link and delete the group's links and directory members (decision am).
-			 * antd Form.Item `hidden`: "Whether to hide Form.Item (still collect and validate value)".
-			 */}
-			<Form.Item
-				name="directoryGroups"
-				label={t('admin_groups.directory_groups')}
-				extra={t('admin_groups.directory_groups_hint')}
-				hidden={!directoryEnabled}
-			>
-				<DirectoryGroupSelect />
-			</Form.Item>
+			{directoryEnabled && (
+				<Form.Item
+					name="directoryGroups"
+					label={t('admin_groups.directory_groups')}
+					extra={t('admin_groups.directory_groups_hint')}
+				>
+					<DirectoryGroupSelect />
+				</Form.Item>
+			)}
 		</Form>
 	)
 }

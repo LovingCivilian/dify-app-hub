@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { bufferAttributes, entryAttributes, readEntry } from '@/lib/directory/entry'
+import { bufferAttributes, cutToColumn, entryAttributes, readEntry } from '@/lib/directory/entry'
 
 const config = {
 	idAttribute: 'objectGUID',
@@ -112,5 +112,14 @@ describe('the attributes a search asks for (spec §6.3 step 3, decision n)', () 
 		expect(bufferAttributes({ ...config, idAttribute: 'entryUUID' } as never)).toEqual([
 			'entryUUID',
 		])
+	})
+})
+
+// Task 12 review M4: the one cut the entry, the sync and the group search share (varchar(255), MySQL 8.4).
+describe('cutToColumn', () => {
+	it('keeps 255 code points, a surrogate pair whole, and leaves a shorter text as it is', () => {
+		expect(cutToColumn(`${'n'.repeat(254)}😀x`)).toBe(`${'n'.repeat(254)}😀`)
+		expect(Array.from(cutToColumn('😀'.repeat(300)))).toHaveLength(255)
+		expect(cutToColumn('Engineering')).toBe('Engineering')
 	})
 })

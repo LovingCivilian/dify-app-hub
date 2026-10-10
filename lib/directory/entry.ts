@@ -39,6 +39,16 @@ export const bufferAttributes = (config: Pick<LdapConfig, 'idAttribute'>): strin
 
 const COLUMN_MAX = 255
 
+/**
+ * A text cut to its varchar(255) column: MySQL's strict mode refuses a longer value ("values that exceed the column
+ * length are not stored, and an error results", MySQL 8.4 "The CHAR and VARCHAR Types"). The cut counts code points:
+ * `Array.from` takes a string's iterator (MDN `Array.from()`), which yields code points, so "surrogate pairs will be
+ * preserved" (MDN `String.prototype[Symbol.iterator]()`); zod's `max` counts them too (Zod 4.5 release notes, "String
+ * length counts code points"). The one cut for an entry's texts, a refreshed link name (sync.ts) and a searched group's
+ * name (admin.ts).
+ */
+export const cutToColumn = (text: string): string => Array.from(text).slice(0, COLUMN_MAX).join('')
+
 /** UTF-8 that refuses invalid bytes (MDN `TextDecoder`, `fatal`), as canonicalKey reads a text key. */
 const utf8 = new TextDecoder('utf-8', { fatal: true })
 
@@ -66,14 +76,10 @@ const firstValue = (value: unknown): string | null => {
 	return trimmed === '' ? null : trimmed
 }
 
-/**
- * The first value as trimmed text cut to its column's 255 characters, or null. The cut counts code points:
- * `Array.from` takes a string's iterator (MDN `Array.from()`), which yields code points, so "surrogate pairs will be
- * preserved" (MDN `String.prototype[Symbol.iterator]()`).
- */
+/** The first value as trimmed text cut to its column's 255 characters (cutToColumn), or null. */
 export const firstText = (value: unknown): string | null => {
 	const text = firstValue(value)
-	return text === null ? null : Array.from(text).slice(0, COLUMN_MAX).join('')
+	return text === null ? null : cutToColumn(text)
 }
 
 /** The entry as the hub keeps it, or null when it has no DN or no valid key (spec §6.3 step 6). */

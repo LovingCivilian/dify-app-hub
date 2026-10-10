@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getServerSession, refresh, writes, locked, manual, links } = vi.hoisted(() => ({
+const { getServerSession, refresh, writes, locked, manual, links, linkReads } = vi.hoisted(() => ({
 	getServerSession: vi.fn(),
 	refresh: vi.fn(),
 	writes: { insert: vi.fn(), update: vi.fn(), delete: vi.fn() },
@@ -8,8 +8,10 @@ const { getServerSession, refresh, writes, locked, manual, links } = vi.hoisted(
 	locked: { value: undefined as { id: string } | undefined },
 	/** The group's manual members the locking read finds (manualMembersOf). */
 	manual: { value: [] as { userId: string }[] },
-	/** The group's directory links the locking read finds (linksOf). */
-	links: { value: [] as { directoryGroupId: string; directoryGroupName: string }[] },
+	/** The group's directory links the locking read finds (linksOf reads their keys only). */
+	links: { value: [] as { directoryGroupId: string }[] },
+	/** Called on each locking read of the links table (linksOf). */
+	linkReads: vi.fn(),
 }))
 vi.mock('next-auth/next', () => ({ getServerSession }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
@@ -26,7 +28,11 @@ vi.mock('@/db', async () => {
 	const queryOn = (table: unknown) => ({
 		where: () => ({
 			limit: () => ({ for: forUpdate(() => (locked.value ? [locked.value] : [])) }),
-			for: forUpdate(() => (table === userGroupDirectoryLinks ? links.value : manual.value)),
+			for: forUpdate(() => {
+				if (table !== userGroupDirectoryLinks) return manual.value
+				linkReads()
+				return links.value
+			}),
 		}),
 	})
 	const db = {
@@ -67,6 +73,7 @@ beforeEach(() => {
 	locked.value = { id: groupId }
 	manual.value = []
 	links.value = []
+	linkReads.mockReset()
 	for (const fn of dal) fn.mockClear()
 })
 
@@ -212,7 +219,7 @@ describe('the owner', () => {
 		expect(writes.insert.mock.calls.some(([rows]) => JSON.stringify(rows).includes(key))).toBe(true)
 
 		for (const fn of Object.values(writes)) fn.mockClear()
-		links.value = [{ directoryGroupId: key, directoryGroupName: 'Engineering' }]
+		links.value = [{ directoryGroupId: key }]
 		expect(await updateGroupAction(groupId, { ...input, directoryGroups: [] })).toEqual({
 			ok: true,
 			data: undefined,
@@ -229,5 +236,54 @@ describe('the owner', () => {
 			}),
 		).toMatchObject({ ok: false, code: 'invalid_input' })
 		expect(anyWrite()).toBe(false)
+	})
+
+	// Task 12 review I1: an absent field is "no change" (RFC 7386: a member absent from the patch is left as it is), so a
+	// form that does not show the field cannot delete the links or the directory members.
+	it('an input without directoryGroups reads no links and deletes nothing', async () => {
+		links.value = [{ directoryGroupId: 'b95f3990-b59a-4a1b-9e96-86c66cb18d99' }]
+		manual.value = [{ userId: 'u2' }]
+		expect(await updateGroupAction(groupId, input)).toEqual({ ok: true, data: undefined })
+		expect(linkReads).not.toHaveBeenCalled()
+		expect(writes.insert).not.toHaveBeenCalled()
+		expect(writes.delete).not.toHaveBeenCalled()
+		// The group's own row only (its name and description).
+		expect(writes.update).toHaveBeenCalledTimes(1)
+	})
+
+	// Task 12 review M1: the directory owns a link's name (the sync refreshes it), so a kept link is no write, whatever
+	// name the drawer loaded for it.
+	it('writes nothing for a kept link, whatever name the input carries', async () => {
+		links.value = [{ directoryGroupId: 'b95f3990-b59a-4a1b-9e96-86c66cb18d99' }]
+		manual.value = [{ userId: 'u2' }]
+		expect(
+			await updateGroupAction(groupId, {
+				...input,
+				directoryGroups: [{ id: 'b95f3990-b59a-4a1b-9e96-86c66cb18d99', name: 'A stale name' }],
+			}),
+		).toEqual({ ok: true, data: undefined })
+		expect(linkReads).toHaveBeenCalledTimes(1)
+		expect(writes.insert).not.toHaveBeenCalled()
+		expect(writes.delete).not.toHaveBeenCalled()
+		// The group's own row only, never the link's name.
+		expect(writes.update).toHaveBeenCalledTimes(1)
+	})
+
+	// Task 12 review M7: a key sent twice is inserted once, with the last name sent.
+	it('creates a group with each directory group once, the last name kept', async () => {
+		const key = 'b95f3990-b59a-4a1b-9e96-86c66cb18d99'
+		expect(
+			await createGroupAction({
+				...input,
+				directoryGroups: [
+					{ id: key, name: 'First' },
+					{ id: key, name: 'Last' },
+				],
+			}),
+		).toMatchObject({ ok: true })
+		expect(writes.insert).toHaveBeenCalledTimes(3)
+		expect(writes.insert.mock.calls[2]![0]).toEqual([
+			{ groupId: expect.any(String), directoryGroupId: key, directoryGroupName: 'Last' },
+		])
 	})
 })

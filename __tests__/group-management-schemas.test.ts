@@ -4,17 +4,18 @@ import {
 	GROUP_DESCRIPTION_MAX,
 	GROUP_NAME_MAX,
 	directoryGroupSearchSchema,
+	directorySearchText,
 	groupIdSchema,
 	groupInputSchema,
 } from '@/app/(admin)/group-management/schemas'
 
 describe('groupInputSchema (decision c)', () => {
-	it('trims, and defaults the description and members', () => {
+	// Task 12 review I1: an absent `directoryGroups` stays absent, which the DAL reads as "no change".
+	it('trims, and defaults the description and members, and leaves the directory groups absent', () => {
 		expect(groupInputSchema.parse({ name: '  Finance  ' })).toEqual({
 			name: 'Finance',
 			description: '',
 			memberIds: [],
-			directoryGroups: [],
 		})
 	})
 
@@ -49,7 +50,8 @@ describe('directory groups on the group input (decision am)', () => {
 			groupInputSchema.parse({ name: 'Eng', directoryGroups: [{ id: key, name: ' Engineering ' }] })
 				.directoryGroups,
 		).toEqual([{ id: key, name: 'Engineering' }])
-		expect(groupInputSchema.parse({ name: 'Eng' }).directoryGroups).toEqual([])
+		expect(groupInputSchema.parse({ name: 'Eng', directoryGroups: [] }).directoryGroups).toEqual([])
+		expect(groupInputSchema.parse({ name: 'Eng' })).not.toHaveProperty('directoryGroups')
 		expect(
 			groupInputSchema.safeParse({
 				name: 'Eng',
@@ -68,5 +70,16 @@ describe('directory groups on the group input (decision am)', () => {
 		expect(directoryGroupSearchSchema.parse('  eng ')).toBe('eng')
 		expect(directoryGroupSearchSchema.safeParse('e').success).toBe(false)
 		expect(directoryGroupSearchSchema.safeParse('x'.repeat(65)).success).toBe(false)
+	})
+
+	// Task 12 review M3: what the drawer sends is never over the route's bound, so the route's 400 cannot come back.
+	it('cuts the drawer’s search text to the route’s 64 code points', () => {
+		expect(directorySearchText('  eng ')).toBe('eng')
+		expect(directorySearchText('x'.repeat(70))).toBe('x'.repeat(64))
+		expect(directorySearchText('😀'.repeat(70))).toBe('😀'.repeat(64))
+		// A cut that ends in spaces is trimmed again, so it parses as the route trims it.
+		expect(directorySearchText(`a${' '.repeat(63)}b`)).toBe('a')
+		for (const text of ['ab', 'x'.repeat(70), '😀'.repeat(70), `ab${' '.repeat(62)}c`])
+			expect(directoryGroupSearchSchema.safeParse(directorySearchText(text)).success).toBe(true)
 	})
 })
