@@ -17,6 +17,9 @@ const { verifyPassword, noAccountHash } = vi.hoisted(() => ({
 	noAccountHash: 'hash:no-account',
 }))
 vi.mock('@/lib/auth/password', () => ({ verifyPassword, UNKNOWN_ACCOUNT_HASH: noAccountHash }))
+// The directory provider's check is tested in __tests__/auth-directory-provider.test.ts; here it stands in, so these
+// tests do not load the directory sign-in and its Data Access Layer.
+vi.mock('@/lib/auth/directory-provider', () => ({ authorizeDirectory: vi.fn() }))
 
 import { DrizzleQueryError, type SQL } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/mysql2'
@@ -49,6 +52,7 @@ const row = {
 	role: 'admin',
 	password: 'hash:right-password',
 	sessionVersion: 3,
+	source: 'local',
 	...live,
 }
 
@@ -66,6 +70,16 @@ describe('authOptions', () => {
 	it('uses the JWT strategy and the app login page', () => {
 		expect(authOptions.session).toEqual({ strategy: 'jwt' })
 		expect(authOptions.pages).toEqual({ signIn: '/login' })
+	})
+
+	it('registers the local and the directory Credentials providers (next-auth "Multiple providers")', () => {
+		// next-auth v4's Credentials() answers `{ id: 'credentials', …, options }` and merges the given `options` (the id
+		// among them) only when it reads the providers (node_modules/next-auth/providers/credentials.js,
+		// core/lib/providers.js), so the id given is read where the configuration keeps it.
+		expect(authOptions.providers.map(provider => provider.options?.id ?? provider.id)).toEqual([
+			'credentials',
+			'ldap',
+		])
 	})
 })
 
@@ -107,6 +121,7 @@ describe('authorizeCredentials', () => {
 			name: 'Jane',
 			role: 'admin',
 			sessionVersion: 3,
+			source: 'local',
 		})
 		// The hash checked is the row of the email given: the lookup is by email, with that email as its only parameter.
 		expect(where).toHaveBeenCalledTimes(1)
@@ -231,19 +246,34 @@ describe('authorizeCredentials on a failure', () => {
 })
 
 describe('jwt callback', () => {
-	it('copies id, role and sessionVersion into the token at sign-in', async () => {
+	it('copies id, role, sessionVersion and source into the token at sign-in', async () => {
 		const token = await jwt({
 			token: {} as JWT,
-			user: { id: 'u1', email: 'jane@example.com', name: null, role: 'user', sessionVersion: 3 },
+			user: {
+				id: 'u1',
+				email: 'jane@example.com',
+				name: null,
+				role: 'user',
+				sessionVersion: 3,
+				source: 'ldap',
+			},
 			account: null,
 		} as never)
-		expect(token).toMatchObject({ id: 'u1', role: 'user', sessionVersion: 3 })
+		expect(token).toMatchObject({ id: 'u1', role: 'user', sessionVersion: 3, source: 'ldap' })
 	})
 
 	// Review Focus 4: the row is the truth for what an admin can change while the session lives.
-	it('refreshes role, email and name from the row while the version matches', async () => {
+	// Decision v: the source is refreshed from the row as the role is.
+	it('refreshes role, email, name and source from the row while the version matches', async () => {
 		rows.value = [
-			{ sessionVersion: 3, role: 'user', email: 'new@example.com', name: 'New', ...live },
+			{
+				sessionVersion: 3,
+				role: 'user',
+				email: 'new@example.com',
+				name: 'New',
+				source: 'ldap',
+				...live,
+			},
 		]
 		const token = await jwt({
 			token: {
@@ -252,6 +282,7 @@ describe('jwt callback', () => {
 				role: 'admin',
 				email: 'old@example.com',
 				name: 'Old',
+				source: 'local',
 			} as JWT,
 		} as never)
 		expect(token).toMatchObject({
@@ -260,6 +291,7 @@ describe('jwt callback', () => {
 			role: 'user',
 			email: 'new@example.com',
 			name: 'New',
+			source: 'ldap',
 		})
 	})
 
@@ -295,6 +327,7 @@ describe('jwt callback', () => {
 			role: 'admin',
 			email: 'jane@example.com',
 			name: 'Jane',
+			source: 'local',
 		} as JWT
 		rows.value = [
 			{ sessionVersion: 4, role: 'admin', email: 'jane@example.com', name: 'Jane', ...live },
@@ -358,6 +391,15 @@ describe('session callback', () => {
 			token: { id: 'u1', role: 'user', email: 'jane@example.com', name: null } as JWT,
 		} as never)
 		expect(result.user).toMatchObject({ name: null })
+	})
+
+	// Decision v: the account menu reads the source from the session.
+	it('forwards the source from the token', async () => {
+		const result = await session({
+			session: { user: { email: 'jane@example.com' }, expires: '' },
+			token: { id: 'u1', role: 'user', email: 'jane@example.com', source: 'ldap' } as JWT,
+		} as never)
+		expect(result.user).toMatchObject({ id: 'u1', role: 'user', source: 'ldap' })
 	})
 
 	it('sets user.id and user.role only from a token that has both', async () => {

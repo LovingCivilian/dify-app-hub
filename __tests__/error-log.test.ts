@@ -25,7 +25,17 @@ describe('logSignInRefusal', () => {
 	it('takes only the fixed reason codes', () => {
 		expectTypeOf(logSignInRefusal)
 			.parameter(1)
-			.toEqualTypeOf<'account_inactive' | 'directory_account'>()
+			.toEqualTypeOf<
+				| 'account_inactive'
+				| 'directory_account'
+				| 'directory_off'
+				| 'unknown_user'
+				| 'ambiguous_user'
+				| 'invalid_entry'
+				| 'wrong_password'
+				| 'entry_without_email'
+				| 'email_in_use'
+			>()
 	})
 })
 

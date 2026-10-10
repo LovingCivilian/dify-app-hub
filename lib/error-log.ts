@@ -74,10 +74,20 @@ export const logActionError = (error: unknown, context: string): void => {
 }
 
 /**
- * The fixed reason codes of a refused sign-in (B3 spec §7.3). `directory_account`: the local form named an account the
- * directory owns, which has no hub password. The directory's own reasons follow in ADR-0029's tasks.
+ * The fixed reason codes of a refused sign-in (B3 spec §7.3). Local: `account_inactive`, `directory_account`. Directory:
+ * `directory_off`, the check's `unknown_user`, `ambiguous_user`, `invalid_entry`, `wrong_password`, and the DAL's
+ * `account_inactive`, `entry_without_email`, `email_in_use` (ADR-0029).
  */
-export type SignInRefusalReason = 'account_inactive' | 'directory_account'
+export type SignInRefusalReason =
+	| 'account_inactive'
+	| 'directory_account'
+	| 'directory_off'
+	| 'unknown_user'
+	| 'ambiguous_user'
+	| 'invalid_entry'
+	| 'wrong_password'
+	| 'entry_without_email'
+	| 'email_in_use'
 
 /**
  * A refused sign-in, logged once with a fixed reason code and a subject that names the account without a secret
@@ -92,4 +102,9 @@ export const logSignInRefusal = (
 	subject: Record<string, string>,
 ): void => {
 	console.warn(`${context}: sign-in refused`, { ...subject, reason })
+}
+
+/** A directory sign-in or refresh kept the stored email because another account has the entry's (spec §2 #11). */
+export const logDirectoryEmailConflict = (context: string, subject: { userId: string }): void => {
+	console.warn(`${context}: directory email kept`, { ...subject, reason: 'email_conflict' })
 }
