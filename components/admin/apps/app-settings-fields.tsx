@@ -1,18 +1,37 @@
 'use client'
 
-import { Descriptions, Divider, Flex, Form, Input, Select, Switch, Tag } from 'antd'
+import { Descriptions, Divider, Flex, Form, Input, Radio, Select, Switch, Tag } from 'antd'
 import { useTranslation } from 'react-i18next'
 
+import { accountOptionLabel } from '@/components/admin/account-option'
 import { APP_MODE_OPTION_KEYS, APP_MODE_OPTIONS } from '@/components/apps/app-modes'
-import type { AppDto } from '@/lib/data/apps'
+import type { GroupOption } from '@/lib/data/groups'
+import type { UserOption } from '@/lib/data/users'
 
+import type { AdminAppRow } from './admin-app-row'
 import { validateApiBase } from './api-base-rule'
 
-/** The settings form's fields; `record` shows the app's Dify info above them when editing. */
-export default function AppSettingsFields({ record }: { record?: AppDto }) {
+/** antd Select's documented fix for a popup inside another popup layer: render it in the trigger's parent. */
+const popupInDrawer = (trigger: HTMLElement) => trigger.parentElement ?? document.body
+
+/**
+ * The settings form's fields; `record` shows the app's Dify info above them when editing. The access pickers show
+ * while the app is restricted; hidden, they keep their values in the form store (antd Form `preserve`, default true)
+ * but are not submitted (`onFinish` gets the mounted fields), and an app open to everyone stores no grant (deviation 4).
+ */
+export default function AppSettingsFields({
+	record,
+	groups,
+	users,
+}: {
+	record?: AdminAppRow
+	groups: GroupOption[]
+	users: UserOption[]
+}) {
 	const { t } = useTranslation()
 	const form = Form.useFormInstance()
 	const replyOn = Form.useWatch(['settings', 'answerForm', 'enabled'], form)
+	const accessMode = Form.useWatch(['access', 'mode'], form)
 
 	return (
 		<>
@@ -96,6 +115,57 @@ export default function AppSettingsFields({ record }: { record?: AppDto }) {
 			>
 				<Switch />
 			</Form.Item>
+
+			<Divider titlePlacement="start">{t('app_setting.section_access')}</Divider>
+			<Form.Item
+				label={t('app_setting.access')}
+				name={['access', 'mode']}
+				tooltip={t('app_setting.access_tooltip')}
+			>
+				<Radio.Group
+					optionType="button"
+					options={[
+						{ value: 'everyone', label: t('app_setting.access_everyone') },
+						{ value: 'restricted', label: t('app_setting.access_restricted') },
+					]}
+				/>
+			</Form.Item>
+			{accessMode === 'restricted' && (
+				<>
+					<Form.Item
+						label={t('app_setting.access_groups')}
+						name={['access', 'groupIds']}
+					>
+						<Select
+							mode="multiple"
+							// The popup stays inside the drawer's body (antd Select `getPopupContainer`, as the groups drawer): on a
+							// phone a popup in <body> sat past the screen's edge and shifted the page under the drawer's mask.
+							getPopupContainer={popupInDrawer}
+							allowClear
+							showSearch={{ optionFilterProp: 'label' }}
+							placeholder={t('app_setting.access_groups_placeholder')}
+							options={groups.map(group => ({ value: group.id, label: group.name }))}
+						/>
+					</Form.Item>
+					<Form.Item
+						label={t('app_setting.access_people')}
+						name={['access', 'userIds']}
+						extra={t('app_setting.access_admins_hint')}
+					>
+						<Select
+							mode="multiple"
+							getPopupContainer={popupInDrawer}
+							allowClear
+							showSearch={{ optionFilterProp: 'label' }}
+							placeholder={t('app_setting.access_people_placeholder')}
+							options={users.map(user => ({
+								value: user.id,
+								label: accountOptionLabel(user, t('admin_users.status_deactivated')),
+							}))}
+						/>
+					</Form.Item>
+				</>
+			)}
 
 			<Divider titlePlacement="start">{t('app_setting.section_conversation')}</Divider>
 			<Form.Item

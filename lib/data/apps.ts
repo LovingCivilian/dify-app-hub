@@ -3,8 +3,9 @@ import 'server-only'
 import { and, desc, eq, exists, or, sql, type SQL } from 'drizzle-orm'
 import { QueryBuilder } from 'drizzle-orm/mysql-core'
 
-import { getDb } from '@/db'
+import { getDb, type Db } from '@/db'
 import { appGroupGrants, appUserGrants, difyApps, userGroupMembers } from '@/db/schema'
+import type { AccessMode, AppAccessSettings } from '@/lib/app-access'
 import { hasAdminRights } from '@/lib/auth/roles'
 import { assertAdmin, type SessionUser } from '@/lib/auth/session'
 import { difyClient, type DifyCredentials } from '@/lib/dify/client'
@@ -18,6 +19,7 @@ import { isAppMode, type AppInfo, type AppMode, type SiteSettings } from '@/lib/
  * the apps granted to it (ADR-0027).
  */
 
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
 type AppRow = typeof difyApps.$inferSelect
 type IconColumns = Pick<AppRow, 'iconType' | 'icon' | 'iconBackground' | 'iconImage' | 'iconMime'>
 
@@ -108,6 +110,12 @@ export interface AppInput {
 	mode: AppMode
 	enabled: boolean
 	settings: AppSettings
+	access: AppAccessSettings
+}
+
+/** The admin's view (plan deviation 1): the app DTO and who may use it; the gallery never receives the grants. */
+export interface AdminAppDto extends AppDto {
+	access: AppAccessSettings
 }
 
 export interface SyncResult {
@@ -178,6 +186,50 @@ export const toChatAppDto = (row: DtoRow): ChatAppDto => ({
 	icon: iconOf(row),
 	settings: settingsOf(row),
 })
+
+export const toAdminAppDto = (
+	row: DtoRow & { accessMode: AccessMode },
+	groupGrants: { appId: string; groupId: string }[],
+	userGrants: { appId: string; userId: string }[],
+): AdminAppDto => ({
+	...toAppDto(row),
+	access: {
+		mode: row.accessMode,
+		groupIds: groupGrants.filter(grant => grant.appId === row.id).map(grant => grant.groupId),
+		userIds: userGrants.filter(grant => grant.appId === row.id).map(grant => grant.userId),
+	},
+})
+
+/** The grant rows an access setting stores (spec §4.4): none while open to everyone (deviation 4), each id once. */
+export const grantRowsFor = (appId: string, access: AppAccessSettings) =>
+	access.mode === 'everyone'
+		? { groups: [], users: [] }
+		: {
+				groups: [...new Set(access.groupIds)].map(groupId => ({ appId, groupId })),
+				users: [...new Set(access.userIds)].map(userId => ({ appId, userId })),
+			}
+
+/** Replaces the app's grants inside the caller's transaction; a deleted group or account fails it (1452). */
+const writeGrants = async (
+	tx: Pick<Tx, 'delete' | 'insert'>,
+	appId: string,
+	access: AppAccessSettings,
+) => {
+	const rows = grantRowsFor(appId, access)
+	await tx.delete(appGroupGrants).where(eq(appGroupGrants.appId, appId))
+	await tx.delete(appUserGrants).where(eq(appUserGrants.appId, appId))
+	if (rows.groups.length) await tx.insert(appGroupGrants).values(rows.groups)
+	if (rows.users.length) await tx.insert(appUserGrants).values(rows.users)
+}
+
+/**
+ * A locking read of one app by its primary key (ADR-0024 decision d; MySQL 8.4 "Locking Reads": before writing
+ * related rows in the same transaction, "the regular SELECT statement does not give enough protection"). The update
+ * takes it before it writes the grants, so an app deleted after the access read answers not_found and writes nothing,
+ * instead of the grant insert's 1452 reading as a stale pick (ruling M11); a delete that comes later waits for it.
+ */
+export const lockApp = (tx: Pick<Tx, 'select'>, id: string) =>
+	tx.select({ id: difyApps.id }).from(difyApps).where(eq(difyApps.id, id)).limit(1).for('update')
 
 /**
  * The bytes of an image answer within the cap, else null: a non-image type, a declared or actual size over
@@ -368,6 +420,23 @@ export async function listApps(actor: SessionUser): Promise<AppDto[]> {
 	return rows.map(toAppDto)
 }
 
+/** Every app with its access, for /app-management (deviation 1). */
+export async function listAdminApps(actor: SessionUser): Promise<AdminAppDto[]> {
+	assertAdmin(actor)
+	const db = getDb()
+	const [rows, groupGrants, userGrants] = await Promise.all([
+		db
+			.select({ ...dtoColumns, accessMode: difyApps.accessMode })
+			.from(difyApps)
+			.orderBy(desc(difyApps.createdAt)),
+		db
+			.select({ appId: appGroupGrants.appId, groupId: appGroupGrants.groupId })
+			.from(appGroupGrants),
+		db.select({ appId: appUserGrants.appId, userId: appUserGrants.userId }).from(appUserGrants),
+	])
+	return rows.map(row => toAdminAppDto(row, groupGrants, userGrants))
+}
+
 /** Null for a missing app and for one the actor may not use alike (spec §4.2: no difference to probe). */
 export async function getChatApp(actor: SessionUser, id: string): Promise<ChatAppDto | null> {
 	const [row] = await getDb()
@@ -395,7 +464,10 @@ export async function getAppIcon(
 	return row?.iconImage && row.iconMime ? { bytes: row.iconImage, mime: row.iconMime } : null
 }
 
-/** Creates the row from Dify's own info for the given credentials; rejects with DifyError when Dify refuses them. */
+/**
+ * Creates the row from Dify's own info for the given credentials, with its grants in the same transaction (a deleted
+ * group or account rejects it, 1452, and no app is left behind); rejects with DifyError when Dify refuses them.
+ */
 export async function createApp(
 	actor: SessionUser,
 	input: AppInput & { apiKey: string },
@@ -404,23 +476,28 @@ export async function createApp(
 	const credentials = { apiBase: input.apiBase, apiKey: input.apiKey }
 	const { info, iconColumns, partial } = await fetchDifyProfile(credentials)
 	const id = crypto.randomUUID()
-	await getDb()
-		.insert(difyApps)
-		.values({
+	await getDb().transaction(async tx => {
+		await tx.insert(difyApps).values({
 			id,
 			...infoColumns(info),
 			// Dify reports the mode; the form's choice only decides when Dify's is not one of the known six.
 			mode: isAppMode(info.mode) ? info.mode : input.mode,
 			isEnabled: input.enabled,
+			accessMode: input.access.mode,
 			apiBase: input.apiBase,
 			apiKey: input.apiKey,
 			...settingsColumns(input.settings),
 			...iconColumns,
 		})
+		await writeGrants(tx, id, input.access)
+	})
 	return { id, partial }
 }
 
-/** Re-reads Dify with the effective credentials (a new key when given, else the stored one); null when the app is gone. */
+/**
+ * Re-reads Dify with the effective credentials (a new key when given, else the stored one), then writes the row and
+ * replaces its grants in one transaction under a lock on the row; null when the app is gone, before Dify or by the lock.
+ */
 export async function updateApp(
 	actor: SessionUser,
 	id: string,
@@ -430,20 +507,28 @@ export async function updateApp(
 	const access = await readAccess(id)
 	if (!access) return null
 	const credentials = { apiBase: input.apiBase, apiKey: input.apiKey || access.credentials.apiKey }
+	// Dify is read before the transaction, so the row lock is held for the queries only.
 	const { info, iconColumns, partial } = await fetchDifyProfile(credentials)
-	await getDb()
-		.update(difyApps)
-		.set({
-			...infoColumns(info),
-			mode: isAppMode(info.mode) ? info.mode : input.mode,
-			isEnabled: input.enabled,
-			apiBase: credentials.apiBase,
-			apiKey: credentials.apiKey,
-			...settingsColumns(input.settings),
-			...iconColumns,
-		})
-		.where(eq(difyApps.id, id))
-	return { id, partial }
+	const written = await getDb().transaction(async tx => {
+		const [locked] = await lockApp(tx, id)
+		if (!locked) return false
+		await tx
+			.update(difyApps)
+			.set({
+				...infoColumns(info),
+				mode: isAppMode(info.mode) ? info.mode : input.mode,
+				isEnabled: input.enabled,
+				accessMode: input.access.mode,
+				apiBase: credentials.apiBase,
+				apiKey: credentials.apiKey,
+				...settingsColumns(input.settings),
+				...iconColumns,
+			})
+			.where(eq(difyApps.id, id))
+		await writeGrants(tx, id, input.access)
+		return true
+	})
+	return written ? { id, partial } : null
 }
 
 export async function deleteApp(actor: SessionUser, id: string): Promise<boolean> {

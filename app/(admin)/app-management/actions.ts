@@ -7,6 +7,7 @@ import { invalidInput, toActionFailure } from '@/lib/action-failure'
 import { fail, ok, type ActionResult } from '@/lib/action-result'
 import { requireAdmin } from '@/lib/auth/session'
 import { createApp, deleteApp, syncApp, updateApp, type SyncResult } from '@/lib/data/apps'
+import { isMissingReference } from '@/lib/data/db-errors'
 
 import { appInputSchema, createAppInputSchema } from './schemas'
 
@@ -27,6 +28,8 @@ export async function createAppAction(input: unknown): Promise<ActionResult<Sync
 		refresh()
 		return ok(result)
 	} catch (error) {
+		// Deviation 3: a group or account picked in the drawer was deleted before the save; nothing was written.
+		if (isMissingReference(error)) return fail('invalid_input', { access: ['unknown'] })
 		return toActionFailure(error, 'createAppAction')
 	}
 }
@@ -48,6 +51,8 @@ export async function updateAppAction(
 		refresh()
 		return ok(result)
 	} catch (error) {
+		// Deviation 3: a group or account picked in the drawer was deleted before the save; nothing was written.
+		if (isMissingReference(error)) return fail('invalid_input', { access: ['unknown'] })
 		return toActionFailure(error, 'updateAppAction')
 	}
 }
