@@ -21,7 +21,7 @@ interface IAccountMenuItemsOptions {
 }
 
 /**
- * Menu entries shared by the desktop dropdown and the chat page's mobile menu.
+ * The account dropdown's menu entries (`AccountDropdown` below is the only caller), exported for the unit test.
  */
 export const getAccountMenuItems = ({
 	email,

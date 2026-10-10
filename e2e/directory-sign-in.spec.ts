@@ -27,7 +27,7 @@ test.describe('directory sign-in (ADR-0029)', () => {
 		await page.goto('/login')
 		await expect(page.getByRole('tab', { name: 'Directory account', selected: true })).toBeVisible()
 		await expect(page.getByLabel('Username')).toBeVisible()
-		await expect(page.getByRole('link', { name: 'Forgot password?' })).toHaveCount(0)
+		// Decision y's forgot-password link (local tab only) is checked live with SMTP on; .env.e2e has it off (ADR-0010).
 		await chooseLocalAccount(page)
 		await expect(page.getByLabel('Username')).toHaveCount(0)
 	})
@@ -52,6 +52,22 @@ test.describe('directory sign-in (ADR-0029)', () => {
 		await page.getByRole('button', { name: /Signed in as/ }).click()
 		await expect(page.getByRole('menuitem', { name: 'Log out' })).toBeVisible()
 		await expect(page.getByRole('menuitem', { name: 'Change password' })).toHaveCount(0)
+	})
+
+	// Review Focus 2: a directory account has no hub password, so its email and directory password on the local tab are
+	// refused like any wrong password (spec §6.3).
+	test('refuses a directory account on the local tab', async ({ page }) => {
+		await signInWithDirectory(page, 'alice', DIRECTORY_PASSWORD)
+		await expect(page).toHaveURL(/\/apps$/)
+		await page.getByRole('button', { name: /Signed in as/ }).click()
+		await page.getByRole('menuitem', { name: 'Log out' }).click()
+		await expect(page).toHaveURL(/\/login$/)
+		await chooseLocalAccount(page)
+		await page.getByLabel('Email').fill('alice@e2e.hub.test')
+		await page.getByLabel('Password').fill(DIRECTORY_PASSWORD)
+		await page.getByRole('button', { name: 'Log in' }).click()
+		await expect(page.getByText('Login failed. Check your email and password.')).toBeVisible()
+		await expect(page).toHaveURL(/\/login/)
 	})
 
 	test.describe('answers every refusal with the same message (spec §7.3)', () => {
@@ -79,7 +95,10 @@ test.describe('directory sign-in (ADR-0029)', () => {
 			await seedUser({ email: 'erin@e2e.hub.test', password: 'local-pass-1', name: 'Local Erin' })
 			await signInWithDirectory(page, 'erin', DIRECTORY_PASSWORD)
 			await expect(page.getByText(refused)).toBeVisible()
-			expect(await directoryAccount('erin@e2e.hub.test')).toMatchObject({ source: 'local' })
+			expect(await directoryAccount('erin@e2e.hub.test')).toMatchObject({
+				source: 'local',
+				directory_id: null,
+			})
 		})
 	})
 })

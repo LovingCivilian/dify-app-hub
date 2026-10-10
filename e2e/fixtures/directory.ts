@@ -22,7 +22,7 @@ export const resetDirectoryState = () =>
 export const deleteDirectoryAccount = (email: string) =>
 	withDb(db => db.execute("DELETE FROM users WHERE source = 'ldap' AND email = ?", [email]))
 
-/** The directory account with this email as the database holds it, or undefined. */
+/** The account with this email, of either source, as the database holds it, or undefined. */
 export const directoryAccount = (email: string) =>
 	withDb(async db => {
 		const [rows] = await db.execute<RowDataPacket[]>(

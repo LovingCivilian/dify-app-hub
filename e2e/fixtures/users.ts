@@ -78,10 +78,21 @@ export const signInAs = async (page: Page, email: string, password: string) => {
 	await expect(page).toHaveURL(/\/apps$/)
 }
 
-/** Signs in through the directory tab, the login page's default (spec §6.3). */
+/**
+ * Signs in through the directory tab, the login page's default (spec §6.3). That tab is already selected in the server
+ * HTML, so it is no sign of hydration, and a "Log in" click before hydration would submit the native form instead
+ * (e2e/fixtures/hydration.ts). The specs keep a test-side wait before their first click (owner, 2026-10-08): a tab
+ * switch works only once React has hydrated and is idempotent, so the switch to the local tab and back is retried
+ * until each tab's form shows (Playwright "Assertions", `expect.toPass`; its timeout defaults to 0, so it is given one).
+ */
 export const signInWithDirectory = async (page: Page, username: string, password: string) => {
 	await page.goto('/login')
 	await expect(page.getByRole('tab', { name: 'Directory account', selected: true })).toBeVisible()
+	await chooseLocalAccount(page)
+	await expect(async () => {
+		await page.getByRole('tab', { name: 'Directory account' }).click()
+		await expect(page.getByLabel('Username')).toBeVisible({ timeout: 1_000 })
+	}).toPass({ timeout: 30_000 })
 	await page.getByLabel('Username').fill(username)
 	await page.getByLabel('Password').fill(password)
 	await page.getByRole('button', { name: 'Log in' }).click()

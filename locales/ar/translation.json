@@ -190,7 +190,7 @@
 		"email_invalid": "أدخل عنوان بريد إلكتروني صالحًا",
 		"username": "اسم المستخدم",
 		"username_placeholder": "اسم المستخدم في الدليل",
-		"username_required": "أدخل اسم المستخدم",
+		"username_required": "أدخل اسم المستخدم الخاص بك",
 		"password": "كلمة المرور",
 		"password_required": "أدخل كلمة المرور",
 		"new_password": "كلمة المرور الجديدة",
