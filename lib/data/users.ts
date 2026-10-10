@@ -60,19 +60,21 @@ const dtoColumns = {
 	updatedAt: users.updatedAt,
 }
 
+type UserDtoRow = Pick<
+	UserRow,
+	| 'id'
+	| 'name'
+	| 'email'
+	| 'role'
+	| 'adminDeactivatedAt'
+	| 'adminDeactivatedBy'
+	| 'directoryDeactivatedAt'
+	| 'createdAt'
+	| 'updatedAt'
+>
+
 export const toUserDto = (
-	row: Pick<
-		UserRow,
-		| 'id'
-		| 'name'
-		| 'email'
-		| 'role'
-		| 'adminDeactivatedAt'
-		| 'adminDeactivatedBy'
-		| 'directoryDeactivatedAt'
-		| 'createdAt'
-		| 'updatedAt'
-	>,
+	row: UserDtoRow,
 	groups: { id: string; name: string }[] = [],
 ): UserDto => ({
 	id: row.id,
@@ -87,6 +89,23 @@ export const toUserDto = (
 	createdAt: row.createdAt.toISOString(),
 	updatedAt: row.updatedAt.toISOString(),
 })
+
+/** The accounts with their groups, the memberships grouped once by account (MDN `Map.groupBy`); both orders stay. */
+export const toUserDtos = (
+	rows: readonly UserDtoRow[],
+	memberships: readonly { userId: string; id: string; name: string }[],
+): UserDto[] => {
+	const groupsOf = Map.groupBy(memberships, membership => membership.userId)
+	return rows.map(row =>
+		toUserDto(
+			row,
+			(groupsOf.get(row.id) ?? []).map(membership => ({
+				id: membership.id,
+				name: membership.name,
+			})),
+		),
+	)
+}
 
 /** Who may create which role (ADR-0024): only a role the actor's rank manages; nobody creates an owner. */
 export const createRefusal = ({
@@ -169,14 +188,7 @@ export async function listUsers(actor: SessionUser): Promise<UserDto[]> {
 			.innerJoin(userGroups, eq(userGroups.id, userGroupMembers.groupId))
 			.orderBy(asc(userGroups.name)),
 	])
-	return rows.map(row =>
-		toUserDto(
-			row,
-			memberships
-				.filter(membership => membership.userId === row.id)
-				.map(membership => ({ id: membership.id, name: membership.name })),
-		),
-	)
+	return toUserDtos(rows, memberships)
 }
 
 /** An account as the admin pickers show it (spec §4.3, §4.4): no role, no dates, whether it is active. */

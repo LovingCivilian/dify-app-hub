@@ -36,7 +36,18 @@ test.describe('deactivation (B3 spec §5)', () => {
 			await row.getByRole('button', { name: 'Deactivate' }).click()
 			await page.getByRole('button', { name: 'Deactivate', exact: true }).last().click()
 			await expect(page.getByText('Account deactivated')).toBeVisible()
-			await expect(row.getByText('Deactivated', { exact: true })).toBeVisible()
+			const status = row.getByText('Deactivated', { exact: true })
+			await expect(status).toBeVisible()
+			// Who deactivated it, and when, is in the status tag's tooltip only, so a keyboard user reaches it too:
+			// the trigger takes focus and the tooltip opens on focus, the trigger described by it (WAI-ARIA APG,
+			// "Tooltip Pattern"; antd Tooltip FAQ, "How to support keyboard accessibility?").
+			await status.focus()
+			await expect(status).toBeFocused()
+			await expect(page.getByRole('tooltip')).toContainText('Deactivated by E2E Owner')
+			await expect(status).toHaveAccessibleDescription(/Deactivated by E2E Owner/)
+			// Dismissed when focus leaves the trigger (APG: "dismissed when it no longer has focus").
+			await status.blur()
+			await expect(page.getByRole('tooltip')).toHaveCount(0)
 
 			await userPage.goto('/apps')
 			await expect(userPage).toHaveURL(/\/login/)

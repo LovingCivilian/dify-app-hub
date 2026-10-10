@@ -157,8 +157,12 @@ export default function UserManagement({
 				const deactivation = user.adminDeactivation
 				if (!deactivation) return <Tag color="red">{t('admin_users.status_deactivated')}</Tag>
 				const by = nameOf(deactivation.by)
+				// Who and when are in the tooltip only, so it opens on keyboard focus too: the tag takes focus and the
+				// trigger includes `focus` (antd Tooltip FAQ, "How to support keyboard accessibility?"; WAI-ARIA APG,
+				// "Tooltip Pattern"); antd describes the tag by the open tooltip (`aria-describedby`).
 				return (
 					<Tooltip
+						trigger={['hover', 'focus']}
 						title={
 							<>
 								<div>
@@ -170,7 +174,12 @@ export default function UserManagement({
 							</>
 						}
 					>
-						<Tag color="red">{t('admin_users.status_deactivated')}</Tag>
+						<Tag
+							color="red"
+							tabIndex={0}
+						>
+							{t('admin_users.status_deactivated')}
+						</Tag>
 					</Tooltip>
 				)
 			},

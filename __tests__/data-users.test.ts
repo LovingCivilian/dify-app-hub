@@ -26,6 +26,7 @@ import {
 	lockTarget,
 	setUserActive,
 	toUserDto,
+	toUserDtos,
 	updateRefusal,
 	updateUser,
 } from '@/lib/data/users'
@@ -106,6 +107,42 @@ describe('toUserDto with markers and groups', () => {
 				updatedAt: at,
 			}),
 		).toMatchObject({ active: false, adminDeactivation: null })
+	})
+})
+
+describe('toUserDtos (listUsers)', () => {
+	it('gives each account only its own groups, grouped once, and keeps both orders', () => {
+		const at = new Date('2026-10-09T09:05:00.000Z')
+		const row = (id: string) => ({
+			id,
+			name: null,
+			email: `${id}@b.c`,
+			role: 'user' as const,
+			adminDeactivatedAt: null,
+			adminDeactivatedBy: null,
+			directoryDeactivatedAt: null,
+			createdAt: at,
+			updatedAt: at,
+		})
+		const dtos = toUserDtos(
+			[row('u1'), row('u2'), row('u3')],
+			[
+				{ userId: 'u2', id: 'g1', name: 'Finance' },
+				{ userId: 'u1', id: 'g2', name: 'Legal' },
+				{ userId: 'u2', id: 'g3', name: 'Sales' },
+			],
+		)
+		expect(dtos.map(({ id, groups }) => [id, groups])).toEqual([
+			['u1', [{ id: 'g2', name: 'Legal' }]],
+			[
+				'u2',
+				[
+					{ id: 'g1', name: 'Finance' },
+					{ id: 'g3', name: 'Sales' },
+				],
+			],
+			['u3', []],
+		])
 	})
 })
 

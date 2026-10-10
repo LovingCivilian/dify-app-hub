@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { openUsers } from './fixtures/users'
+
 test('the language dropdown switches the UI and the html lang', async ({ page }) => {
 	await page.goto('/app-management')
 	await page.getByRole('button', { name: 'Language' }).click()
@@ -67,10 +69,7 @@ test('on desktop the admin navigation is a sidebar that collapses to its icons a
 	isMobile,
 }) => {
 	test.skip(isMobile, 'no sidebar below md; the drawer flow is the next test')
-	await page.goto('/user-management')
-	// A click before hydration does nothing (Playwright docs, "Navigations > Hydration"): ClientDateTime fills its
-	// <time> only after its effect runs, so a date in the table marks a hydrated page (as openUsers in admin-users.spec.ts).
-	await expect(page.getByRole('table').locator('time').first()).not.toContainText(/^\s*$/)
+	await openUsers(page)
 	const sider = page.getByRole('complementary')
 	const item = (name: string) => sider.getByRole('menuitem', { name })
 	// The links are the page's one navigation landmark, a <nav> in the sider's <aside> (WHATWG HTML, "The aside
