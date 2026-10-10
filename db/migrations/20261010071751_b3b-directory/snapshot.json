@@ -1,7 +1,7 @@
 {
 	"version": "6",
 	"dialect": "mysql",
-	"id": "adaf1439-323e-4bc7-97e5-f0eda8b9b019",
+	"id": "e422ff44-2774-42b5-be42-fd25f26db697",
 	"prevIds": ["6c677c12-380b-4e86-953b-81f1e31d7a25"],
 	"ddl": [
 		{
@@ -1320,7 +1320,7 @@
 			"table": "user_group_members"
 		},
 		{
-			"value": "(`users`.`source` = 'local' AND `users`.`password` IS NOT NULL AND `users`.`directory_id` IS NULL) OR (`users`.`source` = 'ldap' AND `users`.`password` IS NULL AND `users`.`directory_id` IS NOT NULL)",
+			"value": "(`users`.`source` = 'local' AND `users`.`password` IS NOT NULL AND `users`.`directory_id` IS NULL) OR (`users`.`source` = 'ldap' AND `users`.`password` IS NULL AND `users`.`directory_id` IS NOT NULL AND `users`.`directory_id_attribute` IS NOT NULL)",
 			"name": "users_source_credentials",
 			"entityType": "checks",
 			"table": "users"

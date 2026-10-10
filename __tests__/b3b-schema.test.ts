@@ -102,6 +102,11 @@ describe('the B3b migration', () => {
 		expect(all[check]).toMatch(
 			/^ALTER TABLE `users` ADD CONSTRAINT `users_source_credentials` CHECK/,
 		)
+		// An `ldap` row also names the attribute its key came from: the sync's `id_attribute_changed` stop reads it for
+		// every `ldap` account (spec §6.4 step 2).
+		expect(all[check]).toBe(
+			"ALTER TABLE `users` ADD CONSTRAINT `users_source_credentials` CHECK ((`users`.`source` = 'local' AND `users`.`password` IS NOT NULL AND `users`.`directory_id` IS NULL) OR (`users`.`source` = 'ldap' AND `users`.`password` IS NULL AND `users`.`directory_id` IS NOT NULL AND `users`.`directory_id_attribute` IS NOT NULL));",
+		)
 		const columnChanges = all
 			.map((statement, index) =>
 				/^ALTER TABLE `users` (ADD `|MODIFY COLUMN)/.test(statement) ? index : -1,

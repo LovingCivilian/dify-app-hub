@@ -33,4 +33,4 @@ ALTER TABLE `users` ADD `directory_username` varchar(255);--> statement-breakpoi
 CREATE INDEX `directory_sync_runs_started_at_idx` ON `directory_sync_runs` (`started_at`);--> statement-breakpoint
 CREATE UNIQUE INDEX `users_directory_id_key` ON `users` (`directory_id`);--> statement-breakpoint
 ALTER TABLE `user_group_directory_links` ADD CONSTRAINT `user_group_directory_links_group_id_user_groups_id_fkey` FOREIGN KEY (`group_id`) REFERENCES `user_groups`(`id`) ON DELETE CASCADE;--> statement-breakpoint
-ALTER TABLE `users` ADD CONSTRAINT `users_source_credentials` CHECK ((`users`.`source` = 'local' AND `users`.`password` IS NOT NULL AND `users`.`directory_id` IS NULL) OR (`users`.`source` = 'ldap' AND `users`.`password` IS NULL AND `users`.`directory_id` IS NOT NULL));
+ALTER TABLE `users` ADD CONSTRAINT `users_source_credentials` CHECK ((`users`.`source` = 'local' AND `users`.`password` IS NOT NULL AND `users`.`directory_id` IS NULL) OR (`users`.`source` = 'ldap' AND `users`.`password` IS NULL AND `users`.`directory_id` IS NOT NULL AND `users`.`directory_id_attribute` IS NOT NULL));

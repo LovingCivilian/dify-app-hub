@@ -55,12 +55,14 @@ export const users = mysqlTable(
 		uniqueIndex('users_email_key').on(table.email),
 		// A unique index allows several NULLs (MySQL 8.4 "CREATE INDEX"), so every local account can have none.
 		uniqueIndex('users_directory_id_key').on(table.directoryId),
-		// MySQL 8.4 "CHECK Constraints": a NULL result passes, so `source` is NOT NULL and the other two columns are
-		// tested with IS [NOT] NULL, which never yields UNKNOWN. A later migration that modifies `password` or `source`
-		// must drop and re-add this constraint in the same statement ("ALTER TABLE").
+		// MySQL 8.4 "CHECK Constraints": a NULL result passes, so `source` is NOT NULL and the other columns are tested
+		// with IS [NOT] NULL, which never yields UNKNOWN. An `ldap` row also names the attribute that produced its key
+		// (spec §3.2), which the sync's `id_attribute_changed` stop reads for every `ldap` account (spec §6.4 step 2).
+		// A later migration that modifies `password`, `source`, `directory_id` or `directory_id_attribute` must drop and
+		// re-add this constraint in the same statement ("ALTER TABLE").
 		check(
 			'users_source_credentials',
-			sql`(${table.source} = 'local' AND ${table.password} IS NOT NULL AND ${table.directoryId} IS NULL) OR (${table.source} = 'ldap' AND ${table.password} IS NULL AND ${table.directoryId} IS NOT NULL)`,
+			sql`(${table.source} = 'local' AND ${table.password} IS NOT NULL AND ${table.directoryId} IS NULL) OR (${table.source} = 'ldap' AND ${table.password} IS NULL AND ${table.directoryId} IS NOT NULL AND ${table.directoryIdAttribute} IS NOT NULL)`,
 		),
 	],
 )

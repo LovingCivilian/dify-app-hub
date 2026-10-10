@@ -12,8 +12,8 @@ import { isActive } from './account-status'
 import { UNKNOWN_ACCOUNT_HASH, verifyPassword } from './password'
 
 /**
- * The account of these credentials without its hash, or null for an unknown email, a wrong password or a deactivated
- * account (ADR-0027).
+ * The account of these credentials without its hash, or null for an unknown email, a wrong password, a deactivated
+ * account (ADR-0027) or a directory account, which has no hub password (ADR-0029).
  */
 async function findAccount(email: string, password: string): Promise<User | null> {
 	const [user] = await getDb()
