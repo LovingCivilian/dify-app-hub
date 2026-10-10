@@ -64,6 +64,37 @@ describe('readEntry (decision o)', () => {
 			name: null,
 		})
 	})
+
+	// ldapts hands over a Buffer when its own strict UTF-8 decode failed (src/Attribute.ts); the hub refuses those
+	// bytes as canonicalKey does (MDN TextDecoder, `fatal`) rather than store replacement characters.
+	it('counts a value that is not UTF-8 as none and reads one that is', () => {
+		expect(
+			readEntry(
+				{
+					dn: 'CN=x',
+					objectGUID: guidBytes,
+					sAMAccountName: Buffer.from([0x61, 0xff]),
+					displayName: [Buffer.from([0xc3]), Buffer.from('Zoë')],
+				},
+				config as never,
+			),
+		).toMatchObject({ username: null, name: null })
+		expect(
+			readEntry(
+				{ dn: 'CN=x', objectGUID: guidBytes, displayName: Buffer.from('Zoë') },
+				config as never,
+			),
+		).toMatchObject({ name: 'Zoë' })
+	})
+
+	// The column holds 255 characters; the cut counts code points, so a character outside the BMP is never split
+	// into a lone surrogate (MDN `String.prototype[Symbol.iterator]()`: "surrogate pairs will be preserved").
+	it('cuts at a code point, never inside a surrogate pair', () => {
+		const name = `${'n'.repeat(254)}😀x`
+		expect(
+			readEntry({ dn: 'CN=x', objectGUID: guidBytes, displayName: name }, config as never),
+		).toMatchObject({ name: `${'n'.repeat(254)}😀` })
+	})
 })
 
 describe('the attributes a search asks for (spec §6.3 step 3, decision n)', () => {

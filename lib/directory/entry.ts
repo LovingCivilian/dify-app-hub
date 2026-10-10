@@ -39,6 +39,9 @@ export const bufferAttributes = (config: Pick<LdapConfig, 'idAttribute'>): strin
 
 const COLUMN_MAX = 255
 
+/** UTF-8 that refuses invalid bytes (MDN `TextDecoder`, `fatal`), as canonicalKey reads a text key. */
+const utf8 = new TextDecoder('utf-8', { fatal: true })
+
 /** An attribute's value whatever the case of its type (RFC 4512 §2.5; decision o). */
 export const attributeValue = (entry: Entry, attribute: string): unknown => {
 	const wanted = attribute.toLowerCase()
@@ -46,21 +49,32 @@ export const attributeValue = (entry: Entry, attribute: string): unknown => {
 	return key === undefined ? undefined : entry[key]
 }
 
-/** The first value as trimmed text, or null; a Buffer is read as UTF-8. */
+/** A Buffer's text, or null when it is not UTF-8 (ldapts hands over a Buffer when its own strict decode failed). */
+const decode = (bytes: Buffer): string | null => {
+	try {
+		return utf8.decode(bytes)
+	} catch {
+		return null
+	}
+}
+
+/** The first value as trimmed text, or null; a Buffer is read as strict UTF-8, and one that is not counts as none. */
 const firstValue = (value: unknown): string | null => {
 	const first = Array.isArray(value) ? value[0] : value
-	const text = Buffer.isBuffer(first)
-		? first.toString('utf8')
-		: typeof first === 'string'
-			? first
-			: null
+	const text = Buffer.isBuffer(first) ? decode(first) : typeof first === 'string' ? first : null
 	const trimmed = text?.trim() ?? ''
 	return trimmed === '' ? null : trimmed
 }
 
-/** The first value as trimmed text cut to its column's 255 characters, or null. */
-export const firstText = (value: unknown): string | null =>
-	firstValue(value)?.slice(0, COLUMN_MAX) ?? null
+/**
+ * The first value as trimmed text cut to its column's 255 characters, or null. The cut counts code points:
+ * `Array.from` takes a string's iterator (MDN `Array.from()`), which yields code points, so "surrogate pairs will be
+ * preserved" (MDN `String.prototype[Symbol.iterator]()`).
+ */
+export const firstText = (value: unknown): string | null => {
+	const text = firstValue(value)
+	return text === null ? null : Array.from(text).slice(0, COLUMN_MAX).join('')
+}
 
 /** The entry as the hub keeps it, or null when it has no DN or no valid key (spec §6.3 step 6). */
 export function readEntry(entry: Entry, config: EntryConfig): DirectoryEntry | null {

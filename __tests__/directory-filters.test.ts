@@ -1,4 +1,12 @@
-import { AndFilter, BerWriter, EqualityFilter, FilterParser, type Filter } from 'ldapts'
+import {
+	AndFilter,
+	BerWriter,
+	EqualityFilter,
+	ExtensibleFilter,
+	FilterParser,
+	SubstringFilter,
+	type Filter,
+} from 'ldapts'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -52,6 +60,21 @@ describe('memberFilter (spec §6.5)', () => {
 			'(memberOf:1.2.840.113556.1.4.1941:=CN=Smith\\5c, John,OU=Groups,DC=corp)',
 		)
 	})
+
+	// A string replacement would read `$'`, `` $` ``, `$&` and `$$` in the DN as patterns (MDN String.prototype.replace,
+	// "Specifying a string as the replacement"); the DN must reach the filter as the directory gave it.
+	it.each([
+		["CN=Fun$'Group,OU=Groups,DC=corp"],
+		['CN=Sales$&Marketing,OU=Groups,DC=corp'],
+		['CN=Cash$$,OU=Groups,DC=corp'],
+		['CN=a$`b,OU=Groups,DC=corp'],
+	])('keeps the $ sequences of %j as they are', groupDn => {
+		const filter = memberFilter(config, groupDn)
+		expect(filter).toBe(`(memberOf:1.2.840.113556.1.4.1941:=${groupDn})`)
+		const parsed = FilterParser.parseString(filter)
+		expect(parsed).toBeInstanceOf(ExtensibleFilter)
+		expect((parsed as ExtensibleFilter).value).toBe(groupDn)
+	})
 })
 
 describe('groupByKeyFilter (spec §6.4 step 4)', () => {
@@ -86,6 +109,11 @@ describe('groupByKeyFilter (spec §6.4 step 4)', () => {
 
 describe('groupSearchFilter (spec §6.5 "Linking")', () => {
 	it('searches the name attribute for the escaped text anywhere', () => {
-		expect(groupSearchFilter(config, 'eng*')).toBe('(&(objectClass=group)(cn=*eng\\2a*))')
+		const filter = groupSearchFilter(config, 'eng*')
+		expect(filter).toBe('(&(objectClass=group)(cn=*eng\\2a*))')
+		// The admin's `*` stays a literal inside the one substring part, never a wildcard of its own.
+		const [, name] = (FilterParser.parseString(filter) as AndFilter).filters
+		expect(name).toBeInstanceOf(SubstringFilter)
+		expect(name).toMatchObject({ attribute: 'cn', initial: '', any: ['eng*'], final: '' })
 	})
 })

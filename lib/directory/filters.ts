@@ -27,9 +27,15 @@ type FilterConfig = Pick<
 export const loginFilter = (config: FilterConfig, username: string): string =>
 	`(&${config.userFilter}(${config.loginAttribute}=${Filter.escape(username)}))`
 
-/** Spec §6.5: LDAP_GROUP_MEMBER_FILTER with the group's DN, escaped (a DN often carries RFC 4514 backslashes). */
-export const memberFilter = (config: FilterConfig, groupDn: string): string =>
-	config.groupMemberFilter.replaceAll(GROUP_DN_PLACEHOLDER, Filter.escape(groupDn))
+/**
+ * Spec §6.5: LDAP_GROUP_MEMBER_FILTER with the group's DN, escaped (a DN often carries RFC 4514 backslashes). The DN
+ * goes in through a replacer function, whose result is used as it is: a string replacement would read `$'`, `` $` ``,
+ * `$&` and `$$` in the DN as patterns (MDN `String.prototype.replace`, "Specifying a function as the replacement").
+ */
+export const memberFilter = (config: FilterConfig, groupDn: string): string => {
+	const escaped = Filter.escape(groupDn)
+	return config.groupMemberFilter.replaceAll(GROUP_DN_PLACEHOLDER, () => escaped)
+}
 
 /**
  * Spec §6.4 step 4: a linked group by its key under the group filter. A filter object, not a string (spec §6.3 step 3
