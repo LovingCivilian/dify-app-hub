@@ -32,7 +32,7 @@
 
 ### Task 1: The schema, the migration and the passwordless account
 
-Spec §3.2 (B3b data model), §6.3 last paragraph (the local provider refuses `ldap` accounts), §12 (forgot and reset password stay local-only). Review Focus: line 2 (no local sign-in into a directory account). Task 14 runs the migration on a copy of the local database.
+Spec §3.2 (B3b data model), §6.3 last paragraph (the local provider refuses `ldap` accounts), §12 (forgot and reset password stay local-only). Review Focus: line 2 (no local sign-in into a directory account). Task 16 runs the migration on a copy of the local database.
 
 **Files:**
 
@@ -44,7 +44,7 @@ Spec §3.2 (B3b data model), §6.3 last paragraph (the local provider refuses `l
 
 - Produces: `ACCOUNT_SOURCES`, `AccountSource` from `@/lib/auth/account-source`; `SYNC_TRIGGERS`, `SyncTrigger`, `SYNC_OUTCOMES`, `SyncOutcome`, `SYNC_ERROR_CODES`, `SyncErrorCode`, `LDAP_ENCRYPTIONS`, `LdapEncryption`, `DIRECTORY_GROUP_SEARCH_LIMIT` from `@/lib/directory-status` (client-safe); the columns `users.source`, `users.directoryId`, `users.directoryIdAttribute`, `users.directoryUsername` and the nullable `users.password`; the tables `userGroupDirectoryLinks`, `directorySyncRuns`, all exported from `@/db/schema`; `isDeadlock(error)` from `@/lib/data/db-errors`; the refusal reason `'directory_account'` in `SignInRefusalReason`.
 
-**Deviation from the spec text (recorded in ADR-0029, Task 14):** the run table's trigger column is `run_trigger`, not `trigger`: `TRIGGER` is a reserved word in MySQL 8.4 ("Keywords and Reserved Words", marked (R)), and spec §3 itself asks that "Table and column names avoid reserved words". The run table also counts `group_errors` (spec §6.4 step 4: "count the error"), which the spec's list of counts leaves out.
+**Deviation from the spec text (recorded in ADR-0029, Task 15):** the run table's trigger column is `run_trigger`, not `trigger`: `TRIGGER` is a reserved word in MySQL 8.4 ("Keywords and Reserved Words", marked (R)), and spec §3 itself asks that "Table and column names avoid reserved words". The run table also counts `group_errors` (spec §6.4 step 4: "count the error"), which the spec's list of counts leaves out.
 
 - [ ] **Step 1: Write the failing schema test**
 
@@ -510,7 +510,7 @@ pnpm exec oxfmt --write <the same files> && pnpm exec oxfmt --check <the same fi
 pnpm test
 ```
 
-Expected: all pass; tsc reports nothing. The inherited reset handler (`app/api/auth/reset-password/route.ts`, rule R2: untouched) writes a password only for the account its token names; a token for a directory account could only come from the inherited forgot flow with SMTP on, and the `CHECK` refuses that write (error 3819), so the handler answers its existing failure. Task 14 records it in `docs/auth-gate.md`.
+Expected: all pass; tsc reports nothing. The inherited reset handler (`app/api/auth/reset-password/route.ts`, rule R2: untouched) writes a password only for the account its token names; a token for a directory account could only come from the inherited forgot flow with SMTP on, and the `CHECK` refuses that write (error 3819), so the handler answers its existing failure. Task 15 records it in `docs/auth-gate.md`.
 
 - [ ] **Step 10: Commit**
 
@@ -540,10 +540,10 @@ Spec §7.1 (the block: on when `LDAP_URL` is set; every key parses or the first 
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
-- **o. Exact pins.** `ldapts@9.2.0` and `croner@10.0.1` are installed with `pnpm add -E` (pnpm docs, `pnpm add --save-exact`), as this line pins `drizzle-orm`: ldapts is the security-relevant client (spec §6.1), and both versions are the ones the research read (`docs/superpowers/research/2026-10-09-backend-b3/b3b-plan/library-apis.md` §1, §2: 9.2.0 and 10.0.1 are `latest` on 2026-10-10; Homarr pins `croner` 10.0.1 exactly).
-- **p. Configured filters are read by ldapts' own parser.** `FilterParser.parseString` is exported from ldapts' root (`src/index.ts:12`, typed in `dist/index.d.mts`) and is the parser `search()` applies to a string filter (`src/Client.ts:640-646` at `ldapts@b38cfc3`); it is pinned by ldapts' tests (`tests/FilterParser.test.ts:19-55`) but not described in the README. A filter must also start with `(` and end with `)`, as RFC 4515 §3 writes one (`filter = LPAREN filtercomp RPAREN`; ldapts' README: "ldapts requires all filters to be surrounded by '()' blocks"). `LDAP_GROUP_MEMBER_FILTER` must contain `{group_dn}` and parses with a sample DN in its place.
-- **q. The schedule is a five-field cron expression or `off`.** croner's default `auto` mode also takes six and seven fields with seconds first (croner README "Pattern"), which would allow a sync every second; the field count is checked, then croner parses the pattern, then `nextRun()` checks `LDAP_SYNC_TIMEZONE` (croner checks a time zone only when it converts a date: `CronDate.fromDate` throws "Failed to convert date to timezone", `src/date.ts:277` at `croner@adc86215`). The `Cron` used to validate has no function and no `name`, so it starts no timer and joins no `scheduledJobs` list (`src/croner.ts:208, 215-219`).
-- **r. `LDAP_URL` needs a host** (zod 4 "URLs": `z.url({ protocol, hostname })`; without a hostname rule `ldap:host` passes with an empty host, which ldapts would read as `localhost`, `src/Client.ts:231`). Attribute settings follow RFC 4512 §1.4 (`descr = keystring`, a letter then letters, digits and hyphens, or a numeric OID), because the code writes them into filters unescaped (ldapts README "Filter Strings"; `ldap-client.md` §3.8). Non-secret values are trimmed; `LDAP_BIND_PASSWORD` is taken as it is (spaces can be part of a password).
+- **a. Exact pins.** `ldapts@9.2.0` and `croner@10.0.1` are installed with `pnpm add -E` (pnpm docs, `pnpm add --save-exact`), as this line pins `drizzle-orm`: ldapts is the security-relevant client (spec §6.1), and both versions are the ones the research read (`docs/superpowers/research/2026-10-09-backend-b3/b3b-plan/library-apis.md` §1, §2: 9.2.0 and 10.0.1 are `latest` on 2026-10-10; Homarr pins `croner` 10.0.1 exactly).
+- **b. Configured filters are read by ldapts' own parser.** `FilterParser.parseString` is exported from ldapts' root (`src/index.ts:12`, typed in `dist/index.d.mts`) and is the parser `search()` applies to a string filter (`src/Client.ts:640-646` at `ldapts@b38cfc3`); it is pinned by ldapts' tests (`tests/FilterParser.test.ts:19-55`) but not described in the README. A filter must also start with `(` and end with `)`, as RFC 4515 §3 writes one (`filter = LPAREN filtercomp RPAREN`; ldapts' README: "ldapts requires all filters to be surrounded by '()' blocks"). `LDAP_GROUP_MEMBER_FILTER` must contain `{group_dn}` and parses with a sample DN in its place.
+- **c. The schedule is a five-field cron expression or `off`.** croner's default `auto` mode also takes six and seven fields with seconds first (croner README "Pattern"), which would allow a sync every second; the field count is checked, then croner parses the pattern, then `nextRun()` checks `LDAP_SYNC_TIMEZONE` (croner checks a time zone only when it converts a date: `CronDate.fromDate` throws "Failed to convert date to timezone", `src/date.ts:277` at `croner@adc86215`). The `Cron` used to validate has no function and no `name`, so it starts no timer and joins no `scheduledJobs` list (`src/croner.ts:208, 215-219`).
+- **d. `LDAP_URL` needs a host** (zod 4 "URLs": `z.url({ protocol, hostname })`; without a hostname rule `ldap:host` passes with an empty host, which ldapts would read as `localhost`, `src/Client.ts:231`). Attribute settings follow RFC 4512 §1.4 (`descr = keystring`, a letter then letters, digits and hyphens, or a numeric OID), because the code writes them into filters unescaped (ldapts README "Filter Strings"; `ldap-client.md` §3.8). Non-secret values are trimmed; `LDAP_BIND_PASSWORD` is taken as it is (spaces can be part of a password).
 
 - [ ] **Step 1: Add the dependencies**
 
@@ -630,13 +630,13 @@ it.each([
 })
 
 it.each([['ldap:host'], ['https://dc.corp.example'], ['dc.corp.example']])(
-	'refuses LDAP_URL %s (decision r)',
+	'refuses LDAP_URL %s (decision d)',
 	url => {
 		expect(keysOfFailure({ ...ldapBlock, LDAP_URL: url })).toContain('LDAP_URL')
 	},
 )
 
-it('refuses an attribute setting that is not an attribute name (decision r)', () => {
+it('refuses an attribute setting that is not an attribute name (decision d)', () => {
 	expect(keysOfFailure({ ...ldapBlock, LDAP_LOGIN_ATTRIBUTE: 'uid)(objectClass=*' })).toEqual([
 		'LDAP_LOGIN_ATTRIBUTE',
 	])
@@ -645,7 +645,7 @@ it('refuses an attribute setting that is not an attribute name (decision r)', ()
 	).toBe('entryUUID')
 })
 
-it('refuses a filter ldapts cannot parse, or one without its outer parentheses (decision p)', () => {
+it('refuses a filter ldapts cannot parse, or one without its outer parentheses (decision b)', () => {
 	expect(keysOfFailure({ ...ldapBlock, LDAP_USER_FILTER: '(&(objectClass=user)' })).toEqual([
 		'LDAP_USER_FILTER',
 	])
@@ -661,7 +661,7 @@ it('refuses a filter ldapts cannot parse, or one without its outer parentheses (
 	).toBe('(memberOf={group_dn})')
 })
 
-it('reads the schedule: off, five fields, a valid time zone (decision q)', () => {
+it('reads the schedule: off, five fields, a valid time zone (decision c)', () => {
 	expect(
 		parseEnv({ ...base, ...ldapBlock, LDAP_SYNC_SCHEDULE: 'off' }).ldap?.syncSchedule,
 	).toBeNull()
@@ -735,7 +735,7 @@ const blankAsAbsent = <T extends z.ZodType>(inner: T) =>
 		inner,
 	)
 
-/** RFC 4512 §1.4: a descriptor (a letter, then letters, digits and hyphens) or a numeric OID (decision r). */
+/** RFC 4512 §1.4: a descriptor (a letter, then letters, digits and hyphens) or a numeric OID (decision d). */
 const ATTRIBUTE_NAME = /^(?:[A-Za-z][A-Za-z0-9-]*|\d+(?:\.\d+)+)$/
 
 /** The placeholder LDAP_GROUP_MEMBER_FILTER carries for a group's DN (spec §6.5). */
@@ -997,11 +997,11 @@ Spec §6.1 (an actor-less DAL module guarded by its input), §6.3 step 7 (the si
   - `recordDirectorySignIn(identity: DirectoryIdentity, groupIds: readonly string[]): Promise<DirectorySignInResult>`: `groupIds` are the hub groups whose links the person was found in (Task 6).
   - the builders `lockDirectoryAccount(tx, key)` and `replaceDirectoryMemberships(tx, userId, groupIds)` (exported for their tests and for Task 8).
 
-Decisions this task makes where the spec is silent (Task 14 records them in ADR-0029):
+Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
-- **f. One retry on 1062 or 1213.** Two first sign-ins of the same person at once both find no row; the locking read takes a gap lock in the unique index, so one insert waits or is rolled back as a deadlock victim (1213), or the unique index refuses the second (1062). The whole transaction runs once more and then finds the account the other wrote, or the email taken. MySQL 8.4 "How to Minimize and Handle Deadlocks": "Always be prepared to re-issue a transaction if it fails due to deadlock." B2's `createOwner` relies on the same locking read (ADR-0024 decision d).
-- **g. The memberships a sign-in writes are exactly the groups it found** (spec §6.3 step 7): the person's `directory` rows in any other group, including a group whose last link was removed, are deleted; `manual` rows are never read or written (spec §2 #8).
-- **h. A refresh overwrites the name with the entry's** (null when the entry has none), as LibreChat overwrites "provider, `ldapId`, email, username and name … on every login" (`LibreChat@e1dfc104:packages/api/src/auth/ldap.ts:31-35,85-89`) and Mattermost treats AD/LDAP attributes as authoritative (`mattermost/docs@bd09d959:source/administration-guide/onboard/ad-ldap.rst:111`); the email is overwritten only when no other account uses it (spec §2 #11), and an entry without an email keeps the old one (`users.email` stays `NOT NULL`).
+- **e. One retry on 1062 or 1213.** Two first sign-ins of the same person at once both find no row; the locking read takes a gap lock in the unique index, so one insert waits or is rolled back as a deadlock victim (1213), or the unique index refuses the second (1062). The whole transaction runs once more and then finds the account the other wrote, or the email taken. MySQL 8.4 "How to Minimize and Handle Deadlocks": "Always be prepared to re-issue a transaction if it fails due to deadlock." B2's `createOwner` relies on the same locking read (ADR-0024 decision d).
+- **f. The memberships a sign-in writes are exactly the groups it found** (spec §6.3 step 7): the person's `directory` rows in any other group, including a group whose last link was removed, are deleted; `manual` rows are never read or written (spec §2 #8).
+- **g. A refresh overwrites the name with the entry's** (null when the entry has none), as LibreChat overwrites "provider, `ldapId`, email, username and name … on every login" (`LibreChat@e1dfc104:packages/api/src/auth/ldap.ts:31-35,85-89`) and Mattermost treats AD/LDAP attributes as authoritative (`mattermost/docs@bd09d959:source/administration-guide/onboard/ad-ldap.rst:111`); the email is overwritten only when no other account uses it (spec §2 #11), and an entry without an email keeps the old one (`users.email` stays `NOT NULL`).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1152,7 +1152,7 @@ describe('lockDirectoryAccount (decision d)', () => {
 	})
 })
 
-describe('replaceDirectoryMemberships (decision g, spec §2 #8)', () => {
+describe('replaceDirectoryMemberships (decision f, spec §2 #8)', () => {
 	it('deletes the directory rows outside the found groups, then adds the missing ones; manual rows untouched', async () => {
 		mocks.state.reads = [[{ groupId: 'g1' }]]
 		await replaceDirectoryMemberships(mocks.tx as never, 'u1', ['g1', 'g2', 'g2'])
@@ -1279,7 +1279,7 @@ describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 		expect(params).toEqual([identity.email])
 	})
 
-	it('runs the transaction once more after a duplicate key or a deadlock (decision f), not a third time', async () => {
+	it('runs the transaction once more after a duplicate key or a deadlock (decision e), not a third time', async () => {
 		const duplicate = Object.assign(new Error('dup'), { code: 'ER_DUP_ENTRY', errno: 1062 })
 		const deadlock = Object.assign(new Error('deadlock'), { code: 'ER_LOCK_DEADLOCK', errno: 1213 })
 		mocks.state.failures = [duplicate]
@@ -1382,7 +1382,7 @@ export const listGroupLinks = (): Promise<GroupLink[]> =>
 /**
  * A locking read of the directory account with this key (ADR-0024 decision d; MySQL 8.4 "Locking Reads"). When no row
  * exists it locks the gap in the unique index, so a second first sign-in of the same person waits, or is rolled back as
- * a deadlock victim, instead of inserting a second account (decision f).
+ * a deadlock victim, instead of inserting a second account (decision e).
  */
 export const lockDirectoryAccount = (tx: Pick<Tx, 'select'>, key: string) =>
 	tx
@@ -1403,7 +1403,7 @@ const emailTakenBy = (tx: Pick<Tx, 'select'>, email: string) =>
 	tx.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
 
 /**
- * Sets the account's directory memberships to exactly these hub groups (decision g; spec §6.3 step 7). Its directory
+ * Sets the account's directory memberships to exactly these hub groups (decision f; spec §6.3 step 7). Its directory
  * rows anywhere else go, including a group whose links were removed; manual rows are never read or written (spec §2
  * #8). The remaining rows are read with a locking read before the insert (MySQL 8.4 "Locking Reads").
  */
@@ -1504,7 +1504,7 @@ async function signInWithin(
  * The sign-in's write (spec §6.3 step 7), in one transaction with a locking read of the account by its key: a known
  * account is refreshed (or refused while an admin has deactivated it); a new one is created as a `user` with no
  * password, unless the entry has no email or any account uses it. Run once more after a duplicate key or a deadlock
- * (decision f); any other failure propagates to the provider, which logs it and answers its generic error.
+ * (decision e); any other failure propagates to the provider, which logs it and answers its generic error.
  */
 export async function recordDirectorySignIn(
 	identity: DirectoryIdentity,
@@ -1560,11 +1560,11 @@ Spec §8 "Directory integration suite" (a separate Vitest project running `lib/d
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029, and in a dated note on ADR-0010):
 
-- **ak. One committed test CA and server certificate**, with a regeneration script that uses the openssl CLI and throws the CA key away, as python-ldap commits its slapd test certificates for `localhost`, `127.0.0.1` and `::1` (`python-ldap@b47ed474:Lib/slapdtest/certs/README`, `gencerts.sh` ends `rm -rf $CATMPDIR ca.key`) and Node.js core commits its test keys with a Makefile (`nodejs/node@ae5a0f40:test/fixtures/keys/Makefile:189,196`). The files are `.crt` and `.key`, since the root `.gitignore` ignores `*.pem`; `.dockerignore` keeps `e2e/` out of the image. Generating at test time (ldapts' CI uses node-forge) would add a devDependency and drift from a reused container (`ldap-test-servers.md` §1.2). GitHub's default push protection does not cover generic private-key patterns, and this repository has them off (`secret_scanning_non_provider_patterns: disabled`, read 2026-10-10).
-- **al. Both servers are started by name**, not by enabling the profile (Docker docs, "Using profiles with Compose": "When you explicitly target a service on the command line that has one or more profiles assigned, you do not need to enable the profile manually"), so a plain `docker compose -f docker-compose.e2e.yml up` still starts MySQL alone; Playwright starts `ldap-ad` only (Task 8), `pnpm test:ldap` both.
-- **am. A separate Vitest project, filtered by the CLI**: one config with a `unit` and an `ldap` project (`extends: true`), `pnpm test` runs `--project unit` and `pnpm test:ldap` `--project ldap --no-file-parallelism` (Vitest docs, "Test Projects" and the CLI's `--project`; the test files share the two servers). Homarr does the same (`homarr@ad15cfc3:package.json:302,304`: `vitest run --project "!integration"` and `--project integration`), and Directus gives its Docker-backed project its own `globalSetup`, `hookTimeout` and `testTimeout` (`directus@8e140f94:packages/memory/vitest.config.ts:10-33`).
-- **an. Real health checks.** smblds' built-in check exits 0 before Samba runs (`smblds-container@84fe79e6:healthcheck.sh`), so both services check a TLS bind as the seeded service account with the committed CA (`ldapwhoami`, `LDAPTLS_REQCERT=demand`): the listener is up, our certificate is served, the seed ran.
-- **ao. OpenLDAP's seed carries `memberOf` itself**: osixia loads its data with `slapadd`, which goes past every overlay (`openldap@f46b74e7:servers/slapd/backover.c:1375-1425`), and the OpenLDAP Admin Guide names slapadd for bulk loads of "entries known to be valid". Paging is forced on the service account with `size.soft=5 size.hard=5 size.prtotal=unlimited` (Admin Guide §9.3.1.2), never `size.pr`, which OpenLDAP enforces by refusing a larger page (`servers/slapd/limits.c:1168-1177`) where AD caps it.
+- **h. One committed test CA and server certificate**, with a regeneration script that uses the openssl CLI and throws the CA key away, as python-ldap commits its slapd test certificates for `localhost`, `127.0.0.1` and `::1` (`python-ldap@b47ed474:Lib/slapdtest/certs/README`, `gencerts.sh` ends `rm -rf $CATMPDIR ca.key`) and Node.js core commits its test keys with a Makefile (`nodejs/node@ae5a0f40:test/fixtures/keys/Makefile:189,196`). The files are `.crt` and `.key`, since the root `.gitignore` ignores `*.pem`; `.dockerignore` keeps `e2e/` out of the image. Generating at test time (ldapts' CI uses node-forge) would add a devDependency and drift from a reused container (`ldap-test-servers.md` §1.2). GitHub's default push protection does not cover generic private-key patterns, and this repository has them off (`secret_scanning_non_provider_patterns: disabled`, read 2026-10-10).
+- **i. Both servers are started by name**, not by enabling the profile (Docker docs, "Using profiles with Compose": "When you explicitly target a service on the command line that has one or more profiles assigned, you do not need to enable the profile manually"), so a plain `docker compose -f docker-compose.e2e.yml up` still starts MySQL alone; Playwright starts `ldap-ad` only (Task 8), `pnpm test:ldap` both.
+- **j. A separate Vitest project, filtered by the CLI**: one config with a `unit` and an `ldap` project (`extends: true`), `pnpm test` runs `--project unit` and `pnpm test:ldap` `--project ldap --no-file-parallelism` (Vitest docs, "Test Projects" and the CLI's `--project`; the test files share the two servers). Homarr does the same (`homarr@ad15cfc3:package.json:302,304`: `vitest run --project "!integration"` and `--project integration`), and Directus gives its Docker-backed project its own `globalSetup`, `hookTimeout` and `testTimeout` (`directus@8e140f94:packages/memory/vitest.config.ts:10-33`).
+- **k. Real health checks.** smblds' built-in check exits 0 before Samba runs (`smblds-container@84fe79e6:healthcheck.sh`), so both services check a TLS bind as the seeded service account with the committed CA (`ldapwhoami`, `LDAPTLS_REQCERT=demand`): the listener is up, our certificate is served, the seed ran.
+- **l. OpenLDAP's seed carries `memberOf` itself**: osixia loads its data with `slapadd`, which goes past every overlay (`openldap@f46b74e7:servers/slapd/backover.c:1375-1425`), and the OpenLDAP Admin Guide names slapadd for bulk loads of "entries known to be valid". Paging is forced on the service account with `size.soft=5 size.hard=5 size.prtotal=unlimited` (Admin Guide §9.3.1.2), never `size.pr`, which OpenLDAP enforces by refusing a larger page (`servers/slapd/limits.c:1168-1177`) where AD caps it.
 
 - [ ] **Step 1: The certificates**
 
@@ -1573,7 +1573,7 @@ Create `e2e/fixtures/ldap/tls/generate.sh` (mode 755):
 ```sh
 #!/bin/sh
 # Regenerates the e2e and test:ldap TLS fixtures: a test CA (its key is discarded, as python-ldap's
-# Lib/slapdtest/certs/gencerts.sh does) and one server certificate for both test directories (ADR-0029 decision ak).
+# Lib/slapdtest/certs/gencerts.sh does) and one server certificate for both test directories (ADR-0029 decision h).
 # Test-only: .dockerignore keeps e2e/ out of the image. Needs the openssl CLI (3.0 or later).
 set -eu
 cd "$(dirname "$0")"
@@ -1708,7 +1708,7 @@ smblds runs only executable files in `/entrypoint.d` ("Ignoring …, not executa
 
 - [ ] **Step 3: The OpenLDAP LDIF**
 
-Ten people, nine of them matching `(&(objectClass=inetOrgPerson)(!(pwdAccountLockedTime=*)))` (more than the service account's limit of five), `carol` locked, `dave` without mail; four groups under `ou=groups` (at most five, so the hub's group search still answers under the limit); `memberOf` written beside every `member` (decision ao).
+Ten people, nine of them matching `(&(objectClass=inetOrgPerson)(!(pwdAccountLockedTime=*)))` (more than the service account's limit of five), `carol` locked, `dave` without mail; four groups under `ou=groups` (at most five, so the hub's group search still answers under the limit); `memberOf` written beside every `member` (decision l).
 
 Create `e2e/fixtures/ldap/openldap/config/62-e2e-limits.ldif`:
 
@@ -2033,7 +2033,7 @@ const compose = 'docker compose -f docker-compose.e2e.yml'
 
 /**
  * Starts the two LDAP test directories for `pnpm test:ldap` (Vitest "globalSetup": it runs only when tests are queued,
- * and a returned function is the teardown), and stops them afterwards, so nothing is left running (decision al).
+ * and a returned function is the teardown), and stops them afterwards, so nothing is left running (decision i).
  */
 export default function setup() {
 	execSync(`${compose} up -d --wait --wait-timeout 300 ldap-ad ldap-openldap`, { stdio: 'inherit' })
@@ -2200,7 +2200,7 @@ import { describe, expect, it } from 'vitest'
 
 import { openldapPlain, rawClient, TEST_DIRECTORIES } from './servers'
 
-// The harness itself (decision an): each directory answers a service bind and a search in its mode.
+// The harness itself (decision k): each directory answers a service bind and a search in its mode.
 describe.each(TEST_DIRECTORIES)('the test directory: $name', ({ config, people }) => {
 	it('binds as the service account and finds a seeded person', async () => {
 		const client = rawClient(config)
@@ -2219,7 +2219,7 @@ describe.each(TEST_DIRECTORIES)('the test directory: $name', ({ config, people }
 	})
 })
 
-// Spec §8: OpenLDAP's per-account size limit forces the sync to page (decision ao).
+// Spec §8: OpenLDAP's per-account size limit forces the sync to page (decision l).
 describe("OpenLDAP's limit for the service account", () => {
 	it('refuses an unpaged search over five entries', async () => {
 		const client = rawClient(openldapPlain)
@@ -2283,9 +2283,9 @@ Spec §6.3 steps 3 and 6 (the escaped login filter, `explicitBufferAttributes`, 
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
-- **s. A key is binary when the id attribute is `objectGUID`**, compared without case, as Keycloak decides (`keycloak/keycloak@c7de391a:federation/ldap/src/main/java/org/keycloak/storage/ldap/LDAPConfig.java:182-183`, `isObjectGUID()` is `getUuidLDAPAttributeName().equalsIgnoreCase(LDAPConstants.OBJECT_GUID)`; its `LDAPUtil.java:112, 170, 229` encode, decode and filter the 16 bytes) and as Backstage formats an AD vendor's GUID (`backstage@75128025:plugins/catalog-backend-module-ldap/src/ldap/vendors.ts:126-145`). Spec §6.3 step 6 reads binary-ness from the value's length; this reads it from the setting, so the sync can rebuild a key's 16 bytes for a lookup (spec §6.4 step 4) without guessing. For the two supported attributes the result is the same: `objectGUID` is 16 bytes (Microsoft Learn `a-objectguid`: "Size: 16 bytes"), `entryUUID` is text (RFC 4530 §2.1). Spec §2 #4 already names the `objectGUID` byte order as the one vendor difference in code.
-- **t. `objectGUID` is always asked for as a Buffer under its schema spelling too.** ldapts matches `explicitBufferAttributes` against the attribute type as the server sends it, case-sensitively (`src/messages/SearchEntry.ts:53`), and AD sends `objectGUID`; a setting written `objectguid` would otherwise get a string whenever the bytes happen to be valid UTF-8 (`src/Attribute.ts:57-75`).
-- **u. An entry's values are read without regard to the attribute's case** (RFC 4512 §2.5: "attribute type names are case insensitive"; ldapts keys a result by the type as the server sent it, `ldap-client.md` §3.5), the first value of a multi-valued attribute is used, an email that `emailField` refuses counts as none (spec §2 #11 then refuses a new account), and a name or username longer than its 255-character column is cut to 255.
+- **m. A key is binary when the id attribute is `objectGUID`**, compared without case, as Keycloak decides (`keycloak/keycloak@c7de391a:federation/ldap/src/main/java/org/keycloak/storage/ldap/LDAPConfig.java:182-183`, `isObjectGUID()` is `getUuidLDAPAttributeName().equalsIgnoreCase(LDAPConstants.OBJECT_GUID)`; its `LDAPUtil.java:112, 170, 229` encode, decode and filter the 16 bytes) and as Backstage formats an AD vendor's GUID (`backstage@75128025:plugins/catalog-backend-module-ldap/src/ldap/vendors.ts:126-145`). Spec §6.3 step 6 reads binary-ness from the value's length; this reads it from the setting, so the sync can rebuild a key's 16 bytes for a lookup (spec §6.4 step 4) without guessing. For the two supported attributes the result is the same: `objectGUID` is 16 bytes (Microsoft Learn `a-objectguid`: "Size: 16 bytes"), `entryUUID` is text (RFC 4530 §2.1). Spec §2 #4 already names the `objectGUID` byte order as the one vendor difference in code.
+- **n. `objectGUID` is always asked for as a Buffer under its schema spelling too.** ldapts matches `explicitBufferAttributes` against the attribute type as the server sends it, case-sensitively (`src/messages/SearchEntry.ts:53`), and AD sends `objectGUID`; a setting written `objectguid` would otherwise get a string whenever the bytes happen to be valid UTF-8 (`src/Attribute.ts:57-75`).
+- **o. An entry's values are read without regard to the attribute's case** (RFC 4512 §2.5: "attribute type names are case insensitive"; ldapts keys a result by the type as the server sent it, `ldap-client.md` §3.5), the first value of a multi-valued attribute is used, an email that `emailField` refuses counts as none (spec §2 #11 then refuses a new account), and a name or username longer than its 255-character column is cut to 255.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2321,7 +2321,7 @@ describe('the objectGUID byte order (MS-DTYP 2.3.4.2)', () => {
 	})
 })
 
-describe('canonicalKey (spec §6.3 step 6, decision s)', () => {
+describe('canonicalKey (spec §6.3 step 6, decision m)', () => {
 	it('reads objectGUID from its 16 bytes only', () => {
 		expect(isBinaryKeyAttribute('objectGUID')).toBe(true)
 		expect(isBinaryKeyAttribute('ObjectGuid')).toBe(true)
@@ -2457,7 +2457,7 @@ const config = {
 } as const
 const guidBytes = Buffer.from('90395fb99ab51b4a9e9686c66cb18d99', 'hex')
 
-describe('readEntry (decision u)', () => {
+describe('readEntry (decision o)', () => {
 	it('reads the key, login, email and name, whatever case the server writes the types in', () => {
 		expect(
 			readEntry(
@@ -2506,7 +2506,7 @@ describe('readEntry (decision u)', () => {
 	})
 })
 
-describe('the attributes a search asks for (spec §6.3 step 3, decision t)', () => {
+describe('the attributes a search asks for (spec §6.3 step 3, decision n)', () => {
 	it('names the four attributes and asks for the key as a Buffer under both spellings', () => {
 		expect(entryAttributes(config as never)).toEqual([
 			'objectGUID',
@@ -2594,7 +2594,7 @@ export function canonicalKey(value: unknown, attribute: string): string | null {
 	return DIRECTORY_KEY_PATTERN.test(lower) ? lower : null
 }
 
-/** What a filter compares the id attribute with: a binary key's 16 bytes, else its text (decision s). */
+/** What a filter compares the id attribute with: a binary key's 16 bytes, else its text (decision m). */
 export const keyFilterValue = (key: string, attribute: string): Buffer | string =>
 	isBinaryKeyAttribute(attribute) ? guidStringToBytes(key) : key
 ```
@@ -2677,7 +2677,7 @@ export const entryAttributes = (config: EntryConfig): string[] => [
 	config.nameAttribute,
 ]
 
-/** Spec §6.3 step 3 and decision t: the key as a Buffer always, `objectGUID` under its schema spelling too. */
+/** Spec §6.3 step 3 and decision n: the key as a Buffer always, `objectGUID` under its schema spelling too. */
 export const bufferAttributes = (config: Pick<LdapConfig, 'idAttribute'>): string[] => [
 	...new Set([
 		config.idAttribute,
@@ -2687,7 +2687,7 @@ export const bufferAttributes = (config: Pick<LdapConfig, 'idAttribute'>): strin
 
 const COLUMN_MAX = 255
 
-/** An attribute's value whatever the case of its type (RFC 4512 §2.5; decision u). */
+/** An attribute's value whatever the case of its type (RFC 4512 §2.5; decision o). */
 export const attributeValue = (entry: Entry, attribute: string): unknown => {
 	const wanted = attribute.toLowerCase()
 	const key = Object.keys(entry).find(name => name !== 'dn' && name.toLowerCase() === wanted)
@@ -2760,10 +2760,10 @@ Spec §6.2 (a fresh client per sign-in and per sync with both timeouts set, `unb
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
-- **v. One connection per client.** ldapts documents `createConnection` and `createSecureConnection` as factories that "may be invoked more than once" because the client "transparently reconnects when it is used after being unbound or after the server closes the connection" (README "Custom connection factories"); after StartTLS that reconnect is plain TCP (`src/Client.ts:219-221, 889-935` at `ldapts@b38cfc3`; spec §6.2). The hub's factories allow one call per client, so a reconnect fails instead of sending a password in clear, in every mode. With one client per sign-in or per sync (spec §6.2), a legitimate second connection never happens (`library-apis.md` §7).
-- **ab. Failures are classified by phase.** Before the service account is bound (connect, TLS, StartTLS, the bind), a result code is `DirectoryRefusedError` and anything else `DirectoryUnavailableError`. During the work, a result code passes through (the directory answered: wrong password, no such base, size limit), and any other error with the client no longer connected is `DirectoryUnavailableError` (ldapts destroys the socket on an operation timeout, `src/Client.ts:1096-1103`); any other error passes through as the bug it is. The CA file is read before the client exists, so a missing file is a configuration error, not an unreachable directory.
-- **ac. TLS options:** TLS 1.2 or later (`minVersion`), the CA from `LDAP_CA_FILE` when set (Node `tls.connect` `ca`: "the default list would be completely replaced"), `host` always and `servername` for a host name (Node: `servername` "must be a host name, and not an IP address"; with `socket`, `host` is still used "for certificate validation", the StartTLS case). Node then checks the certificate against that name (`checkServerIdentity`); nothing turns that off (spec §6.2).
-- **ad. Every search names its limits.** The login search `sizeLimit: 2` (two means ambiguous, spec §6.3 step 3); a lookup by key `sizeLimit: 2`; the admin's group search `sizeLimit: 20` (spec §6.5); the membership test `scope: 'base'` with no attributes (`['1.1']`, RFC 4511 §4.5.1.8: "A list containing only the OID "1.1" indicates that no attributes are to be returned"); the user listing and member searches `paged: { pageSize: 500 }` and **no** `sizeLimit`, since ldapts accepts a size-limit result as complete whenever `sizeLimit` is set (`src/Client.ts:795`; `library-apis.md` §1), so a server-side cap fails the sync instead of cutting it short.
+- **p. One connection per client.** ldapts documents `createConnection` and `createSecureConnection` as factories that "may be invoked more than once" because the client "transparently reconnects when it is used after being unbound or after the server closes the connection" (README "Custom connection factories"); after StartTLS that reconnect is plain TCP (`src/Client.ts:219-221, 889-935` at `ldapts@b38cfc3`; spec §6.2). The hub's factories allow one call per client, so a reconnect fails instead of sending a password in clear, in every mode. With one client per sign-in or per sync (spec §6.2), a legitimate second connection never happens (`library-apis.md` §7).
+- **q. Failures are classified by phase.** Before the service account is bound (connect, TLS, StartTLS, the bind), a result code is `DirectoryRefusedError` and anything else `DirectoryUnavailableError`. During the work, a result code passes through (the directory answered: wrong password, no such base, size limit), and any other error with the client no longer connected is `DirectoryUnavailableError` (ldapts destroys the socket on an operation timeout, `src/Client.ts:1096-1103`); any other error passes through as the bug it is. The CA file is read before the client exists, so a missing file is a configuration error, not an unreachable directory.
+- **r. TLS options:** TLS 1.2 or later (`minVersion`), the CA from `LDAP_CA_FILE` when set (Node `tls.connect` `ca`: "the default list would be completely replaced"), `host` always and `servername` for a host name (Node: `servername` "must be a host name, and not an IP address"; with `socket`, `host` is still used "for certificate validation", the StartTLS case). Node then checks the certificate against that name (`checkServerIdentity`); nothing turns that off (spec §6.2).
+- **s. Every search names its limits.** The login search `sizeLimit: 2` (two means ambiguous, spec §6.3 step 3); a lookup by key `sizeLimit: 2`; the admin's group search `sizeLimit: 20` (spec §6.5); the membership test `scope: 'base'` with no attributes (`['1.1']`, RFC 4511 §4.5.1.8: "A list containing only the OID "1.1" indicates that no attributes are to be returned"); the user listing and member searches `paged: { pageSize: 500 }` and **no** `sizeLimit`, since ldapts accepts a size-limit result as complete whenever `sizeLimit` is set (`src/Client.ts:795`; `library-apis.md` §1), so a server-side cap fails the sync instead of cutting it short.
 
 - [ ] **Step 1: Write the failing unit tests**
 
@@ -2831,7 +2831,7 @@ beforeEach(() => {
 	readFile.mockResolvedValue(Buffer.from('PEM'))
 })
 
-describe('withDirectory: the three modes (spec §6.2, decisions v and ac)', () => {
+describe('withDirectory: the three modes (spec §6.2, decisions p and r)', () => {
 	it('ldaps: direct TLS with the CA and the host name, both timeouts, a single-use secure factory', async () => {
 		await withDirectory(config('ldaps://dc.corp.example:636', 'ldaps'), async () => 'done')
 		expect(mocks.state.options).toMatchObject({
@@ -2880,7 +2880,7 @@ describe('withDirectory: the three modes (spec §6.2, decisions v and ac)', () =
 		expect(mocks.state.options?.tlsOptions).toEqual({ host: '10.0.0.5', minVersion: 'TLSv1.2' })
 	})
 
-	it('lets a factory open one connection only (decision v)', () => {
+	it('lets a factory open one connection only (decision p)', () => {
 		const factory = vi.fn(() => 'socket')
 		const once = oncePerClient(factory)
 		expect(once(389, 'dc')).toBe('socket')
@@ -2890,7 +2890,7 @@ describe('withDirectory: the three modes (spec §6.2, decisions v and ac)', () =
 	})
 })
 
-describe('withDirectory: failures (decision ab)', () => {
+describe('withDirectory: failures (decision q)', () => {
 	it('unbinds when the work throws, and passes a result code through', async () => {
 		const answered = new NoSuchObjectError('no such base')
 		await expect(
@@ -2986,7 +2986,7 @@ const clientAnswering = (searchEntries: unknown[]) => {
 	return { client: { search } as never, search }
 }
 
-describe('the searches name their limits (decision ad)', () => {
+describe('the searches name their limits (decision s)', () => {
 	it('the login search: two entries at most, no paging', async () => {
 		const { client, search } = clientAnswering([])
 		await findLoginEntries(client, config, 'alice')
@@ -3114,7 +3114,7 @@ Run: `pnpm exec vitest run __tests__/directory-connection.test.ts __tests__/dire
 
 ```ts
 /*
- * The directory's failures as the hub tells them apart (B3 spec §7.3, decision ab). No imports, so lib/action-failure.ts
+ * The directory's failures as the hub tells them apart (B3 spec §7.3, decision q). No imports, so lib/action-failure.ts
  * and lib/error-log.ts can recognise them without loading ldapts' client.
  */
 
@@ -3186,7 +3186,7 @@ const connectTls = tls.connect as (...args: unknown[]) => tls.TLSSocket
  * A fresh client for one sign-in or one sync, bound as the service account, unbound in `finally` (spec §6.2; ldapts
  * README "Authenticate example"). ldaps gives the TLS options to the constructor; StartTLS gives them to `startTLS()`
  * only, since options on the constructor switch ldapts to direct TLS (`src/Client.ts:219-221`); none sends no TLS.
- * Failures are classified by phase (decision ab).
+ * Failures are classified by phase (decision q).
  */
 export async function withDirectory<T>(
 	config: LdapConfig,
@@ -3240,7 +3240,7 @@ import { groupByKeyFilter, groupSearchFilter, loginFilter, memberFilter } from '
 import { canonicalKey } from './keys'
 
 /*
- * The directory searches the hub makes (B3 spec §6.3–§6.5), each with its limits named (decision ad). Every filter comes
+ * The directory searches the hub makes (B3 spec §6.3–§6.5), each with its limits named (decision s). Every filter comes
  * from lib/directory/filters.ts, so every value in it is escaped.
  */
 
@@ -3266,7 +3266,7 @@ export async function findLoginEntries(
 	return searchEntries
 }
 
-/** Spec §6.4 step 1: every entry the user filter matches, paged, with no size limit (decision ad). */
+/** Spec §6.4 step 1: every entry the user filter matches, paged, with no size limit (decision s). */
 export async function listUserEntries(client: Client, config: LdapConfig): Promise<Entry[]> {
 	const { searchEntries } = await client.search(config.userBaseDn, {
 		scope: 'sub',
@@ -3421,7 +3421,7 @@ describe.each(TEST_DIRECTORIES)(
 			})
 		})
 
-		it("lists every person the filter matches, past the server's size limit (decision ao)", async () => {
+		it("lists every person the filter matches, past the server's size limit (decision l)", async () => {
 			const entries = await withDirectory(config, client => listUserEntries(client, config))
 			const logins = entries.map(entry => readEntry(entry, config)?.username)
 			expect(logins).toEqual(expect.arrayContaining(['alice', 'bob', 'dave', 'erin', 'frank']))
@@ -3460,7 +3460,7 @@ describe.each(TEST_DIRECTORIES)(
 	},
 )
 
-describe('the directory connection refuses what it must (decision ab)', () => {
+describe('the directory connection refuses what it must (decision q)', () => {
 	it('names an untrusted certificate and a closed port unreachable', async () => {
 		await expect(
 			withDirectory({ ...adLdaps, caFile: null }, async () => 'never'),
@@ -3530,10 +3530,10 @@ Spec §6.3 steps 1–8 (refuse blanks and an empty password before any bind; sea
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
-- **ag. Unknown and known usernames are told apart by nothing, including time, through a response-time floor**, Authelia's shape: every refused directory sign-in waits until the moving average of the last ten successful directory sign-ins (one second until there is one, never under 250 ms) plus 0–85 ms of jitter has passed since it started (`authelia@2ed18389:internal/middlewares/timing_attack_delay.go:36-53, 150-153, 171-172`; wired at `internal/server/handlers.go:265-267`). No surveyed LDAP project binds a dummy DN (Spring Security's `BindAuthenticator`, django-auth-ldap, n8n, `ldap-authentication` and Authelia's provider return at once), and a dummy bind would not time like a wrong password on AD, where a domain controller forwards a wrong password to the PDC emulator (Microsoft Learn, "Password change processing and conflict resolution functionality"; `ad-and-reference-projects.md` B.3). OWASP "Authentication Responses" asks that the "processing time" not tell the cases apart. A `DirectoryUnavailable` answer is not padded: it says nothing about the account. The local tab keeps its bcrypt against the fixed hash for a directory account (Task 1).
-- **ah. The directory refusing the connection is "unreachable" to the person.** A refused service bind or StartTLS (`DirectoryRefusedError`, Task 6) and `strongerAuthRequired` (8) or `confidentialityRequired` (13) on the user's bind answer `DirectoryUnavailable`, not `CredentialsSignin`: a domain controller that enforces LDAP signing refuses every simple bind over plain `ldap://` with code 8 (new Windows Server 2025 domains by default; Microsoft Learn, "LDAP signing for Active Directory Domain Services", 2026-10-02; Microsoft's own check expects "Strong Authentication Required", "How to enable LDAP signing in Windows Server"), and the person's password is not at fault. Only `invalidCredentials` (49) on the user's bind is a wrong password. The log line names the result code (lib/error-log.ts).
-- **ai. The account's source travels in the token and the session**, refreshed from the row by the `jwt` callback as the role is, so the account menu can leave out "Change password" for a directory account (Task 8). GitLab hides the button and answers 404 (`gitlabhq@0739b8bf:app/controllers/user_settings/passwords_controller.rb:12,87-89`); Mattermost and Grafana read the source from the user object their UI loads (`auth_service`; `authLabels`); all three refuse on the server (`ad-and-reference-projects.md` B.10), as `changeOwnPassword` does since Task 1.
-- **aj. The directory's form input:** a username of 1–255 characters after trimming, a password of 1–1,024 characters as typed (RFC 4513 §5.1.2: "Clients SHOULD disallow an empty password input"; spaces can belong to a password); zod's object drops the rest of the POST body that next-auth hands `authorize` (csrfToken, callbackUrl, json; `nextauth-drizzle-antd.md` §A).
+- **t. Unknown and known usernames are told apart by nothing, including time, through a response-time floor**, Authelia's shape: every refused directory sign-in waits until the moving average of the last ten successful directory sign-ins (one second until there is one, never under 250 ms) plus 0–85 ms of jitter has passed since it started (`authelia@2ed18389:internal/middlewares/timing_attack_delay.go:36-53, 150-153, 171-172`; wired at `internal/server/handlers.go:265-267`). No surveyed LDAP project binds a dummy DN (Spring Security's `BindAuthenticator`, django-auth-ldap, n8n, `ldap-authentication` and Authelia's provider return at once), and a dummy bind would not time like a wrong password on AD, where a domain controller forwards a wrong password to the PDC emulator (Microsoft Learn, "Password change processing and conflict resolution functionality"; `ad-and-reference-projects.md` B.3). OWASP "Authentication Responses" asks that the "processing time" not tell the cases apart. A `DirectoryUnavailable` answer is not padded: it says nothing about the account. The local tab keeps its bcrypt against the fixed hash for a directory account (Task 1).
+- **u. The directory refusing the connection is "unreachable" to the person.** A refused service bind or StartTLS (`DirectoryRefusedError`, Task 6) and `strongerAuthRequired` (8) or `confidentialityRequired` (13) on the user's bind answer `DirectoryUnavailable`, not `CredentialsSignin`: a domain controller that enforces LDAP signing refuses every simple bind over plain `ldap://` with code 8 (new Windows Server 2025 domains by default; Microsoft Learn, "LDAP signing for Active Directory Domain Services", 2026-10-02; Microsoft's own check expects "Strong Authentication Required", "How to enable LDAP signing in Windows Server"), and the person's password is not at fault. Only `invalidCredentials` (49) on the user's bind is a wrong password. The log line names the result code (lib/error-log.ts).
+- **v. The account's source travels in the token and the session**, refreshed from the row by the `jwt` callback as the role is, so the account menu can leave out "Change password" for a directory account (Task 8). GitLab hides the button and answers 404 (`gitlabhq@0739b8bf:app/controllers/user_settings/passwords_controller.rb:12,87-89`); Mattermost and Grafana read the source from the user object their UI loads (`auth_service`; `authLabels`); all three refuse on the server (`ad-and-reference-projects.md` B.10), as `changeOwnPassword` does since Task 1.
+- **w. The directory's form input:** a username of 1–255 characters after trimming, a password of 1–1,024 characters as typed (RFC 4513 §5.1.2: "Clients SHOULD disallow an empty password input"; spaces can belong to a password); zod's object drops the rest of the POST body that next-auth hands `authorize` (csrfToken, callbackUrl, json; `nextauth-drizzle-antd.md` §A).
 
 - [ ] **Step 1: Write the failing tests for the floor**
 
@@ -3544,7 +3544,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { ResponseFloor } from '@/lib/directory/response-floor'
 
-describe("ResponseFloor (decision ag, Authelia's timing delay)", () => {
+describe("ResponseFloor (decision t, Authelia's timing delay)", () => {
 	it('starts at one second, follows the average of the last ten successes, and never goes under 250 ms', () => {
 		const floor = new ResponseFloor()
 		expect(floor.floorMs()).toBe(1_000)
@@ -3579,7 +3579,7 @@ import 'server-only'
 import { setTimeout as sleepFor } from 'node:timers/promises'
 
 /**
- * A response-time floor for refused directory sign-ins (decision ag), the shape of Authelia's TimingAttackDelay: the
+ * A response-time floor for refused directory sign-ins (decision t), the shape of Authelia's TimingAttackDelay: the
  * moving average of the last ten successful sign-ins, one second until there is one, never under 250 ms, plus 0–85 ms of
  * jitter. Kept in the process's memory; each container learns its own.
  */
@@ -3764,7 +3764,7 @@ describe('checkDirectoryCredentials (spec §6.3)', () => {
 		})
 	})
 
-	it('reads strongerAuthRequired and confidentialityRequired as the directory refusing (decision ah)', async () => {
+	it('reads strongerAuthRequired and confidentialityRequired as the directory refusing (decision u)', async () => {
 		for (const error of [
 			new StrongAuthRequiredError('signing'),
 			new ConfidentialityRequiredError('tls'),
@@ -3872,7 +3872,7 @@ describe('authorizeDirectory (spec §6.3, §7.3)', () => {
 		expect(mocks.pad).not.toHaveBeenCalled()
 	})
 
-	it('refuses bad input before the directory (decision aj)', async () => {
+	it('refuses bad input before the directory (decision w)', async () => {
 		for (const input of [
 			undefined,
 			{},
@@ -3910,7 +3910,7 @@ describe('authorizeDirectory (spec §6.3, §7.3)', () => {
 		],
 		['LDAP is off', () => mocks.directoryConfig.mockReturnValue(null), 'directory_off'],
 	])(
-		'answers null when %s, logs the reason with the username, and pads the time (decision ag)',
+		'answers null when %s, logs the reason with the username, and pads the time (decision t)',
 		async (_name, arrange, reason) => {
 			arrange()
 			expect(await authorizeDirectory({ username: 'alice', password: 'secret-pass' })).toBeNull()
@@ -3935,7 +3935,7 @@ describe('authorizeDirectory (spec §6.3, §7.3)', () => {
 	it.each([
 		['unreachable', new DirectoryUnavailableError({ cause: new Error('ECONNREFUSED') })],
 		[
-			'refusing the connection (decision ah)',
+			'refusing the connection (decision u)',
 			new DirectoryRefusedError({ cause: new Error('code 8') }),
 		],
 	])('throws DirectoryUnavailable when the directory is %s, unpadded', async (_name, failure) => {
@@ -4082,8 +4082,8 @@ export const directoryCredentialsSchema = z.object({
 /**
  * The `ldap` Credentials provider's check (spec §6.3). A refusal answers null, next-auth's `CredentialsSignin`, the
  * same for every account-related reason (spec §7.3; OWASP "Authentication Responses"), logged with its reason and the
- * username, and padded to the response floor (decision ag). The directory not answering, or refusing the connection
- * (decision ah), throws `DirectoryUnavailable`, which next-auth hands `signIn()` as `result.error`
+ * username, and padded to the response floor (decision t). The directory not answering, or refusing the connection
+ * (decision u), throws `DirectoryUnavailable`, which next-auth hands `signIn()` as `result.error`
  * (`node_modules/next-auth/src/core/routes/callback.ts:348-355`); anything else throws `Default` (ADR-0024 decision g),
  * so no driver or directory message reaches the browser.
  */
@@ -4181,7 +4181,7 @@ export const logDirectoryEmailConflict = (context: string, subject: { userId: st
 ```
 
 - the `jwt` callback: at sign-in `token.source = user.source`; the refresh reads `source: users.source` with the other columns and sets `token.source = row.source`; the strip on revocation also removes `source` (`const { id: _id, sessionVersion: _version, role: _role, source: _source, ...rest } = token`);
-- the `session` callback sets `session.user.source = token.source` beside the role (decision ai).
+- the `session` callback sets `session.user.source = token.source` beside the role (decision v).
 
 - [ ] **Step 7: Run the unit tests**
 
@@ -4316,10 +4316,10 @@ Spec §6.3 first paragraph (antd `Tabs centered` with "Directory account", the d
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
-- **ap. The local tab opens first after a password change or first run** (`?notice=password-changed`, `?email=`): only a local account changes a hub password or is created by `/init`; otherwise the directory tab opens first, as GitLab's first LDAP tab is active (`gitlabhq@0739b8bf:app/views/devise/shared/_tabs_ldap.html.haml:7-13`) and Open WebUI starts in LDAP mode (`open-webui@8bd8b4fa:src/routes/auth/+page.svelte:34`). The chosen tab is not remembered, as in Open WebUI (`ad-and-reference-projects.md` B.8).
-- **aq. Each tab is its own form in its own tab pane**, rendered only while active (antd Tabs `items[].children` and `destroyOnHidden`), so the tab panel holds the form it names (WAI-ARIA APG "Tabs Pattern": each tab "displays its associated tabpanel") and the two password fields never coexist; Ant Design Pro's login page renders label-only tabs with the fields below (`ant-design-pro@24de7e34:src/pages/user/login/index.tsx:221-241`), which leaves the tab panels empty. The forgot-password link shows on the local tab only (a directory account has no hub password, spec §12).
-- **ar. The failure text names the tab's identifier**: "Check your username and password" on the directory tab (`auth.directory_login_failed`, the spec's text) and the existing "Check your email and password" (`auth.login_failed`) on the local tab.
-- **as. The e2e suite runs with the LDAP block on**, so every spec sees the tabs: the local sign-in helpers choose "Local account" first. A Samba provisioned again issues new `objectGUID`s while the e2e MySQL is reused, so the global setup deletes the directory accounts and links left from a previous run before any spec (`ldap-test-servers.md` §5 "State rule").
+- **x. The local tab opens first after a password change or first run** (`?notice=password-changed`, `?email=`): only a local account changes a hub password or is created by `/init`; otherwise the directory tab opens first, as GitLab's first LDAP tab is active (`gitlabhq@0739b8bf:app/views/devise/shared/_tabs_ldap.html.haml:7-13`) and Open WebUI starts in LDAP mode (`open-webui@8bd8b4fa:src/routes/auth/+page.svelte:34`). The chosen tab is not remembered, as in Open WebUI (`ad-and-reference-projects.md` B.8).
+- **y. Each tab is its own form in its own tab pane**, rendered only while active (antd Tabs `items[].children` and `destroyOnHidden`), so the tab panel holds the form it names (WAI-ARIA APG "Tabs Pattern": each tab "displays its associated tabpanel") and the two password fields never coexist; Ant Design Pro's login page renders label-only tabs with the fields below (`ant-design-pro@24de7e34:src/pages/user/login/index.tsx:221-241`), which leaves the tab panels empty. The forgot-password link shows on the local tab only (a directory account has no hub password, spec §12).
+- **z. The failure text names the tab's identifier**: "Check your username and password" on the directory tab (`auth.directory_login_failed`, the spec's text) and the existing "Check your email and password" (`auth.login_failed`) on the local tab.
+- **aa. The e2e suite runs with the LDAP block on**, so every spec sees the tabs: the local sign-in helpers choose "Local account" first. A Samba provisioned again issues new `objectGUID`s while the e2e MySQL is reused, so the global setup deletes the directory accounts and links left from a previous run before any spec (`ldap-test-servers.md` §5 "State rule").
 
 - [ ] **Step 1: Write the failing unit tests**
 
@@ -4329,7 +4329,7 @@ In `__tests__/auth-failure.test.ts`, replace the `loginFailureKey` describe with
 // next-auth answers CredentialsSignin when authorize() returned null; a thrown Error arrives as its own message: the
 // `ldap` provider throws DirectoryUnavailable when the directory does not answer, both providers `Default` otherwise.
 describe('loginFailureKey', () => {
-	it('names the identifier of the tab for a refused credential (decision ar)', () => {
+	it('names the identifier of the tab for a refused credential (decision z)', () => {
 		expect(loginFailureKey('CredentialsSignin', 'local')).toBe('auth.login_failed')
 		expect(loginFailureKey('CredentialsSignin', 'directory')).toBe('auth.directory_login_failed')
 	})
@@ -4371,7 +4371,7 @@ Run: `pnpm exec vitest run __tests__/auth-failure.test.ts __tests__/login-page.t
 ```ts
 /**
  * next-auth's sign-in error as a translation key. `CredentialsSignin` is its code for an authorize() that returned
- * null (next-auth Pages, "Error codes"), named by the tab's identifier (decision ar); `DirectoryUnavailable` is the
+ * null (next-auth Pages, "Error codes"), named by the tab's identifier (decision z); `DirectoryUnavailable` is the
  * `ldap` provider's thrown code when the directory does not answer (spec §7.3); any other code is a failure the user
  * cannot fix by retyping, such as the `Default` both providers throw when the database fails.
  */
@@ -4555,7 +4555,7 @@ function LocalForm({
 
 /**
  * The login page's form (spec §6.3). With the directory configured: antd `Tabs centered`, "Directory account" first
- * (decision ap), each tab its own form in its own pane (decision aq), posting to the `ldap` or the `credentials`
+ * (decision x), each tab its own form in its own pane (decision y), posting to the `ldap` or the `credentials`
  * provider. Without it: the local form alone, as before. A password change lands here with a notice (charter §4.2);
  * the "Forgot password?" link shows on the local form only when mail is configured (ADR-0024).
  */
@@ -4635,7 +4635,7 @@ Check two antd 6.6.5 props with the CLI before relying on them, and use what it 
 
 - [ ] **Step 4: The account menu**
 
-In `components/shell/account-dropdown.tsx`, `IAccountMenuItemsOptions.onChangePassword` becomes optional (`onChangePassword?: () => void`), `getAccountMenuItems` adds the change-password item only when it is given (`...(onChangePassword ? [{ key: 'change-password', … }] : [])`), and `AccountDropdown` passes it only when `session?.user?.source !== 'ldap'` (decision ai), rendering `ChangePasswordModal` in the same case.
+In `components/shell/account-dropdown.tsx`, `IAccountMenuItemsOptions.onChangePassword` becomes optional (`onChangePassword?: () => void`), `getAccountMenuItems` adds the change-password item only when it is given (`...(onChangePassword ? [{ key: 'change-password', … }] : [])`), and `AccountDropdown` passes it only when `session?.user?.source !== 'ldap'` (decision v), rendering `ChangePasswordModal` in the same case.
 
 - [ ] **Step 5: The texts**
 
@@ -4737,7 +4737,7 @@ import { e2eEnv } from './fixtures/env'
 /**
  * Starts the tmpfs MySQL and the smblds test directory (an already running container is reused, so MySQL's data
  * persists until `docker compose -f docker-compose.e2e.yml down`), applies the migrations, and clears the directory
- * accounts a previous run left (decision as). ldap-ad is started by name: its profile keeps it out of a plain `up`
+ * accounts a previous run left (decision aa). ldap-ad is started by name: its profile keeps it out of a plain `up`
  * (Docker docs, "Using profiles with Compose"). Admin and app seeding happen in e2e/auth.setup.ts (they need the app).
  */
 export default async function globalSetup() {
@@ -4758,7 +4758,7 @@ export default async function globalSetup() {
 In `e2e/fixtures/users.ts`, add and use:
 
 ```ts
-/** The login page shows the two tabs in the e2e suite (decision as): local accounts sign in on "Local account". */
+/** The login page shows the two tabs in the e2e suite (decision aa): local accounts sign in on "Local account". */
 export const chooseLocalAccount = async (page: Page) => {
 	await page.getByRole('tab', { name: 'Local account' }).click()
 	await expect(page.getByLabel('Email')).toBeVisible()
@@ -4784,7 +4784,7 @@ export const signInWithDirectory = async (page: Page, username: string, password
 }
 ```
 
-The specs that fill the local form directly choose the local tab first: `e2e/auth.spec.ts` (the wrong-password case and the `callbackUrl` case: `await chooseLocalAccount(page)` after the `goto`; the reset case after `toHaveURL(/\/login$/)`), and `e2e/deactivation.spec.ts` (after `toHaveURL(/\/login/)`). `e2e/account.spec.ts` lands on `/login?notice=password-changed`, which opens the local tab (decision ap), and needs no change. Run `grep -n "getByLabel('Email')" e2e/*.spec.ts` to check that no other spec fills the login form.
+The specs that fill the local form directly choose the local tab first: `e2e/auth.spec.ts` (the wrong-password case and the `callbackUrl` case: `await chooseLocalAccount(page)` after the `goto`; the reset case after `toHaveURL(/\/login$/)`), and `e2e/deactivation.spec.ts` (after `toHaveURL(/\/login/)`). `e2e/account.spec.ts` lands on `/login?notice=password-changed`, which opens the local tab (decision x), and needs no change. Run `grep -n "getByLabel('Email')" e2e/*.spec.ts` to check that no other spec fills the login form.
 
 - [ ] **Step 7: The directory sign-in spec**
 
@@ -4930,10 +4930,10 @@ Spec §6.4 steps 2–5 (safety stops, account reconciliation, linked groups, the
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
-- **i. A pure plan, then the writes.** The reconciliation is computed by pure functions from the hub's accounts and the directory's entries, then applied; the pure part carries the safety stops and has its own tests. n8n's LDAP sync does the same: `getUsersToCreate`, `getUsersToUpdate` and `getUsersToDisable` compute the sets that `processUsers` then writes (`n8n-io/n8n@5b78e8b6:packages/cli/src/modules/ldap.ee/ldap.service.ee.ts:430-433, 506-572`; `helpers.ee.ts:170-200`); Backstage's LDAP module reads, transforms, then applies the whole state (`backstage@75128025:plugins/catalog-backend-module-ldap/src/processors/LdapOrgEntityProvider.ts:274-317`); Keycloak reports counters per run (`keycloak@c7de391a:server-spi/src/main/java/org/keycloak/storage/user/SynchronizationResult.java:25-30`). Neither n8n nor Backstage has an empty-result stop in that path (an empty search disables every n8n LDAP account), so the spec's stops live in the plan (`ad-and-reference-projects.md` B.5).
-- **j. The unique index arbitrates an email conflict.** The plan only says "this email changed"; the write tries it and, when the unique index refuses (1062), writes the other fields and counts a conflict. The index compares as MySQL's collation does, which code cannot imitate (B3a: `utf8mb4_0900_ai_ci` is case- and accent-insensitive).
-- **k. A group whose lookup failed is left whole.** When one of a hub group's links errors, none of that group's directory memberships change (spec §6.4 step 4 "leave that group's memberships untouched"); a group with no link left loses its directory members (decision g).
-- **l. Writes in batches of 1,000 ids**, under MySQL's 65,535 placeholders per prepared statement (MySQL 8.4 Error Reference, `ER_PS_MANY_PARAM` 1390), each its own statement; the reconciliation is idempotent (spec §6.4 "Claim"), so a run cut short is completed by the next.
+- **ab. A pure plan, then the writes.** The reconciliation is computed by pure functions from the hub's accounts and the directory's entries, then applied; the pure part carries the safety stops and has its own tests. n8n's LDAP sync does the same: `getUsersToCreate`, `getUsersToUpdate` and `getUsersToDisable` compute the sets that `processUsers` then writes (`n8n-io/n8n@5b78e8b6:packages/cli/src/modules/ldap.ee/ldap.service.ee.ts:430-433, 506-572`; `helpers.ee.ts:170-200`); Backstage's LDAP module reads, transforms, then applies the whole state (`backstage@75128025:plugins/catalog-backend-module-ldap/src/processors/LdapOrgEntityProvider.ts:274-317`); Keycloak reports counters per run (`keycloak@c7de391a:server-spi/src/main/java/org/keycloak/storage/user/SynchronizationResult.java:25-30`). Neither n8n nor Backstage has an empty-result stop in that path (an empty search disables every n8n LDAP account), so the spec's stops live in the plan (`ad-and-reference-projects.md` B.5).
+- **ac. The unique index arbitrates an email conflict.** The plan only says "this email changed"; the write tries it and, when the unique index refuses (1062), writes the other fields and counts a conflict. The index compares as MySQL's collation does, which code cannot imitate (B3a: `utf8mb4_0900_ai_ci` is case- and accent-insensitive).
+- **ad. A group whose lookup failed is left whole.** When one of a hub group's links errors, none of that group's directory memberships change (spec §6.4 step 4 "leave that group's memberships untouched"); a group with no link left loses its directory members (decision f).
+- **ae. Writes in batches of 1,000 ids**, under MySQL's 65,535 placeholders per prepared statement (MySQL 8.4 Error Reference, `ER_PS_MANY_PARAM` 1390), each its own statement; the reconciliation is idempotent (spec §6.4 "Claim"), so a run cut short is completed by the next.
 
 - [ ] **Step 1: Write the failing plan tests**
 
@@ -5220,7 +5220,7 @@ describe('deactivateDirectoryAccounts (spec §6.4 step 3, ADR-0027)', () => {
 		expect(params).toContain('ldap')
 	})
 
-	it('writes in batches of 1,000 ids (decision l) and sums the counts', async () => {
+	it('writes in batches of 1,000 ids (decision ae) and sums the counts', async () => {
 		const ids = Array.from({ length: 2_500 }, (_, index) => `u${index}`)
 		mocks.state.affectedRows = 10
 		expect(await deactivateDirectoryAccounts(ids, new Date())).toBe(30)
@@ -5243,7 +5243,7 @@ describe('reactivateDirectoryAccounts', () => {
 	})
 })
 
-describe('refreshDirectoryAccount (decision j)', () => {
+describe('refreshDirectoryAccount (decision ac)', () => {
 	const update = { id: 'a', name: 'Alice', directoryUsername: 'alice', email: 'new@example.com' }
 
 	it('writes the new email with the other fields when the index takes it', async () => {
@@ -5364,7 +5364,7 @@ Create `lib/directory/plan.ts`:
 import 'server-only'
 
 /*
- * The directory sync's reconciliation as pure functions (B3 spec §6.4, decision i): from the hub's `ldap` accounts and
+ * The directory sync's reconciliation as pure functions (B3 spec §6.4, decision ab): from the hub's `ldap` accounts and
  * the directory's entries to what changes. The writes live in lib/data/directory.ts; the IO in lib/directory/sync.ts.
  */
 
@@ -5475,8 +5475,8 @@ export interface MembershipPlan {
 
 /**
  * Spec §6.4 step 4 and §6.5: each hub group's directory members are the hub `ldap` accounts found in any of its links;
- * a missing directory group counts as empty; a group with a failed lookup is left whole (decision k); a group with no
- * link left loses its directory members (decision g). Only `directory` rows are planned (spec §2 #8).
+ * a missing directory group counts as empty; a group with a failed lookup is left whole (decision ad); a group with no
+ * link left loses its directory members (decision f). Only `directory` rows are planned (spec §2 #8).
  */
 export function planDirectoryMemberships(
 	lookups: readonly LinkLookup[],
@@ -5603,7 +5603,7 @@ export async function reactivateDirectoryAccounts(ids: readonly string[]): Promi
 /**
  * One account's refreshed directory fields (spec §6.4 step 3). A new email the unique index refuses (1062: another
  * account has it) is dropped and the other fields written: the row keeps its old email and the run counts a conflict
- * (spec §2 #11, decision j).
+ * (spec §2 #11, decision ac).
  */
 export async function refreshDirectoryAccount(
 	update: AccountUpdate,
@@ -5894,9 +5894,9 @@ Spec §6.4 "Claim" and "A run" (claim the slot, read everything, the safety stop
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
-- **z. Everything is read before anything is written.** The paged user search, every linked group's lookup and member search run on one connection (spec §6.2: one client per sync), and only then do the accounts and memberships change; any connection, TLS, bind, search or page failure in that phase fails the run with nothing written (spec §6.4 step 2, GitLab's warning that "All users are blocked if the LDAP server is unavailable when an LDAP user synchronization is run", `gitlabhq@0739b8bf:doc/administration/auth/ldap/ldap_synchronization.md:196-200`). A linked group's own result-code error (the directory answered, for that group) is that group's error only (spec §6.4 step 4); a transport failure there fails the run.
-- **au. No run starts while another is going, whatever its trigger.** Before it claims its slot, every run (scheduled, startup or manual) checks for a run that started less than 30 minutes ago and has not finished, and skips; the slot's unique key then stops a second container. Keycloak runs every sync, scheduled or manual, through one cluster-wide key with a timeout of at least 30 seconds and answers "Synchronization ignored as it's already in progress" (`keycloak@c7de391a:model/storage-private/src/main/java/org/keycloak/storage/UserStorageSyncTask.java:159-188`); Mattermost's `SaveOnce` inserts a job only while none of its type is pending or in progress (`mattermost@4d94455a:server/channels/store/sqlstore/job_store.go:81-135`). The spec names the check for Sync now; a check and then an insert can still race, which the idempotent reconciliation absorbs (spec §6.4 "Claim"; `ad-and-reference-projects.md` B.4).
-- **aa. A failed run records the counts it reached**, so a write phase cut by a database error shows what it changed; the reconciliation is idempotent and the next run completes it (spec §6.4 "Claim").
+- **af. Everything is read before anything is written.** The paged user search, every linked group's lookup and member search run on one connection (spec §6.2: one client per sync), and only then do the accounts and memberships change; any connection, TLS, bind, search or page failure in that phase fails the run with nothing written (spec §6.4 step 2, GitLab's warning that "All users are blocked if the LDAP server is unavailable when an LDAP user synchronization is run", `gitlabhq@0739b8bf:doc/administration/auth/ldap/ldap_synchronization.md:196-200`). A linked group's own result-code error (the directory answered, for that group) is that group's error only (spec §6.4 step 4); a transport failure there fails the run.
+- **ag. No run starts while another is going, whatever its trigger.** Before it claims its slot, every run (scheduled, startup or manual) checks for a run that started less than 30 minutes ago and has not finished, and skips; the slot's unique key then stops a second container. Keycloak runs every sync, scheduled or manual, through one cluster-wide key with a timeout of at least 30 seconds and answers "Synchronization ignored as it's already in progress" (`keycloak@c7de391a:model/storage-private/src/main/java/org/keycloak/storage/UserStorageSyncTask.java:159-188`); Mattermost's `SaveOnce` inserts a job only while none of its type is pending or in progress (`mattermost@4d94455a:server/channels/store/sqlstore/job_store.go:81-135`). The spec names the check for Sync now; a check and then an insert can still race, which the idempotent reconciliation absorbs (spec §6.4 "Claim"; `ad-and-reference-projects.md` B.4).
+- **ah. A failed run records the counts it reached**, so a write phase cut by a database error shows what it changed; the reconciliation is idempotent and the next run completes it (spec §6.4 "Claim").
 
 - [ ] **Step 1: Write the failing unit tests**
 
@@ -5983,7 +5983,7 @@ beforeEach(() => {
 	mocks.listUserEntries.mockResolvedValue([entry(0x90, 'alice')])
 })
 
-describe('the slots (decision y)', () => {
+describe('the slots (decision ak)', () => {
 	it('name a minute', () => {
 		expect(scheduleSlot(new Date('2026-10-09T13:00:42.120Z'))).toBe('schedule:2026-10-09T13:00Z')
 		expect(startupSlot(new Date('2026-10-09T13:00:00Z'))).toBe('startup:2026-10-09T13:00Z')
@@ -6090,7 +6090,7 @@ describe('runSync (spec §6.4)', () => {
 		}
 	})
 
-	it('reads every linked group before any write, and counts a group the directory refused as an error (decision z)', async () => {
+	it('reads every linked group before any write, and counts a group the directory refused as an error (decision af)', async () => {
 		mocks.listGroupLinks.mockResolvedValue([
 			{ groupId: 'g1', directoryGroupId: 'd1', directoryGroupName: 'Eng', missingSince: null },
 			{ groupId: 'g2', directoryGroupId: 'd2', directoryGroupName: 'Ops', missingSince: null },
@@ -6113,7 +6113,7 @@ describe('runSync (spec §6.4)', () => {
 			],
 			expect.any(Date),
 		)
-		// All the directory's answers came before the first write (one connection, decision z).
+		// All the directory's answers came before the first write (one connection, decision af).
 		expect(mocks.withDirectory).toHaveBeenCalledTimes(1)
 		expect(mocks.findGroupByKey.mock.invocationCallOrder.at(-1)!).toBeLessThan(
 			mocks.deactivateDirectoryAccounts.mock.invocationCallOrder[0],
@@ -6139,7 +6139,7 @@ describe('runSync (spec §6.4)', () => {
 		}
 	})
 
-	it('records the counts a failed write phase reached (decision aa)', async () => {
+	it('records the counts a failed write phase reached (decision ah)', async () => {
 		const log = vi.spyOn(console, 'error').mockImplementation(() => {})
 		try {
 			mocks.listDirectoryAccounts.mockResolvedValue([
@@ -6179,7 +6179,7 @@ describe('runSync (spec §6.4)', () => {
 	})
 })
 
-describe('the running guard (decision au)', () => {
+describe('the running guard (decision ag)', () => {
 	it.each(['schedule', 'startup', 'manual'] as const)(
 		'refuses a %s run while a run started in the last 30 minutes has not finished',
 		async trigger => {
@@ -6255,7 +6255,7 @@ import { planAccountChanges, planDirectoryMemberships, type LinkLookup } from '.
  */
 
 /**
- * Spec §6.4: no run starts while a run that started less than 30 minutes ago has no finished_at (decision au: every
+ * Spec §6.4: no run starts while a run that started less than 30 minutes ago has no finished_at (decision ag: every
  * trigger, not only Sync now). A run older than that is taken to have died with its container.
  */
 export const RUNNING_GUARD_MS = 30 * 60 * 1000
@@ -6625,9 +6625,9 @@ Spec §6.4 "Schedule" and "Missed run" (one croner job started from `register()`
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
-- **w. `register()` never throws.** Next 16.3.4 rethrows a failing `register()` as "An error occurred while loading instrumentation hook" and the server does not start (`node_modules/next/dist/esm/server/lib/router-utils/instrumentation-globals.external.js`; `library-apis.md` §5); the schedule's start catches and logs its own failure, so a bad `LDAP_*` block still fails at the first request with the variables' names (spec §7.1). Formbricks wraps its start the same way (`formbricks@27ca48e2:apps/web/instrumentation.ts:38-67`, `void registerRecurringJobs().catch(…)`).
-- **x. croner runs the callback's promise under `protect` and reports through `catch`.** croner skips a due run only while the previous callback's returned promise is pending (`protect`; `croner@adc86215:src/croner.ts:518-552, 576-596`), so the callback returns `runSync`'s promise; without `catch` a failing run becomes an unhandled rejection (`:527-540, 586-587`), so `catch` routes it to `logActionError`. `unref: true` (croner README options: the timer does not keep the process alive), so the process exits on SIGTERM when Next stops serving; a run cut there is idempotent and repeated by the startup catch-up or the next slot (spec §13).
-- **y. A scheduled run's slot is the minute it fires** (`schedule:2026-10-09T13:00Z`, spec §3.2's example), a startup run's the missed due minute (`startup:…`), so two containers starting together claim the same catch-up slot once.
+- **ai. `register()` never throws.** Next 16.3.4 rethrows a failing `register()` as "An error occurred while loading instrumentation hook" and the server does not start (`node_modules/next/dist/esm/server/lib/router-utils/instrumentation-globals.external.js`; `library-apis.md` §5); the schedule's start catches and logs its own failure, so a bad `LDAP_*` block still fails at the first request with the variables' names (spec §7.1). Formbricks wraps its start the same way (`formbricks@27ca48e2:apps/web/instrumentation.ts:38-67`, `void registerRecurringJobs().catch(…)`).
+- **aj. croner runs the callback's promise under `protect` and reports through `catch`.** croner skips a due run only while the previous callback's returned promise is pending (`protect`; `croner@adc86215:src/croner.ts:518-552, 576-596`), so the callback returns `runSync`'s promise; without `catch` a failing run becomes an unhandled rejection (`:527-540, 586-587`), so `catch` routes it to `logActionError`. `unref: true` (croner README options: the timer does not keep the process alive), so the process exits on SIGTERM when Next stops serving; a run cut there is idempotent and repeated by the startup catch-up or the next slot (spec §13).
+- **ak. A scheduled run's slot is the minute it fires** (`schedule:2026-10-09T13:00Z`, spec §3.2's example), a startup run's the missed due minute (`startup:…`), so two containers starting together claim the same catch-up slot once.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -6711,7 +6711,7 @@ describe('startDirectorySchedule', () => {
 		expect(mocks.jobs).toEqual([])
 	})
 
-	it('logs a bad LDAP block instead of throwing (decision w)', () => {
+	it('logs a bad LDAP block instead of throwing (decision ai)', () => {
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {})
 		try {
 			mocks.directoryConfig.mockImplementation(() => {
@@ -6727,7 +6727,7 @@ describe('startDirectorySchedule', () => {
 		}
 	})
 
-	it('starts one protected, unref’d job in the zone, once per process (decision x)', async () => {
+	it('starts one protected, unref’d job in the zone, once per process (decision aj)', async () => {
 		mocks.directoryConfig.mockReturnValue(config)
 		startDirectorySchedule()
 		startDirectorySchedule()
@@ -6749,7 +6749,7 @@ describe('startDirectorySchedule', () => {
 		)
 	})
 
-	it('runs a startup catch-up for a missed slot, under that slot (decision y)', async () => {
+	it('runs a startup catch-up for a missed slot, under that slot (decision ak)', async () => {
 		mocks.directoryConfig.mockReturnValue(config)
 		mocks.lastSucceededSyncRun.mockResolvedValue({ startedAt: new Date('2026-10-10T08:00:02Z') })
 		startDirectorySchedule()
@@ -6811,7 +6811,7 @@ describe('register (Next instrumentation)', () => {
 		expect(startDirectorySchedule).toHaveBeenCalledTimes(1)
 	})
 
-	it('never throws, so a failure cannot stop the server from starting (decision w)', async () => {
+	it('never throws, so a failure cannot stop the server from starting (decision ai)', async () => {
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {})
 		try {
 			vi.stubEnv('NEXT_RUNTIME', 'nodejs')
@@ -6874,7 +6874,7 @@ async function catchUp(config: LdapConfig, job: Cron): Promise<void> {
 /**
  * Starts the schedule once per process (a development reload re-evaluates modules, so the state lives on globalThis,
  * Rallly's guard): nothing while LDAP is off or LDAP_SYNC_SCHEDULE is `off`; a warning for `none` (spec §6.2); one
- * croner job (decision x) and a startup catch-up. A bad LDAP block is logged and left to the first request (decision w).
+ * croner job (decision aj) and a startup catch-up. A bad LDAP block is logged and left to the first request (decision ai).
  */
 export function startDirectorySchedule(): void {
 	if (globalForSchedule.difyAppHubDirectorySchedule) return
@@ -6984,8 +6984,8 @@ Spec §6.5 "Linking" (a "Directory groups" field with search; a Server Action be
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
-- **ae. The search starts at two characters** and is debounced in the browser (300 ms, ahooks `useDebounceFn`), as antd's "Search and Select Users" demo debounces a remote search (`npx -y @ant-design/cli demo Select select-users --version 6.6.5`); the server bounds the result at twenty (spec §6.5) and the text at 64 characters. No reference sets a minimum: Mattermost searches the directory's groups with free text on Enter (`mattermost@4d94455a:webapp/channels/src/components/admin_console/group_settings/groups_list/groups_list.tsx:284-319`) and GitLab offers "a dropdown list with matching CNs" as the admin types (`gitlabhq@0739b8bf:doc/user/group/access_and_permissions.md:303-313`), so the two characters are the hub's guard against one-letter substring searches of the whole directory; when twenty come back, the list says so and asks for a narrower search (`ad-and-reference-projects.md` B.7). The link stores the group's key, as Mattermost stores its Group ID attribute ("such as `entryUUID` or `objectGUID`", `mattermost/docs@bd09d959:source/administration-guide/onboard/ad-ldap-groups-synchronization.rst:46-48`), not Grafana's DN or GitLab's CN.
-- **af. Links are saved with the group, in its transaction**: removed links are deleted, new ones inserted, kept ones get the picked name. When the save leaves the group with no link, its `directory` memberships are deleted in the same transaction, since nothing would refresh them (decision g); with links left, the next sync, Sync now or each member's next directory sign-in recomputes them (spec §6.4 step 4, §6.3 step 7). The drawer's hint says so. The key the browser sends is checked against the canonical form; a key that matches no directory group is harmless and is marked missing by the next sync.
+- **al. The search starts at two characters** and is debounced in the browser (300 ms, ahooks `useDebounceFn`), as antd's "Search and Select Users" demo debounces a remote search (`npx -y @ant-design/cli demo Select select-users --version 6.6.5`); the server bounds the result at twenty (spec §6.5) and the text at 64 characters. No reference sets a minimum: Mattermost searches the directory's groups with free text on Enter (`mattermost@4d94455a:webapp/channels/src/components/admin_console/group_settings/groups_list/groups_list.tsx:284-319`) and GitLab offers "a dropdown list with matching CNs" as the admin types (`gitlabhq@0739b8bf:doc/user/group/access_and_permissions.md:303-313`), so the two characters are the hub's guard against one-letter substring searches of the whole directory; when twenty come back, the list says so and asks for a narrower search (`ad-and-reference-projects.md` B.7). The link stores the group's key, as Mattermost stores its Group ID attribute ("such as `entryUUID` or `objectGUID`", `mattermost/docs@bd09d959:source/administration-guide/onboard/ad-ldap-groups-synchronization.rst:46-48`), not Grafana's DN or GitLab's CN.
+- **am. Links are saved with the group, in its transaction**: removed links are deleted, new ones inserted, kept ones get the picked name. When the save leaves the group with no link, its `directory` memberships are deleted in the same transaction, since nothing would refresh them (decision f); with links left, the next sync, Sync now or each member's next directory sign-in recomputes them (spec §6.4 step 4, §6.3 step 7). The drawer's hint says so. The key the browser sends is checked against the canonical form; a key that matches no directory group is harmless and is marked missing by the next sync.
 
 - [ ] **Step 1: Move the key pattern to the client-safe vocabulary**
 
@@ -7052,7 +7052,7 @@ describe('searchDirectoryGroups (spec §6.5)', () => {
 In `__tests__/group-management-schemas.test.ts`, append:
 
 ```ts
-describe('directory groups on the group input (decision af)', () => {
+describe('directory groups on the group input (decision am)', () => {
 	it('takes canonical keys with a name, at most 50', () => {
 		const key = 'b95f3990-b59a-4a1b-9e96-86c66cb18d99'
 		expect(
@@ -7074,7 +7074,7 @@ describe('directory groups on the group input (decision af)', () => {
 		).toBe(false)
 	})
 
-	it('bounds the search text (decision ae)', () => {
+	it('bounds the search text (decision al)', () => {
 		expect(directoryGroupSearchSchema.parse('  eng ')).toBe('eng')
 		expect(directoryGroupSearchSchema.safeParse('e').success).toBe(false)
 		expect(directoryGroupSearchSchema.safeParse('x'.repeat(65)).success).toBe(false)
@@ -7090,7 +7090,7 @@ In `__tests__/data-groups.test.ts`:
 2. Import `directoryLinkChanges`, `linksOf`, `removeLinks` and append:
 
 ```ts
-describe('the directory links of a group (decision af)', () => {
+describe('the directory links of a group (decision am)', () => {
 	it('diffs the links by key: removes the dropped, inserts the new, renames the kept', () => {
 		expect(
 			directoryLinkChanges(
@@ -7160,7 +7160,7 @@ In `__tests__/group-management-actions.test.ts`, the database fake must tell the
 with `links: { value: [] as { directoryGroupId: string; directoryGroupName: string }[] }` in `vi.hoisted`, reset to `[]` in `beforeEach`, and `userGroupDirectoryLinks` imported from `@/db/schema` inside the `vi.mock('@/db', …)` factory through `await import('@/db/schema')` (make the factory `async`; Vitest docs, `vi.mock` "factory … may return a promise"). Then append to `describe('the owner', …)`:
 
 ```ts
-it('saves the directory links with the group, and drops the directory members when no link is left (decision af)', async () => {
+it('saves the directory links with the group, and drops the directory members when no link is left (decision am)', async () => {
 	const key = 'b95f3990-b59a-4a1b-9e96-86c66cb18d99'
 	expect(
 		await updateGroupAction(groupId, {
@@ -7531,7 +7531,7 @@ In `components/admin/groups/group-form-drawer.tsx`:
 - and the select, after antd's "Search and Select Users" demo (remote search, debounced, callback order kept, `labelInValue`, `showSearch` with `filterOption: false`) with ahooks' `useDebounceFn` (ahooks docs) in place of the demo's lodash:
 
 ```tsx
-/** The directory groups field (spec §6.5): a debounced remote search through searchDirectoryGroupsAction (decision ae). */
+/** The directory groups field (spec §6.5): a debounced remote search through searchDirectoryGroupsAction (decision al). */
 function DirectoryGroupSelect({
 	value,
 	onChange,
@@ -7739,8 +7739,8 @@ Spec §5 last bullet (the status column gains "Not in directory", a source colum
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
-- **m. A directory account's edit is a role-only action.** `updateUserRoleAction` → `updateUserRole` writes only the role, under the rank map and the locked target row; `updateUser` refuses an `ldap` target with `forbidden`, so a direct call cannot set its password, name or email (the directory overwrites name and email; spec §6.3). Next's guide asks every Server Action to verify its caller ("Treat Server Actions with the same security considerations as public-facing API endpoints", `02-guides/server-actions.md`); Mattermost refuses LDAP-owned attributes through its API ("the following user attribute changes can't be made through the API: first name, last name, position, nickname, email, profile picture, or username", `mattermost/docs@bd09d959:source/administration-guide/onboard/ad-ldap.rst:111`), and GitLab keeps LDAP-synced email out of the user's edit (`gitlabhq@0739b8bf:doc/administration/auth/ldap/_index.md:1457-1466`).
-- **n. Deactivate is offered while the admin marker is empty**, not only while the account is active: an account the directory has deactivated can also be deactivated by an admin, so it stays off when the directory lists it again (ADR-0027: two independent markers). `setUserActive` already decides on the admin marker alone (deviation 6).
+- **an. A directory account's edit is a role-only action.** `updateUserRoleAction` → `updateUserRole` writes only the role, under the rank map and the locked target row; `updateUser` refuses an `ldap` target with `forbidden`, so a direct call cannot set its password, name or email (the directory overwrites name and email; spec §6.3). Next's guide asks every Server Action to verify its caller ("Treat Server Actions with the same security considerations as public-facing API endpoints", `02-guides/server-actions.md`); Mattermost refuses LDAP-owned attributes through its API ("the following user attribute changes can't be made through the API: first name, last name, position, nickname, email, profile picture, or username", `mattermost/docs@bd09d959:source/administration-guide/onboard/ad-ldap.rst:111`), and GitLab keeps LDAP-synced email out of the user's edit (`gitlabhq@0739b8bf:doc/administration/auth/ldap/_index.md:1457-1466`).
+- **ao. Deactivate is offered while the admin marker is empty**, not only while the account is active: an account the directory has deactivated can also be deactivated by an admin, so it stays off when the directory lists it again (ADR-0027: two independent markers). `setUserActive` already decides on the admin marker alone (deviation 6).
 
 - [ ] **Step 1: Write the failing DAL and action tests**
 
@@ -7751,7 +7751,7 @@ In `__tests__/data-users.test.ts`:
 3. Append:
 
 ```ts
-describe('directory accounts (spec §6.3, decision m)', () => {
+describe('directory accounts (spec §6.3, decision an)', () => {
 	it('shows a directory account with its source, username and the directory marker', () => {
 		const at = new Date('2026-10-10T08:00:00.000Z')
 		expect(
@@ -7907,7 +7907,7 @@ if (target.source === 'ldap') return fail('forbidden')
 
 ```ts
 /**
- * Changes an account's role only (decision m): the edit of a directory account, whose other fields the directory owns.
+ * Changes an account's role only (decision an): the edit of a directory account, whose other fields the directory owns.
  * The rank map applies against the locked target row as in updateUser (ADR-0024 decision d): your own role is fixed,
  * and another account's only within the roles the actor's rank manages.
  */
@@ -7933,7 +7933,7 @@ export async function updateUserRole(
 In `app/(admin)/user-management/schemas.ts`, add:
 
 ```ts
-/** A directory account's edit (decision m): the role alone. */
+/** A directory account's edit (decision an): the role alone. */
 export const userRoleInputSchema = z.object({ role: z.enum(ROLES) })
 ```
 
@@ -8061,7 +8061,7 @@ In `components/admin/users/user-management.tsx`:
 			},
 ```
 
-- in the actions column: Edit shows for `(user.id === currentUser.id && user.source === 'local') || canManage(currentUser.role, user.role)` (your own directory row has nothing you may edit: name and email are the directory's, your role is fixed, your password is the directory's); Deactivate shows for `canManage(currentUser.role, user.role) && !user.adminDeactivation` (decision n); the delete Popconfirm's description is `t(user.source === 'ldap' ? 'admin_users.delete_directory_confirm_description' : 'admin_users.delete_confirm_description')`.
+- in the actions column: Edit shows for `(user.id === currentUser.id && user.source === 'local') || canManage(currentUser.role, user.role)` (your own directory row has nothing you may edit: name and email are the directory's, your role is fixed, your password is the directory's); Deactivate shows for `canManage(currentUser.role, user.role) && !user.adminDeactivation` (decision ao); the delete Popconfirm's description is `t(user.source === 'ldap' ? 'admin_users.delete_directory_confirm_description' : 'admin_users.delete_confirm_description')`.
 
 - [ ] **Step 6: The drawer**
 
@@ -8069,7 +8069,7 @@ In `components/admin/users/user-form-drawer.tsx`, import `Descriptions` from `an
 
 ```tsx
 /**
- * A directory account's edit (decision m): the name, email and directory username read-only, since the directory
+ * A directory account's edit (decision an): the name, email and directory username read-only, since the directory
  * overwrites them, and the role under the rank map; no password (spec §6.3).
  */
 function DirectoryUserForm({
@@ -8234,7 +8234,7 @@ test.describe('directory accounts on the users page (ADR-0029)', () => {
 		await page.getByRole('button', { name: 'Cancel' }).last().click()
 	})
 
-	test('shows the directory marker with its date, and still offers Deactivate (decision n)', async ({
+	test('shows the directory marker with its date, and still offers Deactivate (decision ao)', async ({
 		page,
 	}) => {
 		await seedDirectoryUser({
@@ -8292,8 +8292,8 @@ Spec §6.6 (on the users page, for accounts with admin rights, when the `LDAP_*`
 
 Decisions this task makes where the spec is silent (Task 15 records them in ADR-0029):
 
-- **at. A run still `running` past the 30-minute guard shows as "Did not finish"**: its container stopped mid-run (spec §13: "a run cut by a restart is repeated by the startup catch-up or the next slot"), and the next run is no longer held back by it (decision au). Mattermost's job table shows each job's status, finish time and details, the error first (`mattermost@4d94455a:webapp/channels/src/components/admin_console/jobs/table.tsx:64-74, 255-290`); Grafana's LDAP page shows "Next synchronization" (`grafana@7b702d79:public/app/features/admin/ldap/LdapSyncInfo.tsx:12-29`); the panel shows both, and an error as its translated code, never raw text (spec §7.3; `ad-and-reference-projects.md` B.4).
-- **av. Sync now waits for its run** inside the Server Action and answers the outcome (spec §6.6), as Mattermost's "AD/LDAP Synchronize Now" starts a job the admin then watches (`admin_definition_ldap_wizard.tsx:655-666`). The self-hosted Node server sets no duration limit on a Server Action (Next `02-guides/self-hosting.md`); a directory of tens of thousands of entries pages in seconds to minutes (spec §6.4 step 1), within AD's 900-second idle limit.
+- **ap. A run still `running` past the 30-minute guard shows as "Did not finish"**: its container stopped mid-run (spec §13: "a run cut by a restart is repeated by the startup catch-up or the next slot"), and the next run is no longer held back by it (decision ag). Mattermost's job table shows each job's status, finish time and details, the error first (`mattermost@4d94455a:webapp/channels/src/components/admin_console/jobs/table.tsx:64-74, 255-290`); Grafana's LDAP page shows "Next synchronization" (`grafana@7b702d79:public/app/features/admin/ldap/LdapSyncInfo.tsx:12-29`); the panel shows both, and an error as its translated code, never raw text (spec §7.3; `ad-and-reference-projects.md` B.4).
+- **aq. Sync now waits for its run** inside the Server Action and answers the outcome (spec §6.6), as Mattermost's "AD/LDAP Synchronize Now" starts a job the admin then watches (`admin_definition_ldap_wizard.tsx:655-666`). The self-hosted Node server sets no duration limit on a Server Action (Next `02-guides/self-hosting.md`); a directory of tens of thousands of entries pages in seconds to minutes (spec §6.4 step 1), within AD's 900-second idle limit.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -8352,7 +8352,7 @@ describe('getDirectoryStatus (spec §6.6)', () => {
 		expect(new Date(status!.nextRun!).getTime()).toBeGreaterThan(Date.now())
 	})
 
-	it('answers no next run with the schedule off, and "interrupted" for a run that outlived the guard (decision at)', async () => {
+	it('answers no next run with the schedule off, and "interrupted" for a run that outlived the guard (decision ap)', async () => {
 		mocks.directoryConfig.mockReturnValue({ ...config, syncSchedule: null })
 		mocks.latestSyncRun.mockResolvedValue({
 			id: 'r1',
@@ -8472,7 +8472,7 @@ export interface DirectoryRunDto {
 	trigger: SyncTrigger
 	startedAt: string
 	finishedAt: string | null
-	/** `interrupted`: still `running` after the guard, so its container stopped mid-run (decision at). */
+	/** `interrupted`: still `running` after the guard, so its container stopped mid-run (decision ap). */
 	outcome: SyncOutcome | 'interrupted'
 	errorCode: string | null
 	counts: SyncRunCounts
@@ -8519,7 +8519,7 @@ export async function getDirectoryStatus(actor: SessionUser): Promise<DirectoryS
 	}
 }
 
-/** Sync now (spec §6.6, decision av): one manual run, waited for; null while LDAP is off. */
+/** Sync now (spec §6.6, decision aq): one manual run, waited for; null while LDAP is off. */
 export async function syncDirectoryNow(actor: SessionUser): Promise<SyncAttempt | null> {
 	assertAdmin(actor)
 	const config = directoryConfig()
@@ -8565,7 +8565,7 @@ Create `components/admin/users/directory-labels.ts`:
 ```ts
 import type { SyncOutcome, SyncTrigger } from '@/lib/directory-status'
 
-/** Each run outcome's label key and tag colour (spec §6.6; decision at adds `interrupted`). */
+/** Each run outcome's label key and tag colour (spec §6.6; decision ap adds `interrupted`). */
 export const OUTCOME_LABEL_KEYS = {
 	running: 'admin_users.sync_outcome_running',
 	succeeded: 'admin_users.sync_outcome_succeeded',
@@ -8894,7 +8894,7 @@ Create it with the project's adr-skill (`.claude/skills/adr-skill`; its README's
   - an unknown username's timing: a response-time floor (chosen; Authelia) / a dummy bind (no surveyed project; AD's PDC forwarding would still differ) / nothing (Spring Security, django-auth-ldap, n8n);
   - the test directories: smblds over LDAPS and OpenLDAP 2.6 over StartTLS and plain (chosen; os2mo and authentik run a Samba DC beside OpenLDAP) / OpenLDAP only (Mattermost, GitLab QA, ldapts) / smblds only;
   - the test certificates: committed with a regeneration script (chosen; python-ldap, Node.js core, Go) / generated at test time (ldapts with node-forge, authentik) / generated in a container at start.
-- **Decision Outcome:** the data model of spec §3.2 as built (Task 1), the `LDAP_*` block (Task 2), the directory DAL (Tasks 3 and 9), the modules of `lib/directory/` (Tasks 5, 6, 7, 10, 11, 12, 14), the `ldap` provider and the session's `source` (Task 7), the login tabs and the account menu (Task 8), the groups page's links (Task 12), the users page's directory accounts and status panel (Tasks 13, 14), the test directories and `pnpm test:ldap` (Task 4); this plan's deviations 1–9 and decisions a–ao, each with its source, copied from the tasks.
+- **Decision Outcome:** the data model of spec §3.2 as built (Task 1), the `LDAP_*` block (Task 2), the directory DAL (Tasks 3 and 9), the modules of `lib/directory/` (Tasks 5, 6, 7, 10, 11, 12, 14), the `ldap` provider and the session's `source` (Task 7), the login tabs and the account menu (Task 8), the groups page's links (Task 12), the users page's directory accounts and status panel (Tasks 13, 14), the test directories and `pnpm test:ldap` (Task 4); this plan's deviations 1–9 and decisions a–aq, each with its source, copied from the tasks.
 - **Consequences:** Good: a directory account can never take over a local one, and its Dify history (`users.id`) survives renames and moves; an unreachable directory, an empty answer or a changed id attribute changes nothing; the directory owns only its own marker and memberships, so it never undoes an admin's decision; one CI-free suite proves the AD and the generic paths in all three modes. Bad: `LDAP_ENCRYPTION=none` sends every directory password and the service account's in clear (spec §13), and a domain controller that starts requiring LDAP signing (a new Windows Server 2025 domain, or an unconfigured DC upgraded to 2025; Microsoft Learn, "LDAP signing for Active Directory Domain Services") ends it: every sign-in then answers "the directory is unreachable" and the log names result code 8; failed binds through the hub count toward the directory's lockout until throttling exists (spec §12); a wrong but non-empty filter deactivates the people it misses until the next correct sync (spec §13); the in-process schedule is reference-project practice where Next's docs are silent; the test servers cover Samba's AD, not Microsoft's (paging above 1,000, referrals, signing policy), so the owner's live check is the real test. Neutral: the e2e suite runs with the LDAP block on, so every spec sees the login tabs; the run table keeps 90 days.
 - **Implementation Plan:** affected paths (this plan's file structure); patterns to follow (every directory value in a filter goes through `lib/directory/filters.ts`; every directory connection through `withDirectory`, one per sign-in or sync; a new directory write touches only the directory's marker, the directory fields of `ldap` accounts or `directory` memberships; every failed directory sign-in goes through the response floor; the sync reads everything before it writes); patterns to avoid (binding with an unchecked password; a `sizeLimit` on a sync search; TLS options on the constructor for `ldap://`; linking by email, DN or login; an admin action writing the directory marker; a `register()` that can throw); configuration (the `LDAP_*` block, `docs/ldap.md`); migration steps (`pnpm db:migrate`; every existing account becomes `local`; the `CHECK` must hold, so a database whose `users.password` holds a NULL cannot be migrated until that row is fixed).
 - **Verification:** the vitest files and e2e specs of Tasks 1–14 by name; `pnpm test:ldap`; the migration on a copy of the local database (Task 16); the Docker gate (Task 16, unchecked until done); the owner's live check against their Active Directory (unchecked until done).
