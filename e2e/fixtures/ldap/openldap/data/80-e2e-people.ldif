@@ -1,0 +1,86 @@
+dn: uid=alice,ou=people,dc=openldap,dc=hub,dc=test
+objectClass: inetOrgPerson
+uid: alice
+cn: Alice Admin
+givenName: Alice
+sn: Admin
+displayName: Alice Admin
+mail: alice@openldap.hub.test
+userPassword: E2e-Dir-Passw0rd
+memberOf: cn=hub-admins,ou=groups,dc=openldap,dc=hub,dc=test
+
+dn: uid=bob,ou=people,dc=openldap,dc=hub,dc=test
+objectClass: inetOrgPerson
+uid: bob
+cn: Bob Builder
+givenName: Bob
+sn: Builder
+displayName: Bob Builder
+mail: bob@openldap.hub.test
+userPassword: E2e-Dir-Passw0rd
+memberOf: cn=hub-backend,ou=groups,dc=openldap,dc=hub,dc=test
+
+dn: uid=carol,ou=people,dc=openldap,dc=hub,dc=test
+objectClass: inetOrgPerson
+uid: carol
+cn: Carol Gone
+sn: Gone
+displayName: Carol Gone
+mail: carol@openldap.hub.test
+userPassword: E2e-Dir-Passw0rd
+pwdAccountLockedTime: 000001010000Z
+
+dn: uid=dave,ou=people,dc=openldap,dc=hub,dc=test
+objectClass: inetOrgPerson
+uid: dave
+cn: Dave Nomail
+sn: Nomail
+displayName: Dave Nomail
+userPassword: E2e-Dir-Passw0rd
+
+dn: uid=erin,ou=people,dc=openldap,dc=hub,dc=test
+objectClass: inetOrgPerson
+uid: erin
+cn: Erin Rename
+sn: Rename
+displayName: Erin Rename
+mail: erin@openldap.hub.test
+userPassword: E2e-Dir-Passw0rd
+
+dn: uid=frank,ou=people,dc=openldap,dc=hub,dc=test
+objectClass: inetOrgPerson
+uid: frank
+cn: Smith, Frank
+sn: Smith
+displayName: Smith, Frank
+mail: frank@openldap.hub.test
+userPassword: E2e-Dir-Passw0rd
+memberOf: cn=R&D (Berlin)\, Team,ou=groups,dc=openldap,dc=hub,dc=test
+
+dn: uid=user01,ou=people,dc=openldap,dc=hub,dc=test
+objectClass: inetOrgPerson
+uid: user01
+cn: User 01
+sn: 01
+mail: user01@openldap.hub.test
+
+dn: uid=user02,ou=people,dc=openldap,dc=hub,dc=test
+objectClass: inetOrgPerson
+uid: user02
+cn: User 02
+sn: 02
+mail: user02@openldap.hub.test
+
+dn: uid=user03,ou=people,dc=openldap,dc=hub,dc=test
+objectClass: inetOrgPerson
+uid: user03
+cn: User 03
+sn: 03
+mail: user03@openldap.hub.test
+
+dn: uid=user04,ou=people,dc=openldap,dc=hub,dc=test
+objectClass: inetOrgPerson
+uid: user04
+cn: User 04
+sn: 04
+mail: user04@openldap.hub.test

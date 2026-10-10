@@ -1,0 +1,20 @@
+dn: cn=hub-admins,ou=groups,dc=openldap,dc=hub,dc=test
+objectClass: groupOfNames
+cn: hub-admins
+member: uid=alice,ou=people,dc=openldap,dc=hub,dc=test
+
+dn: cn=hub-engineering,ou=groups,dc=openldap,dc=hub,dc=test
+objectClass: groupOfNames
+cn: hub-engineering
+member: cn=hub-backend,ou=groups,dc=openldap,dc=hub,dc=test
+
+dn: cn=hub-backend,ou=groups,dc=openldap,dc=hub,dc=test
+objectClass: groupOfNames
+cn: hub-backend
+member: uid=bob,ou=people,dc=openldap,dc=hub,dc=test
+memberOf: cn=hub-engineering,ou=groups,dc=openldap,dc=hub,dc=test
+
+dn: cn=R&D (Berlin)\, Team,ou=groups,dc=openldap,dc=hub,dc=test
+objectClass: groupOfNames
+cn: R&D (Berlin), Team
+member: uid=frank,ou=people,dc=openldap,dc=hub,dc=test
