@@ -50,6 +50,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0026](0026-use-the-accounts-permanent-id-as-the-dify-end-user.md) | Use the account's permanent id as the Dify end user | accepted | 2026-10-08 |
 | [0027](0027-gate-apps-by-groups-and-grants-and-deactivate-accounts-with-two-markers.md) | Gate apps by groups and grants, and deactivate accounts with two markers | accepted | 2026-10-10 |
 | [0028](0028-navigate-the-admin-area-in-a-sidebar-shared-with-the-chat.md) | Navigate the admin area in a sidebar shared with the chat | accepted | 2026-10-10 |
+| [0029](0029-sign-directory-accounts-in-over-ldap-and-keep-them-in-step-with-a-scheduled-sync.md) | Sign directory accounts in over LDAP and keep them in step with a scheduled sync | proposed | 2026-10-10 |
 
 ## Inherited from upstream (not fork decisions)
 

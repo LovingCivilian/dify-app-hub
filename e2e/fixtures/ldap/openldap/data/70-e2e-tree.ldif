@@ -1,0 +1,7 @@
+dn: ou=people,dc=openldap,dc=hub,dc=test
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=groups,dc=openldap,dc=hub,dc=test
+objectClass: organizationalUnit
+ou: groups

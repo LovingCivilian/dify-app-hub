@@ -14,6 +14,7 @@ describe('parseEnv', () => {
 			databaseUrl: base.DATABASE_URL,
 			nextAuthSecret: base.NEXTAUTH_SECRET,
 			smtp: null,
+			ldap: null,
 		})
 	})
 
@@ -130,5 +131,211 @@ describe('parseEnv', () => {
 			keys = (e as EnvError).keys
 		}
 		expect(keys).toEqual(['SMTP_ENABLED'])
+	})
+
+	/** The settings an AD directory needs; everything else has a default (spec §7.1). */
+	const ldapBlock = {
+		LDAP_URL: 'ldap://10.0.0.5:389',
+		LDAP_ENCRYPTION: 'none',
+		LDAP_BIND_DN: 'CN=svc-hub,CN=Users,DC=corp,DC=example',
+		LDAP_BIND_PASSWORD: ' pass word ',
+		LDAP_USER_BASE_DN: 'DC=corp,DC=example',
+	}
+	const keysOfFailure = (source: Record<string, string>) => {
+		try {
+			parseEnv({ ...base, ...source })
+		} catch (e) {
+			return (e as EnvError).keys.sort()
+		}
+		return []
+	}
+
+	it('leaves the directory off without LDAP_URL, whatever else is set', () => {
+		expect(parseEnv({ ...base, LDAP_ENCRYPTION: 'ldaps' }).ldap).toBeNull()
+		expect(parseEnv({ ...base, LDAP_URL: '  ' }).ldap).toBeNull()
+	})
+
+	it('requires the whole block once LDAP_URL is set', () => {
+		expect(keysOfFailure({ LDAP_URL: 'ldaps://dc.corp.example' })).toEqual([
+			'LDAP_BIND_DN',
+			'LDAP_BIND_PASSWORD',
+			'LDAP_ENCRYPTION',
+			'LDAP_USER_BASE_DN',
+		])
+	})
+
+	it('applies the Active Directory defaults and takes the password as it is', () => {
+		expect(parseEnv({ ...base, ...ldapBlock }).ldap).toEqual({
+			url: 'ldap://10.0.0.5:389',
+			encryption: 'none',
+			caFile: null,
+			bindDn: 'CN=svc-hub,CN=Users,DC=corp,DC=example',
+			bindPassword: ' pass word ',
+			userBaseDn: 'DC=corp,DC=example',
+			userFilter:
+				'(&(objectCategory=person)(objectClass=user)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))',
+			loginAttribute: 'sAMAccountName',
+			idAttribute: 'objectGUID',
+			emailAttribute: 'mail',
+			nameAttribute: 'displayName',
+			groupBaseDn: 'DC=corp,DC=example',
+			groupFilter: '(objectClass=group)',
+			groupNameAttribute: 'cn',
+			groupMemberFilter: '(memberOf:1.2.840.113556.1.4.1941:={group_dn})',
+			syncSchedule: '0 * * * *',
+			syncTimezone: null,
+		})
+	})
+
+	it('reads a blank optional value as absent', () => {
+		const ldap = parseEnv({ ...base, ...ldapBlock, LDAP_GROUP_BASE_DN: ' ', LDAP_CA_FILE: '' }).ldap
+		expect(ldap).toMatchObject({ groupBaseDn: 'DC=corp,DC=example', caFile: null })
+	})
+
+	// Spec §7.1: ldaps goes with ldaps://, starttls and none with ldap://.
+	it.each([
+		['ldaps://dc.corp.example', 'none'],
+		['ldaps://dc.corp.example', 'starttls'],
+		['ldap://dc.corp.example', 'ldaps'],
+	])('refuses %s with LDAP_ENCRYPTION=%s', (url, encryption) => {
+		expect(keysOfFailure({ ...ldapBlock, LDAP_URL: url, LDAP_ENCRYPTION: encryption })).toEqual([
+			'LDAP_ENCRYPTION',
+		])
+	})
+
+	it.each([['ldap:host'], ['https://dc.corp.example'], ['dc.corp.example']])(
+		'refuses LDAP_URL %s (decision d)',
+		url => {
+			expect(keysOfFailure({ ...ldapBlock, LDAP_URL: url })).toContain('LDAP_URL')
+		},
+	)
+
+	it('refuses an attribute setting that is not an attribute name (decision d)', () => {
+		// ldapts' filter parser cannot read a numeric OID as the attribute of a filter.
+		expect(
+			keysOfFailure({ ...ldapBlock, LDAP_LOGIN_ATTRIBUTE: '0.9.2342.19200300.100.1.1' }),
+		).toEqual(['LDAP_LOGIN_ATTRIBUTE'])
+		expect(keysOfFailure({ ...ldapBlock, LDAP_LOGIN_ATTRIBUTE: 'uid)(objectClass=*' })).toEqual([
+			'LDAP_LOGIN_ATTRIBUTE',
+		])
+		expect(
+			parseEnv({ ...base, ...ldapBlock, LDAP_ID_ATTRIBUTE: 'entryUUID' }).ldap?.idAttribute,
+		).toBe('entryUUID')
+	})
+
+	it('refuses a filter ldapts cannot parse, or one without its outer parentheses (decision b)', () => {
+		expect(keysOfFailure({ ...ldapBlock, LDAP_USER_FILTER: '(&(objectClass=user)))' })).toEqual([
+			'LDAP_USER_FILTER',
+		])
+		expect(keysOfFailure({ ...ldapBlock, LDAP_GROUP_FILTER: 'objectClass=group' })).toEqual([
+			'LDAP_GROUP_FILTER',
+		])
+		expect(keysOfFailure({ ...ldapBlock, LDAP_GROUP_MEMBER_FILTER: '(memberOf=cn=x)' })).toEqual([
+			'LDAP_GROUP_MEMBER_FILTER',
+		])
+		expect(
+			parseEnv({ ...base, ...ldapBlock, LDAP_GROUP_MEMBER_FILTER: '(memberOf={group_dn})' }).ldap
+				?.groupMemberFilter,
+		).toBe('(memberOf={group_dn})')
+	})
+
+	it('reads the schedule: off, five fields, a valid time zone (decision c)', () => {
+		expect(
+			parseEnv({ ...base, ...ldapBlock, LDAP_SYNC_SCHEDULE: 'off' }).ldap?.syncSchedule,
+		).toBeNull()
+		expect(
+			parseEnv({ ...base, ...ldapBlock, LDAP_SYNC_SCHEDULE: ' OFF ' }).ldap?.syncSchedule,
+		).toBeNull()
+		expect(
+			parseEnv({
+				...base,
+				...ldapBlock,
+				LDAP_SYNC_SCHEDULE: '30 6 * * 1-5',
+				LDAP_SYNC_TIMEZONE: 'Asia/Riyadh',
+			}).ldap,
+		).toMatchObject({ syncSchedule: '30 6 * * 1-5', syncTimezone: 'Asia/Riyadh' })
+		expect(keysOfFailure({ ...ldapBlock, LDAP_SYNC_SCHEDULE: '*/5 * * * * *' })).toEqual([
+			'LDAP_SYNC_SCHEDULE',
+		])
+		expect(keysOfFailure({ ...ldapBlock, LDAP_SYNC_SCHEDULE: 'every hour' })).toEqual([
+			'LDAP_SYNC_SCHEDULE',
+		])
+		// Spec §7.1 and Review Focus 4: a pattern no date matches parses, but would never run the sync.
+		expect(keysOfFailure({ ...ldapBlock, LDAP_SYNC_SCHEDULE: '0 0 31 2 *' })).toEqual([
+			'LDAP_SYNC_SCHEDULE',
+		])
+		expect(keysOfFailure({ ...ldapBlock, LDAP_SYNC_TIMEZONE: 'Mars/Olympus' })).toEqual([
+			'LDAP_SYNC_TIMEZONE',
+		])
+	})
+
+	// croner's documented nicknames pass in 5-part mode; seven fields do not.
+	it('accepts a croner nickname and refuses seven fields', () => {
+		expect(
+			parseEnv({ ...base, ...ldapBlock, LDAP_SYNC_SCHEDULE: '@hourly' }).ldap?.syncSchedule,
+		).toBe('@hourly')
+		expect(keysOfFailure({ ...ldapBlock, LDAP_SYNC_SCHEDULE: '0 0 0 * * * 2030' })).toEqual([
+			'LDAP_SYNC_SCHEDULE',
+		])
+	})
+
+	it('checks the time zone on its own, even when the schedule is off, and stores its canonical name', () => {
+		expect(
+			keysOfFailure({
+				...ldapBlock,
+				LDAP_SYNC_SCHEDULE: 'off',
+				LDAP_SYNC_TIMEZONE: 'Mars/Olympus',
+			}),
+		).toEqual(['LDAP_SYNC_TIMEZONE'])
+		expect(
+			parseEnv({ ...base, ...ldapBlock, LDAP_SYNC_TIMEZONE: ' asia/riyadh ' }).ldap?.syncTimezone,
+		).toBe('Asia/Riyadh')
+	})
+
+	it('takes IANA time zone names only: offsets are refused, UTC and Etc/GMT-1 pass', () => {
+		for (const offset of ['+01:00', '-05:30'])
+			expect(keysOfFailure({ ...ldapBlock, LDAP_SYNC_TIMEZONE: offset })).toEqual([
+				'LDAP_SYNC_TIMEZONE',
+			])
+		for (const zone of ['UTC', 'Asia/Riyadh', 'Etc/GMT-1'])
+			expect(parseEnv({ ...base, ...ldapBlock, LDAP_SYNC_TIMEZONE: zone }).ldap?.syncTimezone).toBe(
+				zone,
+			)
+	})
+
+	it('reads LDAP_ENCRYPTION leniently, like the SMTP flags', () => {
+		expect(parseEnv({ ...base, ...ldapBlock, LDAP_ENCRYPTION: ' None ' }).ldap?.encryption).toBe(
+			'none',
+		)
+		expect(
+			parseEnv({
+				...base,
+				...ldapBlock,
+				LDAP_URL: 'ldaps://dc.corp.example',
+				LDAP_ENCRYPTION: ' LDAPS ',
+			}).ldap?.encryption,
+		).toBe('ldaps')
+	})
+
+	it('trims non-secret values', () => {
+		expect(
+			parseEnv({ ...base, ...ldapBlock, LDAP_BIND_DN: ' CN=x ', LDAP_USER_BASE_DN: ' DC=a ' }).ldap,
+		).toMatchObject({ bindDn: 'CN=x', userBaseDn: 'DC=a' })
+	})
+
+	// zod 4's .default() skips the inner refinement, so each default is also passed explicitly to meet the parsers.
+	it('accepts every default filter and attribute when given explicitly', () => {
+		const defaults = parseEnv({ ...base, ...ldapBlock }).ldap!
+		const given = {
+			LDAP_USER_FILTER: defaults.userFilter,
+			LDAP_GROUP_FILTER: defaults.groupFilter,
+			LDAP_GROUP_MEMBER_FILTER: defaults.groupMemberFilter,
+			LDAP_LOGIN_ATTRIBUTE: defaults.loginAttribute,
+			LDAP_ID_ATTRIBUTE: defaults.idAttribute,
+			LDAP_EMAIL_ATTRIBUTE: defaults.emailAttribute,
+			LDAP_NAME_ATTRIBUTE: defaults.nameAttribute,
+			LDAP_GROUP_NAME_ATTRIBUTE: defaults.groupNameAttribute,
+		}
+		expect(parseEnv({ ...base, ...ldapBlock, ...given }).ldap).toEqual(defaults)
 	})
 })

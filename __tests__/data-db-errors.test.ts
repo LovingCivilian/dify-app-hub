@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { isDuplicateEntry, isMissingReference } from '@/lib/data/db-errors'
+import { isDeadlock, isDuplicateEntry, isMissingReference } from '@/lib/data/db-errors'
 
 const mysqlError = (code: string, errno: number) => Object.assign(new Error(code), { code, errno })
 
@@ -24,5 +24,18 @@ describe('MySQL error codes as mysql2 reports them, bare or as the cause of a Dr
 		).toBe(true)
 		expect(isMissingReference(mysqlError('ER_DUP_ENTRY', 1062))).toBe(false)
 		expect(isMissingReference(undefined)).toBe(false)
+	})
+})
+
+describe('isDeadlock (MySQL 1213 ER_LOCK_DEADLOCK)', () => {
+	it('reads the code on the error or on its cause', () => {
+		const driver = Object.assign(new Error('Deadlock found'), {
+			code: 'ER_LOCK_DEADLOCK',
+			errno: 1213,
+		})
+		expect(isDeadlock(driver)).toBe(true)
+		expect(isDeadlock(new Error('wrapped', { cause: driver }))).toBe(true)
+		expect(isDeadlock(Object.assign(new Error('x'), { code: 'ER_DUP_ENTRY' }))).toBe(false)
+		expect(isDeadlock(null)).toBe(false)
 	})
 })

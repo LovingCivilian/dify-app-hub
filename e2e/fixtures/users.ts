@@ -45,6 +45,32 @@ export const seedUser = async ({
 	return id
 }
 
+/**
+ * A directory account written straight to the e2e MySQL (no password, source `ldap`, a key), as the first directory
+ * sign-in creates one (ADR-0029). Its email must carry the project name; the spec deletes it with deleteUsersLike.
+ */
+export const seedDirectoryUser = async ({
+	email,
+	name,
+	username,
+	notInDirectorySince = null,
+}: {
+	email: string
+	name: string
+	username: string
+	notInDirectorySince?: Date | null
+}): Promise<string> => {
+	const id = randomUUID()
+	await withDb(async db => {
+		await db.execute('DELETE FROM users WHERE email = ?', [email])
+		await db.execute(
+			"INSERT INTO users (id, name, email, password, source, directory_id, directory_id_attribute, directory_username, directory_deactivated_at) VALUES (?, ?, ?, NULL, 'ldap', ?, 'objectGUID', ?, ?)",
+			[id, name, email, randomUUID(), username, notInDirectorySince],
+		)
+	})
+	return id
+}
+
 /** Deletes the accounts whose email matches a LIKE pattern, and their reset tokens. */
 export const deleteUsersLike = (pattern: string) =>
 	withDb(async db => {
@@ -55,13 +81,47 @@ export const deleteUsersLike = (pattern: string) =>
 		await db.execute('DELETE FROM users WHERE email LIKE ?', [pattern])
 	})
 
-/** Signs in through the login form and waits for the landing page. */
+/**
+ * The login page shows the two tabs in the e2e suite (decision aa): local accounts sign in on "Local account". A click
+ * that lands before React has hydrated the form does nothing (e2e/fixtures/hydration.ts), and choosing a tab is
+ * idempotent, so the click is retried until the local form shows (Playwright "Assertions", `expect.toPass`; its
+ * timeout defaults to 0, so it is given expect's).
+ */
+export const chooseLocalAccount = async (page: Page) => {
+	await expect(async () => {
+		await page.getByRole('tab', { name: 'Local account' }).click()
+		await expect(page.getByLabel('Email')).toBeVisible({ timeout: 1_000 })
+	}).toPass({ timeout: 30_000 })
+}
+
+/** Signs in through the login form's local tab and waits for the landing page. */
 export const signInAs = async (page: Page, email: string, password: string) => {
 	await page.goto('/login')
+	await chooseLocalAccount(page)
 	await page.getByLabel('Email').fill(email)
 	await page.getByLabel('Password').fill(password)
 	await page.getByRole('button', { name: 'Log in' }).click()
 	await expect(page).toHaveURL(/\/apps$/)
+}
+
+/**
+ * Signs in through the directory tab, the login page's default (spec §6.3). That tab is already selected in the server
+ * HTML, so it is no sign of hydration, and a "Log in" click before hydration would submit the native form instead
+ * (e2e/fixtures/hydration.ts). The specs keep a test-side wait before their first click (owner, 2026-10-08): a tab
+ * switch works only once React has hydrated and is idempotent, so the switch to the local tab and back is retried
+ * until each tab's form shows (Playwright "Assertions", `expect.toPass`; its timeout defaults to 0, so it is given one).
+ */
+export const signInWithDirectory = async (page: Page, username: string, password: string) => {
+	await page.goto('/login')
+	await expect(page.getByRole('tab', { name: 'Directory account', selected: true })).toBeVisible()
+	await chooseLocalAccount(page)
+	await expect(async () => {
+		await page.getByRole('tab', { name: 'Directory account' }).click()
+		await expect(page.getByLabel('Username')).toBeVisible({ timeout: 1_000 })
+	}).toPass({ timeout: 30_000 })
+	await page.getByLabel('Username').fill(username)
+	await page.getByLabel('Password').fill(password)
+	await page.getByRole('button', { name: 'Log in' }).click()
 }
 
 /** Opens the users page and waits until its table has hydrated (the date in the table is the signal). */

@@ -3,11 +3,19 @@
 import { refresh } from 'next/cache'
 
 import { invalidInput, toActionFailure } from '@/lib/action-failure'
-import { fail, type ActionResult } from '@/lib/action-result'
+import { fail, ok, type ActionResult } from '@/lib/action-result'
 import { requireAdmin } from '@/lib/auth/session'
-import { createUser, deleteUser, setUserActive, updateUser } from '@/lib/data/users'
+import type { SyncRunCounts } from '@/lib/data/directory'
+import { createUser, deleteUser, setUserActive, updateUser, updateUserRole } from '@/lib/data/users'
+import { syncDirectoryNow } from '@/lib/directory/admin'
+import type { SyncErrorCode, SyncOutcome } from '@/lib/directory-status'
 
-import { createUserInputSchema, userIdSchema, userInputSchema } from './schemas'
+import {
+	createUserInputSchema,
+	userIdSchema,
+	userInputSchema,
+	userRoleInputSchema,
+} from './schemas'
 
 /*
  * Thin Server Actions (charter §4.2): verify the admin, validate, call the DAL, refresh the route (next/cache
@@ -45,6 +53,20 @@ export async function updateUserAction(id: string, input: unknown): Promise<Acti
 	}
 }
 
+export async function updateUserRoleAction(id: string, input: unknown): Promise<ActionResult> {
+	try {
+		const actor = await requireAdmin()
+		if (!userIdSchema.safeParse(id).success) return fail('not_found')
+		const parsed = userRoleInputSchema.safeParse(input)
+		if (!parsed.success) return invalidInput(parsed.error)
+		const result = await updateUserRole(actor, id, parsed.data.role)
+		if (result.ok) refresh()
+		return result
+	} catch (error) {
+		return toActionFailure(error, 'updateUserRoleAction')
+	}
+}
+
 export async function deleteUserAction(id: string): Promise<ActionResult> {
 	try {
 		const actor = await requireAdmin()
@@ -78,5 +100,26 @@ export async function reactivateUserAction(id: string): Promise<ActionResult> {
 		return result
 	} catch (error) {
 		return toActionFailure(error, 'reactivateUserAction')
+	}
+}
+
+export async function syncDirectoryAction(): Promise<
+	ActionResult<{
+		outcome: Exclude<SyncOutcome, 'running'>
+		counts: SyncRunCounts
+		errorCode: SyncErrorCode | null
+	}>
+> {
+	try {
+		const actor = await requireAdmin()
+		const result = await syncDirectoryNow(actor)
+		if (result === null) return fail('not_found')
+		// A manual slot is unique, so `skipped` cannot happen; both mean "another run has it".
+		// Refresh either way: after `sync_running` the panel shows the run that is going.
+		refresh()
+		if (result.status !== 'finished') return fail('sync_running')
+		return ok({ outcome: result.outcome, counts: result.counts, errorCode: result.errorCode })
+	} catch (error) {
+		return toActionFailure(error, 'syncDirectoryAction')
 	}
 }

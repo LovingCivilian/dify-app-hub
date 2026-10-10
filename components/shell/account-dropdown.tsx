@@ -15,12 +15,13 @@ type MenuItems = NonNullable<GetProp<typeof Dropdown, 'menu'>['items']>
 interface IAccountMenuItemsOptions {
 	email: string
 	t: TFunction
-	onChangePassword: () => void
+	/** Absent for a directory account, which has no hub password (decision v): the entry is left out. */
+	onChangePassword?: () => void
 	onLogout: () => void
 }
 
 /**
- * Menu entries shared by the desktop dropdown and the chat page's mobile menu.
+ * The account dropdown's menu entries (`AccountDropdown` below is the only caller), exported for the unit test.
  */
 export const getAccountMenuItems = ({
 	email,
@@ -33,12 +34,16 @@ export const getAccountMenuItems = ({
 		label: t('auth.signed_in_as', { email }),
 		disabled: true,
 	},
-	{
-		key: 'change-password',
-		icon: <KeyOutlined />,
-		label: t('account.change_password'),
-		onClick: onChangePassword,
-	},
+	...(onChangePassword
+		? [
+				{
+					key: 'change-password',
+					icon: <KeyOutlined />,
+					label: t('account.change_password'),
+					onClick: onChangePassword,
+				},
+			]
+		: []),
 	{
 		key: 'logout',
 		icon: <LogoutOutlined />,
@@ -48,7 +53,8 @@ export const getAccountMenuItems = ({
 ]
 
 /**
- * Account dropdown for the shared AppHeader.
+ * Account dropdown for the shared AppHeader. A directory account has no hub password, so it gets neither the
+ * "Change password" entry nor its modal (decision v).
  */
 export default function AccountDropdown() {
 	const { data: session } = useSession()
@@ -56,6 +62,7 @@ export default function AccountDropdown() {
 	const [changingPassword, setChangingPassword] = useState(false)
 	const email = session?.user?.email
 	if (!email) return null
+	const hasHubPassword = session?.user?.source !== 'ldap'
 	return (
 		<>
 			<Dropdown
@@ -64,7 +71,7 @@ export default function AccountDropdown() {
 					items: getAccountMenuItems({
 						email,
 						t,
-						onChangePassword: () => setChangingPassword(true),
+						onChangePassword: hasHubPassword ? () => setChangingPassword(true) : undefined,
 						onLogout: logout,
 					}),
 				}}
@@ -77,10 +84,12 @@ export default function AccountDropdown() {
 					title={t('auth.signed_in_as', { email })}
 				/>
 			</Dropdown>
-			<ChangePasswordModal
-				open={changingPassword}
-				onClose={() => setChangingPassword(false)}
-			/>
+			{hasHubPassword && (
+				<ChangePasswordModal
+					open={changingPassword}
+					onClose={() => setChangingPassword(false)}
+				/>
+			)}
 		</>
 	)
 }

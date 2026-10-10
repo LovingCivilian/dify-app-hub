@@ -11,11 +11,15 @@ vi.mock('@/db', () => ({
 import {
 	createGroup,
 	deleteGroup,
+	directoryLinkChanges,
+	linksOf,
 	listGroupOptions,
 	listGroups,
 	lockGroup,
 	manualMemberChanges,
 	manualMembersOf,
+	removeDirectoryMembers,
+	removeLinks,
 	removeManualMembers,
 	toGroupDto,
 	toGroupDtos,
@@ -48,6 +52,7 @@ describe('toGroupDto', () => {
 			description: null,
 			members: [{ userId: 'u1', source: 'manual' }],
 			appCount: 2,
+			directoryLinks: [],
 			createdAt: '2026-10-09T09:05:00.000Z',
 			updatedAt: '2026-10-09T09:05:00.000Z',
 		})
@@ -115,10 +120,90 @@ describe('the groups DAL refuses a non-admin actor before any query', () => {
 	it.each([
 		['listGroups', () => listGroups(member)],
 		['listGroupOptions', () => listGroupOptions(member)],
-		['createGroup', () => createGroup(member, { name: 'N', description: '', memberIds: [] })],
-		['updateGroup', () => updateGroup(member, 'g1', { name: 'N', description: '', memberIds: [] })],
+		[
+			'createGroup',
+			() => createGroup(member, { name: 'N', description: '', memberIds: [], directoryGroups: [] }),
+		],
+		[
+			'updateGroup',
+			() =>
+				updateGroup(member, 'g1', {
+					name: 'N',
+					description: '',
+					memberIds: [],
+					directoryGroups: [],
+				}),
+		],
 		['deleteGroup', () => deleteGroup(member, 'g1')],
 	] as const)('%s', async (_name, call) => {
 		await expect(call()).rejects.toMatchObject({ name: 'AuthError', code: 'forbidden' })
+	})
+})
+
+describe('the directory links of a group (decision am)', () => {
+	// Task 12 review M1: a kept link is no write, so it keeps its stored name, which the directory owns (the sync refreshes
+	// it), whatever name the browser sends for it.
+	it('diffs the links by key: removes the dropped, inserts the new, leaves the kept as stored', () => {
+		expect(
+			directoryLinkChanges(
+				[{ directoryGroupId: 'k1' }, { directoryGroupId: 'k2' }],
+				[
+					{ id: 'k1', name: 'New' },
+					{ id: 'k3', name: 'Three' },
+				],
+			),
+		).toEqual({
+			add: [{ id: 'k3', name: 'Three' }],
+			remove: ['k2'],
+		})
+	})
+
+	// Task 12 review M7: a key sent twice is one link, with the last name sent.
+	it('adds a key sent twice once, with its last name', () => {
+		expect(
+			directoryLinkChanges(
+				[],
+				[
+					{ id: 'k1', name: 'First' },
+					{ id: 'k1', name: 'Last' },
+				],
+			),
+		).toEqual({ add: [{ id: 'k1', name: 'Last' }], remove: [] })
+	})
+
+	it('reads the links with a locking read and deletes only the named ones', () => {
+		const read = linksOf(drizzle.mock(), 'g1').toSQL()
+		expect(read.sql).toMatch(
+			/from `user_group_directory_links` where `user_group_directory_links`\.`group_id` = \? for update$/,
+		)
+		const removal = removeLinks(drizzle.mock(), 'g1', ['k2']).toSQL()
+		expect(removal.sql).toMatch(/^delete from `user_group_directory_links` where /)
+		expect(removal.params).toEqual(['g1', 'k2'])
+	})
+
+	it('deletes only the directory memberships of a group whose last link went', () => {
+		const query = removeDirectoryMembers(drizzle.mock(), 'g1').toSQL()
+		expect(query.sql).toMatch(/^delete from `user_group_members` where /)
+		expect(query.params).toEqual(['g1', 'directory'])
+	})
+
+	it('shows the links on the DTO with missing_since as an ISO date', () => {
+		const at = new Date('2026-10-10T08:00:00.000Z')
+		const [dto] = toGroupDtos(
+			[{ id: 'g1', name: 'Eng', description: null, createdAt: at, updatedAt: at }],
+			[],
+			[],
+			[
+				{
+					groupId: 'g1',
+					directoryGroupId: 'k1',
+					directoryGroupName: 'Engineering',
+					missingSince: at,
+				},
+			],
+		)
+		expect(dto.directoryLinks).toEqual([
+			{ id: 'k1', name: 'Engineering', missingSince: '2026-10-10T08:00:00.000Z' },
+		])
 	})
 })

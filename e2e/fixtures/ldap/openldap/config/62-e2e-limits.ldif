@@ -1,0 +1,1 @@
+olcLimits: dn.exact="cn=svc-hub,dc=openldap,dc=hub,dc=test" size.soft=5 size.hard=5 size.prtotal=unlimited

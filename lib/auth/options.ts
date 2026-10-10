@@ -9,11 +9,12 @@ import { users } from '@/db/schema'
 import { logActionError, logSignInRefusal } from '@/lib/error-log'
 
 import { isActive } from './account-status'
+import { authorizeDirectory } from './directory-provider'
 import { UNKNOWN_ACCOUNT_HASH, verifyPassword } from './password'
 
 /**
- * The account of these credentials without its hash, or null for an unknown email, a wrong password or a deactivated
- * account (ADR-0027).
+ * The account of these credentials without its hash, or null for an unknown email, a wrong password, a deactivated
+ * account (ADR-0027) or a directory account, which has no hub password (ADR-0029).
  */
 async function findAccount(email: string, password: string): Promise<User | null> {
 	const [user] = await getDb()
@@ -36,6 +37,13 @@ async function findAccount(email: string, password: string): Promise<User | null
 		await verifyPassword(password, UNKNOWN_ACCOUNT_HASH)
 		return null
 	}
+	// Spec §6.3: an account the directory owns has no hub password. The same bcrypt work as a wrong password, against
+	// the fixed hash, so the answer's time tells nothing; refused like a wrong password (OWASP "Authentication Responses").
+	if (user.password === null) {
+		await verifyPassword(password, UNKNOWN_ACCOUNT_HASH)
+		logSignInRefusal('authorizeCredentials', 'directory_account', { userId: user.id })
+		return null
+	}
 	if (!(await verifyPassword(password, user.password))) return null
 	// Spec §5: after the password, so a wrong password and a deactivated account take the same path and answer.
 	if (!isActive(user)) {
@@ -48,6 +56,8 @@ async function findAccount(email: string, password: string): Promise<User | null
 		name: user.name,
 		role: user.role,
 		sessionVersion: user.sessionVersion,
+		// The passwordless check above refused every directory account, so a local sign-in is a local account.
+		source: 'local',
 	}
 }
 
@@ -63,7 +73,11 @@ async function findAccount(email: string, password: string): Promise<User | null
 export async function authorizeCredentials(
 	credentials: Record<'email' | 'password', string> | undefined,
 ): Promise<User | null> {
-	if (!credentials?.email || !credentials?.password) return null
+	if (!credentials?.email || !credentials?.password) {
+		// As on the directory tab (lib/auth/directory-provider.ts): one line, a fixed reason, none of the body's values.
+		logSignInRefusal('authorizeCredentials', 'invalid_input', {})
+		return null
+	}
 	try {
 		return await findAccount(credentials.email, credentials.password)
 	} catch (error) {
@@ -73,12 +87,12 @@ export async function authorizeCredentials(
 }
 
 /**
- * next-auth v4 with the credentials provider and the JWT strategy (ADR-0006). The jwt callback reads the account
- * on every call. A changed sessionVersion (a password reset or change) or a deleted row strips `id`,
- * `sessionVersion` and `role`; the session callback then sets no `user.id`, and verifySession() reads that as "no
- * live session" (ADR-0018). A deactivated row (ADR-0027) is treated as revoked. Otherwise the row's role, email and
- * name replace the token's. An admin's demotion or email edit applies on the next request, and a token from before
- * roles existed gets its role (ADR-0024).
+ * next-auth v4 with two Credentials providers, the local `credentials` and the directory's `ldap` (ADR-0029), and the
+ * JWT strategy (ADR-0006). The jwt callback reads the account on every call. A changed sessionVersion (a password reset
+ * or change) or a deleted row strips `id`, `sessionVersion`, `role` and `source`; the session callback then sets no
+ * `user.id`, and verifySession() reads that as "no live session" (ADR-0018). A deactivated row (ADR-0027) is treated as
+ * revoked. Otherwise the row's role, email, name and source replace the token's. An admin's demotion or email edit
+ * applies on the next request, and a token from before roles existed gets its role (ADR-0024).
  */
 export const authOptions: NextAuthOptions = {
 	providers: [
@@ -90,6 +104,17 @@ export const authOptions: NextAuthOptions = {
 			},
 			authorize: authorizeCredentials,
 		}),
+		// next-auth v4 "Multiple providers": "You can specify more than one credentials provider by specifying a unique
+		// `id` for each one" (Credentials provider page). The login page's Directory tab posts to /api/auth/callback/ldap.
+		CredentialsProvider({
+			id: 'ldap',
+			name: 'Directory account',
+			credentials: {
+				username: { label: 'Username', type: 'text' },
+				password: { label: 'Password', type: 'password' },
+			},
+			authorize: authorizeDirectory,
+		}),
 	],
 	session: { strategy: 'jwt' },
 	pages: { signIn: '/login' },
@@ -99,6 +124,7 @@ export const authOptions: NextAuthOptions = {
 				token.id = user.id
 				token.role = user.role
 				token.sessionVersion = user.sessionVersion
+				token.source = user.source
 				return token
 			}
 			if (!token.id) return token
@@ -108,6 +134,7 @@ export const authOptions: NextAuthOptions = {
 					role: users.role,
 					email: users.email,
 					name: users.name,
+					source: users.source,
 					adminDeactivatedAt: users.adminDeactivatedAt,
 					directoryDeactivatedAt: users.directoryDeactivatedAt,
 				})
@@ -119,18 +146,21 @@ export const authOptions: NextAuthOptions = {
 			// a token issued before refused after reactivation; a marker set by hand bumps nothing, so reactivating by hand
 			// can revive such a token.
 			if (!row || row.sessionVersion !== token.sessionVersion || !isActive(row)) {
-				const { id: _id, sessionVersion: _version, role: _role, ...rest } = token
+				const { id: _id, sessionVersion: _version, role: _role, source: _source, ...rest } = token
 				return rest
 			}
 			token.role = row.role
 			token.email = row.email
 			token.name = row.name
+			// Decision v: refreshed from the row as the role is, so the account menu knows a directory account.
+			token.source = row.source
 			return token
 		},
 		session({ session, token }) {
 			if (token.id && token.role) {
 				session.user.id = token.id
 				session.user.role = token.role
+				session.user.source = token.source
 				// Forwarded explicitly from the token, which the jwt callback refreshed from the row (next-auth callbacks
 				// docs: token data reaches the session only through this callback). No fallback to the default user, so a
 				// name the row cleared arrives as null.

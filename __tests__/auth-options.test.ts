@@ -17,6 +17,9 @@ const { verifyPassword, noAccountHash } = vi.hoisted(() => ({
 	noAccountHash: 'hash:no-account',
 }))
 vi.mock('@/lib/auth/password', () => ({ verifyPassword, UNKNOWN_ACCOUNT_HASH: noAccountHash }))
+// The directory provider's check is tested in __tests__/auth-directory-provider.test.ts; here it stands in, so these
+// tests do not load the directory sign-in and its Data Access Layer.
+vi.mock('@/lib/auth/directory-provider', () => ({ authorizeDirectory: vi.fn() }))
 
 import { DrizzleQueryError, type SQL } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/mysql2'
@@ -49,6 +52,7 @@ const row = {
 	role: 'admin',
 	password: 'hash:right-password',
 	sessionVersion: 3,
+	source: 'local',
 	...live,
 }
 
@@ -67,15 +71,38 @@ describe('authOptions', () => {
 		expect(authOptions.session).toEqual({ strategy: 'jwt' })
 		expect(authOptions.pages).toEqual({ signIn: '/login' })
 	})
+
+	it('registers the local and the directory Credentials providers (next-auth "Multiple providers")', () => {
+		// next-auth v4's Credentials() answers `{ id: 'credentials', …, options }` and merges the given `options` (the id
+		// among them) only when it reads the providers (node_modules/next-auth/providers/credentials.js,
+		// core/lib/providers.js), so the id given is read where the configuration keeps it.
+		expect(authOptions.providers.map(provider => provider.options?.id ?? provider.id)).toEqual([
+			'credentials',
+			'ldap',
+		])
+	})
 })
 
 // B1 follow-up (follow-ups.md, Tests): nothing called authorize.
 describe('authorizeCredentials', () => {
-	it('refuses missing credentials without a query', async () => {
-		expect(await authorizeCredentials(undefined)).toBeNull()
-		expect(await authorizeCredentials({ email: '', password: 'x' })).toBeNull()
-		expect(await authorizeCredentials({ email: 'jane@example.com', password: '' })).toBeNull()
-		expect(limit).not.toHaveBeenCalled()
+	// OWASP Logging Cheat Sheet, "Which events to log": "Input validation failures"; one line with a fixed reason and
+	// none of the body's values, as on the directory tab.
+	it('refuses missing credentials without a query, and logs it without their values', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+		try {
+			expect(await authorizeCredentials(undefined)).toBeNull()
+			expect(await authorizeCredentials({ email: '', password: 'x' })).toBeNull()
+			expect(await authorizeCredentials({ email: 'jane@example.com', password: '' })).toBeNull()
+			expect(limit).not.toHaveBeenCalled()
+			expect(warn.mock.calls).toEqual(
+				Array.from({ length: 3 }, () => [
+					'authorizeCredentials: sign-in refused',
+					{ reason: 'invalid_input' },
+				]),
+			)
+		} finally {
+			warn.mockRestore()
+		}
 	})
 
 	it('refuses an unknown email and a wrong password', async () => {
@@ -107,6 +134,7 @@ describe('authorizeCredentials', () => {
 			name: 'Jane',
 			role: 'admin',
 			sessionVersion: 3,
+			source: 'local',
 		})
 		// The hash checked is the row of the email given: the lookup is by email, with that email as its only parameter.
 		expect(where).toHaveBeenCalledTimes(1)
@@ -148,6 +176,27 @@ describe('authorizeCredentials', () => {
 				await authorizeCredentials({ email: 'jane@example.com', password: 'wrong-password' }),
 			).toBeNull()
 			expect(warn).not.toHaveBeenCalled()
+		} finally {
+			warn.mockRestore()
+		}
+	})
+
+	// Spec §6.3: the local provider refuses an `ldap` account (no hub password). The same bcrypt work as a wrong
+	// password, against the fixed hash (OWASP "Authentication Responses"), and the reason is logged by account id.
+	it('refuses a directory account with the same work as a wrong password, and logs its id', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+		try {
+			rows.value = [{ ...row, password: null }]
+			verifyPassword.mockResolvedValue(true)
+			expect(
+				await authorizeCredentials({ email: 'jane@example.com', password: 'any-password' }),
+			).toBeNull()
+			expect(verifyPassword).toHaveBeenCalledTimes(1)
+			expect(verifyPassword).toHaveBeenCalledWith('any-password', noAccountHash)
+			expect(warn).toHaveBeenCalledWith('authorizeCredentials: sign-in refused', {
+				reason: 'directory_account',
+				userId: 'u1',
+			})
 		} finally {
 			warn.mockRestore()
 		}
@@ -210,19 +259,34 @@ describe('authorizeCredentials on a failure', () => {
 })
 
 describe('jwt callback', () => {
-	it('copies id, role and sessionVersion into the token at sign-in', async () => {
+	it('copies id, role, sessionVersion and source into the token at sign-in', async () => {
 		const token = await jwt({
 			token: {} as JWT,
-			user: { id: 'u1', email: 'jane@example.com', name: null, role: 'user', sessionVersion: 3 },
+			user: {
+				id: 'u1',
+				email: 'jane@example.com',
+				name: null,
+				role: 'user',
+				sessionVersion: 3,
+				source: 'ldap',
+			},
 			account: null,
 		} as never)
-		expect(token).toMatchObject({ id: 'u1', role: 'user', sessionVersion: 3 })
+		expect(token).toMatchObject({ id: 'u1', role: 'user', sessionVersion: 3, source: 'ldap' })
 	})
 
 	// Review Focus 4: the row is the truth for what an admin can change while the session lives.
-	it('refreshes role, email and name from the row while the version matches', async () => {
+	// Decision v: the source is refreshed from the row as the role is.
+	it('refreshes role, email, name and source from the row while the version matches', async () => {
 		rows.value = [
-			{ sessionVersion: 3, role: 'user', email: 'new@example.com', name: 'New', ...live },
+			{
+				sessionVersion: 3,
+				role: 'user',
+				email: 'new@example.com',
+				name: 'New',
+				source: 'ldap',
+				...live,
+			},
 		]
 		const token = await jwt({
 			token: {
@@ -231,6 +295,7 @@ describe('jwt callback', () => {
 				role: 'admin',
 				email: 'old@example.com',
 				name: 'Old',
+				source: 'local',
 			} as JWT,
 		} as never)
 		expect(token).toMatchObject({
@@ -239,6 +304,7 @@ describe('jwt callback', () => {
 			role: 'user',
 			email: 'new@example.com',
 			name: 'New',
+			source: 'ldap',
 		})
 	})
 
@@ -274,6 +340,7 @@ describe('jwt callback', () => {
 			role: 'admin',
 			email: 'jane@example.com',
 			name: 'Jane',
+			source: 'local',
 		} as JWT
 		rows.value = [
 			{ sessionVersion: 4, role: 'admin', email: 'jane@example.com', name: 'Jane', ...live },
@@ -337,6 +404,15 @@ describe('session callback', () => {
 			token: { id: 'u1', role: 'user', email: 'jane@example.com', name: null } as JWT,
 		} as never)
 		expect(result.user).toMatchObject({ name: null })
+	})
+
+	// Decision v: the account menu reads the source from the session.
+	it('forwards the source from the token', async () => {
+		const result = await session({
+			session: { user: { email: 'jane@example.com' }, expires: '' },
+			token: { id: 'u1', role: 'user', email: 'jane@example.com', source: 'ldap' } as JWT,
+		} as never)
+		expect(result.user).toMatchObject({ id: 'u1', role: 'user', source: 'ldap' })
 	})
 
 	it('sets user.id and user.role only from a token that has both', async () => {

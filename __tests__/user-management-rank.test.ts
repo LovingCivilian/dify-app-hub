@@ -31,8 +31,15 @@ vi.mock('@/db', () => {
 						: Promise.reject(new Error(`lock ${strength}`)),
 			}),
 	}
+	// updateUser's plain read before the hash (`select({ source })` alone) finds the row the locking read finds.
+	const sourceRead = {
+		from: () => sourceRead,
+		where: () => sourceRead,
+		limit: () => Promise.resolve(target.value ? [target.value] : []),
+	}
 	const db = {
-		select: () => query,
+		select: (columns: Record<string, unknown>) =>
+			Object.keys(columns).join() === 'source' ? sourceRead : query,
 		insert: () => ({ values: writes.insert }),
 		update: () => ({
 			set: (values: Record<string, unknown>) => {

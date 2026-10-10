@@ -20,12 +20,17 @@ describe('initFailureKey', () => {
 	})
 })
 
-// next-auth answers CredentialsSignin when authorize() returned null, a wrong email or password (next-auth Pages,
-// "Error codes"); a thrown Error arrives as its own message (lib/auth/options.ts throws next-auth's `Default`).
+// next-auth answers CredentialsSignin when authorize() returned null; a thrown Error arrives as its own message: the
+// `ldap` provider throws DirectoryUnavailable when the directory does not answer, both providers `Default` otherwise.
 describe('loginFailureKey', () => {
-	it('shows "check your email and password" only for a refused credential', () => {
-		expect(loginFailureKey('CredentialsSignin')).toBe('auth.login_failed')
-		expect(loginFailureKey('Default')).toBe('auth.login_error')
-		expect(loginFailureKey('Configuration')).toBe('auth.login_error')
+	it('names the identifier of the tab for a refused credential (decision z)', () => {
+		expect(loginFailureKey('CredentialsSignin', 'local')).toBe('auth.login_failed')
+		expect(loginFailureKey('CredentialsSignin', 'directory')).toBe('auth.directory_login_failed')
+	})
+
+	it('says the directory is unreachable, and anything else is the generic error', () => {
+		expect(loginFailureKey('DirectoryUnavailable', 'directory')).toBe('auth.directory_unavailable')
+		expect(loginFailureKey('Default', 'directory')).toBe('auth.login_error')
+		expect(loginFailureKey('Configuration', 'local')).toBe('auth.login_error')
 	})
 })

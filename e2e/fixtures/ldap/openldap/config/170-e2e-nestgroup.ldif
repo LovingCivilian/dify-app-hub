@@ -1,0 +1,6 @@
+dn: olcOverlay=nestgroup,olcDatabase={1}mdb,cn=config
+objectClass: olcOverlayConfig
+objectClass: olcNestGroupConfig
+olcOverlay: nestgroup
+olcNestGroupBase: ou=groups,dc=openldap,dc=hub,dc=test
+olcNestGroupFlags: memberof-filter

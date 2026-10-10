@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test'
 
 import { withDb } from './fixtures/db'
 import { e2eEnv } from './fixtures/env'
-import { seedUser } from './fixtures/users'
+import { chooseLocalAccount, seedUser } from './fixtures/users'
 
 // The reset-token hash as lib/auth/password.ts computes it. That module imports server-only, which Playwright's
 // loader cannot resolve, so the spec mirrors the one line instead of importing it.
@@ -20,6 +20,7 @@ test.describe('signed out', () => {
 
 	test('a wrong password shows the login error and stays on the page', async ({ page }) => {
 		await page.goto('/login')
+		await chooseLocalAccount(page)
 		await page.getByLabel('Email').fill(e2eEnv.E2E_ADMIN_EMAIL)
 		await page.getByLabel('Password').fill('not-the-password')
 		await page.getByRole('button', { name: 'Log in' }).click()
@@ -30,6 +31,7 @@ test.describe('signed out', () => {
 	test('signing in honours the callbackUrl the proxy added', async ({ page }) => {
 		await page.goto('/user-management')
 		await expect(page).toHaveURL(/\/login\?callbackUrl=%2Fuser-management$/)
+		await chooseLocalAccount(page)
 		await page.getByLabel('Email').fill(e2eEnv.E2E_ADMIN_EMAIL)
 		await page.getByLabel('Password').fill(e2eEnv.E2E_ADMIN_PASSWORD)
 		await page.getByRole('button', { name: 'Log in' }).click()
@@ -41,6 +43,8 @@ test.describe('signed out', () => {
 	}) => {
 		await page.goto('/login')
 		await expect(page.getByRole('heading', { name: 'Dify App Hub' })).toBeVisible()
+		// The link lives on the local tab (spec §12); the directory tab opens first (decision x).
+		await chooseLocalAccount(page)
 		await expect(page.getByRole('link', { name: 'Forgot password?' })).toHaveCount(
 			e2eEnv.SMTP_ENABLED === 'true' ? 1 : 0,
 		)
@@ -93,6 +97,7 @@ test.describe('password reset', () => {
 			await page.getByRole('button', { name: 'Reset password' }).click()
 			await expect(page).toHaveURL(/\/login$/)
 
+			await chooseLocalAccount(page)
 			await page.getByLabel('Email').fill(email)
 			await page.getByLabel('Password').fill('new-password-1')
 			await page.getByRole('button', { name: 'Log in' }).click()

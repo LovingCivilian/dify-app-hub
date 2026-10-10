@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { requireAdminUser, listUsers, UserManagement, redirectSignal } = vi.hoisted(() => ({
-	requireAdminUser: vi.fn(),
-	listUsers: vi.fn(),
-	UserManagement: () => null,
-	redirectSignal: new Error('NEXT_REDIRECT'),
-}))
+const { requireAdminUser, listUsers, getDirectoryStatus, UserManagement, redirectSignal } =
+	vi.hoisted(() => ({
+		requireAdminUser: vi.fn(),
+		listUsers: vi.fn(),
+		getDirectoryStatus: vi.fn<() => Promise<unknown>>(async () => null),
+		UserManagement: () => null,
+		redirectSignal: new Error('NEXT_REDIRECT'),
+	}))
 vi.mock('@/lib/auth/session', () => ({ requireAdminUser }))
 vi.mock('@/lib/data/users', () => ({ listUsers }))
+vi.mock('@/lib/directory/admin', () => ({ getDirectoryStatus }))
 vi.mock('@/components/admin/users/user-management', () => ({ default: UserManagement }))
 
 import UserManagementPage from '@/app/(admin)/user-management/page'
@@ -16,6 +19,8 @@ describe('/user-management page', () => {
 	beforeEach(() => {
 		requireAdminUser.mockReset()
 		listUsers.mockReset()
+		getDirectoryStatus.mockReset()
+		getDirectoryStatus.mockResolvedValue(null)
 	})
 
 	it('checks the session before it lists the users', async () => {
@@ -44,8 +49,17 @@ describe('/user-management page', () => {
 		listUsers.mockResolvedValue(users)
 		expect(await UserManagementPage()).toMatchObject({
 			type: UserManagement,
-			props: { currentUser: { id: 'u1', role: 'admin' }, users },
+			props: { currentUser: { id: 'u1', role: 'admin' }, users, directory: null },
 		})
 		expect(listUsers).toHaveBeenCalledWith(admin)
+		expect(getDirectoryStatus).toHaveBeenCalledWith(admin)
+	})
+
+	it('hands the table the directory status when LDAP is on', async () => {
+		requireAdminUser.mockResolvedValue({ id: 'u1', email: 'a@x', name: null, role: 'admin' })
+		listUsers.mockResolvedValue([])
+		const status = { encryption: 'ldaps', nextRun: null, lastRun: null }
+		getDirectoryStatus.mockResolvedValue(status)
+		expect(await UserManagementPage()).toMatchObject({ props: { directory: status } })
 	})
 })
