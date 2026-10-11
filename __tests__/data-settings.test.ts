@@ -1,8 +1,10 @@
+import { drizzle } from 'drizzle-orm/mysql2'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { calls, rows } = vi.hoisted(() => ({
+const { calls, rows, failures } = vi.hoisted(() => ({
 	calls: [] as unknown[][],
 	rows: { value: [] as unknown[] },
+	failures: { value: [] as unknown[] },
 }))
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 vi.mock('@/db', async () => {
@@ -16,9 +18,13 @@ vi.mock('@/db', async () => {
 	const chain = {
 		leftJoin: () => chain,
 		where: () => chain,
-		limit: () => Promise.resolve(rows.value),
+		limit: () =>
+			Object.assign(Promise.resolve(rows.value), { for: () => Promise.resolve(rows.value) }),
 	}
-	const db = {
+	const outside = () => {
+		throw new Error('a write outside the transaction')
+	}
+	const tx = {
 		select: () => ({ from: () => chain }),
 		insert: (table: unknown) => ({
 			values: (values: unknown) => ({
@@ -34,10 +40,21 @@ vi.mock('@/db', async () => {
 				return Promise.resolve()
 			},
 		}),
+	}
+	const db = {
+		select: () => ({ from: () => chain }),
+		insert: outside,
+		delete: outside,
 		transaction: async (work: (tx: unknown) => unknown) => {
 			calls.push(['begin'])
-			await work(db)
+			const failure = failures.value.shift()
+			if (failure) {
+				calls.push(['rollback'])
+				throw failure
+			}
+			const result = await work(tx)
 			calls.push(['commit'])
+			return result
 		},
 	}
 	return { getDb: () => db }
@@ -45,8 +62,14 @@ vi.mock('@/db', async () => {
 
 import { AuthError } from '@/lib/auth/session'
 import {
+	deleteInstanceSettingFile,
+	lockInstanceSetting,
 	readInstanceSetting,
+	readInstanceSettingChange,
 	readInstanceSettingFile,
+	selectInstanceSetting,
+	selectInstanceSettingChange,
+	selectInstanceSettingFile,
 	writeInstanceSetting,
 } from '@/lib/data/settings'
 
@@ -56,19 +79,66 @@ const user = { id: 'u1', email: 'user@example.com', name: null, role: 'user' as 
 beforeEach(() => {
 	calls.length = 0
 	rows.value = []
+	failures.value = []
+})
+
+describe('the settings queries (SQL and parameters pinned, Drizzle "Goodies": toSQL)', () => {
+	it('reads the document of one area, without the author', () => {
+		const query = selectInstanceSetting(drizzle.mock(), 'branding').toSQL()
+		expect(query.sql).toMatch(
+			/^select `data` from `instance_settings` where `instance_settings`\.`area` = \? limit \?$/,
+		)
+		expect(query.params).toEqual(['branding', 1])
+	})
+
+	it("reads the author's email through a left join on the saving account", () => {
+		const query = selectInstanceSettingChange(drizzle.mock(), 'branding').toSQL()
+		expect(query.sql).toMatch(
+			/^select .*`updated_at`.*`email` from `instance_settings` left join `users` on `users`\.`id` = `instance_settings`\.`updated_by` where `instance_settings`\.`area` = \? limit \?$/,
+		)
+		expect(query.params).toEqual(['branding', 1])
+	})
+
+	it('reads one file by area and name', () => {
+		const query = selectInstanceSettingFile(drizzle.mock(), 'branding', 'logo').toSQL()
+		expect(query.sql).toMatch(
+			/^select `bytes`, `mime` from `instance_setting_files` where \(\(`instance_setting_files`\.`area` = \?\) and \(`instance_setting_files`\.`name` = \?\)\) limit \?$/,
+		)
+		expect(query.params).toEqual(['branding', 'logo', 1])
+	})
+
+	it('locks the area row with FOR UPDATE', () => {
+		const query = lockInstanceSetting(drizzle.mock(), 'branding').toSQL()
+		expect(query.sql).toMatch(
+			/^select `data` from `instance_settings` where `instance_settings`\.`area` = \? limit \? for update$/,
+		)
+		expect(query.params).toEqual(['branding', 1])
+	})
+
+	it('deletes one file by area and name, never the area', () => {
+		const query = deleteInstanceSettingFile(drizzle.mock(), 'branding', 'logo').toSQL()
+		expect(query.sql).toMatch(
+			/^delete from `instance_setting_files` where \(\(`instance_setting_files`\.`area` = \?\) and \(`instance_setting_files`\.`name` = \?\)\)$/,
+		)
+		expect(query.params).toEqual(['branding', 'logo'])
+	})
 })
 
 describe('readInstanceSetting', () => {
-	it('answers null before the first save, and the row with its author afterwards', async () => {
+	it('answers null before the first save, and the document afterwards', async () => {
 		expect(await readInstanceSetting('branding')).toBeNull()
-		const row = {
-			data: { name: 'Acme' },
-			updatedAt: new Date(),
-			updatedBy: 'a1',
-			updatedByEmail: 'admin@example.com',
-		}
+		rows.value = [{ data: { name: 'Acme' } }]
+		expect(await readInstanceSetting('branding')).toEqual({ data: { name: 'Acme' } })
+	})
+})
+
+describe('readInstanceSettingChange (gated: an admin only)', () => {
+	it('refuses a user-role account, answers null before a save, and the change afterwards', async () => {
+		await expect(readInstanceSettingChange(user, 'branding')).rejects.toBeInstanceOf(AuthError)
+		expect(await readInstanceSettingChange(admin, 'branding')).toBeNull()
+		const row = { updatedAt: new Date(), updatedByEmail: 'admin@example.com' }
 		rows.value = [row]
-		expect(await readInstanceSetting('branding')).toEqual(row)
+		expect(await readInstanceSettingChange(admin, 'branding')).toEqual(row)
 	})
 })
 
@@ -83,18 +153,27 @@ describe('readInstanceSettingFile', () => {
 	})
 })
 
-describe('writeInstanceSetting (spec §4.3: one transaction)', () => {
+describe('writeInstanceSetting (spec §4.3: one transaction, the row read under a lock)', () => {
 	it('refuses a user-role account before writing anything (ADR-0024: the DAL checks the role again)', async () => {
-		await expect(writeInstanceSetting(user, 'branding', {}, {})).rejects.toBeInstanceOf(AuthError)
-		await expect(writeInstanceSetting(user, 'branding', {}, {})).rejects.toMatchObject({
+		const build = vi.fn(() => ({}))
+		await expect(writeInstanceSetting(user, 'branding', build, {})).rejects.toBeInstanceOf(
+			AuthError,
+		)
+		await expect(writeInstanceSetting(user, 'branding', build, {})).rejects.toMatchObject({
 			code: 'forbidden',
 		})
 		expect(calls).toEqual([])
+		expect(build).not.toHaveBeenCalled()
 	})
 
-	it('upserts the document with its author, upserts a new file, deletes a removed one and keeps an absent one', async () => {
+	it('upserts the document with its author, upserts a new file, deletes a removed one and keeps an absent or undefined one', async () => {
 		const logo = { bytes: Buffer.from([1, 2]), mime: 'image/png' }
-		await writeInstanceSetting(admin, 'branding', { name: 'Acme' }, { logo, favicon: null })
+		const saved = await writeInstanceSetting(admin, 'branding', () => ({ name: 'Acme' }), {
+			logo,
+			favicon: null,
+			other: undefined,
+		})
+		expect(saved).toBe(true)
 		expect(calls[0]).toEqual(['begin'])
 		expect(calls[1]).toEqual([
 			'upsert',
@@ -116,5 +195,41 @@ describe('writeInstanceSetting (spec §4.3: one transaction)', () => {
 		expect(calls[3]).toEqual(['delete', 'instance_setting_files'])
 		expect(calls[4]).toEqual(['commit'])
 		expect(calls).toHaveLength(5)
+	})
+
+	it('hands build the locked document, or null before the first save', async () => {
+		const build = vi.fn(() => ({}))
+		await writeInstanceSetting(admin, 'branding', build, {})
+		expect(build).toHaveBeenLastCalledWith(null)
+		rows.value = [{ data: { name: 'Old' } }]
+		await writeInstanceSetting(admin, 'branding', build, {})
+		expect(build).toHaveBeenLastCalledWith({ name: 'Old' })
+	})
+
+	it('writes nothing and answers false when build answers undefined', async () => {
+		const saved = await writeInstanceSetting(admin, 'branding', () => undefined, {
+			logo: { bytes: Buffer.from([1]), mime: 'image/png' },
+		})
+		expect(saved).toBe(false)
+		expect(calls).toEqual([['begin'], ['commit']])
+	})
+
+	it('runs the transaction again after a deadlock, and not after another error', async () => {
+		failures.value = [Object.assign(new Error('deadlock'), { code: 'ER_LOCK_DEADLOCK' })]
+		expect(await writeInstanceSetting(admin, 'branding', () => ({}), {})).toBe(true)
+		expect(calls.filter(call => call[0] === 'begin')).toHaveLength(2)
+
+		calls.length = 0
+		failures.value = [new Error('boom')]
+		await expect(writeInstanceSetting(admin, 'branding', () => ({}), {})).rejects.toThrow('boom')
+		expect(calls.filter(call => call[0] === 'begin')).toHaveLength(1)
+
+		calls.length = 0
+		const deadlock = () => Object.assign(new Error('deadlock'), { code: 'ER_LOCK_DEADLOCK' })
+		failures.value = [deadlock(), deadlock(), deadlock()]
+		await expect(writeInstanceSetting(admin, 'branding', () => ({}), {})).rejects.toThrow(
+			'deadlock',
+		)
+		expect(calls.filter(call => call[0] === 'begin')).toHaveLength(3)
 	})
 })
