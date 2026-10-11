@@ -4,7 +4,13 @@ Date: 2026-10-11 · Status: draft for the owner's review · Programme: `2026-10-
 
 ## 1. Goal and scope
 
-The hub moves from MySQL 8.4 to PostgreSQL 18 and is renamed "AI App Hub". Nothing else changes in behaviour, with two exceptions, both recorded: email matching ignores case but no longer ignores accents (§3.4), and the built-in brand text changes.
+The hub moves from MySQL 8.4 to PostgreSQL 18 and is renamed "AI App Hub". Nothing else changes in behaviour, with these exceptions, all recorded in ADR-0031:
+
+- **Email and group-name matching** still ignore case, but no longer ignore accents (§3.4).
+  - Group names relied on MySQL's collation too, so they get the same `lower(name)` unique index as email (corrected 2026-10-11 by Part 0's plan, decision e).
+- **The built-in brand text changes.**
+- **Two simultaneous first saves of one settings area.** Only the later save is kept, where MySQL's gap lock queued them (found while planning; accepted by the owner on 2026-10-12).
+- **The pool gives up on a new connection after 10 s,** as mysql2 did by default; node-postgres has no limit by default (plan decision f).
 
 **In scope:**
 
@@ -82,11 +88,12 @@ The `globalThis` singleton stays; its key is renamed `aiAppHubDb`.
 
 **Why the ids use `uuid`, and the checks that come with it** (owner, 2026-10-11). `uuid` is PostgreSQL's documented type for UUIDs, and the database enforces the format. A string that is not a UUID raises `22P02 invalid_text_representation` instead of matching nothing (DV 11). So every id from outside is checked with `z.uuid()` before it reaches a query:
 
-- the shared route guard (`resolveDifyRoute`), which covers all 26 `[appId]` route files;
+- the shared route guard (`resolveDifyRoute`), which covers all 25 `[appId]` route files;
 - the chat page `app/(user)/chat/[appId]/page.tsx`;
 - the icon route;
-- the admin actions for apps, users and groups (four `z.uuid()` checks exist today; the rest are added);
-- the directory groups route, where it takes an id.
+- the admin actions for apps, users and groups. Today `userIdSchema` is `z.string().min(1).max(36)` (ADR-0024 decision h), and one shared check `idSchema = z.uuid()` in `lib/ids.ts` replaces it (Part 0 plan, decision j).
+
+The directory groups route takes no id.
 
 A malformed id answers as an unknown one: 404 `app_not_found` or the action's `not_found`, as today. As a safety net, `lib/data/db-errors.ts` maps `22P02` to "not found", so a missed spot still gives 404 rather than 500. Ids from the session token are the hub's own and need no check.
 
@@ -135,7 +142,9 @@ The new name is "AI App Hub", in kebab case `ai-app-hub` (decision 4).
 | `docker-bake.hcl` | image `${DOCKERHUB_USERNAME}/ai-app-hub` |
 | `ecosystem.config.js` | app name `ai-app-hub` |
 | compose files | project, container and network names (§2) |
-| `.env.template` | the `MAIL_DEFAULT_SEND_FROM` display name; `DATABASE_URL=postgres://…`; `POSTGRES_*` replacing `MYSQL_*` |
+| `.env.template` | the `MAIL_DEFAULT_SEND_FROM` display name; `DATABASE_URL=postgres://…`; the `POSTGRES_*` keys added (the template has no `MYSQL_*` keys today) |
+| `.github/workflows/deploy-docs.yml` | the docs package filter (found while planning) |
+| `AGENTS.md` | unchanged. It is upstream's file, and its `pnpm --filter dify-app-hub db:*` lines go stale. `CLAUDE.md` gives the working form (`pnpm db:generate`, `pnpm db:migrate` from the root). |
 | `.oxfmtrc.json:31` | the `.dify-app-hub` ignore entry is removed. It names a folder that nothing in this line creates; it came from upstream's `dify-chat` rename (`f650fb9d`). |
 | `lib/settings/branding-rules.ts:4` | `BUILT_IN_BRAND_NAME = 'AI App Hub'` |
 | `app/layout.tsx:34` | the description, for example "AI App Hub: the company's AI apps in one place" |
@@ -152,7 +161,7 @@ The new name is "AI App Hub", in kebab case `ai-app-hub` (decision 4).
    - replace `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD` and `MYSQL_ROOT_PASSWORD` with `POSTGRES_DB`, `POSTGRES_USER` and `POSTGRES_PASSWORD`;
    - set `DATABASE_URL=postgres://<user>:<password>@postgres:5432/<db>`.
 2. In `.env.development.local`, set `DATABASE_URL` to the same database on `127.0.0.1:5432`.
-3. Take down the old stack: `docker compose -f docker-compose.local.yml down` on the old checkout, before pulling Part 0. The old project name and MySQL volume belong to `dify-app-hub-local`; after a fresh start the volume can be removed.
+3. Take down the old stack by its project name: `docker compose -p dify-app-hub-local down`, after a `--dry-run`. The branch's compose file names the new project, so the old one is reached by name. Its MySQL volume can be removed after the fresh start.
 4. Bring up the new stack, then run first-run setup and re-add the apps, groups and settings.
 
 ## 6. Tests
@@ -172,8 +181,8 @@ The new name is "AI App Hub", in kebab case `ai-app-hub` (decision 4).
 - **The fixtures.** `e2e/fixtures/db.ts` uses a `pg` `Client`. The raw SQL in the fixtures and specs moves from `?` to `$1` and from `ON DUPLICATE KEY UPDATE` to `ON CONFLICT`.
 - **New cases:**
   - signing in with the email in different case (local and directory accounts);
-  - a second owner refused by the partial index on the first-run path;
-  - a malformed app id (`/chat/abc`, `/api/dify/abc/parameters` signed in) answering 404, never 500.
+  - a second owner refused by the partial index. The first-run path stops at `hasAccounts()` before any insert, so this is proven by a raw insert in e2e and by a live test of two concurrent first runs;
+  - a malformed app id answering as an unknown one, never 500: `/chat/abc` shows the "missing" page (HTTP 200, like any unknown app), and `/api/dify/abc/parameters` and `/api/apps/abc/icon` answer 404.
 - **The full suite** runs on all three projects against the throwaway PostgreSQL.
 
 **`pnpm test:ldap`:** the directory suite, because the sync's claim and memberships change.
@@ -203,7 +212,7 @@ The rename gets a dated note in the same PR (ADR-0019, the product-line record).
 - the pointers;
 - the decision line.
 
-**`docs/auth-gate.md`:** what it says about MySQL's case-insensitivity.
+**`docs/auth-gate.md` and `docs/ldap.md`:** their MySQL parts are the owner-password recovery command (rewritten for `psql`) and "MySQL error 3819" (`docs/ldap.md:109`).
 
 ## 8. After the merge: renaming the repo and the folders (owner, between sessions)
 

@@ -344,6 +344,25 @@ Rules that apply throughout:
 33. **The plans are written one part at a time, each against the code as it stands then** (2026-10-11).
     - Part 0's plan is written now: `docs/superpowers/plans/2026-10-11-part-0-postgres-and-rename.md`.
     - Part 1's plan is written after Part 0 merges. Part 0 rewrites every schema file and most of the data layer, so a Part 1 plan written now would quote code that no longer exists.
+34. **Part 0's plan is written and self-reviewed** (2026-10-11): `docs/superpowers/plans/2026-10-11-part-0-postgres-and-rename.md`, 14 tasks.
+    - While planning, it was checked against a throwaway `postgres:18` with drizzle rc.4 and `pg` 8.23.1.
+    - It corrected the spec's facts:
+      - 25 `[appId]` routes, not 26;
+      - the directory groups route takes no id;
+      - `/chat/abc` shows the "missing" page;
+      - `deploy-docs.yml` and the AGENTS.md lines;
+      - `.env.template` has no `MYSQL_*` keys;
+      - the old stack goes down with `-p dify-app-hub-local`.
+
+    The owner's answers (2026-10-12):
+    - **`docker-bake.hcl`:** no default `DOCKERHUB_USERNAME`; a Bake `validation` block requires it, per Docker's "Bake variables" docs.
+    - **`pnpm test:db`:** accepted as a gate. It is a third Vitest project against a throwaway PostgreSQL.
+    - **Group names:** stay case-insensitive through a `lower(name)` unique index.
+    - **Two simultaneous first saves of one settings area:** the later save wins. This is recorded in ADR-0031.
+
+    Decided without a question:
+    - ADR-0004 is marked superseded while ADR-0031 is proposed, as ADR-0003 was.
+    - AGENTS.md stays upstream's, and CLAUDE.md gives the working `pnpm db:*` form.
 
 ## Research findings that shape the design (2026-10-11)
 
