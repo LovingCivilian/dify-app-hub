@@ -51,6 +51,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0027](0027-gate-apps-by-groups-and-grants-and-deactivate-accounts-with-two-markers.md) | Gate apps by groups and grants, and deactivate accounts with two markers | accepted | 2026-10-10 |
 | [0028](0028-navigate-the-admin-area-in-a-sidebar-shared-with-the-chat.md) | Navigate the admin area in a sidebar shared with the chat | accepted | 2026-10-10 |
 | [0029](0029-sign-directory-accounts-in-over-ldap-and-keep-them-in-step-with-a-scheduled-sync.md) | Sign directory accounts in over LDAP and keep them in step with a scheduled sync | proposed | 2026-10-10 |
+| [0030](0030-set-each-settings-area-from-the-environment-or-the-admin-page.md) | Set each settings area from the environment or the admin page | proposed | 2026-10-11 |
 
 ## Inherited from upstream (not fork decisions)
 

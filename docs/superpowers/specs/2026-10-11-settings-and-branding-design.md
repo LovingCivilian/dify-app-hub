@@ -137,7 +137,7 @@ Two public Route Handlers, `app/api/branding/logo/route.ts` and `app/api/brandin
 
 - `app/layout.tsx` calls `getBranding()` and passes a trimmed `BrandingView` (`name`, `showName`, `logo: { src, width, height } | null`) through `AppProviders` into a small client context (`components/providers/branding-context.tsx`), the way the session and the theme already travel (ADR-0020's trimmed props).
 - `components/shell/brand-mark.tsx` draws the logo and, per `showName`, the name. The built-in image renders through `next/image` from its static import (as today); a custom image renders through `next/image` with `unoptimized` (it is already processed, `image.md:391-412`) and its stored width and height scaled to the display height (`image.md:105-113`).
-- `AppHeader` uses it inside the home link, whose accessible name is the brand name (`aria-label`); `AuthCard` uses it above the form; the settings page uses it for the preview. When the name is shown beside the image, the image is `alt=""` (W3C WAI Images Tutorial, Functional images, Example 2 "Logo image within link text": "a null (empty) value is applied … to avoid redundancy"); when it is not, the header link keeps its accessible name through `aria-label` (Example 1, "Image used alone as a linked logo", names where the link goes) and the login card's image carries the name as its `alt`.
+- `AppHeader` uses it inside the home link, whose accessible name is the brand name (`aria-label`); `AuthCard` uses it above the form; the settings page uses it for the preview. When the name is shown beside the image, the image is `alt=""` (W3C WAI Images Tutorial, Functional images, Example 2 "Logo image within link text": "a null (empty) value is applied … to avoid redundancy"); when it is not, the header link keeps its accessible name through `aria-label` (WCAG technique ARIA8, "Using aria-label for link purpose": `aria-label` labels a link "when there are no elements visible on the page that describe the object") and the login card's image carries the name as its `alt`.
 - `generateMetadata` in `app/layout.tsx` sets `title` to the name and `icons.icon` to the favicon URL (the route with `?v=`, or the built-in image's static URL). `app/favicon.ico` is deleted, because a file-based icon overrides the metadata (`generate-metadata.md:114`). The proxy matcher's `favicon.ico` exclusion and the `/favicon.ico` public prefix stay, so a stray request for the old path gets a 404 instead of a redirect to the login page.
 - The header's GitHub button and `GITHUB_URL` are removed (decision 8).
 
@@ -158,7 +158,7 @@ Two public Route Handlers, `app/api/branding/logo/route.ts` and `app/api/brandin
 
 - Groups are not pages; clicking one opens or closes it. Children are `Link`s without icons.
 - Both groups start open (`defaultOpenKeys`); the selected key is the child whose path starts the current pathname.
-- `triggerSubMenuAction="click"`: in the collapsed sidebar a group opens its pop-out on click, not hover (antd `Menu` prop, default `hover`), for ADR-0014's reasons (touch, accidental opening).
+- `triggerSubMenuAction="click"`: in the collapsed sidebar a group opens its pop-out on click, not hover (antd `Menu` prop, default `hover`), for ADR-0014's reasons (keyboard and touch).
 - The header's drawer below md shows the same tree with the same open groups (`AppHeader`'s `nav` prop).
 - This regroups ADR-0028's sidebar: a dated note on ADR-0028.
 
@@ -263,6 +263,18 @@ Taken while writing this spec from the docs, the standards and the codebase; for
 3. Uploaded images are decoded and re-encoded to PNG with sharp (OWASP File Upload); SVG, JPEG and WebP are accepted as input but never served, and ICO is not accepted (chat: PNG, JPEG, WebP, SVG and ICO served as uploaded, type checked from the bytes). This also gives `next/image` the width and height it requires.
 4. The built-in logo and favicon stay a static import; the image routes serve only custom images (chat: the routes serve the built-in images in `disabled` mode).
 5. `/settings` redirects to `/settings/branding`.
+
+Changes during implementation, 2026-10-11 (the run's rulings, recorded in ADR-0030 "Deviations from the spec text"; this spec's text above is otherwise as approved):
+
+1. SVG input is refused (§4.4 steps 3 and 4, §8): accepted images are PNG, JPEG and WebP. librsvg, the renderer inside sharp, decodes embedded `data:` rasters itself, outside `limitInputPixels`, and sharp's `svg.stylesheet` cannot stop it, because librsvg 2.62 lets author `!important` rules and `style` attributes win (a 415 KB SVG reached 1.18 GB of memory); OWASP File Upload, "restricted formats". Restoring SVG needs a sanitiser, a new dependency.
+2. `BRANDING_MODE` is read leniently (§3.1): blanks and case do not matter, as for the `*_ENABLED` flags, instead of "through the file's `blankAsAbsent` helper".
+3. `SETTINGS_ENCRYPTION_KEY` stays an environment variable (§2 #13, §6.1): unchanged, recorded in ADR-0030 as the deviation from OWASP.
+4. The save builds the document under a row lock (§3.3, §4.3): `writeInstanceSetting(actor, area, build, files)` locks the row (`SELECT … FOR UPDATE`), builds the document from the locked one through a pure callback and re-issues the transaction on a deadlock, three attempts in all; last-write-wins (§5.3) is kept.
+5. The image routes read the stored hash first and answer a matching `If-None-Match` with a 304 without reading the bytes; a 200 carries the ETag of the bytes it serves (§4.5).
+6. The save action calls `next/cache`'s `refresh()` instead of `revalidatePath('/', 'layout')` (§3.5, §5.4 step 7).
+7. The built-in logo stays a static import through Next's optimizer (§4.1, §4.6), as written above; only a custom image is `unoptimized`.
+8. Also by the plan's decisions and the rulings: one `invalid_image` failure with the codes `too_large` and `not_allowed` (§5.4 step 4); the sidebar children's keys are `admin.menu_item_*` (§9); `components/shell/brand-logo.tsx` draws the image only, where §4.6 names `brand-mark.tsx`, and the page's unsaved preview uses antd `Image` (§5.3); the Name field counts code points through antd Input's `count` (§5.3); a file row missing for a document that names it leaves the shell with a broken image while the route answers 404 (§7), which the one-transaction write makes impossible short of a manual edit.
+9. Two citations corrected in place: §4.6 cited the WAI Images Tutorial's Example 1 for the header link's `aria-label`, but that example names a lone linked logo through the image's `alt`; WCAG technique ARIA8 is the source. §5.1 gave ADR-0014's reasons as "touch, accidental opening"; ADR-0014 rests on keyboard reach and touch.
 
 ## 11. Out of scope and follow-ups
 
