@@ -114,7 +114,7 @@ describe('describeError and the directory (spec §7.3)', () => {
 	it('keeps an unreadable LDAP_CA_FILE to the setting and the cause’s code, never the path', async () => {
 		const { readFile } = await import('node:fs/promises')
 		const { DirectoryConfigError } = await import('@/lib/directory/errors')
-		const path = '/nonexistent/dify-app-hub-corp-root-ca.pem'
+		const path = '/nonexistent/ai-app-hub-corp-root-ca.pem'
 		const cause = await readFile(path).catch((error: unknown) => error)
 		expect(cause).toMatchObject({ code: 'ENOENT', path })
 		const described = describeError(new DirectoryConfigError('LDAP_CA_FILE', { cause }))

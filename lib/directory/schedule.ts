@@ -21,7 +21,7 @@ import { runSync, scheduleSlot, startupSlot } from './sync'
  */
 
 const globalForSchedule = globalThis as unknown as {
-	difyAppHubDirectorySchedule?: { job: Cron | null }
+	aiAppHubDirectorySchedule?: { job: Cron | null }
 }
 
 /** Spec §6.4: croner does not catch up by itself; a run is missed when the last due time is after the last success. */
@@ -64,7 +64,7 @@ const checkCaFile = (caFile: string): Promise<void> =>
  * bad LDAP block is logged and left to the first request (decision ai).
  */
 export function startDirectorySchedule(): void {
-	if (globalForSchedule.difyAppHubDirectorySchedule) return
+	if (globalForSchedule.aiAppHubDirectorySchedule) return
 	let found: LdapConfig | null
 	try {
 		found = directoryConfig()
@@ -74,7 +74,7 @@ export function startDirectorySchedule(): void {
 	}
 	if (!found) return
 	const config = found
-	globalForSchedule.difyAppHubDirectorySchedule = { job: null }
+	globalForSchedule.aiAppHubDirectorySchedule = { job: null }
 	if (config.encryption === 'none')
 		console.warn(
 			'directorySchedule: LDAP_ENCRYPTION=none: directory passwords and the service account travel unencrypted (docs/ldap.md)',
@@ -99,6 +99,6 @@ export function startDirectorySchedule(): void {
 				slot: scheduleSlot(new Date()),
 			}).then(() => undefined),
 	)
-	globalForSchedule.difyAppHubDirectorySchedule.job = job
+	globalForSchedule.aiAppHubDirectorySchedule.job = job
 	void catchUp(config, job).catch(error => logActionError(error, 'directorySync'))
 }

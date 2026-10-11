@@ -53,7 +53,7 @@ test.describe('signed out', () => {
 		page,
 	}) => {
 		await page.goto('/login')
-		await expect(page.getByRole('heading', { name: 'Dify App Hub' })).toBeVisible()
+		await expect(page.getByRole('heading', { name: 'AI App Hub' })).toBeVisible()
 		// The link lives on the local tab (spec §12); the directory tab opens first (decision x).
 		await chooseLocalAccount(page)
 		await expect(page.getByRole('link', { name: 'Forgot password?' })).toHaveCount(

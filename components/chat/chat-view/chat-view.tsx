@@ -75,7 +75,7 @@ export default function ChatView() {
 	// The sider's collapsed state and, when collapsed, the popover that holds the list (spec §5.1).
 	const [collapsed, setCollapsed] = useState(false)
 	const [railListOpen, setRailListOpen] = useState(false)
-	const [wide, setWide] = useLocalStorageState<boolean>('dify-app-hub-wide-screen', {
+	const [wide, setWide] = useLocalStorageState<boolean>('ai-app-hub-wide-screen', {
 		defaultValue: false,
 	})
 

@@ -92,7 +92,7 @@ describe('getBranding (settings spec §3.3)', () => {
 		expect(await getBranding()).toEqual({
 			mode: 'disabled',
 			builtIn: true,
-			name: 'Dify App Hub',
+			name: 'AI App Hub',
 			showName: true,
 			logo: null,
 			favicon: null,
@@ -107,7 +107,7 @@ describe('getBranding (settings spec §3.3)', () => {
 		expect(await getBranding()).toMatchObject({
 			mode: 'database',
 			builtIn: true,
-			name: 'Dify App Hub',
+			name: 'AI App Hub',
 		})
 		const logo = { sha256: sha('a'), width: 400, height: 100 }
 		data.readInstanceSetting.mockResolvedValueOnce({
@@ -236,8 +236,8 @@ describe('brandingView (spec §4.6)', () => {
 
 	it('draws the built-in image for the built-in brand', async () => {
 		const { brandingView } = await load()
-		expect(brandingView({ ...base, builtIn: true, name: 'Dify App Hub' }, builtInImage)).toEqual({
-			name: 'Dify App Hub',
+		expect(brandingView({ ...base, builtIn: true, name: 'AI App Hub' }, builtInImage)).toEqual({
+			name: 'AI App Hub',
 			showName: true,
 			logo: builtInImage,
 			faviconSrc: builtInImage.src,
@@ -595,7 +595,7 @@ describe('getBrandingSettings', () => {
 	it('shows the mode and the built-in brand in disabled mode, with no database read', async () => {
 		expect(await (await load()).getBrandingSettings(admin, builtInImage)).toMatchObject({
 			mode: 'disabled',
-			current: { name: 'Dify App Hub', logo: builtInImage },
+			current: { name: 'AI App Hub', logo: builtInImage },
 			env: null,
 			updatedAt: null,
 		})

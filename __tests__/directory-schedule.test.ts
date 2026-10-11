@@ -49,7 +49,7 @@ const config = {
 }
 
 const reset = () => {
-	delete (globalThis as { difyAppHubDirectorySchedule?: unknown }).difyAppHubDirectorySchedule
+	delete (globalThis as { aiAppHubDirectorySchedule?: unknown }).aiAppHubDirectorySchedule
 }
 
 beforeEach(() => {

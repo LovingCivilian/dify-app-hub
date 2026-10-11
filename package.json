@@ -1,5 +1,5 @@
 {
-	"name": "dify-app-hub",
+	"name": "ai-app-hub",
 	"version": "0.8.1",
 	"private": true,
 	"type": "module",
@@ -7,8 +7,8 @@
 		"dev": "PORT=5300 next dev",
 		"build": "next build",
 		"start": "next start",
-		"dev:docs": "pnpm --filter dify-app-hub-docs dev",
-		"build:docs": "pnpm --filter dify-app-hub-docs build",
+		"dev:docs": "pnpm --filter ai-app-hub-docs dev",
+		"build:docs": "pnpm --filter ai-app-hub-docs build",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
