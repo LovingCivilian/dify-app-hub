@@ -5,6 +5,8 @@ import { escapeFilter, FilterParser } from 'ldapts'
 import * as z from 'zod'
 
 import { LDAP_ENCRYPTIONS, type LdapEncryption } from '@/lib/directory-status'
+import { brandNameSchema } from '@/lib/settings/branding-rules'
+import { SETTINGS_MODES, type SettingsMode } from '@/lib/settings/modes'
 
 /**
  * A `'true' | 'false'` flag, read leniently: blanks around it and its case do not matter, and a blank value counts
@@ -41,6 +43,25 @@ const blankAsAbsent = <T extends z.ZodType>(inner: T) =>
 		value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
 		inner,
 	)
+
+/** Settings spec §3.1: read leniently like the flags (blanks and case do not matter); unset or blank is `disabled`. */
+const brandingModeSchema = z.preprocess(
+	value => (typeof value === 'string' && value.trim() ? value.trim().toLowerCase() : undefined),
+	z.enum(SETTINGS_MODES).default('disabled'),
+)
+
+/** Required together once BRANDING_MODE is env (spec §4.2; the all-or-nothing rule of the SMTP and LDAP blocks). */
+const brandingSchema = z
+	.object({
+		BRANDING_NAME: brandNameSchema,
+		BRANDING_SHOW_NAME: flag('true'),
+		BRANDING_LOGO_FILE: blankAsAbsent(z.string().trim().optional()),
+		BRANDING_FAVICON_FILE: blankAsAbsent(z.string().trim().optional()),
+	})
+	.refine(value => value.BRANDING_SHOW_NAME === 'true' || value.BRANDING_LOGO_FILE !== undefined, {
+		path: ['BRANDING_SHOW_NAME'],
+		message: 'true unless BRANDING_LOGO_FILE is set',
+	})
 
 /**
  * RFC 4512 §1.4: a descriptor, a letter then letters, digits and hyphens (decision d). Not a numeric OID, which RFC 4512
@@ -200,12 +221,27 @@ export interface SmtpConfig {
 	appUrl: string
 }
 
+export interface BrandingEnvValues {
+	name: string
+	showName: boolean
+	/** Paths inside the container, mounted read-only (docs/settings.md); null when unset. */
+	logoFile: string | null
+	faviconFile: string | null
+}
+
+export interface BrandingEnv {
+	mode: SettingsMode
+	/** Set in `env` mode only; the BRANDING_* block is ignored in the other modes (spec §3.1). */
+	values: BrandingEnvValues | null
+}
+
 export interface ServerEnv {
 	nodeEnv: 'development' | 'test' | 'production'
 	databaseUrl: string
 	nextAuthSecret: string
 	smtp: SmtpConfig | null
 	ldap: LdapConfig | null
+	branding: BrandingEnv
 }
 
 export class EnvError extends Error {
@@ -261,12 +297,26 @@ export const parseEnv = (source: Record<string, string | undefined>): ServerEnv 
 			syncTimezone: data.LDAP_SYNC_TIMEZONE ?? null,
 		}
 	}
+	const brandingMode = brandingModeSchema.safeParse(source.BRANDING_MODE)
+	if (!brandingMode.success) throw new EnvError(['BRANDING_MODE'])
+	let brandingValues: BrandingEnvValues | null = null
+	if (brandingMode.data === 'env') {
+		const parsed = brandingSchema.safeParse(source)
+		if (!parsed.success) throw new EnvError(keysOf(parsed.error))
+		brandingValues = {
+			name: parsed.data.BRANDING_NAME,
+			showName: parsed.data.BRANDING_SHOW_NAME === 'true',
+			logoFile: parsed.data.BRANDING_LOGO_FILE ?? null,
+			faviconFile: parsed.data.BRANDING_FAVICON_FILE ?? null,
+		}
+	}
 	return {
 		nodeEnv: base.data.NODE_ENV,
 		databaseUrl: base.data.DATABASE_URL,
 		nextAuthSecret: base.data.NEXTAUTH_SECRET,
 		smtp,
 		ldap,
+		branding: { mode: brandingMode.data, values: brandingValues },
 	}
 }
 

@@ -15,6 +15,7 @@ describe('parseEnv', () => {
 			nextAuthSecret: base.NEXTAUTH_SECRET,
 			smtp: null,
 			ldap: null,
+			branding: { mode: 'disabled', values: null },
 		})
 	})
 
@@ -337,5 +338,77 @@ describe('parseEnv', () => {
 			LDAP_GROUP_NAME_ATTRIBUTE: defaults.groupNameAttribute,
 		}
 		expect(parseEnv({ ...base, ...ldapBlock, ...given }).ldap).toEqual(defaults)
+	})
+})
+
+describe('BRANDING_MODE (settings spec §3.1)', () => {
+	const keysOf = (source: Record<string, string>) => {
+		try {
+			parseEnv({ ...base, ...source })
+		} catch (error) {
+			return (error as EnvError).keys
+		}
+		return []
+	}
+
+	it('is disabled when unset or blank, and reads its value leniently', () => {
+		expect(parseEnv(base).branding).toEqual({ mode: 'disabled', values: null })
+		expect(parseEnv({ ...base, BRANDING_MODE: '  ' }).branding.mode).toBe('disabled')
+		expect(parseEnv({ ...base, BRANDING_MODE: ' Database ' }).branding).toEqual({
+			mode: 'database',
+			values: null,
+		})
+	})
+
+	it('refuses any other value, naming the variable', () => {
+		expect(keysOf({ BRANDING_MODE: 'gui' })).toEqual(['BRANDING_MODE'])
+	})
+
+	it('ignores the BRANDING_* block outside env mode', () => {
+		expect(
+			parseEnv({ ...base, BRANDING_MODE: 'database', BRANDING_SHOW_NAME: 'maybe' }).branding.values,
+		).toBeNull()
+	})
+
+	it('reads the env block in env mode, with the name trimmed and blank files absent', () => {
+		expect(
+			parseEnv({
+				...base,
+				BRANDING_MODE: 'env',
+				BRANDING_NAME: ' Acme AI Hub ',
+				BRANDING_LOGO_FILE: '/branding/logo.svg',
+				BRANDING_FAVICON_FILE: ' ',
+			}).branding,
+		).toEqual({
+			mode: 'env',
+			values: {
+				name: 'Acme AI Hub',
+				showName: true,
+				logoFile: '/branding/logo.svg',
+				faviconFile: null,
+			},
+		})
+	})
+
+	it('requires BRANDING_NAME in env mode', () => {
+		expect(keysOf({ BRANDING_MODE: 'env' })).toEqual(['BRANDING_NAME'])
+		expect(keysOf({ BRANDING_MODE: 'env', BRANDING_NAME: 'x'.repeat(65) })).toEqual([
+			'BRANDING_NAME',
+		])
+	})
+
+	it('refuses BRANDING_SHOW_NAME=false without a logo file, and takes it with one', () => {
+		expect(
+			keysOf({ BRANDING_MODE: 'env', BRANDING_NAME: 'Acme', BRANDING_SHOW_NAME: 'false' }),
+		).toEqual(['BRANDING_SHOW_NAME'])
+		expect(
+			parseEnv({
+				...base,
+				BRANDING_MODE: 'env',
+				BRANDING_NAME: 'Acme',
+				BRANDING_SHOW_NAME: 'false',
+				BRANDING_LOGO_FILE: '/branding/logo.png',
+			}).branding.values?.showName,
+		).toBe(false)
 	})
 })
