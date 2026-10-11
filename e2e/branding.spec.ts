@@ -1,6 +1,6 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
-import { pngOf, resetBranding } from './fixtures/branding'
+import { chooseFile, pngOf, resetBranding } from './fixtures/branding'
 import { APP_ID } from './fixtures/constants'
 import { deleteUsersLike, seedUser, signInAs } from './fixtures/users'
 
@@ -37,19 +37,6 @@ test.describe('the built-in brand', () => {
 
 const nameOf = () => `Acme ${test.info().project.name}`
 
-/** Chooses a file through the Upload button; retried until hydration has wired the button (Playwright "File chooser"). */
-const chooseFile = async (
-	page: Page,
-	button: string,
-	file: { name: string; mimeType: string; buffer: Buffer },
-) => {
-	await expect(async () => {
-		const chooser = page.waitForEvent('filechooser', { timeout: 2_000 })
-		await page.getByRole('button', { name: button }).click()
-		await (await chooser).setFiles(file)
-	}).toPass()
-}
-
 test.describe('the Branding page (settings spec §5.3)', () => {
 	test.afterEach(async () => {
 		await resetBranding()
@@ -58,13 +45,15 @@ test.describe('the Branding page (settings spec §5.3)', () => {
 	test('an admin reaches it from the navigation', async ({ page, isMobile }) => {
 		await page.goto('/app-management')
 		if (isMobile) {
+			// A click before hydration does nothing, so it is retried with its outcome (Playwright `expect.toPass`), and only
+			// while the drawer is closed: an open drawer's mask would take the click (as openDrawer, e2e/admin-apps.spec.ts).
+			const drawerLink = page.getByRole('dialog').getByRole('link', { name: 'Branding' })
 			await expect(async () => {
-				await page.getByRole('button', { name: 'Menu' }).click()
-				await expect(page.getByRole('dialog').getByRole('link', { name: 'Branding' })).toBeVisible({
-					timeout: 1_000,
-				})
-			}).toPass()
-			await page.getByRole('dialog').getByRole('link', { name: 'Branding' }).click()
+				if (!(await drawerLink.isVisible()))
+					await page.getByRole('button', { name: 'Menu' }).click({ timeout: 2_000 })
+				await expect(drawerLink).toBeVisible({ timeout: 1_000 })
+			}).toPass({ timeout: 30_000 })
+			await drawerLink.click()
 		} else {
 			await page.getByRole('complementary').getByRole('link', { name: 'Branding' }).click()
 		}
@@ -105,6 +94,13 @@ test.describe('the Branding page (settings spec §5.3)', () => {
 		const login = await context.newPage()
 		await login.goto('/login')
 		await expect(login.getByRole('heading', { name: nameOf() })).toBeVisible()
+		// The card draws the saved logo (alt="" beside the name, so no img role to find it by), and it loads signed out.
+		const logo = login.locator('img[src*="/api/branding/logo?v="]')
+		await expect(logo).toBeVisible()
+		// MDN HTMLImageElement.naturalWidth: 0 while "the image data is not available".
+		await expect
+			.poll(() => logo.evaluate((img: HTMLImageElement) => img.naturalWidth))
+			.toBeGreaterThan(0)
 		const image = await login.request.get('/api/branding/logo')
 		expect(image.status()).toBe(200)
 		expect(image.headers()['content-type']).toBe('image/png')
@@ -191,6 +187,10 @@ test.describe('the Branding page (settings spec §5.3)', () => {
 			// The element that carries the name inside the link: Typography.Text's root span, which holds the .title class.
 			const name = home.locator('span', { hasText: longName })
 			await expect(name).toBeVisible()
+			// text-overflow applies only to a box whose overflow is not visible (MDN text-overflow: "you have to set other CSS
+			// properties: overflow and white-space"), so the three are asserted together (Playwright `toHaveCSS`).
+			await expect(name).toHaveCSS('overflow-x', 'hidden')
+			await expect(name).toHaveCSS('white-space', 'nowrap')
 			await expect(name).toHaveCSS('text-overflow', 'ellipsis')
 			// MDN Element.scrollWidth: wider than clientWidth while the content overflows the element, here the cut text.
 			await expect
