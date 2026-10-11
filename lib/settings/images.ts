@@ -31,33 +31,21 @@ export class BrandImageError extends Error {
 /** A resource limit in OWASP's sense, tighter than sharp's default `0x3FFF * 0x3FFF` (sharp src/common.h). */
 export const MAX_INPUT_PIXELS = 4096 * 4096
 
-/** The decoded formats accepted (spec §4.4 step 3); the browser's declared type is never read. */
-const ACCEPTED_FORMATS = new Set(['png', 'jpeg', 'webp', 'svg'])
+/**
+ * The decoded formats accepted (spec §4.4 step 3); the browser's declared type is never read. SVG is refused (OWASP File
+ * Upload Cheat Sheet, "restricted formats", "resource limits"): librsvg, the renderer inside sharp, decodes `data:` rasters
+ * itself while it renders, outside `limitInputPixels`, and sharp's `svg.stylesheet` cannot switch them off, because librsvg
+ * lets author `!important` rules and `style` attributes override it (`rsvg/src/css.rs:861-867,1051-1059`,
+ * `element.rs:430-444`, `properties.rs:946-953`) and cascades a nested `data:` document without it (`document.rs:501,718-726`,
+ * librsvg 2.62.0). A 415 KB SVG reached 1.18 GB of memory that way.
+ */
+const ACCEPTED_FORMATS = new Set(['png', 'jpeg', 'webp'])
 
 /** The logo at three times its largest display height (64 px) and up to 4:1; the favicon twice the 32 px tab size. */
 const BOX: Record<BrandImageKind, { width: number; height: number }> = {
 	logo: { width: 768, height: 192 },
 	favicon: { width: 64, height: 64 },
 }
-
-/** sharp's `density` for vector input: "the DPI … in the range 1 to 100000", default 72. */
-const SVG_DENSITY_MAX = 100_000
-
-/**
- * The DPI that draws an SVG (whose size sharp reports at 72 DPI, from width/height or the viewBox) at the box's scale, so a
- * small vector logo is drawn sharp instead of enlarged as pixels.
- */
-const svgDensity = (width: number, height: number, box: { width: number; height: number }) =>
-	Math.min(Math.max(72 * Math.min(box.width / width, box.height / height), 1), SVG_DENSITY_MAX)
-
-/**
- * Applied to SVG input as sharp's `svg.stylesheet` ("Custom CSS for SVG input, applied with a User Origin during the CSS
- * cascade"; sharp api-constructor). Important user declarations beat important author ones (CSS Cascading and Inheritance
- * Level 4, §6.1). librsvg decodes `data:` URLs itself while it renders ("Data URLs are permitted", librsvg docs, "Security and
- * locations of referenced files"), which `limitInputPixels` does not see, so embedded rasters (`image`) and filters (which
- * can load them through `feImage`) are switched off: OWASP's "resource limits" for uploads.
- */
-const SVG_STYLESHEET = 'image { display: none !important } * { filter: none !important }'
 
 /**
  * Decode, check and re-encode an image as PNG (OWASP File Upload Cheat Sheet: "decode and re-encode to an allowed image
@@ -70,26 +58,16 @@ export async function processBrandImage(
 	input: Buffer,
 ): Promise<ProcessedImage> {
 	if (input.length > BRAND_IMAGE_MAX_BYTES[kind]) throw new BrandImageError('too_large')
-	// The header read decodes no pixel data (sharp api-input, `metadata()`), and an SVG's nominal size at 72 DPI is not the
-	// size it is drawn at, so the limit (`false` removes it, api-constructor) applies to the decode below.
+	const options = { limitInputPixels: MAX_INPUT_PIXELS, autoOrient: true }
 	let meta: Metadata
 	try {
-		meta = await sharp(input, { limitInputPixels: false, autoOrient: true }).metadata()
+		meta = await sharp(input, options).metadata()
 	} catch (error) {
 		throw new BrandImageError('not_allowed', { cause: error })
 	}
 	if (!meta.format || !ACCEPTED_FORMATS.has(meta.format) || !meta.width || !meta.height)
 		throw new BrandImageError('not_allowed')
 	const box = BOX[kind]
-	const isSvg = meta.format === 'svg'
-	const options = {
-		limitInputPixels: MAX_INPUT_PIXELS,
-		autoOrient: true,
-		...(isSvg && {
-			density: svgDensity(meta.width, meta.height, box),
-			svg: { stylesheet: SVG_STYLESHEET },
-		}),
-	}
 	try {
 		const { data, info } = await sharp(input, options)
 			.resize({
@@ -100,9 +78,6 @@ export async function processBrandImage(
 			})
 			.png()
 			.toBuffer({ resolveWithObject: true })
-		// An SVG that only wrapped a raster or a filter now draws nothing: refuse it instead of storing a blank image.
-		if (isSvg && (await sharp(data).stats()).channels[3]?.max === 0)
-			throw new BrandImageError('not_allowed')
 		return {
 			bytes: data,
 			sha256: createHash('sha256').update(data).digest('hex'),
@@ -110,7 +85,6 @@ export async function processBrandImage(
 			height: info.height,
 		}
 	} catch (error) {
-		if (error instanceof BrandImageError) throw error
 		throw new BrandImageError('not_allowed', { cause: error })
 	}
 }

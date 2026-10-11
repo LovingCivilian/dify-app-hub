@@ -17,14 +17,9 @@ export const BRAND_IMAGE_MAX_BYTES: Readonly<Record<BrandImageKind, number>> = {
 }
 
 /** What the file picker offers and the browser's quick check takes; the server decides (OWASP File Upload Cheat Sheet). */
-export const BRAND_IMAGE_MIME_TYPES = [
-	'image/png',
-	'image/jpeg',
-	'image/webp',
-	'image/svg+xml',
-] as const
+export const BRAND_IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const
 
-/** Why the server refused an image (spec §4.4): over the byte limit, or not a PNG, JPEG, WebP or SVG that decodes. */
+/** Why the server refused an image (spec §4.4): over the byte limit, or not a PNG, JPEG or WebP that decodes. */
 export const BRAND_IMAGE_ERROR_CODES = ['too_large', 'not_allowed'] as const
 export type BrandImageErrorCode = (typeof BRAND_IMAGE_ERROR_CODES)[number]
 
