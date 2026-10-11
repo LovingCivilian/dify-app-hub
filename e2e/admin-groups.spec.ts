@@ -1,5 +1,4 @@
 import { expect, test, type Page } from '@playwright/test'
-import type { RowDataPacket } from 'mysql2/promise'
 
 import { deleteApp, deleteGroupsLike, grantAppToGroup, seedApp, seedGroup } from './fixtures/access'
 import { ADMIN_STATE } from './fixtures/constants'
@@ -94,7 +93,7 @@ test.describe('the groups page (B3 spec §4.3)', () => {
 		await page.getByRole('button', { name: 'Add group' }).click()
 		await page.getByLabel('Name').fill(groupName())
 		await pickMember(page, `Gone member (${tag()}-gone@e2e.local)`, `${tag()}-gone`)
-		await withDb(db => db.execute('DELETE FROM users WHERE email = ?', [`${tag()}-gone@e2e.local`]))
+		await withDb(db => db.query('DELETE FROM users WHERE email = $1', [`${tag()}-gone@e2e.local`]))
 		await page.getByRole('button', { name: 'Add', exact: true }).click()
 		const error = page.getByText(
 			'A picked account no longer exists. Reload the page and pick again.',
@@ -115,12 +114,12 @@ test.describe('the groups page (B3 spec §4.3)', () => {
 			await pickMember(page, `Group member (${email()})`, email())
 			await page.getByRole('button', { name: 'Add', exact: true }).click()
 			await expect(page.getByText('Group added')).toBeVisible()
-			// The group the form created, read back from MySQL (the pattern of e2e/admin-users.spec.ts).
-			const [found] = await withDb(db =>
-				db.execute<RowDataPacket[]>('SELECT id FROM user_groups WHERE name = ?', [groupName()]),
+			// The group the form created, read back from the database (the pattern of e2e/admin-users.spec.ts).
+			const { rows: found } = await withDb(db =>
+				db.query<{ id: string }>('SELECT id FROM user_groups WHERE name = $1', [groupName()]),
 			)
 			expect(found).toHaveLength(1)
-			await grantAppToGroup(appId, found[0]!.id as string)
+			await grantAppToGroup(appId, found[0]!.id)
 
 			const memberPage = await member.newPage()
 			await signInAs(memberPage, email(), PASSWORD)

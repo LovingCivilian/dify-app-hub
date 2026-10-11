@@ -6,7 +6,6 @@ import {
 	test,
 	type TestInfo,
 } from '@playwright/test'
-import type { RowDataPacket } from 'mysql2/promise'
 
 import { deleteApp, deleteGroupsLike, seedApp as seedAccessApp, seedGroup } from './fixtures/access'
 import { APP_ID, APP_IDS, CREATED_APP } from './fixtures/constants'
@@ -21,12 +20,12 @@ const ownId = (base: number, testInfo: TestInfo) =>
 	`e2e00000-0000-4000-8000-${String(base + PROJECTS.indexOf(testInfo.project.name) + 1).padStart(12, '0')}`
 const seedApp = (id: string, name: string, apiBase: string) =>
 	withDb(db =>
-		db.execute(
-			'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = ?, api_base = ?',
-			[id, name, 'chat', 'e2e', apiBase, 'app-e2e', name, apiBase],
+		db.query(
+			'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, api_base = EXCLUDED.api_base',
+			[id, name, 'chat', 'e2e', apiBase, 'app-e2e'],
 		),
 	)
-const dropApp = (id: string) => withDb(db => db.execute('DELETE FROM dify_apps WHERE id = ?', [id]))
+const dropApp = (id: string) => withDb(db => db.query('DELETE FROM dify_apps WHERE id = $1', [id]))
 // antd's Table sets data-row-key from rowKey on each body row.
 const rowById = (page: Page, id: string) => page.locator(`tr[data-row-key="${id}"]`)
 const moreActions = (page: Page, id: string) =>
@@ -116,7 +115,7 @@ test('on a phone the table scrolls inside its container and More stays reachable
 test.describe('create and edit', () => {
 	// One project runs at a time, so the created app is removed by name after each test.
 	test.afterEach(async () => {
-		await withDb(db => db.execute('DELETE FROM dify_apps WHERE name = ?', [CREATED_APP.name]))
+		await withDb(db => db.query('DELETE FROM dify_apps WHERE name = $1', [CREATED_APP.name]))
 	})
 
 	test('an admin creates an app from its Dify API base and key, then disables it', async ({
@@ -339,19 +338,26 @@ const pick = async (
 	await expect(drawer.locator('.ant-select-selection-item', { hasText: label })).toBeVisible()
 }
 
-/** The app's name, access mode and grant counts as MySQL holds them. */
+/** The app's name, access mode and grant counts as the database holds them. */
 const storedAccess = (appId: string) =>
 	withDb(async db => {
-		const [[app]] = await db.execute<RowDataPacket[]>(
-			'SELECT name, access_mode FROM dify_apps WHERE id = ?',
+		const {
+			rows: [app],
+		} = await db.query<{ name: string; access_mode: string }>(
+			'SELECT name, access_mode FROM dify_apps WHERE id = $1',
 			[appId],
 		)
-		const [[groups]] = await db.execute<RowDataPacket[]>(
-			'SELECT COUNT(*) AS n FROM app_group_grants WHERE app_id = ?',
+		// count(*) is a bigint, which node-postgres returns as a string (it parses no int8 into a number), hence Number().
+		const {
+			rows: [groups],
+		} = await db.query<{ n: string }>(
+			'SELECT COUNT(*) AS n FROM app_group_grants WHERE app_id = $1',
 			[appId],
 		)
-		const [[users]] = await db.execute<RowDataPacket[]>(
-			'SELECT COUNT(*) AS n FROM app_user_grants WHERE app_id = ?',
+		const {
+			rows: [users],
+		} = await db.query<{ n: string }>(
+			'SELECT COUNT(*) AS n FROM app_user_grants WHERE app_id = $1',
 			[appId],
 		)
 		return {

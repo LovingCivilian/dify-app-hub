@@ -10,7 +10,7 @@ import { withDb } from './db'
 import { waitForHydration } from './hydration'
 
 /**
- * An account written straight to the e2e MySQL with a bcrypt hash (charter §4.6: extra users through the
+ * An account written straight to the e2e database with a bcrypt hash (charter §4.6: extra users through the
  * database fixture). Its email must carry the project name, and the spec deletes it in `finally` or `afterEach`.
  * A leftover row with the same email (a run killed before its clean-up) is deleted first, with its reset tokens,
  * so the insert does not hit the unique email index.
@@ -29,24 +29,23 @@ export const seedUser = async ({
 	const id = randomUUID()
 	const hash = await bcrypt.hash(password, 10)
 	await withDb(async db => {
-		await db.execute(
-			'DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users WHERE email = ?)',
+		// The leftover is found as the unique index compares (users_email_key on lower(email)), so a leftover in another
+		// case cannot refuse the insert either.
+		await db.query(
+			'DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users WHERE lower(email) = lower($1))',
 			[email],
 		)
-		await db.execute('DELETE FROM users WHERE email = ?', [email])
-		await db.execute('INSERT INTO users (id, name, email, password, role) VALUES (?, ?, ?, ?, ?)', [
-			id,
-			name,
-			email,
-			hash,
-			role,
-		])
+		await db.query('DELETE FROM users WHERE lower(email) = lower($1)', [email])
+		await db.query(
+			'INSERT INTO users (id, name, email, password, role) VALUES ($1, $2, $3, $4, $5)',
+			[id, name, email, hash, role],
+		)
 	})
 	return id
 }
 
 /**
- * A directory account written straight to the e2e MySQL (no password, source `ldap`, a key), as the first directory
+ * A directory account written straight to the e2e database (no password, source `ldap`, a key), as the first directory
  * sign-in creates one (ADR-0029). Its email must carry the project name; the spec deletes it with deleteUsersLike.
  */
 export const seedDirectoryUser = async ({
@@ -62,23 +61,27 @@ export const seedDirectoryUser = async ({
 }): Promise<string> => {
 	const id = randomUUID()
 	await withDb(async db => {
-		await db.execute('DELETE FROM users WHERE email = ?', [email])
-		await db.execute(
-			"INSERT INTO users (id, name, email, password, source, directory_id, directory_id_attribute, directory_username, directory_deactivated_at) VALUES (?, ?, ?, NULL, 'ldap', ?, 'objectGUID', ?, ?)",
+		await db.query('DELETE FROM users WHERE lower(email) = lower($1)', [email])
+		await db.query(
+			"INSERT INTO users (id, name, email, password, source, directory_id, directory_id_attribute, directory_username, directory_deactivated_at) VALUES ($1, $2, $3, NULL, 'ldap', $4, 'objectGUID', $5, $6)",
 			[id, name, email, randomUUID(), username, notInDirectorySince],
 		)
 	})
 	return id
 }
 
-/** Deletes the accounts whose email matches a LIKE pattern, and their reset tokens. */
+/**
+ * Deletes the accounts whose email matches a pattern, and their reset tokens. ILIKE, because MySQL's collation compared
+ * without case and the specs' clean-ups rely on it (PostgreSQL 18 "LIKE": "The key word ILIKE can be used instead of
+ * LIKE to make the match case-insensitive according to the active locale").
+ */
 export const deleteUsersLike = (pattern: string) =>
 	withDb(async db => {
-		await db.execute(
-			'DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users WHERE email LIKE ?)',
+		await db.query(
+			'DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users WHERE email ILIKE $1)',
 			[pattern],
 		)
-		await db.execute('DELETE FROM users WHERE email LIKE ?', [pattern])
+		await db.query('DELETE FROM users WHERE email ILIKE $1', [pattern])
 	})
 
 /**

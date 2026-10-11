@@ -1,30 +1,36 @@
-# Throwaway services for the tests, published on 127.0.0.1 only. MySQL (tmpfs) is started by e2e/global-setup.ts;
+# Throwaway services for the tests, published on 127.0.0.1 only. PostgreSQL (tmpfs) is started by e2e/global-setup.ts;
 # the two LDAP test directories (profile `ldap`) are started by name: ldap-ad by e2e/global-setup.ts, both by
 # __tests__/ldap/global-setup.ts (pnpm test:ldap). Stop them with:
-#   docker compose -f docker-compose.e2e.yml down             (MySQL)
+#   docker compose -f docker-compose.e2e.yml down             (PostgreSQL)
 #   docker compose -f docker-compose.e2e.yml down -v ldap-ad ldap-openldap
 #   docker compose -f docker-compose.e2e.yml --profile ldap down -v   (everything)
-name: dify-app-hub-e2e
+name: ai-app-hub-e2e
 
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: dify-app-hub-e2e-mysql
+  postgres:
+    image: postgres:18
+    container_name: ai-app-hub-e2e-postgres
     environment:
-      MYSQL_DATABASE: e2e
-      MYSQL_USER: e2e
-      MYSQL_PASSWORD: e2e
-      MYSQL_ROOT_PASSWORD: e2e
+      POSTGRES_DB: e2e
+      POSTGRES_USER: e2e
+      POSTGRES_PASSWORD: e2e
     ports:
-      - '127.0.0.1:3307:3306'
+      - '127.0.0.1:5433:5432'
+    # The 18 images' VOLUME (the postgres image's docs, "PGDATA"), in memory: every new container starts empty.
     tmpfs:
-      - /var/lib/mysql
+      - /var/lib/postgresql
+    # The default 64 MB /dev/shm can fail with "could not resize shared memory segment" (the image's docs, "Caveats").
+    shm_size: 128mb
     healthcheck:
-      test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -u root -pe2e --silent']
-      interval: 2s
-      timeout: 5s
-      retries: 30
-      start_period: 10s
+      # Compose "Control startup order" example, with -h 127.0.0.1 (the first-start server listens on the socket only).
+      # start_interval checks every second during start_period, so `up --wait` returns soon after the server is ready
+      # (Compose file reference, healthcheck `start_interval`, as the LDAP services below use it).
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
 
   # B3b test directories (ADR-0010 harness; spec §8). Not started by a plain `up`: the e2e and test:ldap
   # global setups target them by name. Stop them: docker compose -f docker-compose.e2e.yml down -v ldap-ad ldap-openldap
@@ -32,7 +38,7 @@ services:
   ldap-ad:
     # Samba AD LDAP for developers/CI; rebuilt daily from alpine:latest, so bump the digest on purpose.
     image: smblds/smblds:latest@sha256:b4eeb4e723a3b3284101b950f9ab8c0e36665303ce962e86ef0b4e83f7677641
-    container_name: dify-app-hub-e2e-ldap-ad
+    container_name: ai-app-hub-e2e-ldap-ad
     profiles: [ldap]
     hostname: dc
     environment:
@@ -81,7 +87,7 @@ services:
   ldap-openldap:
     # OpenLDAP 2.6.15 (osixia v2 alpha); bootstrap on an empty container (no VOLUME), data loaded by slapadd.
     image: osixia/openldap:2.6.15-alpha@sha256:de37b295c8f11f6654a2376f7b5f9d5e9d028bd2f50713751f99ed270f7abbec
-    container_name: dify-app-hub-e2e-ldap-openldap
+    container_name: ai-app-hub-e2e-ldap-openldap
     profiles: [ldap]
     hostname: ldap-openldap
     environment:

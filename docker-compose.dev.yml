@@ -8,7 +8,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: dify-app-hub-self-deploy
+    container_name: ai-app-hub-self-deploy
     ports:
       - '5300:5300'
     # 通过文件读取环境变量
@@ -16,9 +16,9 @@ services:
       - .env
     restart: unless-stopped
     networks:
-      - dify-app-hub-network
+      - ai-app-hub-network
 
 # 网络配置
 networks:
-  dify-app-hub-network:
+  ai-app-hub-network:
     driver: bridge

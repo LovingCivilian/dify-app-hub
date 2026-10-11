@@ -1,47 +1,55 @@
-# Local test stack: builds the app from this checkout and runs it with its own MySQL server.
+# Local test stack: builds the hub from this checkout and runs it with its own PostgreSQL server.
 # Usage: docker compose -f docker-compose.local.yml up -d --build
-# Settings and passwords are read from .env (not committed).
+# Settings and passwords are read from .env (not committed). POSTGRES_DB, POSTGRES_USER and POSTGRES_PASSWORD create
+# the database on the volume's first start (the postgres image's docs, "Environment Variables"); the hub reaches it
+# with DATABASE_URL=postgres://<user>:<password>@postgres:5432/<db>.
 #
-# Quick dev loop (no image build): stop the app container, keep MySQL, run `pnpm dev`
-# on the host against 127.0.0.1:3306 (DATABASE_URL in .env.development.local). See CLAUDE.md.
-name: dify-app-hub-local
+# Quick dev loop (no image build): stop the app container, keep PostgreSQL, run `pnpm dev`
+# on the host against 127.0.0.1:5432 (DATABASE_URL in .env.development.local). See CLAUDE.md.
+name: ai-app-hub-local
 
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: dify-app-hub-local-mysql
+  postgres:
+    image: postgres:18
+    container_name: ai-app-hub-local-postgres
     environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      # Compose "Interpolation": ${VAR:?error} stops with the message when the variable is unset or empty; the image
+      # requires a non-empty POSTGRES_PASSWORD.
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
       # This machine only, for `pnpm dev` on the host; not reachable from the network
-      - '127.0.0.1:3306:3306'
+      - '127.0.0.1:5432:5432'
     volumes:
-      - mysql-data:/var/lib/mysql
+      # The 18 images declare VOLUME /var/lib/postgresql and keep PGDATA at /var/lib/postgresql/18/docker below it; the
+      # older mount at its `data` folder applies to 17 and below only (the postgres image's docs, "PGDATA").
+      - pgdata:/var/lib/postgresql
+    # The default 64 MB /dev/shm can fail with "could not resize shared memory segment" (the image's docs, "Caveats").
+    shm_size: 128mb
     healthcheck:
-      # 127.0.0.1 (TCP) only answers once first-run initialisation has finished
-      test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -u root -p"$$MYSQL_ROOT_PASSWORD" --silent']
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 20s
+      # Compose "Control startup order" example. -h 127.0.0.1: during first-run initialisation the server listens on
+      # the Unix socket only, so a TCP check reports ready only once the real server is up (the image's docs).
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: dify-app-hub-local-app
+    container_name: ai-app-hub-local-app
     ports:
       - '5300:5300'
     env_file:
       - .env
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  mysql-data:
+  pgdata:

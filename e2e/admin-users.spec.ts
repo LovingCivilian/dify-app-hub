@@ -1,5 +1,4 @@
 import { expect, type Page, test } from '@playwright/test'
-import type { RowDataPacket } from 'mysql2/promise'
 
 import { withDb } from './fixtures/db'
 import { drawerOpened } from './fixtures/drawer'
@@ -8,16 +7,13 @@ import { deleteUsersLike, openUsers, seedUser, signInAs } from './fixtures/users
 
 const row = (page: Page, email: string) => page.getByRole('row', { name: new RegExp(email) })
 
-/** The owner's account id, the Dify user ID (ADR-0026), read from MySQL: exactly one row. */
+/** The owner's account id, the Dify user ID (ADR-0026), read from the database: exactly one row. */
 const ownerId = async () => {
-	const rows = await withDb(async db => {
-		const [found] = await db.execute<RowDataPacket[]>('SELECT id FROM users WHERE email = ?', [
-			e2eEnv.E2E_ADMIN_EMAIL,
-		])
-		return found
-	})
+	const { rows } = await withDb(db =>
+		db.query<{ id: string }>('SELECT id FROM users WHERE email = $1', [e2eEnv.E2E_ADMIN_EMAIL]),
+	)
 	expect(rows).toHaveLength(1)
-	return String(rows[0].id)
+	return rows[0].id
 }
 
 test.describe('user CRUD', () => {
@@ -130,7 +126,7 @@ test.describe('user CRUD', () => {
 	test('editing a user onto an email another account holds says it is in use and writes nothing', async ({
 		page,
 	}, testInfo) => {
-		// updateUser's email check runs only against MySQL, so the e2e suite is where it is exercised.
+		// updateUser's email check runs only against a database, so the e2e suite is where it is exercised.
 		const email = `user-${testInfo.project.name}-moved@e2e.local`
 		const taken = `user-${testInfo.project.name}-taken@e2e.local`
 		await seedUser({ email, password: '12345678', name: 'Kept name' })
@@ -144,7 +140,7 @@ test.describe('user CRUD', () => {
 		await expect(page.getByText('This email is already in use')).toBeVisible()
 		await edit.getByRole('button', { name: 'Cancel' }).click()
 		await expect(edit).toBeHidden()
-		// The row read back from MySQL: the refused edit applied none of its fields, the name included.
+		// The row as the database holds it, after a reload: the refused edit applied none of its fields, the name included.
 		await page.reload()
 		await expect(row(page, email)).toContainText('Kept name')
 		await expect(row(page, email)).not.toContainText('Refused name')

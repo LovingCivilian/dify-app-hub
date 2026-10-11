@@ -1,5 +1,4 @@
 import { expect, test, type Page } from '@playwright/test'
-import type { RowDataPacket } from 'mysql2/promise'
 
 import { deleteApp, deleteGroupsLike, grantAppToGroup, seedApp } from './fixtures/access'
 import { ADMIN_STATE } from './fixtures/constants'
@@ -55,11 +54,11 @@ test.describe('directory groups on the groups page (spec §6.5)', () => {
 		await expect(row.getByText('hub-engineering', { exact: true })).toBeVisible()
 
 		const groupId = await withDb(async db => {
-			const [rows] = await db.execute<RowDataPacket[]>(
-				'SELECT id FROM user_groups WHERE name = ?',
+			const { rows } = await db.query<{ id: string }>(
+				'SELECT id FROM user_groups WHERE name = $1',
 				[tag()],
 			)
-			return String(rows[0]!.id)
+			return rows[0]!.id
 		})
 		appId = await seedApp({ name: `${tag()} app`, accessMode: 'restricted' })
 		await grantAppToGroup(appId, groupId)
