@@ -14,11 +14,15 @@
 	align-items: center;
 	justify-content: center;
 }
+/* min-width: 0 lets the link shrink inside .side, so a long name-only brand can be cut (CSS Flexbox Level 1 §4.5,
+   "Automatic Minimum Size of Flex Items": a flex item that is not a scroll container is otherwise never narrower than
+   its content-based minimum size). */
 .logo {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--ant-margin-xs);
 	color: inherit;
+	min-width: 0;
 }
 
 /* Mobile first with one query at antd's screenMD (docs/frontend-conventions.md §4.3.4), so the two variants
@@ -28,6 +32,14 @@
 .title {
 	display: none;
 	white-space: nowrap;
+}
+/* A name-only brand (settings spec §4.2): kept at every width, cut with an ellipsis when narrow. min-width: 0 as on
+   .logo (CSS Flexbox Level 1 §4.5), so the flex item may become narrower than its text. */
+.nameOnly {
+	min-width: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 .desktopOnly {
 	display: none;

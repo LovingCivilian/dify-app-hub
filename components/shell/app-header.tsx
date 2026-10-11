@@ -1,17 +1,17 @@
 'use client'
 
-import { GithubOutlined, MenuOutlined } from '@ant-design/icons'
+import { MenuOutlined } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { Button, Drawer, Flex, Layout, Menu, Space, Typography, theme } from 'antd'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import LogoIcon from '@/assets/images/logo.png'
+import { useBranding } from '@/components/providers/branding-context'
 
 import AccountDropdown from './account-dropdown'
 import styles from './app-header.module.css'
+import BrandLogo from './brand-logo'
 import LanguageDropdown from './language-dropdown'
 import ThemeDropdown from './theme-dropdown'
 
@@ -30,8 +30,6 @@ export interface AppHeaderProps {
 	mobileMenu?: React.ReactNode
 }
 
-const GITHUB_URL = 'https://github.com/lexmin0412/dify-app-hub'
-
 // ADR-0014: click-triggered, i18n-named header controls — docs/decisions/0014-header-controls-click-triggered-named-through-i18next.md
 // Breakpoint variants are both rendered and switched by CSS (spec 2026-10-04 chat §3.3): Grid.useBreakpoint()
 // returns {} on the server, so a hook-chosen branch would paint the mobile header on desktop first.
@@ -44,6 +42,7 @@ export default function AppHeader({
 }: AppHeaderProps) {
 	const { t } = useTranslation()
 	const { token } = theme.useToken()
+	const branding = useBranding()
 	const [navOpen, setNavOpen] = useState(false)
 	const selectedKeys = navSelectedKey ? [navSelectedKey] : []
 
@@ -51,15 +50,6 @@ export default function AppHeader({
 		<Space size={token.marginXXS}>
 			<LanguageDropdown />
 			<ThemeDropdown />
-			<Button
-				type="text"
-				icon={<GithubOutlined />}
-				href={GITHUB_URL}
-				target="_blank"
-				rel="noreferrer"
-				aria-label="GitHub"
-				title="GitHub"
-			/>
 			<AccountDropdown />
 		</Space>
 	)
@@ -89,23 +79,28 @@ export default function AppHeader({
 						/>
 					</span>
 				)}
+				{/* W3C WAI Images Tutorial, Functional images: an image beside the link text is alt="" (Example 2). The link's name is its aria-label (WCAG technique ARIA8), so it keeps one when the image is alone or the name is hidden below md. */}
 				<Link
 					href="/apps"
 					className={styles.logo}
-					aria-label="Dify App Hub"
+					aria-label={branding.name}
 				>
-					<Image
-						src={LogoIcon}
-						width={28}
-						loading="eager"
-						alt=""
-					/>
-					<Typography.Text
-						strong
-						className={styles.title}
-					>
-						Dify App Hub
-					</Typography.Text>
+					{branding.logo && (
+						<BrandLogo
+							image={branding.logo}
+							height={28}
+							alt=""
+						/>
+					)}
+					{branding.showName && (
+						<Typography.Text
+							strong
+							// Below md the name gives way to the controls (.title), unless it is the only thing to show.
+							className={branding.logo ? styles.title : styles.nameOnly}
+						>
+							{branding.name}
+						</Typography.Text>
+					)}
 				</Link>
 			</Flex>
 			{title && <div className={styles.center}>{title}</div>}

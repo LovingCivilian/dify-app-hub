@@ -6,8 +6,10 @@ import { SessionProvider, type SessionProviderProps } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { I18nextProvider, useSSR, useTranslation } from 'react-i18next'
 
+import { BrandingProvider } from '@/components/providers/branding-context'
 import { useHtmlLang } from '@/hooks/use-html-lang'
 import type { SupportedLanguage } from '@/lib/i18n/language-cookie'
+import type { BrandingView } from '@/lib/settings/branding-rules'
 import { ThemeContextProvider, useThemeContext } from '@/lib/theme'
 import type { InitialTheme } from '@/lib/theme/theme-cookie'
 import { getAntdLocale } from '@/libs/antd-locale'
@@ -78,11 +80,14 @@ export default function AppProviders({
 	session,
 	initialTheme,
 	initialLanguage,
+	branding,
 	children,
 }: {
 	session: ServerSession
 	initialTheme: InitialTheme
 	initialLanguage: SupportedLanguage
+	/** The brand from the root layout, settings spec §4.6. */
+	branding: BrandingView
 	children: React.ReactNode
 }) {
 	return (
@@ -91,7 +96,9 @@ export default function AppProviders({
 				{/* next-auth: a session passed from the server avoids the loading state on first load. */}
 				<SessionProvider session={session}>
 					<ThemeContextProvider initialTheme={initialTheme}>
-						<AntdProviders>{children}</AntdProviders>
+						<AntdProviders>
+							<BrandingProvider value={branding}>{children}</BrandingProvider>
+						</AntdProviders>
 					</ThemeContextProvider>
 				</SessionProvider>
 			</InitialLanguage>
