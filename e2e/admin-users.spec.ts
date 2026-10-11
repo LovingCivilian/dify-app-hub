@@ -146,6 +146,29 @@ test.describe('user CRUD', () => {
 		await expect(row(page, email)).not.toContainText('Refused name')
 	})
 
+	// ADR-0031: one account per email whatever its case. The DAL's check compares lower() on both sides, and the
+	// users_email_key index on lower(email) refuses a write that raced it (Part 0 spec §3.4).
+	test('adding an account whose email differs only in case says it is in use', async ({
+		page,
+	}, testInfo) => {
+		const email = `user-${testInfo.project.name}-case@e2e.local`
+		await seedUser({ email, password: '12345678', name: 'Lower case' })
+		await openUsers(page)
+		await page.getByRole('button', { name: 'Add user' }).click()
+		const add = page.getByRole('dialog').filter({ hasText: 'Add user' })
+		await add.getByLabel('Name').fill('Upper case')
+		await add.getByLabel('Email').fill(email.toUpperCase())
+		await add.getByLabel('Password').fill('12345678')
+		await add.getByRole('button', { name: 'Add' }).click()
+		await expect(page.getByText('This email is already in use')).toBeVisible()
+		await add.getByRole('button', { name: 'Cancel' }).click()
+		await expect(add).toBeHidden()
+		// The rows as the database holds them, after a reload. A string name matches case-insensitively as a substring
+		// (Playwright 1.63 `getByRole`, option `name`), so an upper-case duplicate, had the add gone through, counts too.
+		await page.reload()
+		await expect(page.getByRole('row', { name: email })).toHaveCount(1)
+	})
+
 	test('the own row of the owner offers no password field and a fixed role, and still saves', async ({
 		page,
 	}) => {

@@ -38,6 +38,17 @@ test.describe('signed out', () => {
 		await expect(page).toHaveURL(/\/user-management$/)
 	})
 
+	// ADR-0031: the users_email_key index is on lower(email) and the sign-in compares lower() on both sides, so the
+	// email typed in another case finds the account, as MySQL's case-insensitive collation did (Part 0 spec §3.4).
+	test('signing in with the email typed in another case lands on /apps', async ({ page }) => {
+		await page.goto('/login')
+		await chooseLocalAccount(page)
+		await page.getByLabel('Email').fill(e2eEnv.E2E_ADMIN_EMAIL.toUpperCase())
+		await page.getByLabel('Password').fill(e2eEnv.E2E_ADMIN_PASSWORD)
+		await page.getByRole('button', { name: 'Log in' }).click()
+		await expect(page).toHaveURL(/\/apps$/)
+	})
+
 	test('the login page shows the brand header, and the forgot-password link only with mail configured', async ({
 		page,
 	}) => {
