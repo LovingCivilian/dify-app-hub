@@ -552,14 +552,17 @@ const outcome = async (work: Promise<unknown>) => {
 }
 
 describe('processBrandImage (settings spec §4.4)', () => {
-	it.each(['png', 'jpeg', 'webp'] as const)('re-encodes a %s logo as a PNG inside 768 × 192', async format => {
-		const out = await processBrandImage('logo', await solid(1600, 400)[format]().toBuffer())
-		const meta = await sharp(out.bytes).metadata()
-		expect(meta.format).toBe('png')
-		expect([out.width, out.height]).toEqual([768, 192])
-		expect([meta.width, meta.height]).toEqual([768, 192])
-		expect(out.sha256).toMatch(/^[0-9a-f]{64}$/)
-	})
+	it.each(['png', 'jpeg', 'webp'] as const)(
+		're-encodes a %s logo as a PNG inside 768 × 192',
+		async format => {
+			const out = await processBrandImage('logo', await solid(1600, 400)[format]().toBuffer())
+			const meta = await sharp(out.bytes).metadata()
+			expect(meta.format).toBe('png')
+			expect([out.width, out.height]).toEqual([768, 192])
+			expect([meta.width, meta.height]).toEqual([768, 192])
+			expect(out.sha256).toMatch(/^[0-9a-f]{64}$/)
+		},
+	)
 
 	it('does not enlarge a small raster logo', async () => {
 		const out = await processBrandImage('logo', await solid(100, 40).png().toBuffer())
@@ -592,7 +595,10 @@ describe('processBrandImage (settings spec §4.4)', () => {
 	})
 
 	it.each([
-		['an ICO file', Buffer.concat([Buffer.from([0, 0, 1, 0, 1, 0, 16, 16, 0, 0, 1, 0, 32, 0]), Buffer.alloc(64)])],
+		[
+			'an ICO file',
+			Buffer.concat([Buffer.from([0, 0, 1, 0, 1, 0, 16, 16, 0, 0, 1, 0, 32, 0]), Buffer.alloc(64)]),
+		],
 		['a text file', Buffer.from('not an image')],
 		['an empty file', Buffer.alloc(0)],
 	])('refuses %s as not_allowed', async (_name, input) => {
@@ -600,16 +606,22 @@ describe('processBrandImage (settings spec §4.4)', () => {
 	})
 
 	it('refuses a GIF, which sharp decodes but the allowlist does not take', async () => {
-		expect(await outcome(processBrandImage('favicon', await solid(10, 10).gif().toBuffer()))).toBe('not_allowed')
+		expect(await outcome(processBrandImage('favicon', await solid(10, 10).gif().toBuffer()))).toBe(
+			'not_allowed',
+		)
 	})
 
 	it('refuses a truncated PNG whose header still reads', async () => {
 		const png = await solid(300, 300).png().toBuffer()
-		expect(await outcome(processBrandImage('logo', png.subarray(0, Math.floor(png.length / 2))))).toBe('not_allowed')
+		expect(
+			await outcome(processBrandImage('logo', png.subarray(0, Math.floor(png.length / 2)))),
+		).toBe('not_allowed')
 	})
 
 	it('refuses an image over the pixel limit although its bytes are small (Review Focus 4)', async () => {
-		const bomb = await sharp({ create: { width: 5000, height: 5000, channels: 3, background: 'white' } })
+		const bomb = await sharp({
+			create: { width: 5000, height: 5000, channels: 3, background: 'white' },
+		})
 			.png({ compressionLevel: 9 })
 			.toBuffer()
 		expect(bomb.length).toBeLessThan(512 * 1024)
@@ -617,8 +629,10 @@ describe('processBrandImage (settings spec §4.4)', () => {
 		expect(await outcome(processBrandImage('logo', bomb))).toBe('not_allowed')
 	})
 
-	it('refuses input over its kind's byte limit before decoding', async () => {
-		expect(await outcome(processBrandImage('favicon', Buffer.alloc(256 * 1024 + 1)))).toBe('too_large')
+	it('refuses input over the byte limit of its kind before decoding', async () => {
+		expect(await outcome(processBrandImage('favicon', Buffer.alloc(256 * 1024 + 1)))).toBe(
+			'too_large',
+		)
 		expect(await outcome(processBrandImage('logo', Buffer.alloc(512 * 1024 + 1)))).toBe('too_large')
 	})
 })
@@ -1073,7 +1087,9 @@ const builtInImage = { src: '/_next/static/media/logo.abc.png', width: 81, heigh
 const admin = { id: 'a1', email: 'admin@example.com', name: null, role: 'admin' as const }
 const sha = (char: string) => char.repeat(64)
 const png = (width: number, height: number) =>
-	sharp({ create: { width, height, channels: 4, background: '#1677ff' } }).png().toBuffer()
+	sharp({ create: { width, height, channels: 4, background: '#1677ff' } })
+		.png()
+		.toBuffer()
 
 beforeEach(() => {
 	envState.branding = { mode: 'disabled', values: null }
@@ -1100,7 +1116,11 @@ describe('getBranding (settings spec §3.3)', () => {
 		envState.branding = { mode: 'database', values: null }
 		const { getBranding } = await load()
 		data.readInstanceSetting.mockResolvedValueOnce(null)
-		expect(await getBranding()).toMatchObject({ mode: 'database', builtIn: true, name: 'Dify App Hub' })
+		expect(await getBranding()).toMatchObject({
+			mode: 'database',
+			builtIn: true,
+			name: 'Dify App Hub',
+		})
 		const logo = { sha256: sha('a'), width: 400, height: 100 }
 		data.readInstanceSetting.mockResolvedValueOnce({
 			data: { name: 'Acme', showName: false, logo, favicon: null },
@@ -1120,14 +1140,21 @@ describe('getBranding (settings spec §3.3)', () => {
 
 	it('falls back to the built-in brand and logs a document the schema refuses', async () => {
 		envState.branding = { mode: 'database', values: null }
-		data.readInstanceSetting.mockResolvedValue({ data: { name: '' }, updatedAt: new Date(), updatedBy: null, updatedByEmail: null })
+		data.readInstanceSetting.mockResolvedValue({
+			data: { name: '' },
+			updatedAt: new Date(),
+			updatedBy: null,
+			updatedByEmail: null,
+		})
 		expect(await (await load()).getBranding()).toMatchObject({ builtIn: true })
 		expect(logSettingsError).toHaveBeenCalledWith('instance_settings.branding', 'invalid_document')
 	})
 
 	it('falls back to the built-in brand when the database does not answer (Review Focus 1)', async () => {
 		envState.branding = { mode: 'database', values: null }
-		data.readInstanceSetting.mockRejectedValue(Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }))
+		data.readInstanceSetting.mockRejectedValue(
+			Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }),
+		)
 		expect(await (await load()).getBranding()).toMatchObject({ mode: 'database', builtIn: true })
 		expect(logActionError).toHaveBeenCalledWith(expect.any(Error), 'getBranding')
 	})
@@ -1136,10 +1163,23 @@ describe('getBranding (settings spec §3.3)', () => {
 		const dir = await mkdtemp(path.join(tmpdir(), 'branding-'))
 		const logoFile = path.join(dir, 'logo.png')
 		await writeFile(logoFile, await png(800, 200))
-		envState.branding = { mode: 'env', values: { name: 'Acme', showName: true, logoFile, faviconFile: null } }
+		envState.branding = {
+			mode: 'env',
+			values: { name: 'Acme', showName: true, logoFile, faviconFile: null },
+		}
 		const branding = await (await load()).getBranding()
-		expect(branding).toMatchObject({ mode: 'env', builtIn: false, name: 'Acme', showName: true, favicon: null })
-		expect(branding.logo).toEqual({ sha256: expect.stringMatching(/^[0-9a-f]{64}$/), width: 768, height: 192 })
+		expect(branding).toMatchObject({
+			mode: 'env',
+			builtIn: false,
+			name: 'Acme',
+			showName: true,
+			favicon: null,
+		})
+		expect(branding.logo).toEqual({
+			sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+			width: 768,
+			height: 192,
+		})
 	})
 
 	it('runs without an env file it cannot use, logging the variable and the code, never the path (Review Focus 5)', async () => {
@@ -1169,14 +1209,24 @@ describe('getBranding (settings spec §3.3)', () => {
 		const dir = await mkdtemp(path.join(tmpdir(), 'branding-'))
 		const faviconFile = path.join(dir, 'big.png')
 		await writeFile(faviconFile, Buffer.alloc(256 * 1024 + 1))
-		envState.branding = { mode: 'env', values: { name: 'Acme', showName: true, logoFile: null, faviconFile } }
+		envState.branding = {
+			mode: 'env',
+			values: { name: 'Acme', showName: true, logoFile: null, faviconFile },
+		}
 		await (await load()).getBranding()
 		expect(logSettingsError).toHaveBeenCalledWith('BRANDING_FAVICON_FILE', 'too_large')
 	})
 })
 
 describe('brandingView (spec §4.6)', () => {
-	const base = { mode: 'database' as const, builtIn: false, name: 'Acme', showName: true, logo: null, favicon: null }
+	const base = {
+		mode: 'database' as const,
+		builtIn: false,
+		name: 'Acme',
+		showName: true,
+		logo: null,
+		favicon: null,
+	}
 
 	it('draws the built-in image for the built-in brand', async () => {
 		const { brandingView } = await load()
@@ -1198,21 +1248,31 @@ describe('brandingView (spec §4.6)', () => {
 			logo: { src: `/api/branding/logo?v=${'1'.repeat(16)}`, width: 400, height: 100 },
 			faviconSrc: `/api/branding/favicon?v=${'2'.repeat(16)}`,
 		})
-		expect(brandingView({ ...base, logo }, builtInImage).faviconSrc).toBe(`/api/branding/favicon?v=${'1'.repeat(16)}`)
+		expect(brandingView({ ...base, logo }, builtInImage).faviconSrc).toBe(
+			`/api/branding/favicon?v=${'1'.repeat(16)}`,
+		)
 		expect(brandingView(base, builtInImage).faviconSrc).toBe(builtInImage.src)
 	})
 
 	it('shows the name whenever there is no logo', async () => {
 		const { brandingView } = await load()
-		expect(brandingView({ ...base, showName: false }, builtInImage)).toMatchObject({ showName: true, logo: null })
+		expect(brandingView({ ...base, showName: false }, builtInImage)).toMatchObject({
+			showName: true,
+			logo: null,
+		})
 	})
 })
 
 describe('readBrandImage (spec §4.5)', () => {
-	it('serves the stored file with the document's hash in database mode', async () => {
+	it('serves the stored file with the hash the document records, in database mode', async () => {
 		envState.branding = { mode: 'database', values: null }
 		data.readInstanceSetting.mockResolvedValue({
-			data: { name: 'Acme', showName: true, logo: { sha256: sha('a'), width: 4, height: 1 }, favicon: null },
+			data: {
+				name: 'Acme',
+				showName: true,
+				logo: { sha256: sha('a'), width: 4, height: 1 },
+				favicon: null,
+			},
 			updatedAt: new Date(),
 			updatedBy: null,
 			updatedByEmail: null,
@@ -1226,14 +1286,22 @@ describe('readBrandImage (spec §4.5)', () => {
 	it('answers null and logs when the document names a file that is not there', async () => {
 		envState.branding = { mode: 'database', values: null }
 		data.readInstanceSetting.mockResolvedValue({
-			data: { name: 'Acme', showName: true, logo: { sha256: sha('a'), width: 4, height: 1 }, favicon: null },
+			data: {
+				name: 'Acme',
+				showName: true,
+				logo: { sha256: sha('a'), width: 4, height: 1 },
+				favicon: null,
+			},
 			updatedAt: new Date(),
 			updatedBy: null,
 			updatedByEmail: null,
 		})
 		data.readInstanceSettingFile.mockResolvedValue(null)
 		expect(await (await load()).readBrandImage('logo')).toBeNull()
-		expect(logSettingsError).toHaveBeenCalledWith('instance_setting_files.branding.logo', 'missing_file')
+		expect(logSettingsError).toHaveBeenCalledWith(
+			'instance_setting_files.branding.logo',
+			'missing_file',
+		)
 	})
 
 	it('serves nothing in disabled mode', async () => {
@@ -1256,7 +1324,10 @@ describe('saveBranding (spec §5.4)', () => {
 	})
 
 	it('refuses outside database mode', async () => {
-		envState.branding = { mode: 'env', values: { name: 'Acme', showName: true, logoFile: null, faviconFile: null } }
+		envState.branding = {
+			mode: 'env',
+			values: { name: 'Acme', showName: true, logoFile: null, faviconFile: null },
+		}
 		const { saveBranding } = await load()
 		expect(await saveBranding(admin, { name: 'Acme', showName: true, images: keepBoth })).toEqual({
 			ok: false,
@@ -1267,7 +1338,10 @@ describe('saveBranding (spec §5.4)', () => {
 
 	it('keeps the stored images on keep, and writes no file change', async () => {
 		const { saveBranding } = await load()
-		expect(await saveBranding(admin, { name: 'Acme', showName: false, images: keepBoth })).toEqual({ ok: true, data: undefined })
+		expect(await saveBranding(admin, { name: 'Acme', showName: false, images: keepBoth })).toEqual({
+			ok: true,
+			data: undefined,
+		})
 		expect(data.writeInstanceSetting).toHaveBeenCalledWith(
 			admin,
 			'branding',
@@ -1298,9 +1372,16 @@ describe('saveBranding (spec §5.4)', () => {
 			await saveBranding(admin, {
 				name: 'Acme',
 				showName: true,
-				images: { logo: { intent: 'replace', file: text }, favicon: { intent: 'replace', file: big } },
+				images: {
+					logo: { intent: 'replace', file: text },
+					favicon: { intent: 'replace', file: big },
+				},
 			}),
-		).toEqual({ ok: false, code: 'invalid_image', fieldErrors: { logo: ['not_allowed'], favicon: ['too_large'] } })
+		).toEqual({
+			ok: false,
+			code: 'invalid_image',
+			fieldErrors: { logo: ['not_allowed'], favicon: ['too_large'] },
+		})
 		expect(data.writeInstanceSetting).not.toHaveBeenCalled()
 	})
 
