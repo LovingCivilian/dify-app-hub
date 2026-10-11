@@ -72,9 +72,10 @@ function ImageField({
 	const { t } = useTranslation()
 	const { message } = App.useApp()
 	const src = previewOf(draft, savedSrc)
+	const label = t(kind === 'logo' ? 'admin_settings.logo' : 'admin_settings.favicon')
 	return (
 		<Form.Item
-			label={t(kind === 'logo' ? 'admin_settings.logo' : 'admin_settings.favicon')}
+			label={label}
 			extra={t(kind === 'logo' ? 'admin_settings.logo_hint' : 'admin_settings.favicon_hint')}
 			validateStatus={error ? 'error' : undefined}
 			help={error}
@@ -85,12 +86,14 @@ function ImageField({
 				gap="small"
 			>
 				{src && (
-					// An unsaved image has no known size, which next/image needs (plan decision e).
+					// An unsaved image has no known size, which next/image needs (plan decision e). The image is what will be
+					// saved, so it carries meaning: a short text alternative naming it (W3C WAI Images Tutorial, "Informative
+					// images" and the alt decision tree).
 					<Image
 						src={src}
 						height={kind === 'logo' ? 48 : 32}
 						preview={false}
-						alt=""
+						alt={label}
 					/>
 				)}
 				<Upload
@@ -141,13 +144,35 @@ export default function BrandingSettings({ settings }: { settings: BrandingSetti
 	useRevokeOnChange(favicon)
 	const { pending, run } = useActionTransition()
 
+	/*
+	 * Drops the server's errors on the fields the admin has changed since. They live in this state and reach the fields
+	 * through `help`, which no validation replaces (the image items have no `name` or `rules`, and @rc-component/form
+	 * validates only fields with rules; the groups drawer clears its picker's server error on change the same way), so a
+	 * refusal would otherwise outlive the value it was about. The same state back skips the re-render (react.dev
+	 * `useState`: "If the new value you provide is identical to the current state … React will skip re-rendering").
+	 */
+	const clearErrors = (fields: string[]) =>
+		setErrors(previous =>
+			fields.some(field => field in previous)
+				? Object.fromEntries(Object.entries(previous).filter(([field]) => !fields.includes(field)))
+				: previous,
+		)
+
 	const savedLogoSrc = settings.hasLogo ? (settings.current.logo?.src ?? null) : null
 	const hasLogo = logo.intent === 'replace' || (logo.intent === 'keep' && settings.hasLogo)
 	const name = Form.useWatch('name', form) ?? settings.name
 	const showName = effectiveShowName(Form.useWatch('showName', form) ?? settings.showName, hasLogo)
 	const previewSrc = previewOf(logo, savedLogoSrc)
+	// A const binding keeps its narrowing inside the Descriptions items' callback, which `settings.env` would lose
+	// (TypeScript 5.4 release notes: narrowing is dropped in a callback when the value may be "mutated elsewhere").
+	const env = settings.mode === 'env' ? settings.env : null
 
-	// Spec §4.2: the switch cannot hide the name while no logo is left. Only the database mode renders the form.
+	/*
+	 * Spec §4.2: the switch cannot hide the name while no logo is left. Only database mode renders the `<Form>`; in the
+	 * other modes the guard keeps the write out of a form store that nothing renders. (It is not about rc-field-form's
+	 * "not connected" warning, which cannot fire here: the `Form.useWatch` calls above mark the store connected during
+	 * render, @rc-component/form useWatch.js → useForm.js `getInternalHooks`.)
+	 */
 	useEffect(() => {
 		if (settings.mode === 'database' && !hasLogo) form.setFieldValue('showName', true)
 	}, [settings.mode, hasLogo, form])
@@ -190,21 +215,24 @@ export default function BrandingSettings({ settings }: { settings: BrandingSetti
 				align="center"
 				gap={token.marginSM}
 			>
-				{/* Database mode previews the draft's image only, never the built-in one (spec §5.3; §2 decision 10). */}
+				{/*
+				 * Database mode previews the draft's image only, never the built-in one (spec §5.3; §2 decision 10). The image
+				 * is the logo the header will draw, so its alternative names it (W3C WAI Images Tutorial, "Informative images").
+				 */}
 				{settings.mode === 'database'
 					? previewSrc && (
 							<Image
 								src={previewSrc}
 								height={28}
 								preview={false}
-								alt=""
+								alt={t('admin_settings.logo')}
 							/>
 						)
 					: settings.current.logo && (
 							<BrandLogo
 								image={settings.current.logo}
 								height={28}
-								alt=""
+								alt={t('admin_settings.logo')}
 							/>
 						)}
 				{(settings.mode === 'database' ? showName : settings.current.showName) && (
@@ -237,7 +265,7 @@ export default function BrandingSettings({ settings }: { settings: BrandingSetti
 				)}
 			/>
 			{preview}
-			{settings.mode === 'env' && settings.env && (
+			{env && (
 				<Descriptions
 					bordered
 					column={1}
@@ -253,8 +281,8 @@ export default function BrandingSettings({ settings }: { settings: BrandingSetti
 							children: t(settings.showName ? 'admin_settings.yes' : 'admin_settings.no'),
 						},
 						...(['logo', 'favicon'] as const).map(kind => {
-							const file = kind === 'logo' ? settings.env!.logoFile : settings.env!.faviconFile
-							const error = settings.env!.errors[kind]
+							const file = kind === 'logo' ? env.logoFile : env.faviconFile
+							const error = env.errors[kind]
 							return {
 								key: kind,
 								label: (
@@ -278,7 +306,7 @@ export default function BrandingSettings({ settings }: { settings: BrandingSetti
 												src={settings.faviconSrc}
 												height={32}
 												preview={false}
-												alt=""
+												alt={t('admin_settings.favicon')}
 											/>
 										)}
 									</Flex>
@@ -295,11 +323,21 @@ export default function BrandingSettings({ settings }: { settings: BrandingSetti
 						layout="vertical"
 						initialValues={{ name: settings.name, showName: settings.showName }}
 						onFinish={submit}
+						// A server error on the name or the switch is about the value sent; it goes once the admin changes it.
+						onValuesChange={changed => clearErrors(Object.keys(changed))}
 					>
 						<Form.Item
 							name="name"
 							label={t('admin_settings.name')}
-							rules={[{ required: true, whitespace: true, max: BRAND_NAME_MAX }]}
+							// antd Form rules `message`, as the house's forms (components/admin/groups/group-form-drawer.tsx).
+							rules={[
+								{ required: true, whitespace: true, message: t('admin_settings.name_required') },
+								{ max: BRAND_NAME_MAX, message: t('admin_settings.name_too_long') },
+							]}
+							// The server's own refusal (zod: trimmed, 1–64 code points), shown on the field the toast points to;
+							// its message is the server's, so the field names the rule instead (charter §4.5).
+							validateStatus={errors.name ? 'error' : undefined}
+							help={errors.name ? t('admin_settings.name_invalid') : undefined}
 						>
 							<Input
 								// antd Input `count` (CountConfig, demo "Custom count logic"): counts code points as zod and the form
@@ -326,14 +364,20 @@ export default function BrandingSettings({ settings }: { settings: BrandingSetti
 							kind="logo"
 							savedSrc={savedLogoSrc}
 							draft={logo}
-							onChange={setLogo}
+							onChange={draft => {
+								setLogo(draft)
+								clearErrors(['logo'])
+							}}
 							error={imageError('logo')}
 						/>
 						<ImageField
 							kind="favicon"
 							savedSrc={settings.faviconSrc}
 							draft={favicon}
-							onChange={setFavicon}
+							onChange={draft => {
+								setFavicon(draft)
+								clearErrors(['favicon'])
+							}}
 							error={imageError('favicon')}
 						/>
 						<Flex
