@@ -22,7 +22,7 @@ vi.mock('@/lib/auth/password', () => ({ verifyPassword, UNKNOWN_ACCOUNT_HASH: no
 vi.mock('@/lib/auth/directory-provider', () => ({ authorizeDirectory: vi.fn() }))
 
 import { DrizzleQueryError, type SQL } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/mysql2'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import type { JWT } from 'next-auth/jwt'
 
 import { users } from '@/db/schema'
@@ -139,7 +139,7 @@ describe('authorizeCredentials', () => {
 		// The hash checked is the row of the email given: the lookup is by email, with that email as its only parameter.
 		expect(where).toHaveBeenCalledTimes(1)
 		const { sql, params } = renderWhere(where.mock.calls[0]![0])
-		expect(sql).toMatch(/ where `users`\.`email` = \?$/)
+		expect(sql).toMatch(/ where "users"\."email" = \$1$/)
 		expect(params).toEqual(['jane@example.com'])
 	})
 
@@ -318,7 +318,7 @@ describe('jwt callback', () => {
 		} as never)
 		expect(where).toHaveBeenCalledTimes(1)
 		const { sql, params } = renderWhere(where.mock.calls[0]![0])
-		expect(sql).toMatch(/ where `users`\.`id` = \?$/)
+		expect(sql).toMatch(/ where "users"\."id" = \$1$/)
 		expect(params).toEqual(['u1'])
 	})
 

@@ -1,5 +1,5 @@
 import type { SQL } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/mysql2'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // A getDb stub whose rows the tests control. The unlocked read goes through the db (its limit() is awaited); the
@@ -36,7 +36,7 @@ const mocks = vi.hoisted(() => {
 			set: (values: Record<string, unknown>) => ({
 				where: (condition: unknown) => {
 					updates.push({ values, condition })
-					return Promise.resolve([{ affectedRows: 1 }])
+					return Promise.resolve({ rowCount: 1 })
 				},
 			}),
 		}),
@@ -107,15 +107,15 @@ describe('changeOwnPassword (charter §4.2, decision d)', () => {
 		expect(mocks.conditions).toHaveLength(2)
 		for (const condition of mocks.conditions) {
 			const read = renderWhere(condition)
-			expect(read.sql).toMatch(/ where `users`\.`id` = \?$/)
+			expect(read.sql).toMatch(/ where "users"\."id" = \$1$/)
 			expect(read.params).toEqual(['u1'])
 		}
 		expect(mocks.updates).toHaveLength(1)
 		const update = renderUpdate(mocks.updates[0])
-		expect(update.sql).toMatch(/^update `users` set `password` = \?, /)
+		expect(update.sql).toMatch(/^update "users" set "password" = \$1, /)
 		// sessionVersion + 1 revokes every session of the account, this one included (lib/auth/options.ts jwt).
-		expect(update.sql).toContain('`session_version` = `users`.`session_version` + 1')
-		expect(update.sql).toMatch(/ where `users`\.`id` = \?$/)
+		expect(update.sql).toContain('"session_version" = "users"."session_version" + 1')
+		expect(update.sql).toMatch(/ where "users"\."id" = \$3$/)
 		expect(update.params[0]).toBe('hash:new-password-1')
 		expect(update.params.at(-1)).toBe('u1')
 	})

@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { and, desc, eq, exists, or, sql, type SQL } from 'drizzle-orm'
-import { QueryBuilder } from 'drizzle-orm/mysql-core'
+import { QueryBuilder } from 'drizzle-orm/pg-core'
 
 import { getDb, type Db } from '@/db'
 import { appGroupGrants, appUserGrants, difyApps, userGroupMembers } from '@/db/schema'
@@ -25,7 +25,7 @@ type IconColumns = Pick<AppRow, 'iconType' | 'icon' | 'iconBackground' | 'iconIm
 
 /**
  * Every column the DTOs read, never the key or the icon bytes (charter §4.2: explicit columns; the image itself is
- * served through getAppIcon). Whether an image is stored is computed by MySQL.
+ * served through getAppIcon). Whether an image is stored is computed by the database.
  */
 const dtoColumns = {
 	id: difyApps.id,
@@ -126,14 +126,9 @@ export interface SyncResult {
 
 export const ICON_MAX_BYTES = 1024 * 1024
 
-export const parseTags = (text: string | null): string[] => {
-	try {
-		const value: unknown = JSON.parse(text ?? '[]')
-		return Array.isArray(value) ? value.filter((tag): tag is string => typeof tag === 'string') : []
-	} catch {
-		return []
-	}
-}
+/** The stored tags, a jsonb array (PostgreSQL 18 "JSON Types"): its strings only, and [] for anything else. */
+export const parseTags = (value: unknown): string[] =>
+	Array.isArray(value) ? value.filter((tag): tag is string => typeof tag === 'string') : []
 
 export const iconOf = (
 	row: Pick<DtoRow, 'iconType' | 'icon' | 'iconBackground' | 'hasIconImage'>,
@@ -361,7 +356,7 @@ const infoColumns = (info: AppInfo) => ({
 	name: info.name,
 	...(isAppMode(info.mode) && { mode: info.mode }),
 	description: info.description ?? null,
-	tags: info.tags?.length ? JSON.stringify(info.tags) : null,
+	tags: info.tags?.length ? info.tags : null,
 })
 
 const settingsColumns = (settings: AppSettings) => ({
@@ -549,8 +544,9 @@ export async function updateApp(
 
 export async function deleteApp(actor: SessionUser, id: string): Promise<boolean> {
 	assertAdmin(actor)
-	const [result] = await getDb().delete(difyApps).where(eq(difyApps.id, id))
-	return result.affectedRows > 0
+	// node-postgres "Result": `rowCount` is the rows the command processed, null for a command that reports none.
+	const result = await getDb().delete(difyApps).where(eq(difyApps.id, id))
+	return (result.rowCount ?? 0) > 0
 }
 
 /** Refreshes name, description, tags, a known mode and the icon from Dify; null when the app is gone. */

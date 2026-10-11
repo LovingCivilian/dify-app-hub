@@ -1,6 +1,14 @@
 export { appGroupGrants, appUserGrants } from './app-grants'
 export { difyApps } from './apps'
 export { directorySyncRuns, userGroupDirectoryLinks } from './directory'
+export {
+	accessMode,
+	accountSource,
+	membershipSource,
+	syncOutcome,
+	syncTrigger,
+	userRole,
+} from './enums'
 export { userGroupMembers, userGroups } from './groups'
 export { passwordResetTokens } from './password-reset-tokens'
 export { instanceSettingFiles, instanceSettings } from './settings'

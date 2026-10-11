@@ -137,12 +137,16 @@ export const writeInstanceSetting = async (
 				const data = build(row?.data ?? null)
 				if (data === undefined) return false
 				const now = new Date()
-				// An upsert updates the row in place (Drizzle "Upsert"; MySQL 8.4 "INSERT ... ON DUPLICATE KEY UPDATE
-				// Statement"), where REPLACE would delete it and cascade away the file rows that belong to it.
+				// An upsert updates the row in place (Drizzle "Upsert", `onConflictDoUpdate`; PostgreSQL 18 "INSERT": ON
+				// CONFLICT DO UPDATE "updates the existing row that conflicts with the row proposed for insertion"), where a
+				// delete and insert would cascade away the file rows that belong to it. pg-core has no onDuplicateKeyUpdate.
 				await tx
 					.insert(instanceSettings)
 					.values({ area, data, updatedAt: now, updatedBy: actor.id })
-					.onDuplicateKeyUpdate({ set: { data, updatedAt: now, updatedBy: actor.id } })
+					.onConflictDoUpdate({
+						target: instanceSettings.area,
+						set: { data, updatedAt: now, updatedBy: actor.id },
+					})
 				for (const [name, file] of Object.entries(files)) {
 					if (file === undefined) continue
 					if (file === null) {
@@ -152,7 +156,10 @@ export const writeInstanceSetting = async (
 					await tx
 						.insert(instanceSettingFiles)
 						.values({ area, name, bytes: file.bytes, mime: file.mime, updatedAt: now })
-						.onDuplicateKeyUpdate({ set: { bytes: file.bytes, mime: file.mime, updatedAt: now } })
+						.onConflictDoUpdate({
+							target: [instanceSettingFiles.area, instanceSettingFiles.name],
+							set: { bytes: file.bytes, mime: file.mime, updatedAt: now },
+						})
 				}
 				return true
 			})

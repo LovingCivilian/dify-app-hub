@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { EnvError, parseEnv } from '@/lib/env'
 
 const base = {
-	DATABASE_URL: 'mysql://u:p@127.0.0.1:3306/db',
+	DATABASE_URL: 'postgres://u:p@127.0.0.1:5432/db',
 	NEXTAUTH_SECRET: 'not-a-secret',
 }
 

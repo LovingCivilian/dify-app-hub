@@ -304,8 +304,9 @@ export const listDirectoryMemberships = (): Promise<MembershipRow[]> =>
 /**
  * Directory deactivation (spec §6.4 step 3, ADR-0027): the directory marker and a sessionVersion bump in one write, so
  * every token in use loses its id at its next request (ADR-0018's rule); only on `ldap` accounts the directory has not
- * marked yet, never the admin marker. The count is the rows changed: the WHERE excludes marked rows, so mysql2's
- * found-rows count (its default `FOUND_ROWS` flag) equals the changed rows.
+ * marked yet, never the admin marker. The count is the rows changed: the WHERE excludes marked rows, so the rows the
+ * update matched, which PostgreSQL counts ("the number of rows updated, including matched rows whose values did not
+ * change", PostgreSQL 18 "UPDATE", Outputs; node-postgres "Result" `rowCount`), are the rows it changed.
  */
 export async function deactivateDirectoryAccounts(
 	ids: readonly string[],
@@ -313,7 +314,7 @@ export async function deactivateDirectoryAccounts(
 ): Promise<number> {
 	let changed = 0
 	for (const part of batches(ids)) {
-		const [result] = await reissueOnDeadlock(() =>
+		const result = await reissueOnDeadlock(() =>
 			getDb()
 				.update(users)
 				.set({ directoryDeactivatedAt: at, sessionVersion: sql`${users.sessionVersion} + 1` })
@@ -325,7 +326,7 @@ export async function deactivateDirectoryAccounts(
 					),
 				),
 		)
-		changed += result.affectedRows
+		changed += result.rowCount ?? 0
 	}
 	return changed
 }
@@ -334,7 +335,7 @@ export async function deactivateDirectoryAccounts(
 export async function reactivateDirectoryAccounts(ids: readonly string[]): Promise<number> {
 	let changed = 0
 	for (const part of batches(ids)) {
-		const [result] = await reissueOnDeadlock(() =>
+		const result = await reissueOnDeadlock(() =>
 			getDb()
 				.update(users)
 				.set({ directoryDeactivatedAt: null })
@@ -346,18 +347,18 @@ export async function reactivateDirectoryAccounts(ids: readonly string[]): Promi
 					),
 				),
 		)
-		changed += result.affectedRows
+		changed += result.rowCount ?? 0
 	}
 	return changed
 }
 
 /**
- * One account's refreshed directory fields (spec §6.4 step 3). A new email the unique index refuses (1062: another
- * account has it) is dropped and the other fields written: the row keeps its old email and the run counts a conflict
- * (spec §2 #11, decision ac). `updated` says the write matched the account: mysql2 connects with `FOUND_ROWS` by
- * default, so `affectedRows` is the rows the WHERE matched, not only those it changed (MySQL 8.4 C API
- * "mysql_affected_rows()": with CLIENT_FOUND_ROWS "the affected-rows value is the number of rows 'found'"). An account
- * deleted during the run matches nothing, and is counted neither updated nor in conflict.
+ * One account's refreshed directory fields (spec §6.4 step 3). A new email the unique index refuses (another account
+ * has it) is dropped and the other fields written: the row keeps its old email and the run counts a conflict (spec §2
+ * #11, decision ac). `updated` says the write matched the account: PostgreSQL counts the rows the WHERE matched,
+ * "including matched rows whose values did not change" (PostgreSQL 18 "UPDATE", Outputs; node-postgres "Result"
+ * `rowCount`, null for a command that reports none, hence `?? 0`). An account deleted during the run matches nothing,
+ * and is counted neither updated nor in conflict.
  */
 export async function refreshDirectoryAccount(
 	update: AccountUpdate,
@@ -368,8 +369,8 @@ export async function refreshDirectoryAccount(
 	}
 	const where = and(eq(users.id, update.id), eq(users.source, 'ldap'))
 	const write = async (values: typeof fields & { email?: string }) => {
-		const [result] = await reissueOnDeadlock(() => getDb().update(users).set(values).where(where))
-		return result.affectedRows > 0
+		const result = await reissueOnDeadlock(() => getDb().update(users).set(values).where(where))
+		return (result.rowCount ?? 0) > 0
 	}
 	if (update.email !== null) {
 		try {
@@ -401,7 +402,7 @@ export async function applyMembershipChanges(
 	const failedGroups = new Set<string>()
 	for (const [groupId, rows] of Map.groupBy(plan.remove, row => row.groupId))
 		for (const part of batches(rows.map(row => row.userId))) {
-			const [result] = await reissueOnDeadlock(() =>
+			const result = await reissueOnDeadlock(() =>
 				db
 					.delete(userGroupMembers)
 					.where(
@@ -412,7 +413,7 @@ export async function applyMembershipChanges(
 						),
 					),
 			)
-			removed += result.affectedRows
+			removed += result.rowCount ?? 0
 		}
 	const insert = (groupId: string, userIds: readonly string[]) =>
 		reissueOnDeadlock(() => db.insert(userGroupMembers).values(directoryRows(groupId, userIds)))

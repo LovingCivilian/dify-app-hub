@@ -1,14 +1,17 @@
-import { datetime, index, mysqlTable, varchar } from 'drizzle-orm/mysql-core'
+import { index, pgTable, text, uuid } from 'drizzle-orm/pg-core'
 
-export const passwordResetTokens = mysqlTable(
+import { timestamptz } from './columns'
+
+/** The inherited reset links (ADR-0024 left them as upstream wrote them); `user_id` has no foreign key and its own index. */
+export const passwordResetTokens = pgTable(
 	'password_reset_tokens',
 	{
-		id: varchar({ length: 36 }).primaryKey(),
-		userId: varchar('user_id', { length: 36 }).notNull(),
-		tokenHash: varchar('token_hash', { length: 64 }).notNull(),
-		expiresAt: datetime('expires_at', { fsp: 3 }).notNull(),
-		usedAt: datetime('used_at', { fsp: 3 }),
-		createdAt: datetime('created_at', { fsp: 3 }).notNull(),
+		id: uuid().primaryKey(),
+		userId: uuid('user_id').notNull(),
+		tokenHash: text('token_hash').notNull(),
+		expiresAt: timestamptz('expires_at').notNull(),
+		usedAt: timestamptz('used_at'),
+		createdAt: timestamptz('created_at').notNull(),
 	},
 	table => [
 		index('password_reset_tokens_user_id_idx').on(table.userId),

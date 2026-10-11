@@ -1,10 +1,10 @@
 import { DrizzleQueryError } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/mysql2'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // A getDb stub whose rows the tests control: the pre-check's select chain ends in limit(), the transaction's locking
 // read in for('update'), and the insert in values(). The transaction runs its callback on the fake tx and records
-// the config it was given (Drizzle MySqlTransactionConfig).
+// the config it was given (Drizzle PgTransactionConfig).
 const mocks = vi.hoisted(() => {
 	const preCheck = vi.fn()
 	const lockedRead = vi.fn()
@@ -41,7 +41,7 @@ const queryError = (code: string, errno: number) =>
 describe('lockAnyAccount (decision d)', () => {
 	it('is a locking read of any one account, so only an empty table lets first run through', () => {
 		const query = lockAnyAccount(drizzle.mock()).toSQL()
-		expect(query.sql).toBe('select `id` from `users` limit ? for update')
+		expect(query.sql).toBe('select "id" from "users" limit $1 for update')
 		expect(query.params).toEqual([1])
 	})
 })

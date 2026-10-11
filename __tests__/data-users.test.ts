@@ -1,4 +1,4 @@
-import { drizzle } from 'drizzle-orm/mysql2'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { DrizzleQueryError, type SQL } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -287,10 +287,10 @@ describe('lockTarget (decision d, Review Focus 2)', () => {
 	it('is a locking read of one account by its primary key', () => {
 		const query = lockTarget(drizzle.mock(), 'u9').toSQL()
 		expect(query.sql).toMatch(
-			/^select .* from `users` where `users`\.`id` = \? limit \? for update$/,
+			/^select .* from "users" where "users"\."id" = \$1 limit \$2 for update$/,
 		)
 		// setUserActive's no-op branch reads the admin marker from this row.
-		expect(query.sql).toMatch(/^select [^]*`admin_deactivated_at`[^]* from `users` /)
+		expect(query.sql).toMatch(/^select [^]*"admin_deactivated_at"[^]* from "users" /)
 		expect(query.params).toEqual(['u9', 1])
 	})
 })
@@ -318,14 +318,14 @@ describe('setUserActive and pending reset links (controller ruling on C2)', () =
 				set: () => ({
 					where: (condition: SQL) => {
 						writes.push({ op: 'update', table, condition })
-						return Promise.resolve([{ affectedRows: 1 }])
+						return Promise.resolve({ rowCount: 1 })
 					},
 				}),
 			}),
 			delete: (table: unknown) => ({
 				where: (condition: SQL) => {
 					writes.push({ op: 'delete', table, condition })
-					return Promise.resolve([{ affectedRows: 1 }])
+					return Promise.resolve({ rowCount: 1 })
 				},
 			}),
 		}
@@ -348,7 +348,7 @@ describe('setUserActive and pending reset links (controller ruling on C2)', () =
 		])
 		const deleted = drizzle.mock().delete(passwordResetTokens).where(writes[1]!.condition).toSQL()
 		expect(deleted.sql).toBe(
-			'delete from `password_reset_tokens` where `password_reset_tokens`.`user_id` = ?',
+			'delete from "password_reset_tokens" where "password_reset_tokens"."user_id" = $1',
 		)
 		expect(deleted.params).toEqual(['u9'])
 	})
@@ -412,7 +412,7 @@ describe('directory accounts (spec §6.3, decision an)', () => {
 
 	it('reads the source under the lock', () => {
 		expect(lockTarget(drizzle.mock(), 'u9').toSQL().sql).toMatch(
-			/^select [^]*`source`[^]* from `users` /,
+			/^select [^]*"source"[^]* from "users" /,
 		)
 	})
 
@@ -444,7 +444,7 @@ describe('directory accounts (spec §6.3, decision an)', () => {
 				set: (values: unknown) => ({
 					where: (condition: SQL) => {
 						updates.push({ values, condition })
-						return Promise.resolve([{ affectedRows: 1 }])
+						return Promise.resolve({ rowCount: 1 })
 					},
 				}),
 			}),

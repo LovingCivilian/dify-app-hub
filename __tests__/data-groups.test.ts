@@ -1,4 +1,4 @@
-import { drizzle } from 'drizzle-orm/mysql2'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
@@ -92,7 +92,7 @@ describe('the manual-member queries (spec §2 #8)', () => {
 	it("reads the group's manual members with a locking read", () => {
 		const query = manualMembersOf(drizzle.mock(), 'g1').toSQL()
 		expect(query.sql).toMatch(
-			/^select `user_id` from `user_group_members` where .*`user_group_members`\.`group_id` = \?.* and .*`user_group_members`\.`source` = \?.* for update$/,
+			/^select "user_id" from "user_group_members" where .*"user_group_members"\."group_id" = \$1.* and .*"user_group_members"\."source" = \$2.* for update$/,
 		)
 		expect(query.params).toEqual(['g1', 'manual'])
 	})
@@ -100,7 +100,7 @@ describe('the manual-member queries (spec §2 #8)', () => {
 	it('deletes only the named manual memberships of the group', () => {
 		const query = removeManualMembers(drizzle.mock(), 'g1', ['u1', 'u2']).toSQL()
 		expect(query.sql).toMatch(
-			/^delete from `user_group_members` where .*`user_group_members`\.`group_id` = \?.* and .*`user_group_members`\.`source` = \?.* and .*`user_group_members`\.`user_id` in \(\?, \?\)/,
+			/^delete from "user_group_members" where .*"user_group_members"\."group_id" = \$1.* and .*"user_group_members"\."source" = \$2.* and .*"user_group_members"\."user_id" in \(\$3, \$4\)/,
 		)
 		expect(query.params).toEqual(['g1', 'manual', 'u1', 'u2'])
 	})
@@ -110,7 +110,7 @@ describe('lockGroup (ADR-0024 decision d)', () => {
 	it('is a locking read of one group by its primary key', () => {
 		const query = lockGroup(drizzle.mock(), 'g1').toSQL()
 		expect(query.sql).toMatch(
-			/^select .* from `user_groups` where `user_groups`\.`id` = \? limit \? for update$/,
+			/^select .* from "user_groups" where "user_groups"\."id" = \$1 limit \$2 for update$/,
 		)
 		expect(query.params).toEqual(['g1', 1])
 	})
@@ -174,16 +174,16 @@ describe('the directory links of a group (decision am)', () => {
 	it('reads the links with a locking read and deletes only the named ones', () => {
 		const read = linksOf(drizzle.mock(), 'g1').toSQL()
 		expect(read.sql).toMatch(
-			/from `user_group_directory_links` where `user_group_directory_links`\.`group_id` = \? for update$/,
+			/from "user_group_directory_links" where "user_group_directory_links"\."group_id" = \$1 for update$/,
 		)
 		const removal = removeLinks(drizzle.mock(), 'g1', ['k2']).toSQL()
-		expect(removal.sql).toMatch(/^delete from `user_group_directory_links` where /)
+		expect(removal.sql).toMatch(/^delete from "user_group_directory_links" where /)
 		expect(removal.params).toEqual(['g1', 'k2'])
 	})
 
 	it('deletes only the directory memberships of a group whose last link went', () => {
 		const query = removeDirectoryMembers(drizzle.mock(), 'g1').toSQL()
-		expect(query.sql).toMatch(/^delete from `user_group_members` where /)
+		expect(query.sql).toMatch(/^delete from "user_group_members" where /)
 		expect(query.params).toEqual(['g1', 'directory'])
 	})
 

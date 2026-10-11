@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 							isNull(passwordResetTokens.usedAt),
 						),
 					)
-				if (claimed[0].affectedRows !== 1) {
+				if ((claimed.rowCount ?? 0) !== 1) {
 					throw new Error('RESET_TOKEN_INVALID')
 				}
 
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 					})
 					.where(eq(users.id, rows[0].userId))
 
-				if (updated[0].affectedRows !== 1) {
+				if ((updated.rowCount ?? 0) !== 1) {
 					throw new Error('RESET_TOKEN_INVALID')
 				}
 			})

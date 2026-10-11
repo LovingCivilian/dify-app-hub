@@ -49,7 +49,7 @@ describe('createUser and the unique email index', () => {
 	})
 
 	it('stores the hash with the role, never the password, and answers the new id', async () => {
-		insertValues.mockResolvedValue([{ affectedRows: 1 }])
+		insertValues.mockResolvedValue({ rowCount: 1 })
 		expect(await createUser(admin, input)).toMatchObject({
 			ok: true,
 			data: { id: expect.any(String) },

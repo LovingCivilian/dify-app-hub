@@ -68,7 +68,7 @@ beforeEach(() => {
 	refresh.mockReset()
 	for (const fn of Object.values(writes)) {
 		fn.mockReset()
-		fn.mockResolvedValue([{ affectedRows: 1 }])
+		fn.mockResolvedValue({ rowCount: 1 })
 	}
 	locked.value = { id: groupId }
 	manual.value = []
@@ -139,7 +139,7 @@ describe('the owner', () => {
 	// Review Focus 3: a member deleted while the drawer was open.
 	it('answers invalid_input on the members when a picked account is gone', async () => {
 		writes.insert
-			.mockResolvedValueOnce([{ affectedRows: 1 }])
+			.mockResolvedValueOnce({ rowCount: 1 })
 			.mockRejectedValueOnce(
 				new Error('Failed query', { cause: mysqlError('ER_NO_REFERENCED_ROW_2', 1452) }),
 			)
@@ -200,7 +200,10 @@ describe('the owner', () => {
 
 	it('deletes a group, and answers not_found when nothing was deleted', async () => {
 		expect(await deleteGroupAction(groupId)).toEqual({ ok: true, data: undefined })
-		writes.delete.mockResolvedValueOnce([{ affectedRows: 0 }])
+		writes.delete.mockResolvedValueOnce({ rowCount: 0 })
+		expect(await deleteGroupAction(groupId)).toEqual({ ok: false, code: 'not_found' })
+		// node-postgres "Result": rowCount is null for a command it cannot count; nothing was deleted then.
+		writes.delete.mockResolvedValueOnce({ rowCount: null })
 		expect(await deleteGroupAction(groupId)).toEqual({ ok: false, code: 'not_found' })
 		expect(await deleteGroupAction('nope')).toEqual({ ok: false, code: 'not_found' })
 	})

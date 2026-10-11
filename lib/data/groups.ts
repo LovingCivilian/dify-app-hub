@@ -338,6 +338,7 @@ export async function updateGroup(
 /** Deletes the group; its memberships, grants and (B3b) directory links go with it (ON DELETE CASCADE). */
 export async function deleteGroup(actor: SessionUser, id: string): Promise<ActionResult> {
 	assertAdmin(actor)
-	const [result] = await getDb().delete(userGroups).where(eq(userGroups.id, id))
-	return result.affectedRows > 0 ? ok(undefined) : fail('not_found')
+	// node-postgres "Result": `rowCount` is the rows the command processed, null for a command that reports none.
+	const result = await getDb().delete(userGroups).where(eq(userGroups.id, id))
+	return (result.rowCount ?? 0) > 0 ? ok(undefined) : fail('not_found')
 }

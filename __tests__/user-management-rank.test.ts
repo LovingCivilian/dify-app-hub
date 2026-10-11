@@ -72,7 +72,7 @@ beforeEach(() => {
 	getServerSession.mockReset()
 	for (const fn of Object.values(writes)) {
 		fn.mockReset()
-		fn.mockResolvedValue([{ affectedRows: 1 }])
+		fn.mockResolvedValue({ rowCount: 1 })
 	}
 	target.value = undefined
 	sets.length = 0

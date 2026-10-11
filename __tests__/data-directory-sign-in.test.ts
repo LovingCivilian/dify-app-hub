@@ -1,5 +1,5 @@
 import type { SQL } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/mysql2'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /*
@@ -47,27 +47,27 @@ const mocks = vi.hoisted(() => {
 		insert: (table: unknown) => ({
 			values: (values: unknown) => {
 				state.writes.push({ op: 'insert', table, values })
-				return Promise.resolve([{ affectedRows: 1 }])
+				return Promise.resolve({ rowCount: 1 })
 			},
 		}),
 		update: (table: unknown) => ({
 			set: (values: unknown) => ({
 				where: (condition: unknown) => {
 					state.writes.push({ op: 'update', table, values, condition })
-					return Promise.resolve([{ affectedRows: 1 }])
+					return Promise.resolve({ rowCount: 1 })
 				},
 			}),
 		}),
 		delete: (table: unknown) => ({
 			where: (condition: unknown) => {
 				state.writes.push({ op: 'delete', table, condition })
-				return Promise.resolve([{ affectedRows: 0 }])
+				return Promise.resolve({ rowCount: 0 })
 			},
 		}),
 	}
 	const db = {
 		select: () => read(),
-		// A spy, so a test can assert the config each attempt was given (Drizzle MySqlTransactionConfig).
+		// A spy, so a test can assert the config each attempt was given (Drizzle PgTransactionConfig).
 		transaction: vi.fn(async (work: (t: typeof tx) => Promise<unknown>, _config?: unknown) => {
 			state.transactions += 1
 			const failure = state.failures.shift()
@@ -145,7 +145,7 @@ describe('listGroupLinks (spec §6.5)', () => {
 			listGroupLinks() as unknown as { toSQL: () => { sql: string; params: unknown[] } }
 		).toSQL()
 		expect(query.sql).toBe(
-			'select `group_id`, `directory_group_id`, `directory_group_name`, `missing_since` from `user_group_directory_links`',
+			'select "group_id", "directory_group_id", "directory_group_name", "missing_since" from "user_group_directory_links"',
 		)
 		expect(query.params).toEqual([])
 	})
@@ -155,11 +155,11 @@ describe('lockDirectoryAccount (decision e; ADR-0024 decision d)', () => {
 	it('is a locking read of the ldap account by its directory key', () => {
 		const query = lockDirectoryAccount(drizzle.mock(), identity.key).toSQL()
 		expect(query.sql).toMatch(
-			/ from `users` where \(\(`users`\.`source` = \?\) and \(`users`\.`directory_id` = \?\)\) limit \? for update$/,
+			/ from "users" where \(\("users"\."source" = \$1\) and \("users"\."directory_id" = \$2\)\) limit \$3 for update$/,
 		)
 		expect(query.params).toEqual(['ldap', identity.key, 1])
 		// The admin marker is read under the lock: the directory never lifts it (ADR-0027).
-		expect(query.sql).toContain('`admin_deactivated_at`')
+		expect(query.sql).toContain('"admin_deactivated_at"')
 	})
 })
 
@@ -170,7 +170,7 @@ describe('replaceDirectoryMemberships (decision f, spec §2 #8)', () => {
 		const [deleted, inserted] = mocks.state.writes
 		const { sql, params } = renderDelete(deleted.condition)
 		expect(sql).toMatch(
-			/where \(\(`user_group_members`\.`user_id` = \?\) and \(`user_group_members`\.`source` = \?\) and \(`user_group_members`\.`group_id` not in \(\?, \?\)\)\)$/,
+			/where \(\("user_group_members"\."user_id" = \$1\) and \("user_group_members"\."source" = \$2\) and \("user_group_members"\."group_id" not in \(\$3, \$4\)\)\)$/,
 		)
 		expect(params).toEqual(['u1', 'directory', 'g1', 'g2'])
 		expect(mocks.state.strengths).toEqual(['update'])
@@ -184,7 +184,7 @@ describe('replaceDirectoryMemberships (decision f, spec §2 #8)', () => {
 		await replaceDirectoryMemberships(mocks.tx as never, 'u1', [])
 		const { sql, params } = renderDelete(mocks.state.writes[0].condition)
 		expect(sql).toMatch(
-			/where \(\(`user_group_members`\.`user_id` = \?\) and \(`user_group_members`\.`source` = \?\)\)$/,
+			/where \(\("user_group_members"\."user_id" = \$1\) and \("user_group_members"\."source" = \$2\)\)$/,
 		)
 		expect(params).toEqual(['u1', 'directory'])
 		expect(mocks.state.writes).toHaveLength(1)
@@ -216,10 +216,10 @@ describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 			directoryDeactivatedAt: null,
 		})
 		const { sql, params } = renderUpdate(update.values, update.condition)
-		expect(sql).toMatch(/ where `users`\.`id` = \?$/)
+		expect(sql).toMatch(/ where "users"\."id" = \$6$/)
 		expect(params.at(-1)).toBe('u1')
 		// Never the admin marker, the role, the password or the session version (ADR-0027).
-		expect(sql).not.toMatch(/admin_deactivated|`role`|`password`|session_version/)
+		expect(sql).not.toMatch(/admin_deactivated|"role"|"password"|session_version/)
 	})
 
 	it('refuses an account an admin deactivated, and writes nothing', async () => {
@@ -286,7 +286,7 @@ describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 		expect(mocks.state.writes).toEqual([])
 		// The email check compares as the unique index does: by the column's collation, in SQL.
 		const { sql, params } = renderSelect(mocks.state.conditions.at(-1))
-		expect(sql).toMatch(/ where `users`\.`email` = \?$/)
+		expect(sql).toMatch(/ where "users"\."email" = \$1$/)
 		expect(params).toEqual([identity.email])
 	})
 
