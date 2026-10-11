@@ -6,7 +6,7 @@ import * as z from 'zod'
 
 import { LDAP_ENCRYPTIONS, type LdapEncryption } from '@/lib/directory-status'
 import { brandNameSchema } from '@/lib/settings/branding-rules'
-import { SETTINGS_MODES, type SettingsMode } from '@/lib/settings/modes'
+import { SETTINGS_MODES } from '@/lib/settings/modes'
 
 /** The lenient read of a choice variable: blank counts as absent, anything else is trimmed and lower-cased. */
 const blankOrLowerCased = (value: unknown) =>
@@ -237,11 +237,14 @@ export interface BrandingEnvValues {
 	faviconFile: string | null
 }
 
-export interface BrandingEnv {
-	mode: SettingsMode
-	/** Set in `env` mode only; the BRANDING_* block is ignored in the other modes (spec §3.1). */
-	values: BrandingEnvValues | null
-}
+/**
+ * The values are set in `env` mode only; the BRANDING_* block is ignored in the other modes (spec §3.1). A discriminated
+ * union on `mode` (TypeScript handbook, "Discriminated unions"), so a reader that checks the mode has the values without
+ * a null check, and one that switches on it is checked for exhaustiveness.
+ */
+export type BrandingEnv =
+	| { mode: 'env'; values: BrandingEnvValues }
+	| { mode: 'disabled' | 'database'; values: null }
 
 export interface ServerEnv {
 	nodeEnv: 'development' | 'test' | 'production'
@@ -307,24 +310,27 @@ export const parseEnv = (source: Record<string, string | undefined>): ServerEnv 
 	}
 	const brandingMode = brandingModeSchema.safeParse(source.BRANDING_MODE)
 	if (!brandingMode.success) throw new EnvError(['BRANDING_MODE'])
-	let brandingValues: BrandingEnvValues | null = null
+	let branding: BrandingEnv
 	if (brandingMode.data === 'env') {
 		const parsed = brandingSchema.safeParse(source)
 		if (!parsed.success) throw new EnvError(keysOf(parsed.error))
-		brandingValues = {
-			name: parsed.data.BRANDING_NAME,
-			showName: parsed.data.BRANDING_SHOW_NAME === 'true',
-			logoFile: parsed.data.BRANDING_LOGO_FILE ?? null,
-			faviconFile: parsed.data.BRANDING_FAVICON_FILE ?? null,
+		branding = {
+			mode: 'env',
+			values: {
+				name: parsed.data.BRANDING_NAME,
+				showName: parsed.data.BRANDING_SHOW_NAME === 'true',
+				logoFile: parsed.data.BRANDING_LOGO_FILE ?? null,
+				faviconFile: parsed.data.BRANDING_FAVICON_FILE ?? null,
+			},
 		}
-	}
+	} else branding = { mode: brandingMode.data, values: null }
 	return {
 		nodeEnv: base.data.NODE_ENV,
 		databaseUrl: base.data.DATABASE_URL,
 		nextAuthSecret: base.data.NEXTAUTH_SECRET,
 		smtp,
 		ldap,
-		branding: { mode: brandingMode.data, values: brandingValues },
+		branding,
 	}
 }
 

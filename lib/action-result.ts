@@ -17,7 +17,11 @@ export type ActionErrorCode =
 export interface ActionFailure {
 	ok: false
 	code: ActionErrorCode
-	/** `invalid_input` only: zod's flattened field errors, keyed by field path. */
+	/**
+	 * `invalid_input` and `invalid_image` only, keyed by field path: zod's flattened field errors, or a rule the server
+	 * checks itself (`showName: ['logo_required']`); for `invalid_image`, each refused image's refusal code by its kind
+	 * (`logo: ['too_large']`, lib/settings/branding.ts).
+	 */
 	fieldErrors?: Record<string, string[]>
 }
 

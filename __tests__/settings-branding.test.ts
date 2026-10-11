@@ -1,13 +1,15 @@
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import sharp from 'sharp'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { BrandingEnv } from '@/lib/env'
 
-const { envState, data, logs } = vi.hoisted(() => ({
+const { envState, data, logs, fsSpies } = vi.hoisted(() => ({
 	envState: { branding: { mode: 'disabled', values: null } as BrandingEnv },
 	data: {
 		readInstanceSetting: vi.fn(),
@@ -16,12 +18,19 @@ const { envState, data, logs } = vi.hoisted(() => ({
 		writeInstanceSetting: vi.fn(),
 	},
 	logs: { logSettingsError: vi.fn(), logActionError: vi.fn() },
+	fsSpies: { readFile: vi.fn() },
 }))
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 vi.mock('@/lib/env', () => ({ env: () => envState }))
 vi.mock('@/lib/data/settings', () => data)
 // The factories hand back the same hoisted spies after each vi.resetModules() (Vitest `vi.mock`, `vi.hoisted`).
 vi.mock('@/lib/error-log', () => logs)
+// The real readFile behind a spy, so a test can tell whether a file was read (Vitest `vi.mock` with `importOriginal`).
+vi.mock('node:fs/promises', async importOriginal => {
+	const original = await importOriginal<typeof import('node:fs/promises')>()
+	fsSpies.readFile.mockImplementation(original.readFile)
+	return { ...original, readFile: fsSpies.readFile }
+})
 const { logSettingsError, logActionError } = logs
 
 /** A fresh module per test: env mode keeps its processed files for the process. */
@@ -30,9 +39,18 @@ const load = async () => {
 	return import('@/lib/settings/branding')
 }
 
+/** A temporary directory for the test's files (R3: `fs.mkdtemp` under `os.tmpdir()`), removed after it. */
+const tempDirs: string[] = []
+const tempDir = async () => {
+	const dir = await mkdtemp(path.join(tmpdir(), 'branding-'))
+	tempDirs.push(dir)
+	return dir
+}
+
 const builtInImage = { src: '/_next/static/media/logo.abc.png', width: 81, height: 83 }
 const admin = { id: 'a1', email: 'admin@example.com', name: null, role: 'admin' as const }
 const sha = (char: string) => char.repeat(64)
+const sha256 = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
 const png = (width: number, height: number) =>
 	sharp({ create: { width, height, channels: 4, background: '#1677ff' } })
 		.png()
@@ -59,6 +77,13 @@ beforeEach(() => {
 	for (const fn of Object.values(data)) fn.mockReset()
 	logSettingsError.mockClear()
 	logActionError.mockClear()
+	// mockClear keeps the real implementation the factory gave the spy.
+	fsSpies.readFile.mockClear()
+})
+
+afterEach(async () => {
+	// Node docs, `fsPromises.rm`: `recursive` removes the directory with its files, `force` ignores a missing path.
+	await Promise.all(tempDirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })))
 })
 
 describe('getBranding (settings spec §3.3)', () => {
@@ -116,7 +141,7 @@ describe('getBranding (settings spec §3.3)', () => {
 	})
 
 	it('reads env mode from the variables and the processed files', async () => {
-		const dir = await mkdtemp(path.join(tmpdir(), 'branding-'))
+		const dir = await tempDir()
 		const logoFile = path.join(dir, 'logo.png')
 		await writeFile(logoFile, await png(800, 200))
 		envState.branding = {
@@ -136,11 +161,12 @@ describe('getBranding (settings spec §3.3)', () => {
 			width: 768,
 			height: 192,
 		})
+		expect(fsSpies.readFile).toHaveBeenCalledWith(logoFile)
 		expect(data.readInstanceSetting).not.toHaveBeenCalled()
 	})
 
 	it('runs without an env file it cannot use, logging the variable and the code, never the path (Review Focus 5)', async () => {
-		const dir = await mkdtemp(path.join(tmpdir(), 'branding-'))
+		const dir = await tempDir()
 		await mkdir(path.join(dir, 'a-directory'))
 		envState.branding = {
 			mode: 'env',
@@ -154,19 +180,38 @@ describe('getBranding (settings spec §3.3)', () => {
 		const { getBranding, getBrandingSettings } = await load()
 		expect(await getBranding()).toMatchObject({ logo: null, favicon: null })
 		expect(logSettingsError).toHaveBeenCalledWith('BRANDING_LOGO_FILE', 'ENOENT')
-		expect(logSettingsError).toHaveBeenCalledWith('BRANDING_FAVICON_FILE', 'EISDIR')
+		// A directory is not a regular file: refused by its type, before any read.
+		expect(logSettingsError).toHaveBeenCalledWith('BRANDING_FAVICON_FILE', 'not_allowed')
 		expect(JSON.stringify(logSettingsError.mock.calls)).not.toContain(dir)
 		const settings = await getBrandingSettings(admin, builtInImage)
-		expect(settings.env?.errors).toEqual({ logo: 'ENOENT', favicon: 'EISDIR' })
+		expect(settings.env?.errors).toEqual({ logo: 'ENOENT', favicon: 'not_allowed' })
 		// Spec §4.2: the name shows while the logo is unavailable, although BRANDING_SHOW_NAME is false.
 		expect(settings.current.showName).toBe(true)
 		// The files are read once for the process (spec §4.2), so each refusal is logged once.
 		expect(logSettingsError).toHaveBeenCalledTimes(2)
+		expect(fsSpies.readFile).not.toHaveBeenCalled()
 		expect(data.readInstanceSettingChange).not.toHaveBeenCalled()
 	})
 
+	it.skipIf(process.platform === 'win32')(
+		'refuses a FIFO by its type without opening it, as its size of 0 would pass the size check',
+		async () => {
+			const dir = await tempDir()
+			const logoFile = path.join(dir, 'logo.png')
+			// mkfifo(1) is POSIX; Windows has no named pipes in the file system, hence the skip there.
+			execFileSync('mkfifo', [logoFile])
+			envState.branding = {
+				mode: 'env',
+				values: { name: 'Acme', showName: true, logoFile, faviconFile: null },
+			}
+			expect(await (await load()).getBranding()).toMatchObject({ logo: null })
+			expect(logSettingsError).toHaveBeenCalledWith('BRANDING_LOGO_FILE', 'not_allowed')
+			expect(fsSpies.readFile).not.toHaveBeenCalled()
+		},
+	)
+
 	it('refuses an oversized env file by its size, without reading it', async () => {
-		const dir = await mkdtemp(path.join(tmpdir(), 'branding-'))
+		const dir = await tempDir()
 		const faviconFile = path.join(dir, 'big.png')
 		await writeFile(faviconFile, Buffer.alloc(256 * 1024 + 1))
 		envState.branding = {
@@ -175,6 +220,7 @@ describe('getBranding (settings spec §3.3)', () => {
 		}
 		await (await load()).getBranding()
 		expect(logSettingsError).toHaveBeenCalledWith('BRANDING_FAVICON_FILE', 'too_large')
+		expect(fsSpies.readFile).not.toHaveBeenCalled()
 	})
 })
 
@@ -223,8 +269,72 @@ describe('brandingView (spec §4.6)', () => {
 	})
 })
 
+describe('readBrandImageVersion (spec §4.5; RFC 9110 §13.1.2: a conditional request needs only the validator)', () => {
+	const document = {
+		name: 'Acme',
+		showName: true,
+		logo: { sha256: sha('a'), width: 4, height: 1 },
+		favicon: null,
+	}
+
+	it('answers the hash the document records in database mode, without reading the file', async () => {
+		envState.branding = { mode: 'database', values: null }
+		data.readInstanceSetting.mockResolvedValue({ data: document })
+		const { readBrandImageVersion } = await load()
+		expect(await readBrandImageVersion('logo')).toBe(sha('a'))
+		expect(await readBrandImageVersion('favicon')).toBeNull()
+		expect(data.readInstanceSettingFile).not.toHaveBeenCalled()
+	})
+
+	it('answers the processed file’s hash in env mode, the one readBrandImage serves', async () => {
+		const dir = await tempDir()
+		const logoFile = path.join(dir, 'logo.png')
+		await writeFile(logoFile, await png(800, 200))
+		envState.branding = {
+			mode: 'env',
+			values: { name: 'Acme', showName: true, logoFile, faviconFile: null },
+		}
+		const { readBrandImage, readBrandImageVersion } = await load()
+		const version = await readBrandImageVersion('logo')
+		expect(version).toMatch(/^[0-9a-f]{64}$/)
+		expect(version).toBe((await readBrandImage('logo'))?.sha256)
+		expect(await readBrandImageVersion('favicon')).toBeNull()
+	})
+
+	it('answers null in disabled mode, and when the database does not answer', async () => {
+		expect(await (await load()).readBrandImageVersion('logo')).toBeNull()
+		envState.branding = { mode: 'database', values: null }
+		data.readInstanceSetting.mockRejectedValue(new Error('connect ECONNREFUSED'))
+		expect(await (await load()).readBrandImageVersion('logo')).toBeNull()
+	})
+
+	it('reads afresh on each call, since the image routes run outside a render (react.dev `cache`: Server Components only)', async () => {
+		envState.branding = { mode: 'database', values: null }
+		data.readInstanceSetting.mockResolvedValue({ data: document })
+		// A stand-in for React's `cache` inside one server render, which keeps the first answer (react.dev `cache`).
+		vi.doMock('react', async importOriginal => ({
+			...(await importOriginal<typeof import('react')>()),
+			cache: <A extends unknown[], R>(fn: (...args: A) => R) => {
+				let memo: { value: R } | undefined
+				return (...args: A) => (memo ??= { value: fn(...args) }).value
+			},
+		}))
+		try {
+			const { getBranding, readBrandImageVersion } = await load()
+			await getBranding()
+			await getBranding()
+			expect(data.readInstanceSetting).toHaveBeenCalledTimes(1)
+			await readBrandImageVersion('logo')
+			await readBrandImageVersion('logo')
+			expect(data.readInstanceSetting).toHaveBeenCalledTimes(3)
+		} finally {
+			vi.doUnmock('react')
+		}
+	})
+})
+
 describe('readBrandImage (spec §4.5)', () => {
-	it('serves the stored file with the hash the document records, in database mode', async () => {
+	it('serves the stored file with the hash of the bytes it read, so the body always matches its ETag', async () => {
 		envState.branding = { mode: 'database', values: null }
 		data.readInstanceSetting.mockResolvedValue({
 			data: {
@@ -236,9 +346,14 @@ describe('readBrandImage (spec §4.5)', () => {
 		})
 		data.readInstanceSettingFile.mockResolvedValue({ bytes: Buffer.from([7]), mime: 'image/png' })
 		const { readBrandImage } = await load()
-		expect(await readBrandImage('logo')).toEqual({ bytes: Buffer.from([7]), sha256: sha('a') })
+		// A save that replaced the file after the document was read: the hash follows the bytes, not the document.
+		expect(await readBrandImage('logo')).toEqual({
+			bytes: Buffer.from([7]),
+			sha256: sha256(Buffer.from([7])),
+		})
 		expect(data.readInstanceSettingFile).toHaveBeenCalledWith('branding', 'logo')
 		expect(await readBrandImage('favicon')).toBeNull()
+		expect(data.readInstanceSettingFile).toHaveBeenCalledTimes(1)
 	})
 
 	it('answers null and logs when the document names a file that is not there', async () => {
@@ -260,7 +375,7 @@ describe('readBrandImage (spec §4.5)', () => {
 	})
 
 	it('serves the processed file in env mode', async () => {
-		const dir = await mkdtemp(path.join(tmpdir(), 'branding-'))
+		const dir = await tempDir()
 		const logoFile = path.join(dir, 'logo.png')
 		await writeFile(logoFile, await png(800, 200))
 		envState.branding = {
@@ -270,6 +385,7 @@ describe('readBrandImage (spec §4.5)', () => {
 		const { getBranding, readBrandImage } = await load()
 		const image = await readBrandImage('logo')
 		expect(image?.sha256).toBe((await getBranding()).logo?.sha256)
+		expect(image && sha256(image.bytes)).toBe(image?.sha256)
 		expect((await sharp(image?.bytes).metadata()).format).toBe('png')
 		expect(await readBrandImage('favicon')).toBeNull()
 	})
@@ -375,6 +491,19 @@ describe('saveBranding (spec §5.4)', () => {
 		expect(built[0]).toMatchObject({ logo: { width: 768, height: 192 } })
 	})
 
+	it('checks the document it writes against the schema, inside the write (spec §3.3: one schema)', async () => {
+		lockedDocument(stored)
+		const { saveBranding } = await load()
+		// A caller that skipped the action's schema: the throw rolls the write's transaction back.
+		await expect(
+			saveBranding(admin, { name: ' ', showName: true, images: keepBoth }),
+		).rejects.toMatchObject({ name: 'ZodError' })
+		expect(data.writeInstanceSetting).toHaveBeenCalledTimes(1)
+		const built = lockedDocument(stored)
+		await saveBranding(admin, { name: ' Acme ', showName: true, images: keepBoth })
+		expect(built).toEqual([{ name: 'Acme', showName: true, logo: saved, favicon: null }])
+	})
+
 	it('names each refused image in fieldErrors and writes nothing', async () => {
 		const { saveBranding } = await load()
 		const text = new File(['not an image'], 'logo.png', { type: 'image/png' })
@@ -461,6 +590,17 @@ describe('getBrandingSettings', () => {
 			updatedAt: null,
 			updatedByEmail: null,
 		})
+	})
+
+	it('shows the mode and the built-in brand in disabled mode, with no database read', async () => {
+		expect(await (await load()).getBrandingSettings(admin, builtInImage)).toMatchObject({
+			mode: 'disabled',
+			current: { name: 'Dify App Hub', logo: builtInImage },
+			env: null,
+			updatedAt: null,
+		})
+		expect(data.readInstanceSetting).not.toHaveBeenCalled()
+		expect(data.readInstanceSettingChange).not.toHaveBeenCalled()
 	})
 
 	it('refuses a user-role account', async () => {
