@@ -194,7 +194,8 @@ describe('replaceDirectoryMemberships (decision f, spec §2 #8)', () => {
 describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 	it('refreshes a known account, clears the directory marker and answers its role and session version', async () => {
 		// The lock finds the account; the email differs only by case, so the email check finds the account itself
-		// (the collation compares without case) and there is no conflict; then the membership read under the lock.
+		// (lower() on both sides, as users_email_key compares) and there is no conflict; then the membership read under
+		// the lock.
 		mocks.state.reads = [[known], [{ id: 'u1' }], []]
 		const result = await recordDirectorySignIn({ ...identity, email: 'Alice@Example.com' }, ['g1'])
 		expect(result).toEqual({
@@ -284,9 +285,9 @@ describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 			reason: 'email_in_use',
 		})
 		expect(mocks.state.writes).toEqual([])
-		// The email check compares as the unique index does: by the column's collation, in SQL.
+		// The email check compares as the unique index users_email_key does: lower() on the column and on the value, in SQL.
 		const { sql, params } = renderSelect(mocks.state.conditions.at(-1))
-		expect(sql).toMatch(/ where "users"\."email" = \$1$/)
+		expect(sql).toMatch(/ where lower\("users"\."email"\) = lower\(\$1\)$/)
 		expect(params).toEqual([identity.email])
 	})
 

@@ -15,6 +15,7 @@ import type {
 import type { SyncErrorCode, SyncOutcome, SyncTrigger } from '@/lib/directory-status'
 
 import { isDeadlock, isForeignKeyViolation, isUniqueViolation } from './db-errors'
+import { emailMatches } from './email'
 
 /*
  * The directory Data Access Layer (B3 spec §6.1, ADR-0029). It takes no actor: its callers are the `ldap` provider,
@@ -95,9 +96,12 @@ export const lockDirectoryAccount = (tx: Pick<Tx, 'select'>, key: string) =>
 		.limit(1)
 		.for('update')
 
-/** The account using this email, compared in SQL as the unique index compares it (the column's collation). */
+/**
+ * The account using this email, whatever its case: lower() on the column and on the value in SQL, as the unique index
+ * users_email_key compares (lib/data/email.ts). A refreshed email that differs only by case finds the account itself.
+ */
 const emailTakenBy = (tx: Pick<Tx, 'select'>, email: string) =>
-	tx.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
+	tx.select({ id: users.id }).from(users).where(emailMatches(email)).limit(1)
 
 /**
  * Sets the account's directory memberships to exactly these hub groups (decision f; spec §6.3 step 7). Its directory

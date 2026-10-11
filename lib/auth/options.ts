@@ -6,6 +6,7 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 
 import { getDb } from '@/db'
 import { users } from '@/db/schema'
+import { emailMatches } from '@/lib/data/email'
 import { logActionError, logSignInRefusal } from '@/lib/error-log'
 
 import { isActive } from './account-status'
@@ -29,7 +30,8 @@ async function findAccount(email: string, password: string): Promise<User | null
 			directoryDeactivatedAt: users.directoryDeactivatedAt,
 		})
 		.from(users)
-		.where(eq(users.email, email))
+		// Whatever the case typed (spec §3.4): lower() on both sides, as the unique index users_email_key compares.
+		.where(emailMatches(email))
 		.limit(1)
 	if (!user) {
 		// OWASP "Authentication Responses": no quick exit. The same bcrypt work as a wrong password, against a fixed

@@ -12,6 +12,7 @@ import { canManage, type Role } from '@/lib/auth/roles'
 import { assertAdmin, type SessionUser } from '@/lib/auth/session'
 
 import { isUniqueViolation } from './db-errors'
+import { emailMatches } from './email'
 
 /*
  * The users Data Access Layer (charter §4.2). Every function takes the verified actor first and checks its role
@@ -192,8 +193,9 @@ export const lockTarget = (tx: Pick<Tx, 'select'>, id: string) =>
 		.limit(1)
 		.for('update')
 
+/** The account using this email, whatever its case: lower() on both sides, as the unique index users_email_key compares. */
 const emailTakenBy = (tx: Pick<Tx, 'select'>, email: string) =>
-	tx.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
+	tx.select({ id: users.id }).from(users).where(emailMatches(email)).limit(1)
 
 export async function listUsers(actor: SessionUser): Promise<UserDto[]> {
 	assertAdmin(actor)

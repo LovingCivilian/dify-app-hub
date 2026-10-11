@@ -139,8 +139,20 @@ describe('authorizeCredentials', () => {
 		// The hash checked is the row of the email given: the lookup is by email, with that email as its only parameter.
 		expect(where).toHaveBeenCalledTimes(1)
 		const { sql, params } = renderWhere(where.mock.calls[0]![0])
-		expect(sql).toMatch(/ where "users"\."email" = \$1$/)
+		expect(sql).toMatch(/ where lower\("users"\."email"\) = lower\(\$1\)$/)
 		expect(params).toEqual(['jane@example.com'])
+	})
+
+	// Spec §3.4, Review Focus 1: the email typed in another case finds the account. The value reaches SQL as typed and
+	// PostgreSQL lowers both sides, as the unique index users_email_key is built (lib/data/email.ts).
+	it('looks the email up without case', async () => {
+		rows.value = [row]
+		expect(
+			await authorizeCredentials({ email: 'Jane@Example.COM', password: 'right-password' }),
+		).toMatchObject({ id: 'u1', email: 'jane@example.com' })
+		const { sql, params } = renderWhere(where.mock.calls[0]![0])
+		expect(sql).toMatch(/ where lower\("users"\."email"\) = lower\(\$1\)$/)
+		expect(params).toEqual(['Jane@Example.COM'])
 	})
 
 	// Spec §5 and §7.3: refused after the password check, with the same answer as a wrong password; the reason is
