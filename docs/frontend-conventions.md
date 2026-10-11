@@ -49,7 +49,7 @@ Data layer: the Dify provider stays an `AbstractChatProvider` with the three tra
 - `(admin)`: antd `Layout` (Header + Content), `Menu` or `Segmented` navigation, `Table` with `Drawer`/`Form` editing, `Descriptions`, `Tabs`, `Popconfirm`/`Modal` confirms, `Tag`/`Badge` for status.
 - `(user)/apps`: `Card` grid (`Row`/`Col` or `Flex wrap`), `Empty` state.
 - `(auth)` and `init`: centred `Card` with `Form` on the `color-bg-layout` surface.
-- Header (all areas): logo + title, area navigation, then `Dropdown`s for language, theme mode and account, GitHub link; `@ant-design/icons`.
+- Header (all areas): the brand (logo and/or name, settings spec §4.6), area navigation, then `Dropdown`s for language, theme mode and account; `@ant-design/icons`.
 
 ### 4.6 Verification
 

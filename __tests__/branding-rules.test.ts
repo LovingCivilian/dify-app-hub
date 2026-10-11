@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { brandNameSchema, effectiveShowName } from '@/lib/settings/branding-rules'
+import { brandNameSchema, effectiveShowName, shellBranding } from '@/lib/settings/branding-rules'
 
 describe('brandNameSchema (settings spec §4.1)', () => {
 	it('trims and accepts 1–64 characters, counted as code points', () => {
@@ -18,5 +18,19 @@ describe('effectiveShowName (spec §4.2: the header is never empty)', () => {
 		expect(effectiveShowName(false, true)).toBe(false)
 		expect(effectiveShowName(false, false)).toBe(true)
 		expect(effectiveShowName(true, false)).toBe(true)
+	})
+})
+
+describe('shellBranding (spec §4.6, ADR-0020: the client context gets the name, showName and the logo only)', () => {
+	it('leaves the favicon URL on the server, where generateMetadata uses it', () => {
+		const logo = { src: `/api/branding/logo?v=${'1'.repeat(16)}`, width: 768, height: 192 }
+		expect(
+			shellBranding({
+				name: 'Acme',
+				showName: false,
+				logo,
+				faviconSrc: `/api/branding/favicon?v=${'2'.repeat(16)}`,
+			}),
+		).toStrictEqual({ name: 'Acme', showName: false, logo })
 	})
 })

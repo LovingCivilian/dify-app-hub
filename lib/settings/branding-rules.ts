@@ -34,7 +34,7 @@ export interface BrandImageSource {
 	height: number
 }
 
-/** The brand as the shell draws it (spec §4.6), trimmed for the client (ADR-0020). */
+/** The brand as the browser draws it (spec §4.6): the shell's fields (ShellBranding) and the tab's icon. */
 export interface BrandingView {
 	name: string
 	/** Already effective: true whenever there is no logo. */
@@ -43,6 +43,23 @@ export interface BrandingView {
 	logo: BrandImageSource | null
 	faviconSrc: string
 }
+
+/**
+ * The brand in the shell's client context (spec §4.6: `name`, `showName`, `logo`). The favicon URL stays on the server,
+ * where generateMetadata uses it (ADR-0020, trimmed props; Next data-security.md:64: "Return safe, minimal Data Transfer
+ * Objects"). TypeScript's `Pick` utility type.
+ */
+export type ShellBranding = Pick<BrandingView, 'name' | 'showName' | 'logo'>
+
+/**
+ * Picks the three fields at run time as well: a whole BrandingView is assignable to ShellBranding (TypeScript handbook,
+ * "Type Compatibility": "y has at least the same members as x"), so the type alone would let `faviconSrc` through.
+ */
+export const shellBranding = ({ name, showName, logo }: BrandingView): ShellBranding => ({
+	name,
+	showName,
+	logo,
+})
 
 /** Spec §4.2: the name shows whenever no logo can be drawn, so the header and the login card are never empty. */
 export const effectiveShowName = (showName: boolean, hasLogo: boolean): boolean =>

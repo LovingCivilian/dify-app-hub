@@ -9,7 +9,7 @@ import { I18nextProvider, useSSR, useTranslation } from 'react-i18next'
 import { BrandingProvider } from '@/components/providers/branding-context'
 import { useHtmlLang } from '@/hooks/use-html-lang'
 import type { SupportedLanguage } from '@/lib/i18n/language-cookie'
-import type { BrandingView } from '@/lib/settings/branding-rules'
+import type { ShellBranding } from '@/lib/settings/branding-rules'
 import { ThemeContextProvider, useThemeContext } from '@/lib/theme'
 import type { InitialTheme } from '@/lib/theme/theme-cookie'
 import { getAntdLocale } from '@/libs/antd-locale'
@@ -87,7 +87,7 @@ export default function AppProviders({
 	initialTheme: InitialTheme
 	initialLanguage: SupportedLanguage
 	/** The brand from the root layout, settings spec §4.6. */
-	branding: BrandingView
+	branding: ShellBranding
 	children: React.ReactNode
 }) {
 	return (

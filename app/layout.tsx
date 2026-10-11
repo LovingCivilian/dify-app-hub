@@ -6,6 +6,7 @@ import AppProviders from '@/components/providers/app-providers'
 import { readLanguageCookie } from '@/lib/i18n/language-cookie'
 import { getCachedServerSession } from '@/lib/auth/session'
 import { brandingView, getBranding } from '@/lib/settings/branding'
+import { shellBranding } from '@/lib/settings/branding-rules'
 import { BUILT_IN_LOGO } from '@/lib/settings/built-in-logo'
 import { ThemeEnum } from '@/lib/theme/constants'
 import { readThemeCookies } from '@/lib/theme/theme-cookie'
@@ -53,7 +54,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 						session={session}
 						initialTheme={initialTheme}
 						initialLanguage={initialLanguage}
-						branding={brandingView(branding, BUILT_IN_LOGO)}
+						// The shell's fields only: the favicon URL is generateMetadata's (spec §4.6, ADR-0020).
+						branding={shellBranding(brandingView(branding, BUILT_IN_LOGO))}
 					>
 						{children}
 					</AppProviders>

@@ -19,6 +19,14 @@ test.describe('the built-in brand', () => {
 		const page = await context.newPage()
 		await page.goto('/login')
 		await expect(page.getByRole('heading', { name: 'Dify App Hub' })).toBeVisible()
+		// The built-in image through Next's optimizer, as before (spec §4.6); signed out, so /_next/image must stay
+		// outside the proxy (proxy.ts matcher). It is alt="" beside the name, so it has no img role to find it by.
+		const logo = page.locator('img[src^="/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Flogo"]')
+		await expect(logo).toBeVisible()
+		// MDN HTMLImageElement.naturalWidth: 0 while "the image data is not available".
+		await expect
+			.poll(() => logo.evaluate((img: HTMLImageElement) => img.naturalWidth))
+			.toBeGreaterThan(0)
 		await context.close()
 	})
 })
