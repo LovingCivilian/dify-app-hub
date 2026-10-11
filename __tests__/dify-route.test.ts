@@ -82,7 +82,7 @@ describe('resolveDifyRoute', () => {
 		expect(resolved.ok ? null : resolved.response.status).toBe(401)
 		expect(getAppAccess).not.toHaveBeenCalled()
 	})
-	// A database or environment failure (EnvError, a lost MySQL connection) answers the envelope, not Next's empty 500.
+	// A database or environment failure (EnvError, a lost database connection) answers the envelope, not Next's empty 500.
 	it.each([
 		['the session read', () => verifySession.mockRejectedValue(new Error('db down'))],
 		[

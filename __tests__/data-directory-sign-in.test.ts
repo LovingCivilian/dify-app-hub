@@ -314,8 +314,8 @@ describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 		expect(mocks.state.transactions).toBe(2)
 	})
 
-	// Final review M1: a deadlock gets the sync statements' bound, up to three attempts in all (MySQL 8.4 "How to
-	// Minimize and Handle Deadlocks"; Prisma's documented `withRetry(run, attempts = 3)`).
+	// Final review M1: a deadlock gets the sync statements' bound, up to three attempts in all (PostgreSQL 18
+	// "Serialization Failure Handling", 13.5; Prisma's documented `withRetry(run, attempts = 3)`).
 	it('makes up to three attempts after deadlocks, and throws the third (decision e)', async () => {
 		mocks.state.failures = [deadlock(), deadlock()]
 		mocks.state.reads = [[known], []]
@@ -360,7 +360,7 @@ describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 	})
 
 	it('propagates any other failure without a retry', async () => {
-		const other = Object.assign(new Error('gone'), { code: 'PROTOCOL_CONNECTION_LOST' })
+		const other = Object.assign(new Error('gone'), { code: 'ECONNRESET' })
 		mocks.state.failures = [other]
 		await expect(recordDirectorySignIn(identity, [])).rejects.toBe(other)
 		expect(mocks.state.transactions).toBe(1)

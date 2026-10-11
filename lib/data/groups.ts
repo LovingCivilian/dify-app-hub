@@ -126,7 +126,9 @@ export const manualMemberChanges = (
 	}
 }
 
-/** A locking read of one group by its primary key (ADR-0024 decision d; MySQL 8.4 "Locking Reads"). */
+/**
+ * A locking read of one group by its primary key (ADR-0024 decision d; PostgreSQL 18 "SELECT", The Locking Clause).
+ */
 export const lockGroup = (tx: Pick<Tx, 'select'>, id: string) =>
 	tx
 		.select({ id: userGroups.id })
@@ -136,10 +138,10 @@ export const lockGroup = (tx: Pick<Tx, 'select'>, id: string) =>
 		.for('update')
 
 /**
- * The group's manual members, the rows an admin's save diffs and changes (spec §2 #8). A locking read (MySQL 8.4
- * "Locking Reads": before writes to related data in the same transaction, "the regular SELECT statement does not give
- * enough protection"): it reads the latest committed rows whatever the transaction read before, and holds them until
- * the commit.
+ * The group's manual members, the rows an admin's save diffs and changes (spec §2 #8). A locking read (PostgreSQL 18
+ * "Transaction Isolation", 13.2.1: at READ COMMITTED it finds the rows committed when it starts and waits for a
+ * concurrent writer of one of them; "Explicit Locking", 13.3.2: the rows stay locked "until the current transaction
+ * ends"): it reads the latest committed rows and holds them until the commit.
  */
 export const manualMembersOf = (tx: Pick<Tx, 'select'>, groupId: string) =>
 	tx
@@ -167,7 +169,9 @@ export const removeManualMembers = (
 const manualRows = (groupId: string, userIds: readonly string[]) =>
 	userIds.map(userId => ({ groupId, userId, source: 'manual' as const }))
 
-/** The group's links, with a locking read (MySQL 8.4 "Locking Reads"), before the save changes them. */
+/**
+ * The group's links, with a locking read (PostgreSQL 18 "SELECT", The Locking Clause), before the save changes them.
+ */
 export const linksOf = (tx: Pick<Tx, 'select'>, groupId: string) =>
 	tx
 		.select({ directoryGroupId: userGroupDirectoryLinks.directoryGroupId })

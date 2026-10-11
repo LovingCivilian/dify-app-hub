@@ -75,12 +75,12 @@ export const listGroupLinks = (): Promise<GroupLink[]> =>
 		.from(userGroupDirectoryLinks)
 
 /**
- * A locking read of the directory account with this key (ADR-0024 decision d; MySQL 8.4 "Locking Reads"). The sign-in
- * runs at READ COMMITTED (decision e), where a locking read "locks only index records, not the gaps before them" (MySQL
- * 8.4 "Transaction Isolation Levels"): a found row is locked, so one person's sign-ins run one after another, and a
- * missing key locks nothing. Two first sign-ins of one person still make one account: the unique index
- * `users_directory_id_key` refuses the second insert (1062), or InnoDB rolls one transaction back (1213), and either
- * runs again and finds the account (decision e). No gap lock is needed for that.
+ * A locking read of the directory account with this key (ADR-0024 decision d; PostgreSQL 18 "SELECT", The Locking
+ * Clause). A found row is locked, so one person's sign-ins run one after another; a missing key locks nothing, since
+ * FOR UPDATE locks "the rows retrieved by the SELECT statement" ("Explicit Locking", 13.3.2) and there are none. Two
+ * first sign-ins of one person still make one account: the unique index `users_directory_id_key` refuses the second
+ * insert (23505), or PostgreSQL ends one transaction as a deadlock's victim (40P01), and either runs again and finds
+ * the account (decision e).
  */
 export const lockDirectoryAccount = (tx: Pick<Tx, 'select'>, key: string) =>
 	tx
@@ -106,10 +106,11 @@ const emailTakenBy = (tx: Pick<Tx, 'select'>, email: string) =>
 /**
  * Sets the account's directory memberships to exactly these hub groups (decision f; spec §6.3 step 7). Its directory
  * rows anywhere else go, including a group whose links were removed; manual rows are never read or written (spec §2
- * #8). The rows that remain are read with a locking read (MySQL 8.4 "Locking Reads"), which sees the latest committed
- * rows, so the insert adds only the missing ones. At the sign-in's READ COMMITTED, the delete and that read lock only
- * this account's rows, not the gaps between them, so another person's membership insert never waits on them
- * ("Transaction Isolation Levels"). The lock on the account row already serialises this person's own sign-ins.
+ * #8). The rows that remain are read with a locking read, which at the sign-in's READ COMMITTED finds the rows
+ * committed when it starts (PostgreSQL 18 "Transaction Isolation", 13.2.1), so the insert adds only the missing ones;
+ * a row the sync inserts meanwhile makes that insert fail with 23505, and the sign-in runs once more (decision e). The
+ * delete and the read lock only this account's rows ("Explicit Locking", 13.3.2 Row-Level Locks), so another person's
+ * membership insert never waits on them. The lock on the account row already serialises this person's own sign-ins.
  */
 export async function replaceDirectoryMemberships(
 	tx: Pick<Tx, 'select' | 'insert' | 'delete'>,

@@ -19,7 +19,8 @@ vi.mock('@/lib/auth/password', () => ({
 }))
 vi.mock('@/db', () => {
 	// select().from().where().limit(1) is awaited for the email check ([]), or ends in .for('update') for the target.
-	// Any other lock strength is refused: under FOR SHARE two writers could read the same old role (MySQL "Locking Reads").
+	// Any other lock strength is refused: under FOR SHARE two writers could read the same old role (PostgreSQL 18
+	// "Explicit Locking", 13.3.2: a shared lock "does not prevent them from performing SELECT FOR SHARE").
 	const query = {
 		from: () => query,
 		where: () => query,

@@ -3,8 +3,9 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // A getDb stub whose rows the tests control. The unlocked read goes through the db (its limit() is awaited); the
-// transaction's read must end in for('update') on the tx, and any other strength is refused (MySQL "Locking Reads":
-// under FOR SHARE two writers could read the same old hash). The db has no update(): the write must run on the tx.
+// transaction's read must end in for('update') on the tx, and any other strength is refused (PostgreSQL 18 "Explicit
+// Locking", 13.3.2: a shared lock "does not prevent them from performing SELECT FOR SHARE", so under FOR SHARE two
+// writers could read the same old hash). The db has no update(): the write must run on the tx.
 // where() conditions and set() values are kept, so a test can render them on drizzle.mock() (no connection).
 const mocks = vi.hoisted(() => {
 	const rows = { read: [] as unknown[], locked: [] as unknown[] }
@@ -121,8 +122,9 @@ describe('changeOwnPassword (charter §4.2, decision d)', () => {
 	})
 
 	it('refuses when the locked row no longer holds the hash it verified, and writes nothing', async () => {
-		// The owner or an admin set this account's password between the check and the lock (MySQL "Locking Reads":
-		// a regular SELECT does not keep another transaction from updating the row just read).
+		// The owner or an admin set this account's password between the check and the lock (PostgreSQL 18 "Explicit
+		// Locking", 13.3.2: only a locking read keeps other transactions from changing the row "until the current
+		// transaction ends"; a plain SELECT takes no row lock).
 		mocks.rows.locked = [{ password: 'hash:set-by-an-admin' }]
 		expect(await changeOwnPassword(actor, input)).toEqual(wrongCurrent)
 		expect(mocks.strengths).toEqual(['update'])

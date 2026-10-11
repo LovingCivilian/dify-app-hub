@@ -95,8 +95,8 @@ async function lookUpLinks(
 				group
 					? {
 							status: 'found',
-							// `directory_group_name` is varchar(255): findGroupByKey falls back to the DN for a group without a
-							// name, and a longer value would fail the run (cutToColumn).
+							// `directory_group_name` keeps the hub's 255 code points, the bound the groups save checks:
+							// findGroupByKey falls back to the DN for a group without a name, which can be longer (cutToColumn).
 							name: cutToColumn(group.name),
 							memberKeys: await listMemberKeys(client, config, group.dn),
 						}

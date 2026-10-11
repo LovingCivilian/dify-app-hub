@@ -115,7 +115,7 @@ describe('the attributes a search asks for (spec §6.3 step 3, decision n)', () 
 	})
 })
 
-// Task 12 review M4: the one cut the entry, the sync and the group search share (varchar(255), MySQL 8.4).
+// Task 12 review M4: the one cut the entry, the sync and the group search share (the hub's 255 code points).
 describe('cutToColumn', () => {
 	it('keeps 255 code points, a surrogate pair whole, and leaves a shorter text as it is', () => {
 		expect(cutToColumn(`${'n'.repeat(254)}😀x`)).toBe(`${'n'.repeat(254)}😀`)

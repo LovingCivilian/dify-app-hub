@@ -557,9 +557,8 @@ describe('the run rows (spec §6.4 "Claim", §3.2)', () => {
 	})
 })
 
-// Final review M1: each of the sync's statements makes up to three attempts when it deadlocks (MySQL 8.4 "How to
-// Minimize and Handle Deadlocks": "Always be prepared to re-issue a transaction if it fails due to deadlock"), as
-// Prisma's documented `withRetry(run, attempts = 3)` does; the third deadlock throws, and no other error is re-issued.
+// Final review M1: each of the sync's statements makes up to three attempts when it deadlocks (PostgreSQL 18
+// "Serialization Failure Handling", 13.5: "It may also be advisable to retry deadlock failures"), as Prisma's documented `withRetry(run, attempts = 3)` does; the third deadlock throws, and no other error is re-issued.
 describe('a deadlocked sync statement makes up to three attempts', () => {
 	const at = new Date('2026-10-10T10:00:00Z')
 	const writes: [string, () => Promise<unknown>][] = [
@@ -612,7 +611,7 @@ describe('a deadlocked sync statement makes up to three attempts', () => {
 	)
 
 	it.each(writes)('%s: any other error is not re-issued', async (_, write) => {
-		const lost = Object.assign(new Error('lost'), { code: 'PROTOCOL_CONNECTION_LOST' })
+		const lost = Object.assign(new Error('lost'), { code: 'ECONNRESET' })
 		mocks.state.failures = [lost]
 		await expect(write()).rejects.toBe(lost)
 		expect(mocks.state.writes).toHaveLength(1)

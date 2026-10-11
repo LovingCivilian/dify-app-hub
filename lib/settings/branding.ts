@@ -344,11 +344,12 @@ export const isBrandingEditable = (): boolean => env().branding.mode === 'databa
  * checked here and again in the DAL (ADR-0024).
  *
  * The replaced images are decoded and re-encoded first, outside the transaction, so sharp's work never runs while the
- * row is locked (MySQL 8.4 "How to Minimize and Handle Deadlocks": "Keep transactions small and short in duration";
- * Documenso's `buildBrandingLogoData` and Cal.com's `updateProfile` handler likewise process the image before their
- * write). `keep` and the name rule are resolved inside `build`, against the document writeInstanceSetting reads under
- * its row lock (MySQL 8.4 "Locking Reads"): a save that ran in between and replaced or removed an image cannot leave
- * this document naming a file that is gone (spec §4.3), nor hiding the name with no logo left (spec §4.1).
+ * row is locked (PostgreSQL 18 "Explicit Locking", 13.3.4: "it is a bad idea for applications to hold transactions open
+ * for long periods of time"; Documenso's `buildBrandingLogoData` and Cal.com's `updateProfile` handler likewise process
+ * the image before their write). `keep` and the name rule are resolved inside `build`, against the document
+ * writeInstanceSetting reads under its row lock (PostgreSQL 18 "SELECT", The Locking Clause): a save that ran in
+ * between and replaced or removed an image cannot leave this document naming a file that is gone (spec §4.3), nor
+ * hiding the name with no logo left (spec §4.1).
  */
 export const saveBranding = async (
 	actor: SessionUser,
@@ -379,9 +380,10 @@ export const saveBranding = async (
 	}
 	if (Object.keys(fieldErrors).length) return fail('invalid_image', fieldErrors)
 	/*
-	 * Pure and repeatable: writeInstanceSetting runs the whole transaction again after a deadlock (MySQL 8.4: "Always be
-	 * prepared to re-issue a transaction if it fails due to deadlock"), so this computes from `current`, the input and the
-	 * images processed above only, and changes nothing outside itself. `undefined` refuses the change: nothing is written.
+	 * Pure and repeatable: writeInstanceSetting runs the whole transaction again after a deadlock (PostgreSQL 18
+	 * "Serialization Failure Handling": "It is important to retry the complete transaction, including all logic that
+	 * decides which SQL to issue and/or which values to use"), so this computes from `current`, the input and the images
+	 * processed above only, and changes nothing outside itself. `undefined` refuses the change: nothing is written.
 	 */
 	const build = (current: unknown | null): BrandingData | undefined => {
 		const parsed = brandingDataSchema.safeParse(current)

@@ -191,7 +191,8 @@ describe('writeInstanceSetting (spec §4.3: one transaction, the row read under 
 		})
 		expect(saved).toBe(true)
 		expect(calls[0]).toEqual(['begin'])
-		// The area row is read under FOR UPDATE inside the transaction, before any write (MySQL 8.4 "Locking Reads").
+		// The area row is read under FOR UPDATE inside the transaction, before any write (PostgreSQL 18 "SELECT", The
+		// Locking Clause).
 		expect(calls[1]).toEqual(['lock', 'instance_settings', 'update'])
 		// ON CONFLICT names the key that decides "the same row" (PostgreSQL 18 "INSERT": conflict_target): the area for the
 		// document, the area and name for a file, so the upsert updates the row in place and keeps its file rows.

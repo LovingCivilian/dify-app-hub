@@ -234,10 +234,11 @@ const writeGrants = async (
 }
 
 /**
- * A locking read of one app by its primary key (ADR-0024 decision d; MySQL 8.4 "Locking Reads": before writing
- * related rows in the same transaction, "the regular SELECT statement does not give enough protection"). The update
- * takes it before it writes the grants, so an app deleted after the access read answers not_found and writes nothing,
- * instead of the grant insert's 1452 reading as a stale pick (ruling M11); a delete that comes later waits for it.
+ * A locking read of one app by its primary key (ADR-0024 decision d; PostgreSQL 18 "Explicit Locking", 13.3.2: FOR
+ * UPDATE "prevents them from being locked, modified or deleted by other transactions until the current transaction
+ * ends"). The update takes it before it writes the grants, so an app deleted after the access read answers not_found
+ * and writes nothing, instead of the grant insert's 23503 reading as a stale pick (ruling M11); a delete that comes
+ * later waits for it.
  */
 export const lockApp = (tx: Pick<Tx, 'select'>, id: string) =>
 	tx.select({ id: difyApps.id }).from(difyApps).where(eq(difyApps.id, id)).limit(1).for('update')
