@@ -27,6 +27,10 @@ test('the collapsed sidebar opens a group on click', async ({ page, isMobile }) 
 	await expect(sider.getByRole('navigation').getByRole('menu')).toHaveCount(1)
 	await sider.getByRole('menuitem', { name: 'Settings' }).click()
 	await expect(page.getByRole('menu').getByRole('link', { name: 'Branding' })).toBeVisible()
+	// A second click closes it: the pop-out follows clicks, not the pointer resting on the title (antd Menu
+	// `triggerSubMenuAction`, "Which action can trigger submenu open/close"; with the default hover it would stay open).
+	await sider.getByRole('menuitem', { name: 'Settings' }).click()
+	await expect(page.getByRole('menu').getByRole('link', { name: 'Branding' })).toBeHidden()
 })
 
 test('the phone drawer shows the same tree', async ({ page, isMobile }) => {

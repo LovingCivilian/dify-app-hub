@@ -41,7 +41,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 							selectedKeys={selected ? [selected] : []}
 							defaultOpenKeys={ADMIN_NAV_OPEN_KEYS}
 							// In the collapsed sider a group opens its pop-out on click, not hover (antd Menu
-							// `triggerSubMenuAction`, default hover; ADR-0014's reasons: touch, accidental opening).
+							// `triggerSubMenuAction`, default hover; ADR-0014's reasons: keyboard reach, and "hover
+							// can't be used on touchscreens", antd Dropdown `trigger`).
 							triggerSubMenuAction="click"
 							// The sider draws the edge line (antd Layout, demo "Header Sider 2").
 							style={{ borderInlineEnd: 0 }}

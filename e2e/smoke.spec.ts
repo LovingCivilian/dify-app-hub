@@ -35,7 +35,8 @@ test('the admin area renders inside the antd shell with its navigation', async (
 		// Below md the sidebar is in the DOM but hidden by CSS (spec §3.3) and the header's Drawer menu
 		// mounts only once opened; the mobile Drawer navigation is pinned by its own flow (shell.spec.ts).
 		step.skip(isMobile, 'the sidebar is not part of the mobile layout')
-		const nav = page.getByRole('complementary').getByRole('menu')
+		// The sider's one navigation landmark (each open group adds a menu of its own inside it).
+		const nav = page.getByRole('complementary').getByRole('navigation')
 		await expect(nav.getByRole('link', { name: 'Users', exact: true })).toBeVisible()
 	})
 	await expect(page.locator('.ant-table')).toBeVisible()
