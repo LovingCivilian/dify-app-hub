@@ -1,0 +1,280 @@
+import { expect, test } from '@playwright/test'
+
+import { chooseFile, pngOf, resetBranding } from './fixtures/branding'
+import { APP_ID } from './fixtures/constants'
+import { deleteUsersLike, seedUser, signInAs } from './fixtures/users'
+
+// Settings spec §4.6: with nothing saved the hub shows its built-in brand; the header has no GitHub button.
+test.describe('the built-in brand', () => {
+	test('the header and the tab show it, and the GitHub button is gone', async ({ page }) => {
+		await page.goto('/apps')
+		await expect(page).toHaveTitle('Dify App Hub')
+		await expect(page.getByRole('banner').getByRole('link', { name: 'Dify App Hub' })).toBeVisible()
+		await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
+			'href',
+			/\/_next\/static\/media\/logo/,
+		)
+		await expect(page.getByRole('button', { name: 'GitHub' })).toHaveCount(0)
+		await expect(page.getByRole('link', { name: 'GitHub' })).toHaveCount(0)
+	})
+
+	test('the login page shows the name under the logo', async ({ browser }) => {
+		const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+		const page = await context.newPage()
+		await page.goto('/login')
+		await expect(page.getByRole('heading', { name: 'Dify App Hub' })).toBeVisible()
+		// The built-in image through Next's optimizer, as before (spec §4.6); signed out, so /_next/image must stay
+		// outside the proxy (proxy.ts matcher). It is alt="" beside the name, so it has no img role to find it by.
+		const logo = page.locator('img[src^="/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Flogo"]')
+		await expect(logo).toBeVisible()
+		// MDN HTMLImageElement.naturalWidth: 0 while "the image data is not available".
+		await expect
+			.poll(() => logo.evaluate((img: HTMLImageElement) => img.naturalWidth))
+			.toBeGreaterThan(0)
+		await context.close()
+	})
+
+	// The route is public (lib/access.ts) and, with no image saved, answers the house 404 envelope (settings spec §4.5;
+	// lib/settings/image-response.ts), not the proxy's 401.
+	test('the public logo route answers 404 signed out while no logo is saved', async ({
+		browser,
+	}) => {
+		const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+		const response = await context.request.get('/api/branding/logo')
+		expect(response.status()).toBe(404)
+		expect(await response.json()).toEqual({
+			code: 'not_found',
+			message: 'No custom image is set.',
+			status: 404,
+		})
+		await context.close()
+	})
+})
+
+const nameOf = () => `Acme ${test.info().project.name}`
+
+test.describe('the Branding page (settings spec §5.3)', () => {
+	test.afterEach(async () => {
+		await resetBranding()
+	})
+
+	test('an admin reaches it from the navigation', async ({ page, isMobile }) => {
+		await page.goto('/app-management')
+		if (isMobile) {
+			// A click before hydration does nothing, so it is retried with its outcome (Playwright `expect.toPass`), and only
+			// while the drawer is closed: an open drawer's mask would take the click (as openDrawer, e2e/admin-apps.spec.ts).
+			const drawerLink = page.getByRole('dialog').getByRole('link', { name: 'Branding' })
+			await expect(async () => {
+				if (!(await drawerLink.isVisible()))
+					await page.getByRole('button', { name: 'Menu' }).click({ timeout: 2_000 })
+				await expect(drawerLink).toBeVisible({ timeout: 1_000 })
+			}).toPass({ timeout: 30_000 })
+			await drawerLink.click()
+		} else {
+			await page.getByRole('complementary').getByRole('link', { name: 'Branding' }).click()
+		}
+		await expect(page).toHaveURL(/\/settings\/branding$/)
+		await expect(page.getByRole('heading', { name: 'Branding' })).toBeVisible()
+		await expect(page.getByText('Branding is stored in the database.')).toBeVisible()
+		await page.goto('/settings')
+		await expect(page).toHaveURL(/\/settings\/branding$/)
+	})
+
+	test('a saved name and logo reach the header, the tab and the login page', async ({
+		page,
+		browser,
+	}) => {
+		await page.goto('/settings/branding')
+		await chooseFile(page, 'Choose logo', {
+			name: 'logo.png',
+			mimeType: 'image/png',
+			buffer: await pngOf(400, 100),
+		})
+		await page.getByLabel('Name', { exact: true }).fill(nameOf())
+		await page.getByRole('button', { name: 'Save' }).click()
+		await expect(page.getByText('Branding saved')).toBeVisible()
+
+		const home = page.getByRole('banner').getByRole('link', { name: nameOf() })
+		await expect(home).toBeVisible()
+		await expect(home.locator('img')).toHaveAttribute(
+			'src',
+			/\/api\/branding\/logo\?v=[0-9a-f]{16}/,
+		)
+		await expect(page).toHaveTitle(nameOf())
+		await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
+			'href',
+			/\/api\/branding\/favicon\?v=[0-9a-f]{16}/,
+		)
+
+		const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+		const login = await context.newPage()
+		await login.goto('/login')
+		await expect(login.getByRole('heading', { name: nameOf() })).toBeVisible()
+		// The card draws the saved logo (alt="" beside the name, so no img role to find it by), and it loads signed out.
+		const logo = login.locator('img[src*="/api/branding/logo?v="]')
+		await expect(logo).toBeVisible()
+		// MDN HTMLImageElement.naturalWidth: 0 while "the image data is not available".
+		await expect
+			.poll(() => logo.evaluate((img: HTMLImageElement) => img.naturalWidth))
+			.toBeGreaterThan(0)
+		const image = await login.request.get('/api/branding/logo')
+		expect(image.status()).toBe(200)
+		expect(image.headers()['content-type']).toBe('image/png')
+		await context.close()
+	})
+
+	test('with the name hidden, the header shows the logo alone and keeps the name for assistive technology', async ({
+		page,
+	}) => {
+		await page.goto('/settings/branding')
+		await chooseFile(page, 'Choose logo', {
+			name: 'logo.png',
+			mimeType: 'image/png',
+			buffer: await pngOf(400, 100),
+		})
+		await page.getByLabel('Name', { exact: true }).fill(nameOf())
+		await page.getByRole('switch', { name: 'Show the name beside the logo' }).click()
+		await page.getByRole('button', { name: 'Save' }).click()
+		await expect(page.getByText('Branding saved')).toBeVisible()
+		const home = page.getByRole('banner').getByRole('link', { name: nameOf() })
+		await expect(home.locator('img')).toBeVisible()
+		await expect(home.getByText(nameOf())).toHaveCount(0)
+	})
+
+	test('removing the logo leaves the name, and the tab falls back to the built-in icon', async ({
+		page,
+	}) => {
+		await page.goto('/settings/branding')
+		await chooseFile(page, 'Choose logo', {
+			name: 'logo.png',
+			mimeType: 'image/png',
+			buffer: await pngOf(400, 100),
+		})
+		await page.getByLabel('Name', { exact: true }).fill(nameOf())
+		await page.getByRole('button', { name: 'Save' }).click()
+		await expect(page.getByText('Branding saved')).toBeVisible()
+		// Remove sits in the logo's group with its Choose button.
+		await page
+			.getByRole('group', { name: 'Logo', exact: true })
+			.getByRole('button', { name: 'Remove' })
+			.click()
+		await expect(page.getByRole('switch', { name: 'Show the name beside the logo' })).toBeDisabled()
+		await page.getByRole('button', { name: 'Save' }).click()
+		await expect(
+			page.getByRole('banner').getByRole('link', { name: nameOf() }).locator('img'),
+		).toHaveCount(0)
+		await expect(page.getByRole('banner').getByText(nameOf())).toBeVisible()
+		await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
+			'href',
+			/\/_next\/static\/media\/logo/,
+		)
+	})
+
+	test('the browser refuses a file type the hub does not take', async ({ page }) => {
+		await page.goto('/settings/branding')
+		await chooseFile(page, 'Choose icon', {
+			name: 'icon.gif',
+			mimeType: 'image/gif',
+			buffer: Buffer.from('GIF89a'),
+		})
+		await expect(
+			page.getByText('Use a PNG, JPEG or WebP image that opens correctly.'),
+		).toBeVisible()
+	})
+
+	// Each image field's label names the group of its controls (W3C WAI Forms Tutorial, "Grouping Controls"), while the
+	// buttons keep their own visible names (WCAG 2.2 SC 2.5.3 Label in Name).
+	test('each image field is a group named by its label, around its Choose button', async ({
+		page,
+	}) => {
+		await page.goto('/settings/branding')
+		await expect(
+			page
+				.getByRole('group', { name: 'Logo', exact: true })
+				.getByRole('button', { name: 'Choose logo' }),
+		).toBeVisible()
+		await expect(
+			page
+				.getByRole('group', { name: 'Browser-tab icon', exact: true })
+				.getByRole('button', { name: 'Choose icon' }),
+		).toBeVisible()
+	})
+
+	// The form counts the name as its counter and the server do, in code points (zod 4 string `max`; antd Input
+	// `count.strategy`), so an emoji, two UTF-16 code units, counts once: 64 are taken and the 65th is refused.
+	test('the Name field takes 64 characters of any kind and refuses the 65th', async ({ page }) => {
+		const tooLong = page.getByText('The name can be at most 64 characters long.')
+		const field = page.getByLabel('Name', { exact: true })
+		await page.goto('/settings/branding')
+		// A fill before hydration validates nothing, so it is retried with its outcome (Playwright `expect.toPass`).
+		await expect(async () => {
+			await field.fill('😀'.repeat(65))
+			await expect(tooLong).toBeVisible({ timeout: 1_000 })
+		}).toPass({ timeout: 30_000 })
+		await field.fill('😀'.repeat(64))
+		await expect(tooLong).toBeHidden()
+		await page.getByRole('button', { name: 'Save' }).click()
+		await expect(page.getByText('Branding saved')).toBeVisible()
+	})
+
+	// Beside a logo, the longest name (64 characters, spec §4.1) is cut with an ellipsis inside the header's left region
+	// (app-header.module.css `.title`: MDN text-overflow) instead of running into the chat title or the controls.
+	test('a 64-character name beside the logo is cut inside the left region of the header', async ({
+		page,
+		isMobile,
+	}) => {
+		test.skip(isMobile, 'below md the header shows the logo without the name (.title)')
+		const longName = 'A'.repeat(64)
+		await page.goto('/settings/branding')
+		await chooseFile(page, 'Choose logo', {
+			name: 'logo.png',
+			mimeType: 'image/png',
+			buffer: await pngOf(400, 100),
+		})
+		await page.getByLabel('Name', { exact: true }).fill(longName)
+		await page.getByRole('button', { name: 'Save' }).click()
+		await expect(page.getByText('Branding saved')).toBeVisible()
+
+		// An admin page (the left region beside the controls) and a chat page (beside the centred app title).
+		for (const path of ['/settings/branding', `/chat/${APP_ID}`]) {
+			await page.goto(path)
+			const home = page.getByRole('banner').getByRole('link', { name: longName })
+			// The element that carries the name inside the link: Typography.Text's root span, which holds the .title class.
+			const name = home.locator('span', { hasText: longName })
+			await expect(name).toBeVisible()
+			// text-overflow applies only to a box whose overflow is not visible (MDN text-overflow: "you have to set other CSS
+			// properties: overflow and white-space"), so the three are asserted together (Playwright `toHaveCSS`).
+			await expect(name).toHaveCSS('overflow-x', 'hidden')
+			await expect(name).toHaveCSS('white-space', 'nowrap')
+			await expect(name).toHaveCSS('text-overflow', 'ellipsis')
+			// MDN Element.scrollWidth: wider than clientWidth while the content overflows the element, here the cut text.
+			await expect
+				.poll(() => name.evaluate(element => element.scrollWidth > element.clientWidth))
+				.toBe(true)
+			// The left region is the link's parent (Playwright "Other locators": `xpath=..`).
+			const region = await home.locator('xpath=..').boundingBox()
+			const box = await name.boundingBox()
+			expect(region).not.toBeNull()
+			expect(box).not.toBeNull()
+			expect(box!.x + box!.width).toBeLessThanOrEqual(region!.x + region!.width)
+		}
+	})
+})
+
+test.describe('a user-role account', () => {
+	test.use({ storageState: { cookies: [], origins: [] } })
+	const emailOf = () => `branding-${test.info().project.name}@e2e.local`
+
+	test.afterEach(async () => {
+		await deleteUsersLike(`branding-${test.info().project.name}%`)
+	})
+
+	test('is sent away from the settings pages', async ({ page }) => {
+		await seedUser({ email: emailOf(), password: 'user-pass-1' })
+		await signInAs(page, emailOf(), 'user-pass-1')
+		for (const path of ['/settings', '/settings/branding']) {
+			await page.goto(path)
+			await expect(page).toHaveURL(/\/apps$/)
+		}
+	})
+})

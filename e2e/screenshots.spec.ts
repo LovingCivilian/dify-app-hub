@@ -1,6 +1,8 @@
-import { expect, test, type Page, type TestInfo } from '@playwright/test'
+import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test'
 
+import { chooseFile, demoLogo, resetBranding } from './fixtures/branding'
 import { APP_ID, APP_IDS } from './fixtures/constants'
+import { waitForHydration } from './fixtures/hydration'
 
 /**
  * Readiness is asserted with web-first assertions: Playwright discourages `networkidle`
@@ -191,4 +193,178 @@ test('screenshot user-drawer', async ({ page }, testInfo) => {
 	await page.getByRole('button', { name: 'Add user' }).click()
 	await expect(page.getByRole('dialog').getByLabel('Name')).toBeVisible()
 	await capture(page, 'user-drawer', testInfo)
+})
+
+/**
+ * Waits until the page shows one shell. React streams a segment into a hidden `<div hidden id="S:…">` and an inline
+ * script swaps it in for its Suspense fallback (react.dev `renderToPipeableStream`, "Streaming more content as it
+ * loads"), which can happen after the load event; until then the DOM holds two headers (seen once on /apps, where the
+ * `header(...)` CSS locator above matched both and failed strict mode, Playwright "Locators: Strictness"). One header,
+ * shown as the banner landmark (role locators skip hidden elements, Playwright `getByRole` `includeHidden`), marks the
+ * settled page, so the checks after it see one copy of everything.
+ */
+async function shellSettled(page: Page) {
+	await expect(page.locator('header.ant-layout-header')).toHaveCount(1)
+	await expect(page.getByRole('banner')).toBeVisible()
+}
+
+/**
+ * Waits until every visible matched image has loaded (MDN HTMLImageElement.naturalWidth: 0 while "the image data is not
+ * available"); `evaluateAll` re-resolves the locator on each poll (Playwright `locator.evaluateAll`, `filter` `visible`).
+ */
+async function imagesLoaded(images: Locator) {
+	const visible = images.filter({ visible: true })
+	await expect(visible.first()).toBeVisible()
+	await expect
+		.poll(() =>
+			visible.evaluateAll(
+				(elements: HTMLImageElement[]) =>
+					elements.length > 0 && elements.every(element => element.naturalWidth > 0),
+			),
+		)
+		.toBe(true)
+}
+
+/**
+ * Waits until an element shows at full opacity, its ancestors included (MDN `opacity`: it "applies to the element as a
+ * whole, including its contents"; MDN `Window.getComputedStyle`). An antd pop-up mounts at opacity 0 and fades in through
+ * its motion classes; `animations: 'disabled'` fast-forwards running finite animations to completion (Playwright
+ * `page.screenshot`), not a fade that has not started, so a shot taken in that first phase shows nothing, although the
+ * element already counts as visible (seen: the collapsed sider's pop-out at opacity 0 in its `appear-start` phase).
+ */
+async function fullyOpaque(element: Locator) {
+	await expect
+		.poll(() =>
+			element.evaluate(start => {
+				let opacity = 1
+				for (let node: Element | null = start; node; node = node.parentElement)
+					opacity *= Number(getComputedStyle(node).opacity)
+				return opacity
+			}),
+		)
+		.toBe(1)
+}
+
+/** /app-management with its seeded table, as the `admin` shot waits for it, after the shell has settled. */
+async function openAppManagement(page: Page) {
+	await page.goto('/app-management')
+	await shellSettled(page)
+	await noSpinner(page)
+	await expect(stubApp(page)).toBeVisible()
+	await expect(page.getByText('🤖').first()).toBeVisible()
+}
+
+/**
+ * Opens the admin drawer below md. A click before hydration does nothing, so it is retried with its outcome (Playwright
+ * `expect.toPass`, given a timeout since it defaults to none), and only while the drawer is closed: an open drawer's
+ * mask would take the click (as openDrawer, e2e/admin-apps.spec.ts).
+ */
+async function openAdminDrawer(page: Page) {
+	const drawerLink = page.getByRole('dialog').getByRole('link', { name: 'Branding' })
+	await expect(async () => {
+		if (!(await drawerLink.isVisible()))
+			await page.getByRole('button', { name: 'Menu' }).click({ timeout: 2_000 })
+		await expect(drawerLink).toBeVisible({ timeout: 1_000 })
+	}).toPass({ timeout: 30_000 })
+	await fullyOpaque(drawerLink)
+}
+
+const DEMO_BRAND = 'Acme AI Hub'
+
+// The Branding page in database mode (settings spec §5.3), a demo brand saved through it, and the grouped admin
+// navigation (§5.1). The brand is global state and the suite runs serially, so each test ends on the built-in brand.
+test.describe('branding', () => {
+	test.afterEach(async () => {
+		await resetBranding()
+	})
+
+	test('screenshot settings-branding', async ({ page }, testInfo) => {
+		await page.goto('/settings/branding')
+		await shellSettled(page)
+		await noSpinner(page)
+		await expect(page.getByText('Branding is stored in the database.')).toBeVisible()
+		await expect(page.getByText('Not saved yet')).toBeVisible()
+		await imagesLoaded(page.getByRole('banner').locator('img'))
+		await capture(page, 'settings-branding', testInfo)
+	})
+
+	test('screenshot settings-branding-saved, apps-branded and login-branded', async ({
+		page,
+		browser,
+	}, testInfo) => {
+		await page.goto('/settings/branding')
+		await shellSettled(page)
+		await chooseFile(page, 'Choose logo', {
+			name: 'acme-logo.png',
+			mimeType: 'image/png',
+			buffer: await demoLogo(),
+		})
+		await page.getByLabel('Name', { exact: true }).fill(DEMO_BRAND)
+		await page.getByRole('button', { name: 'Save' }).click()
+		await expect(page.getByText('Branding saved')).toBeVisible()
+
+		// Loaded afresh, so the shot shows the saved page without the toast; the date renders after hydration.
+		await page.goto('/settings/branding')
+		await shellSettled(page)
+		await noSpinner(page)
+		await expect(page.getByText('Last changed by admin@e2e.local')).toBeVisible()
+		await waitForHydration(page.locator('time'))
+		await imagesLoaded(page.locator('img[src*="/api/branding/logo?v="]'))
+		await capture(page, 'settings-branding-saved', testInfo)
+
+		await page.goto('/apps')
+		await shellSettled(page)
+		await noSpinner(page)
+		await expect(page.getByRole('banner').getByRole('link', { name: DEMO_BRAND })).toBeVisible()
+		await expect(stubApp(page)).toBeVisible()
+		await expect(page.getByText('🤖').first()).toBeVisible()
+		await imagesLoaded(page.getByRole('banner').locator('img'))
+		await capture(page, 'apps-branded', testInfo)
+
+		// Signed out, as the login shot above: a signed-in visitor is sent away from /login.
+		const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+		const login = await context.newPage()
+		await login.goto('/login')
+		await noSpinner(login)
+		await expect(login.getByRole('heading', { name: DEMO_BRAND })).toBeVisible()
+		await imagesLoaded(login.locator('img[src*="/api/branding/logo?v="]'))
+		await capture(login, 'login-branded', testInfo)
+		await context.close()
+	})
+
+	test('screenshot admin-sidebar', async ({ page, isMobile }, testInfo) => {
+		test.skip(isMobile, 'below md the sidebar gives way to the header drawer (admin-drawer)')
+		await openAppManagement(page)
+		await capture(page, 'admin-sidebar', testInfo)
+	})
+
+	test('screenshot admin-sidebar-collapsed', async ({ page, isMobile }, testInfo) => {
+		test.skip(isMobile, 'the sidebar is not part of the mobile layout')
+		await openAppManagement(page)
+		const sider = page.getByRole('complementary')
+		await expect(async () => {
+			await page.getByRole('button', { name: 'Collapse sidebar' }).click({ timeout: 1_000 })
+			await expect(page.getByRole('button', { name: 'Expand sidebar' })).toBeVisible({
+				timeout: 1_000,
+			})
+		}).toPass({ timeout: 30_000 })
+		// The open groups' inline lists play their leave motion before the collapsed Menu drops them; locators are strict
+		// (Playwright, "Locators: Strictness"), so wait for the one menu first (e2e/admin-nav.spec.ts).
+		await expect(sider.getByRole('navigation').getByRole('menu')).toHaveCount(1)
+		await sider.getByRole('menuitem', { name: 'Settings' }).click()
+		// Until it is aligned, the pop-out waits at `left: -1000vw; top: -1000vh` (@rc-component/trigger useOffsetStyle), which
+		// Playwright counts as visible (a non-empty box), so the shot waits for it to intersect the viewport instead
+		// (Playwright `toBeInViewport`, "according to the intersection observer API"), then for its fade-in.
+		const popOut = page.getByRole('menu').getByRole('link', { name: 'Branding' })
+		await expect(popOut).toBeInViewport()
+		await fullyOpaque(popOut)
+		await capture(page, 'admin-sidebar-collapsed', testInfo)
+	})
+
+	test('screenshot admin-drawer', async ({ page, isMobile }, testInfo) => {
+		test.skip(!isMobile, 'the drawer is the mobile navigation')
+		await openAppManagement(page)
+		await openAdminDrawer(page)
+		await capture(page, 'admin-drawer', testInfo)
+	})
 })

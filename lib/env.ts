@@ -5,6 +5,12 @@ import { escapeFilter, FilterParser } from 'ldapts'
 import * as z from 'zod'
 
 import { LDAP_ENCRYPTIONS, type LdapEncryption } from '@/lib/directory-status'
+import { brandNameSchema } from '@/lib/settings/branding-rules'
+import { SETTINGS_MODES } from '@/lib/settings/modes'
+
+/** The lenient read of a choice variable: blank counts as absent, anything else is trimmed and lower-cased. */
+const blankOrLowerCased = (value: unknown) =>
+	typeof value === 'string' && value.trim() ? value.trim().toLowerCase() : undefined
 
 /**
  * A `'true' | 'false'` flag, read leniently: blanks around it and its case do not matter, and a blank value counts
@@ -12,10 +18,7 @@ import { LDAP_ENCRYPTIONS, type LdapEncryption } from '@/lib/directory-status'
  * `z.preprocess` runs before the inner schema, and `.default` answers the undefined it leaves.
  */
 const flag = (fallback: 'true' | 'false') =>
-	z.preprocess(
-		value => (typeof value === 'string' && value.trim() ? value.trim().toLowerCase() : undefined),
-		z.enum(['true', 'false']).default(fallback),
-	)
+	z.preprocess(blankOrLowerCased, z.enum(['true', 'false']).default(fallback))
 
 const baseSchema = z.object({
 	NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -41,6 +44,33 @@ const blankAsAbsent = <T extends z.ZodType>(inner: T) =>
 		value => (typeof value === 'string' && value.trim() === '' ? undefined : value),
 		inner,
 	)
+
+/** Read leniently like `flag` above (blanks and case do not matter); unset or blank is `disabled`. */
+const brandingModeSchema = z.preprocess(
+	blankOrLowerCased,
+	z.enum(SETTINGS_MODES).default('disabled'),
+)
+
+/** Required together once BRANDING_MODE is env (spec §4.2; the all-or-nothing rule of the SMTP and LDAP blocks). */
+const brandingSchema = z
+	.object({
+		BRANDING_NAME: brandNameSchema,
+		BRANDING_SHOW_NAME: flag('true'),
+		BRANDING_LOGO_FILE: blankAsAbsent(z.string().trim().optional()),
+		BRANDING_FAVICON_FILE: blankAsAbsent(z.string().trim().optional()),
+	})
+	.refine(value => value.BRANDING_SHOW_NAME === 'true' || value.BRANDING_LOGO_FILE !== undefined, {
+		path: ['BRANDING_SHOW_NAME'],
+		message: 'true unless BRANDING_LOGO_FILE is set',
+		// Runs whenever its own two fields parsed, even if BRANDING_NAME failed (zod docs, "Refinements", the `when`
+		// parameter), so one start reports every wrong variable. The LDAP block below passes `when` too, but waits for
+		// every field (`issues.length === 0`), since its checks read values only a parsed field guarantees.
+		when: payload =>
+			payload.issues.every(
+				issue =>
+					issue.path?.[0] !== 'BRANDING_SHOW_NAME' && issue.path?.[0] !== 'BRANDING_LOGO_FILE',
+			),
+	})
 
 /**
  * RFC 4512 §1.4: a descriptor, a letter then letters, digits and hyphens (decision d). Not a numeric OID, which RFC 4512
@@ -200,12 +230,30 @@ export interface SmtpConfig {
 	appUrl: string
 }
 
+export interface BrandingEnvValues {
+	name: string
+	showName: boolean
+	/** Paths inside the container, mounted read-only (docs/settings.md); null when unset. */
+	logoFile: string | null
+	faviconFile: string | null
+}
+
+/**
+ * The values are set in `env` mode only; the BRANDING_* block is ignored in the other modes (spec §3.1). A discriminated
+ * union on `mode` (TypeScript handbook, "Discriminated unions"), so a reader that checks the mode has the values without
+ * a null check, and one that switches on it is checked for exhaustiveness.
+ */
+export type BrandingEnv =
+	| { mode: 'env'; values: BrandingEnvValues }
+	| { mode: 'disabled' | 'database'; values: null }
+
 export interface ServerEnv {
 	nodeEnv: 'development' | 'test' | 'production'
 	databaseUrl: string
 	nextAuthSecret: string
 	smtp: SmtpConfig | null
 	ldap: LdapConfig | null
+	branding: BrandingEnv
 }
 
 export class EnvError extends Error {
@@ -261,12 +309,29 @@ export const parseEnv = (source: Record<string, string | undefined>): ServerEnv 
 			syncTimezone: data.LDAP_SYNC_TIMEZONE ?? null,
 		}
 	}
+	const brandingMode = brandingModeSchema.safeParse(source.BRANDING_MODE)
+	if (!brandingMode.success) throw new EnvError(['BRANDING_MODE'])
+	let branding: BrandingEnv
+	if (brandingMode.data === 'env') {
+		const parsed = brandingSchema.safeParse(source)
+		if (!parsed.success) throw new EnvError(keysOf(parsed.error))
+		branding = {
+			mode: 'env',
+			values: {
+				name: parsed.data.BRANDING_NAME,
+				showName: parsed.data.BRANDING_SHOW_NAME === 'true',
+				logoFile: parsed.data.BRANDING_LOGO_FILE ?? null,
+				faviconFile: parsed.data.BRANDING_FAVICON_FILE ?? null,
+			},
+		}
+	} else branding = { mode: brandingMode.data, values: null }
 	return {
 		nodeEnv: base.data.NODE_ENV,
 		databaseUrl: base.data.DATABASE_URL,
 		nextAuthSecret: base.data.NEXTAUTH_SECRET,
 		smtp,
 		ldap,
+		branding,
 	}
 }
 

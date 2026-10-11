@@ -208,9 +208,12 @@ test('the media query shows one navigation variant and display: none keeps the o
 	await expect(trigger).toBeVisible({ visible: isMobile })
 	await expect(sider).toBeVisible({ visible: !isMobile })
 	// Role queries skip what display: none hides (as do screen readers), so the Menu button and the sidebar's
-	// menu are each reachable in exactly one viewport class: no duplicate accessible names.
+	// menu are each reachable in exactly one viewport class: no duplicate accessible names. The sider's menu is counted
+	// by its navigation landmark: each open group adds a menu of its own (antd Menu, inline submenus).
 	await expect(header.getByRole('button', { name: 'Menu' })).toHaveCount(isMobile ? 1 : 0)
-	await expect(page.getByRole('complementary').getByRole('menu')).toHaveCount(isMobile ? 0 : 1)
+	await expect(page.getByRole('complementary').getByRole('navigation')).toHaveCount(
+		isMobile ? 0 : 1,
+	)
 	await expect(header.getByRole('menu')).toHaveCount(0)
 })
 

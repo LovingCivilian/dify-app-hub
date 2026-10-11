@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process'
 
+import { resetBranding } from './fixtures/branding'
 import { resetDirectoryState } from './fixtures/directory'
 import { e2eEnv } from './fixtures/env'
 
@@ -7,8 +8,11 @@ import { e2eEnv } from './fixtures/env'
  * Starts the tmpfs MySQL and the smblds test directory (running containers are reused: MySQL's data and the
  * directory's provisioning persist until `docker compose -f docker-compose.e2e.yml --profile ldap down -v`; a plain
  * `down` leaves ldap-ad, Docker "Using profiles with Compose"), applies the migrations, and clears the directory
- * accounts a previous run left (decision aa). ldap-ad is started by name: its profile keeps it out of a plain `up`
- * (Docker docs, "Using profiles with Compose"). Admin and app seeding happen in e2e/auth.setup.ts (they need the app).
+ * accounts a previous run left (decision aa) and a brand a crashed run left (the specs expect the built-in "Dify App
+ * Hub" until e2e/branding.spec.ts saves one; Playwright "Global setup and teardown": the function "will be run once
+ * before all the tests"; the files go with the row, see resetBranding). ldap-ad is started by name: its profile keeps
+ * it out of a plain `up` (Docker docs, "Using profiles with Compose"). Admin and app seeding happen in
+ * e2e/auth.setup.ts (they need the app).
  */
 export default async function globalSetup() {
 	execSync(
@@ -22,4 +26,5 @@ export default async function globalSetup() {
 		env: { ...process.env, DATABASE_URL: e2eEnv.DATABASE_URL },
 	})
 	await resetDirectoryState()
+	await resetBranding()
 }

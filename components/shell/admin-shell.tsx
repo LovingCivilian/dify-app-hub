@@ -1,21 +1,14 @@
 'use client'
 
-import { ApartmentOutlined, AppstoreOutlined, TeamOutlined } from '@ant-design/icons'
 import { Layout, Menu } from 'antd'
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ADMIN_NAV_OPEN_KEYS, adminNavItems, selectedAdminKey } from './admin-nav'
 import AppHeader from './app-header'
 import AppSider from './app-sider'
 import styles from './shell.module.css'
-
-const ADMIN_NAV = [
-	{ key: '/app-management', icon: <AppstoreOutlined />, label: 'admin.menu_apps' },
-	{ key: '/user-management', icon: <TeamOutlined />, label: 'admin.menu_users' },
-	{ key: '/group-management', icon: <ApartmentOutlined />, label: 'admin.menu_groups' },
-] as const
 
 /** Shell for the admin area: the shared header, then the sidebar with the area's navigation beside the content region. */
 export default function AdminShell({ children }: { children: React.ReactNode }) {
@@ -23,18 +16,15 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 	const pathname = usePathname()
 	// Kept while the admin pages change (the (admin) layout stays mounted), not across loads (ProLayout's default).
 	const [collapsed, setCollapsed] = useState(false)
-	const nav = ADMIN_NAV.map(item => ({
-		key: item.key,
-		icon: item.icon,
-		label: <Link href={item.key}>{t(item.label)}</Link>,
-	}))
-	const selected = ADMIN_NAV.find(item => pathname.startsWith(item.key))?.key
+	const nav = adminNavItems(key => t(key))
+	const selected = selectedAdminKey(pathname)
 
 	return (
 		<Layout className={styles.root}>
 			<AppHeader
 				nav={nav}
 				navSelectedKey={selected}
+				navOpenKeys={ADMIN_NAV_OPEN_KEYS}
 			/>
 			<Layout hasSider>
 				<AppSider
@@ -49,6 +39,11 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 							mode="inline"
 							items={nav}
 							selectedKeys={selected ? [selected] : []}
+							defaultOpenKeys={ADMIN_NAV_OPEN_KEYS}
+							// In the collapsed sider a group opens its pop-out on click, not hover (antd Menu
+							// `triggerSubMenuAction`, default hover; ADR-0014's reasons: keyboard reach, and "hover
+							// can't be used on touchscreens", antd Dropdown `trigger`).
+							triggerSubMenuAction="click"
 							// The sider draws the edge line (antd Layout, demo "Header Sider 2").
 							style={{ borderInlineEnd: 0 }}
 						/>

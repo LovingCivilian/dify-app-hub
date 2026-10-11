@@ -5,8 +5,8 @@
 ### 4.1 Project structure (Next)
 
 - `app/` is routing only. Shared code lives in root folders: `components/<feature>/`, `hooks/`, `lib/` (`libs/` merged into it; the backend's `lib/auth/`, `lib/data/` and `lib/dify/` since B1, ADR-0023), `types/`, `locales/`.
-- Route groups own their layouts: `app/(auth)/` (login, forgot-password, reset-password), `app/(admin)/` (app-management, user-management), `app/(user)/` (apps, chat/[appId]); `app/init/` and `app/page.tsx` stay top-level. Layout selection by URL-sniffing (`PageLayoutWrapper`) is removed.
-- Root `app/layout.tsx` (server component): `<html lang>` → `<body>` → `AntdRegistry` → client providers (session, theme mode, i18n, `XProvider`, `App`) → children. Providers are one client component, `components/providers/app-providers.tsx`.
+- Route groups own their layouts: `app/(auth)/` (login, forgot-password, reset-password), `app/(admin)/` (app-management, user-management, group-management, settings), `app/(user)/` (apps, chat/[appId]); `app/init/` and `app/page.tsx` stay top-level. Layout selection by URL-sniffing (`PageLayoutWrapper`) is removed.
+- Root `app/layout.tsx` (server component): `<html lang>` → `<body>` → `AntdRegistry` → client providers (session, theme mode, i18n, `XProvider`, `App`, and inside `App` the brand's `BrandingProvider` from `components/providers/branding-context.tsx`, ADR-0030) → children. Providers are one client component, `components/providers/app-providers.tsx`.
 - Server components by default; `'use client'` only on interactive leaves and providers. Route-level `loading.tsx` where a page fetches before rendering.
 - Files are named `kebab-case.tsx`; one component per file; colocated `*.module.css` next to the component it styles.
 
@@ -49,7 +49,7 @@ Data layer: the Dify provider stays an `AbstractChatProvider` with the three tra
 - `(admin)`: antd `Layout` (Header + Content), `Menu` or `Segmented` navigation, `Table` with `Drawer`/`Form` editing, `Descriptions`, `Tabs`, `Popconfirm`/`Modal` confirms, `Tag`/`Badge` for status.
 - `(user)/apps`: `Card` grid (`Row`/`Col` or `Flex wrap`), `Empty` state.
 - `(auth)` and `init`: centred `Card` with `Form` on the `color-bg-layout` surface.
-- Header (all areas): logo + title, area navigation, then `Dropdown`s for language, theme mode and account, GitHub link; `@ant-design/icons`.
+- Header (all areas): the brand (logo and/or name, settings spec §4.6), area navigation, then `Dropdown`s for language, theme mode and account; `@ant-design/icons`.
 
 ### 4.6 Verification
 
