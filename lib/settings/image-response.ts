@@ -4,6 +4,19 @@ import type { BrandImageKind } from './branding-rules'
 import { readBrandImage, readBrandImageVersion } from './branding'
 
 /**
+ * Whether `If-None-Match` matches the current tag (RFC 9110 §13.1.2): the field is `*` or a comma-separated list of entity
+ * tags, compared with the weak comparison function (§8.8.3.2: a `W/` prefix on either side is ignored, the opaque tags
+ * must be equal). `*` matches because a current representation exists when this is called. An absent or empty field
+ * matches nothing.
+ */
+export const matchesIfNoneMatch = (header: string | null, etag: string): boolean => {
+	if (!header) return false
+	const opaque = (tag: string) => tag.trim().replace(/^W\//, '')
+	const current = opaque(etag)
+	return header.split(',').some(tag => opaque(tag) === '*' || opaque(tag) === current)
+}
+
+/**
  * A brand image answer (settings spec §4.5), shaped like the app-icon route (app/api/apps/[appId]/icon/route.ts): public,
  * since the brand is, and revalidated on every use (RFC 9111 §5.2.2.4 no-cache), so a new logo shows at once and an
  * unchanged one costs a 304 through its ETag (RFC 9110 §13.1.2). The hub only serves PNGs it produced; nosniff and the
@@ -26,7 +39,7 @@ export const brandImageResponse = async (
 		'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
 	})
 	const known = headers(version)
-	if (request.headers.get('if-none-match') === known.etag)
+	if (matchesIfNoneMatch(request.headers.get('if-none-match'), known.etag))
 		return new Response(null, { status: 304, headers: known })
 	const image = await readBrandImage(kind)
 	if (!image) return notFound()

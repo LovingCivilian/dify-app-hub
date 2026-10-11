@@ -6,10 +6,13 @@ const { readBrandImage, readBrandImageVersion } = vi.hoisted(() => ({
 	readBrandImageVersion: vi.fn(),
 }))
 vi.mock('@/lib/settings/branding', () => ({ readBrandImage, readBrandImageVersion }))
+// Vitest `vi.mock(path, factory)` replaces the module for this file's imports (vitest.dev/api/vi#vi-mock), so the
+// route's import chain does not load next-auth's options.
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 
 import { GET as getFavicon } from '@/app/api/branding/favicon/route'
 import { GET as getLogo } from '@/app/api/branding/logo/route'
+import { matchesIfNoneMatch } from '@/lib/settings/image-response'
 
 const get = (path: string, headers: Record<string, string> = {}) =>
 	new NextRequest(`http://app${path}`, { headers })
@@ -63,6 +66,17 @@ describe('GET /api/branding/logo (settings spec §4.5)', () => {
 		expect(response.headers.get('etag')).toBe(etag)
 	})
 
+	it('answers 200 with the new bytes and their own ETag to a stale If-None-Match', async () => {
+		readBrandImageVersion.mockResolvedValue(sha256)
+		readBrandImage.mockResolvedValue(image)
+		const response = await getLogo(
+			get('/api/branding/logo', { 'if-none-match': `"${'c'.repeat(32)}"` }),
+		)
+		expect(response.status).toBe(200)
+		expect(response.headers.get('etag')).toBe(etag)
+		expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
+	})
+
 	it('answers 404 when the bytes vanished after the version read', async () => {
 		readBrandImageVersion.mockResolvedValue(sha256)
 		readBrandImage.mockResolvedValue(null)
@@ -102,5 +116,25 @@ describe('GET /api/branding/favicon', () => {
 	it('answers 404 with neither', async () => {
 		readBrandImageVersion.mockResolvedValue(null)
 		expect((await getFavicon(get('/api/branding/favicon'))).status).toBe(404)
+	})
+})
+
+describe('matchesIfNoneMatch (RFC 9110 §13.1.2, §8.8.3.2)', () => {
+	it('matches a tag in a comma-separated list', () => {
+		expect(matchesIfNoneMatch(`"x", ${etag} ,"y"`, etag)).toBe(true)
+	})
+	it('compares weakly, ignoring W/ on either side', () => {
+		expect(matchesIfNoneMatch(`W/${etag}`, etag)).toBe(true)
+		expect(matchesIfNoneMatch(etag, `W/${etag}`)).toBe(true)
+	})
+	it('matches *', () => {
+		expect(matchesIfNoneMatch('*', etag)).toBe(true)
+	})
+	it('does not match a list without the tag', () => {
+		expect(matchesIfNoneMatch('"x", W/"y"', etag)).toBe(false)
+	})
+	it('does not match an empty or absent header', () => {
+		expect(matchesIfNoneMatch('', etag)).toBe(false)
+		expect(matchesIfNoneMatch(null, etag)).toBe(false)
 	})
 })
