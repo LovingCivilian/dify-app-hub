@@ -17,7 +17,7 @@ The hub moves from MySQL 8.4 to PostgreSQL 18 and is renamed "AI App Hub". Nothi
 - the database engine, driver, schema, migrations and compose services;
 - every MySQL-specific spot in the code and the tests;
 - the product name in the operational files and the code;
-- the rename steps for the GitHub repo and the local folders after merge.
+- the rename steps for the GitHub repo (any time) and the local folders (at the end of the programme), written down for the owner (§8).
 
 **Out of scope:**
 
@@ -214,18 +214,24 @@ The rename gets a dated note in the same PR (ADR-0019, the product-line record).
 
 **`docs/auth-gate.md` and `docs/ldap.md`:** their MySQL parts are the owner-password recovery command (rewritten for `psql`) and "MySQL error 3819" (`docs/ldap.md:109`).
 
-## 8. After the merge: renaming the repo and the folders (owner, between sessions)
+## 8. Renaming the GitHub repo and the local folders (owner)
 
-Run these with no Claude Code session open in either folder.
+Both renames are deferred (owner, 2026-10-12). The owner works remotely for now and cannot touch files outside a session. Nothing depends on the folder name: every compose file names its project (`name:`), and the package and image names live in their own files. So until then, the folders and Claude Code's memory keep their current paths.
 
-1. **The GitHub repo.** In the repo's Settings, rename `LovingCivilian/dify-app-hub` → `LovingCivilian/ai-app-hub`. GitHub redirects the old URL. Then `git remote set-url origin https://github.com/LovingCivilian/ai-app-hub.git` (the worktrees share one config).
-2. **The linked worktree first, from the main folder.** `git worktree move ~/repos/dify-app-hub-main ~/repos/ai-app-hub-main` (git-worktree: `move` updates the administrative files).
-3. **The main worktree.**
+**The GitHub repo, any time.**
+
+1. In the repo's Settings on GitHub (possible remotely), rename `LovingCivilian/dify-app-hub` → `LovingCivilian/ai-app-hub`. GitHub redirects the old URL.
+2. In the next session, Claude runs `git remote set-url origin git@github.com:LovingCivilian/ai-app-hub.git`. The worktrees share one config, so this covers both.
+
+**The local folders, at the end of the programme (after Part 3), when the owner is at the machine.** Run these with no Claude Code session open in either folder.
+
+1. **The linked worktree first, from the main folder.** `git worktree move ~/repos/dify-app-hub-main ~/repos/ai-app-hub-main` (git-worktree: `move` updates the administrative files).
+2. **The main worktree.**
    - `mv ~/repos/dify-app-hub ~/repos/ai-app-hub`;
    - `cd ~/repos/ai-app-hub && git worktree repair`. git-worktree: "if the main worktree … is moved, linked worktrees will be unable to locate it. Running repair in the main worktree will reestablish the connection".
-4. **Claude Code's project directory.** `mv ~/.claude/projects/-home-madany-repos-dify-app-hub ~/.claude/projects/-home-madany-repos-ai-app-hub`. It holds the memory and the session history. Then update the folder paths inside the memory files (`two-product-lines`, `fork-claude-md-source-of-truth`, `provider-hub-brainstorm`).
-5. **`fork/main`'s `CLAUDE.md`** names its folder (`~/repos/dify-app-hub-main`). Its path lines change in a small docs PR to `fork/main`. Its content stays upstream-shaped (ADR-0019), and its compose project keeps its own name.
-6. **This line's `CLAUDE.md`** paths change in the first PR after the move (Part 1's).
+3. **Claude Code's project directory.** `mv ~/.claude/projects/-home-madany-repos-dify-app-hub ~/.claude/projects/-home-madany-repos-ai-app-hub`. It holds the memory and the session history. Then update the folder paths inside the memory files (`two-product-lines`, `fork-claude-md-source-of-truth`, `provider-hub-brainstorm`).
+4. **`fork/main`'s `CLAUDE.md`** names its folder (`~/repos/dify-app-hub-main`). Its path lines change in a small docs PR to `fork/main`. Its content stays upstream-shaped (ADR-0019), and its compose project keeps its own name.
+5. **This line's `CLAUDE.md`** paths change in the first PR after the move.
 
 ## 9. Done when
 

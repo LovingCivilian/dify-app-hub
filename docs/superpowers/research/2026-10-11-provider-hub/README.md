@@ -364,6 +364,13 @@ Rules that apply throughout:
     - ADR-0004 is marked superseded while ADR-0031 is proposed, as ADR-0003 was.
     - AGENTS.md stays upstream's, and CLAUDE.md gives the working `pnpm db:*` form.
 
+35. **The local folder rename moves to the end of the programme** (owner, 2026-10-12: "how about moving naming the folder it self to last? cause currently im on remote and can't edit files").
+    - `~/repos/dify-app-hub`, `~/repos/dify-app-hub-main` and Claude Code's memory directory keep their paths until after Part 3, when the owner is at the machine. Nothing depends on the folder name: the compose files name their projects.
+    - The GitHub repo can be renamed from the web any time, and a session then runs `git remote set-url`.
+    - Recorded in Part 0's spec §8, its plan (decision s, Task 13's `CLAUDE.md` text, Task 14's reminder) and the charter. This revises decision 3's timing only.
+
+    Also decided on 2026-10-12: Part 0 runs subagent-driven, in a new session; the docs went to `fork/overhaul` in PR #37 (`8e105912`).
+
 ## Research findings that shape the design (2026-10-11)
 
 Sources are in `agui-and-reference-hubs.md`.
