@@ -147,13 +147,15 @@ test('the admin navigation reaches the groups page', async ({ page, isMobile }) 
 		// signal, so the first click is retried with its outcome (Playwright, expect.toPass).
 		await expect(async () => {
 			await page.getByRole('button', { name: 'Menu' }).click()
-			await expect(page.getByRole('menuitem', { name: 'Group management' })).toBeVisible({
+			await expect(
+				page.getByRole('dialog').getByRole('link', { name: 'Groups', exact: true }),
+			).toBeVisible({
 				timeout: 1000,
 			})
 		}).toPass()
-		await page.getByRole('menuitem', { name: 'Group management' }).click()
+		await page.getByRole('dialog').getByRole('link', { name: 'Groups', exact: true }).click()
 	} else {
-		await page.getByRole('complementary').getByRole('link', { name: 'Group management' }).click()
+		await page.getByRole('complementary').getByRole('link', { name: 'Groups', exact: true }).click()
 	}
 	await expect(page).toHaveURL(/\/group-management$/)
 })

@@ -247,7 +247,13 @@
 		"menu_apps": "إدارة التطبيقات",
 		"menu_users": "إدارة المستخدمين",
 		"route_not_found": "المسار غير موجود",
-		"menu_groups": "إدارة المجموعات"
+		"menu_groups": "إدارة المجموعات",
+		"menu_management": "الإدارة",
+		"menu_settings": "الإعدادات",
+		"menu_item_apps": "التطبيقات",
+		"menu_item_users": "المستخدمون",
+		"menu_item_groups": "المجموعات",
+		"menu_item_branding": "العلامة التجارية"
 	},
 	"admin_users": {
 		"subtitle": "إدارة حسابات المستخدمين",

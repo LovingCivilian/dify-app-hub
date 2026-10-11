@@ -247,7 +247,13 @@
 		"menu_apps": "应用管理",
 		"menu_users": "用户管理",
 		"route_not_found": "路径不存在",
-		"menu_groups": "群组管理"
+		"menu_groups": "群组管理",
+		"menu_management": "管理",
+		"menu_settings": "设置",
+		"menu_item_apps": "应用",
+		"menu_item_users": "用户",
+		"menu_item_groups": "群组",
+		"menu_item_branding": "品牌"
 	},
 	"admin_users": {
 		"subtitle": "管理系统用户账户",

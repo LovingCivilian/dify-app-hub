@@ -247,7 +247,13 @@
 		"menu_apps": "App management",
 		"menu_users": "User management",
 		"route_not_found": "Route not found",
-		"menu_groups": "Group management"
+		"menu_groups": "Group management",
+		"menu_management": "Management",
+		"menu_settings": "Settings",
+		"menu_item_apps": "Apps",
+		"menu_item_users": "Users",
+		"menu_item_groups": "Groups",
+		"menu_item_branding": "Branding"
 	},
 	"admin_users": {
 		"subtitle": "Manage user accounts",

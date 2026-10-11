@@ -22,6 +22,8 @@ export interface AppHeaderProps {
 	 */
 	nav?: MenuProps['items']
 	navSelectedKey?: string
+	/** The groups the drawer's Menu opens with (admin: both, settings spec §5.1). */
+	navOpenKeys?: string[]
 	/** Centre content (chat: the app title); the centre region is rendered only when this is set. */
 	title?: React.ReactNode
 	/** Controls placed before the standard dropdowns (chat: the width toggle). */
@@ -36,6 +38,7 @@ export interface AppHeaderProps {
 export default function AppHeader({
 	nav,
 	navSelectedKey,
+	navOpenKeys,
 	title,
 	extra,
 	mobileMenu,
@@ -131,6 +134,7 @@ export default function AppHeader({
 						mode="inline"
 						items={nav}
 						selectedKeys={selectedKeys}
+						defaultOpenKeys={navOpenKeys}
 						onClick={() => setNavOpen(false)}
 						style={{ borderInlineEnd: 0 }}
 					/>
