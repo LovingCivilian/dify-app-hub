@@ -15,17 +15,31 @@ vi.mock('@/db', async () => {
 			: table === instanceSettingFiles
 				? 'instance_setting_files'
 				: 'other'
+	// The plain reads' chain answers no `.for()`; only the transaction's does, and it records the lock with its table and
+	// strength, so a write path that read the row without the lock, or outside the transaction, fails the write tests.
 	const chain = {
 		leftJoin: () => chain,
 		where: () => chain,
-		limit: () =>
-			Object.assign(Promise.resolve(rows.value), { for: () => Promise.resolve(rows.value) }),
+		limit: () => Promise.resolve(rows.value),
+	}
+	const lockableChain = (table: unknown) => {
+		const lockable = {
+			where: () => lockable,
+			limit: () =>
+				Object.assign(Promise.resolve(rows.value), {
+					for: (strength: string) => {
+						calls.push(['lock', nameOf(table), strength])
+						return Promise.resolve(rows.value)
+					},
+				}),
+		}
+		return lockable
 	}
 	const outside = () => {
 		throw new Error('a write outside the transaction')
 	}
 	const tx = {
-		select: () => ({ from: () => chain }),
+		select: () => ({ from: lockableChain }),
 		insert: (table: unknown) => ({
 			values: (values: unknown) => ({
 				onDuplicateKeyUpdate: (update: unknown) => {
@@ -175,13 +189,15 @@ describe('writeInstanceSetting (spec §4.3: one transaction, the row read under 
 		})
 		expect(saved).toBe(true)
 		expect(calls[0]).toEqual(['begin'])
-		expect(calls[1]).toEqual([
+		// The area row is read under FOR UPDATE inside the transaction, before any write (MySQL 8.4 "Locking Reads").
+		expect(calls[1]).toEqual(['lock', 'instance_settings', 'update'])
+		expect(calls[2]).toEqual([
 			'upsert',
 			'instance_settings',
 			expect.objectContaining({ area: 'branding', data: { name: 'Acme' }, updatedBy: 'a1' }),
 			{ set: expect.objectContaining({ data: { name: 'Acme' }, updatedBy: 'a1' }) },
 		])
-		expect(calls[2]).toEqual([
+		expect(calls[3]).toEqual([
 			'upsert',
 			'instance_setting_files',
 			expect.objectContaining({
@@ -192,9 +208,9 @@ describe('writeInstanceSetting (spec §4.3: one transaction, the row read under 
 			}),
 			{ set: expect.objectContaining({ bytes: logo.bytes, mime: 'image/png' }) },
 		])
-		expect(calls[3]).toEqual(['delete', 'instance_setting_files'])
-		expect(calls[4]).toEqual(['commit'])
-		expect(calls).toHaveLength(5)
+		expect(calls[4]).toEqual(['delete', 'instance_setting_files'])
+		expect(calls[5]).toEqual(['commit'])
+		expect(calls).toHaveLength(6)
 	})
 
 	it('hands build the locked document, or null before the first save', async () => {
@@ -211,7 +227,7 @@ describe('writeInstanceSetting (spec §4.3: one transaction, the row read under 
 			logo: { bytes: Buffer.from([1]), mime: 'image/png' },
 		})
 		expect(saved).toBe(false)
-		expect(calls).toEqual([['begin'], ['commit']])
+		expect(calls).toEqual([['begin'], ['lock', 'instance_settings', 'update'], ['commit']])
 	})
 
 	it('runs the transaction again after a deadlock, and not after another error', async () => {

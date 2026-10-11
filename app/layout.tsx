@@ -1,6 +1,7 @@
 import { AntdRegistry } from '@ant-design/nextjs-registry'
 import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
+import { connection } from 'next/server'
 
 import AppProviders from '@/components/providers/app-providers'
 import { readLanguageCookie } from '@/lib/i18n/language-cookie'
@@ -19,8 +20,14 @@ import 'antd/dist/reset.css'
 /**
  * The tab title and icon follow the brand (settings spec §4.6). app/favicon.ico is gone: a file-based icon overrides
  * generateMetadata (generate-metadata.md:114). getBranding is one read per request (React cache).
+ *
+ * The brand comes from the environment and the database at request time, never at `next build` (the image is built
+ * without either), so the function says so before it reads: `connection()` "indicate[s] rendering should wait for an
+ * incoming user request before continuing" (Next `connection.md`; the environment-variables and self-hosting guides read
+ * runtime variables after `await connection()`, so one image serves every environment).
  */
 export async function generateMetadata(): Promise<Metadata> {
+	await connection()
 	const view = brandingView(await getBranding(), BUILT_IN_LOGO)
 	return {
 		title: view.name,

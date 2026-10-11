@@ -33,6 +33,22 @@ test.describe('the built-in brand', () => {
 			.toBeGreaterThan(0)
 		await context.close()
 	})
+
+	// The route is public (lib/access.ts) and, with no image saved, answers the house 404 envelope (settings spec §4.5;
+	// lib/settings/image-response.ts), not the proxy's 401.
+	test('the public logo route answers 404 signed out while no logo is saved', async ({
+		browser,
+	}) => {
+		const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+		const response = await context.request.get('/api/branding/logo')
+		expect(response.status()).toBe(404)
+		expect(await response.json()).toEqual({
+			code: 'not_found',
+			message: 'No custom image is set.',
+			status: 404,
+		})
+		await context.close()
+	})
 })
 
 const nameOf = () => `Acme ${test.info().project.name}`
@@ -160,6 +176,23 @@ test.describe('the Branding page (settings spec §5.3)', () => {
 		await expect(
 			page.getByText('Use a PNG, JPEG or WebP image that opens correctly.'),
 		).toBeVisible()
+	})
+
+	// The form counts the name as its counter and the server do, in code points (zod 4 string `max`; antd Input
+	// `count.strategy`), so an emoji, two UTF-16 code units, counts once: 64 are taken and the 65th is refused.
+	test('the Name field takes 64 characters of any kind and refuses the 65th', async ({ page }) => {
+		const tooLong = page.getByText('The name can be at most 64 characters long.')
+		const field = page.getByLabel('Name', { exact: true })
+		await page.goto('/settings/branding')
+		// A fill before hydration validates nothing, so it is retried with its outcome (Playwright `expect.toPass`).
+		await expect(async () => {
+			await field.fill('😀'.repeat(65))
+			await expect(tooLong).toBeVisible({ timeout: 1_000 })
+		}).toPass({ timeout: 30_000 })
+		await field.fill('😀'.repeat(64))
+		await expect(tooLong).toBeHidden()
+		await page.getByRole('button', { name: 'Save' }).click()
+		await expect(page.getByText('Branding saved')).toBeVisible()
 	})
 
 	// Beside a logo, the longest name (64 characters, spec §4.1) is cut with an ellipsis inside the header's left region

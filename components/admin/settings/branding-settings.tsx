@@ -332,7 +332,17 @@ export default function BrandingSettings({ settings }: { settings: BrandingSetti
 							// antd Form rules `message`, as the house's forms (components/admin/groups/group-form-drawer.tsx).
 							rules={[
 								{ required: true, whitespace: true, message: t('admin_settings.name_required') },
-								{ max: BRAND_NAME_MAX, message: t('admin_settings.name_too_long') },
+								// The length in code points, as zod and the counter below count it (MDN String `[Symbol.iterator]()`:
+								// "yields the Unicode code points"), stated through a `validator` (antd Form Rule `validator`, demo
+								// "Registration"). Not the `max` rule: async-validator documents it against `length` (its README,
+								// "Range"), which counts UTF-16 code units (MDN `String.length`), although 6.0.0 counts a surrogate
+								// pair once (lib/rule/range.js); the count should not rest on that.
+								{
+									validator: (_, value: string | undefined) =>
+										Array.from(value ?? '').length > BRAND_NAME_MAX
+											? Promise.reject(new Error(t('admin_settings.name_too_long')))
+											: Promise.resolve(),
+								},
 							]}
 							// The server's own refusal (zod: trimmed, 1–64 code points), shown on the field the toast points to;
 							// its message is the server's, so the field names the rule instead (charter §4.5).
@@ -340,9 +350,9 @@ export default function BrandingSettings({ settings }: { settings: BrandingSetti
 							help={errors.name ? t('admin_settings.name_invalid') : undefined}
 						>
 							<Input
-								// antd Input `count` (CountConfig, demo "Custom count logic"): counts code points as zod and the form
-								// rule do (MDN String `[Symbol.iterator]()`: "yields the Unicode code points"); the native `maxlength`
-								// would not (MDN `maxlength`: "The length is measured in UTF-16 code units").
+								// antd Input `count` (CountConfig, demo "Custom count logic"): counts code points as zod and the form's
+								// `validator` rule above do (MDN String `[Symbol.iterator]()`: "yields the Unicode code points"); the
+								// native `maxlength` would not (MDN `maxlength`: "The length is measured in UTF-16 code units").
 								count={{
 									show: true,
 									max: BRAND_NAME_MAX,

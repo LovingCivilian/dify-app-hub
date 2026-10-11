@@ -63,7 +63,8 @@ const brandingSchema = z
 		path: ['BRANDING_SHOW_NAME'],
 		message: 'true unless BRANDING_LOGO_FILE is set',
 		// Runs whenever its own two fields parsed, even if BRANDING_NAME failed (zod docs, "Refinements", the `when`
-		// parameter; the LDAP block below does the same), so one start reports every wrong variable.
+		// parameter), so one start reports every wrong variable. The LDAP block below passes `when` too, but waits for
+		// every field (`issues.length === 0`), since its checks read values only a parsed field guarantees.
 		when: payload =>
 			payload.issues.every(
 				issue =>
