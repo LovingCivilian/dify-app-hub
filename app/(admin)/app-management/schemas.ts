@@ -3,6 +3,7 @@ import * as z from 'zod'
 import { userIdSchema } from '@/app/(admin)/user-management/schemas'
 import { ACCESS_MODES } from '@/lib/app-access'
 import { APP_MODES } from '@/lib/dify/types'
+import { idSchema } from '@/lib/ids'
 
 const appSettingsSchema = z.object({
 	answerForm: z.object({ enabled: z.boolean(), feedbackText: z.string().max(255).default('') }),
@@ -11,10 +12,10 @@ const appSettingsSchema = z.object({
 	annotationEnabled: z.boolean(),
 })
 
-/** Who may use the app (B3 spec §4.4): the grants count while restricted; group ids are UUIDs, account ids follow B2 decision h. */
+/** Who may use the app (B3 spec §4.4): the grants count while restricted; group and account ids are UUIDs (ADR-0031). */
 export const accessSchema = z.object({
 	mode: z.enum(ACCESS_MODES),
-	groupIds: z.array(z.uuid()).max(1000).default([]),
+	groupIds: z.array(idSchema).max(1000).default([]),
 	userIds: z.array(userIdSchema).max(10_000).default([]),
 })
 

@@ -24,6 +24,8 @@ import { DifyError } from '@/lib/dify/errors'
 
 const actor = { id: 'u1', email: 'jane@example.com', name: null, role: 'admin' }
 const UUID = '3b241101-e2bb-4255-8caf-4136c566a962'
+/** An account id for a grant: a UUID (ADR-0031; lib/ids.ts). */
+const ACCOUNT_ID = '3d1a6f4b-8e5a-4192-ad0e-4f5a6b7c8d93'
 const input = {
 	apiBase: 'https://dify.example/v1',
 	apiKey: 'app-abc',
@@ -129,10 +131,24 @@ describe('app actions', () => {
 		const groupId = '6f1c2a9e-1b2c-4d3e-8f40-5a6b7c8d9e0f'
 		const granted = {
 			...input,
-			access: { mode: 'restricted', groupIds: [groupId], userIds: ['u7'] },
+			access: { mode: 'restricted', groupIds: [groupId], userIds: [ACCOUNT_ID] },
 		}
 		await createAppAction(granted)
 		expect(createApp).toHaveBeenCalledWith(actor, granted)
+	})
+
+	// Spec §3.2: an account id that is not a UUID would raise 22P02 in PostgreSQL; the schema refuses it first.
+	it('refuses an account id that is not a UUID on the access field, before the DAL', async () => {
+		const result = await createAppAction({
+			...input,
+			access: { mode: 'restricted', groupIds: [], userIds: ['u7'] },
+		})
+		expect(result).toMatchObject({
+			ok: false,
+			code: 'invalid_input',
+			fieldErrors: { access: expect.any(Array) },
+		})
+		expect(createApp).not.toHaveBeenCalled()
 	})
 
 	// Review Focus 1 and deviation 3: every admin action refuses a user-role session before touching the DAL.

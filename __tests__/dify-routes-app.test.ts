@@ -20,9 +20,14 @@ import { GET as parameters } from '@/app/api/dify/[appId]/parameters/route'
 import { GET as site } from '@/app/api/dify/[appId]/site/route'
 
 const actor = { id: 'u1', email: 'jane@example.com', name: null }
-const access = { id: 'app-1', enabled: true, credentials: { apiBase: 'http://d/v1', apiKey: 'k' } }
-const ctx = { params: Promise.resolve({ appId: 'app-1' }) }
-const get = (path: string) => new NextRequest(`http://app/api/dify/app-1/${path}`)
+const access = {
+	id: '3b241101-e2bb-4255-8caf-4136c566a962',
+	enabled: true,
+	credentials: { apiBase: 'http://d/v1', apiKey: 'k' },
+}
+const ctx = { params: Promise.resolve({ appId: '3b241101-e2bb-4255-8caf-4136c566a962' }) }
+const get = (path: string) =>
+	new NextRequest(`http://app/api/dify/3b241101-e2bb-4255-8caf-4136c566a962/${path}`)
 
 const routes = [
 	['info', info, client.getInfo, { name: 'A', mode: 'chat', description: '', tags: [] }],

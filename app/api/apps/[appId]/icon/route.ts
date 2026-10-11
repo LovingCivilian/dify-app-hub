@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server'
 import { verifySession } from '@/lib/auth/session'
 import { getAppIcon } from '@/lib/data/apps'
 import { difyErrorResponse, errorResponseFrom } from '@/lib/dify/errors'
+import { isId } from '@/lib/ids'
 
 /**
  * The app's stored Dify icon image (charter §4.4): signed-in callers only (an <img> on a gated page sends the
@@ -18,7 +19,8 @@ export async function GET(request: NextRequest, ctx: RouteContext<'/api/apps/[ap
 	if (!actor) return difyErrorResponse('unauthorized', 'Sign in required.', 401)
 	try {
 		const { appId } = await ctx.params
-		const icon = await getAppIcon(actor, appId)
+		// Spec §3.2: an id that is not a UUID is an app without an icon, answered before any query (lib/ids.ts).
+		const icon = isId(appId) ? await getAppIcon(actor, appId) : null
 		if (!icon) return difyErrorResponse('icon_not_found', 'This app has no stored icon image.', 404)
 		const etag = `"${createHash('sha256').update(icon.bytes).digest('hex').slice(0, 32)}"`
 		const headers = {

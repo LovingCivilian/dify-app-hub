@@ -18,7 +18,7 @@ import AppChatPage from '@/app/(user)/chat/[appId]/page'
 
 const actor = { id: 'u1', email: 'jane@example.com', name: null }
 const app = {
-	id: 'a1',
+	id: '3b241101-e2bb-4255-8caf-4136c566a962',
 	name: 'Tea',
 	mode: 'chat',
 	description: '',
@@ -31,7 +31,10 @@ const app = {
 		annotationEnabled: false,
 	},
 }
-const props = { params: Promise.resolve({ appId: 'a1' }), searchParams: Promise.resolve({}) }
+const props = {
+	params: Promise.resolve({ appId: '3b241101-e2bb-4255-8caf-4136c566a962' }),
+	searchParams: Promise.resolve({}),
+}
 
 beforeEach(() => {
 	requireUser.mockReset()
@@ -48,8 +51,12 @@ describe('/chat/[appId] page', () => {
 		requireUser.mockResolvedValue(actor)
 		getChatApp.mockResolvedValue(app)
 		const page = await AppChatPage(props as never)
-		expect(getChatApp).toHaveBeenCalledWith(actor, 'a1')
-		expect(page).toMatchObject({ type: ChatWorkspace, key: 'a1', props: { app } })
+		expect(getChatApp).toHaveBeenCalledWith(actor, '3b241101-e2bb-4255-8caf-4136c566a962')
+		expect(page).toMatchObject({
+			type: ChatWorkspace,
+			key: '3b241101-e2bb-4255-8caf-4136c566a962',
+			props: { app },
+		})
 		expect(JSON.stringify(page.props)).not.toContain('apiBase')
 	})
 	it('renders the missing and the disabled states instead of the workspace', async () => {
@@ -64,5 +71,18 @@ describe('/chat/[appId] page', () => {
 			type: AppUnavailable,
 			props: { reason: 'disabled' },
 		})
+	})
+	// Spec §3.2: a malformed id is the missing state, as an unknown app is, and reaches no query (22P02).
+	it('renders the missing state for a malformed id without reading the app', async () => {
+		requireUser.mockResolvedValue(actor)
+		const malformed = {
+			params: Promise.resolve({ appId: 'not-a-uuid' }),
+			searchParams: Promise.resolve({}),
+		}
+		expect(await AppChatPage(malformed as never)).toMatchObject({
+			type: AppUnavailable,
+			props: { reason: 'missing' },
+		})
+		expect(getChatApp).not.toHaveBeenCalled()
 	})
 })

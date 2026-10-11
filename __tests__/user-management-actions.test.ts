@@ -43,6 +43,8 @@ import {
 } from '@/app/(admin)/user-management/actions'
 
 const admin = { id: 'a1', email: 'admin@example.com', name: 'Admin', role: 'admin' }
+/** The target account's id: a UUID, as every account id is (ADR-0031; lib/ids.ts). */
+const TARGET_ID = '3d1a6f4b-8e5a-4192-ad0e-4f5a6b7c8d93'
 const input = { name: 'Jane', email: 'jane@example.com', role: 'user', password: 'password-1' }
 
 beforeEach(() => {
@@ -63,11 +65,11 @@ beforeEach(() => {
 describe('user actions', () => {
 	it.each([
 		['createUserAction', () => createUserAction(input)],
-		['updateUserAction', () => updateUserAction('u9', input)],
-		['updateUserRoleAction', () => updateUserRoleAction('u9', { role: 'user' })],
-		['deleteUserAction', () => deleteUserAction('u9')],
-		['deactivateUserAction', () => deactivateUserAction('u9')],
-		['reactivateUserAction', () => reactivateUserAction('u9')],
+		['updateUserAction', () => updateUserAction(TARGET_ID, input)],
+		['updateUserRoleAction', () => updateUserRoleAction(TARGET_ID, { role: 'user' })],
+		['deleteUserAction', () => deleteUserAction(TARGET_ID)],
+		['deactivateUserAction', () => deactivateUserAction(TARGET_ID)],
+		['reactivateUserAction', () => reactivateUserAction(TARGET_ID)],
 		['syncDirectoryAction', () => syncDirectoryAction()],
 	] as const)(
 		'%s refuses a user-role session and a missing one before the DAL',
@@ -97,8 +99,8 @@ describe('user actions', () => {
 	})
 
 	it('creates through the DAL with the verified admin and refreshes', async () => {
-		createUser.mockResolvedValue({ ok: true, data: { id: 'u9' } })
-		expect(await createUserAction(input)).toEqual({ ok: true, data: { id: 'u9' } })
+		createUser.mockResolvedValue({ ok: true, data: { id: TARGET_ID } })
+		expect(await createUserAction(input)).toEqual({ ok: true, data: { id: TARGET_ID } })
 		expect(createUser).toHaveBeenCalledWith(admin, input)
 		expect(refresh).toHaveBeenCalledTimes(1)
 	})
@@ -111,8 +113,8 @@ describe('user actions', () => {
 
 	it('updates with a blank password meaning "keep"', async () => {
 		updateUser.mockResolvedValue({ ok: true, data: undefined })
-		await updateUserAction('u9', { ...input, password: '' })
-		expect(updateUser).toHaveBeenCalledWith(admin, 'u9', { ...input, password: undefined })
+		await updateUserAction(TARGET_ID, { ...input, password: '' })
+		expect(updateUser).toHaveBeenCalledWith(admin, TARGET_ID, { ...input, password: undefined })
 		expect(refresh).toHaveBeenCalledTimes(1)
 	})
 
@@ -123,34 +125,50 @@ describe('user actions', () => {
 		expect(deleteUser).not.toHaveBeenCalled()
 	})
 
+	// Spec §3.2: an id that is not a UUID would raise 22P02 in PostgreSQL; it is answered as an unknown account.
+	it.each([
+		['updateUserAction', () => updateUserAction('not-a-uuid', input)],
+		['updateUserRoleAction', () => updateUserRoleAction('not-a-uuid', { role: 'user' })],
+		['deleteUserAction', () => deleteUserAction('not-a-uuid')],
+		['deactivateUserAction', () => deactivateUserAction('not-a-uuid')],
+		['reactivateUserAction', () => reactivateUserAction('not-a-uuid')],
+	] as const)(
+		'%s answers not_found for an id that is not a UUID, without asking the DAL',
+		async (_name, call) => {
+			expect(await call()).toEqual({ ok: false, code: 'not_found' })
+			for (const fn of [updateUser, updateUserRole, deleteUser, setUserActive, refresh])
+				expect(fn).not.toHaveBeenCalled()
+		},
+	)
+
 	it('deletes and refreshes; a refusal passes through', async () => {
 		deleteUser.mockResolvedValue({ ok: true, data: undefined })
-		expect(await deleteUserAction('u9')).toEqual({ ok: true, data: undefined })
+		expect(await deleteUserAction(TARGET_ID)).toEqual({ ok: true, data: undefined })
 		deleteUser.mockResolvedValue({ ok: false, code: 'cannot_delete_self' })
-		expect(await deleteUserAction('u9')).toEqual({ ok: false, code: 'cannot_delete_self' })
+		expect(await deleteUserAction(TARGET_ID)).toEqual({ ok: false, code: 'cannot_delete_self' })
 		expect(refresh).toHaveBeenCalledTimes(1)
 	})
 
 	it('deactivates and reactivates through the DAL, and answers not_found for an id that cannot be one', async () => {
 		setUserActive.mockResolvedValue({ ok: true, data: undefined })
-		expect(await deactivateUserAction('u9')).toEqual({ ok: true, data: undefined })
-		expect(setUserActive).toHaveBeenLastCalledWith(admin, 'u9', false)
-		expect(await reactivateUserAction('u9')).toEqual({ ok: true, data: undefined })
-		expect(setUserActive).toHaveBeenLastCalledWith(admin, 'u9', true)
+		expect(await deactivateUserAction(TARGET_ID)).toEqual({ ok: true, data: undefined })
+		expect(setUserActive).toHaveBeenLastCalledWith(admin, TARGET_ID, false)
+		expect(await reactivateUserAction(TARGET_ID)).toEqual({ ok: true, data: undefined })
+		expect(setUserActive).toHaveBeenLastCalledWith(admin, TARGET_ID, true)
 		expect(refresh).toHaveBeenCalledTimes(2)
 		expect(await deactivateUserAction('x'.repeat(37))).toEqual({ ok: false, code: 'not_found' })
 	})
 
 	it('changes a role through the DAL with the verified admin, and refuses anything but a role', async () => {
 		updateUserRole.mockResolvedValue({ ok: true, data: undefined })
-		expect(await updateUserRoleAction('u9', { role: 'admin', password: 'sneaky-1' })).toEqual({
+		expect(await updateUserRoleAction(TARGET_ID, { role: 'admin', password: 'sneaky-1' })).toEqual({
 			ok: true,
 			data: undefined,
 		})
 		// zod's object strips unknown keys (zod 4 "Objects"): only the role reaches the DAL.
-		expect(updateUserRole).toHaveBeenCalledWith(admin, 'u9', 'admin')
+		expect(updateUserRole).toHaveBeenCalledWith(admin, TARGET_ID, 'admin')
 		expect(refresh).toHaveBeenCalledTimes(1)
-		expect(await updateUserRoleAction('u9', { role: 'superuser' })).toMatchObject({
+		expect(await updateUserRoleAction(TARGET_ID, { role: 'superuser' })).toMatchObject({
 			ok: false,
 			code: 'invalid_input',
 		})

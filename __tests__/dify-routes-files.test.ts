@@ -45,14 +45,16 @@ const USER = 'u1'
 const actor = { id: USER, email: 'jane@example.com', name: null, role: 'admin' }
 const member = { ...actor, role: 'user' }
 const access = {
-	id: 'app-1',
+	id: '3b241101-e2bb-4255-8caf-4136c566a962',
 	enabled: true,
 	annotationEnabled: false,
 	credentials: { apiBase: 'https://dify.example/v1', apiKey: 'k' },
 }
-const base = 'http://app/api/dify/app-1'
+const base = 'http://app/api/dify/3b241101-e2bb-4255-8caf-4136c566a962'
 const params = <P extends Record<string, string>>(extra?: P) => ({
-	params: Promise.resolve({ appId: 'app-1', ...extra } as { appId: string } & P),
+	params: Promise.resolve({ appId: '3b241101-e2bb-4255-8caf-4136c566a962', ...extra } as {
+		appId: string
+	} & P),
 })
 const multipart = (parts: Array<[string, File | string]>) => {
 	const form = new FormData()

@@ -29,12 +29,13 @@ describe('groupInputSchema (decision c)', () => {
 		).toBe(false)
 	})
 
-	it('takes account ids by B2 decision h (1 to 36 characters)', () => {
-		expect(groupInputSchema.safeParse({ name: 'N', memberIds: ['legacy-id'] }).success).toBe(true)
-		expect(groupInputSchema.safeParse({ name: 'N', memberIds: [''] }).success).toBe(false)
-		expect(groupInputSchema.safeParse({ name: 'N', memberIds: ['x'.repeat(37)] }).success).toBe(
-			false,
-		)
+	it('takes UUIDs as member ids (ADR-0031)', () => {
+		const member = (id: string) =>
+			groupInputSchema.safeParse({ name: 'N', memberIds: [id] }).success
+		expect(member(crypto.randomUUID())).toBe(true)
+		expect(member('legacy-id')).toBe(false)
+		expect(member('')).toBe(false)
+		expect(member('x'.repeat(37))).toBe(false)
 	})
 
 	it('takes UUIDs as group ids', () => {

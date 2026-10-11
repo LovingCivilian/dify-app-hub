@@ -2,6 +2,7 @@ import 'server-only'
 
 import { verifySession, type SessionUser } from '@/lib/auth/session'
 import { getAppAccess } from '@/lib/data/apps'
+import { isId } from '@/lib/ids'
 
 import { difyClient, type DifyClient } from './client'
 import { difyErrorResponse, errorResponseFrom, forbiddenResponse } from './errors'
@@ -27,8 +28,10 @@ export type ResolvedDifyRoute =
 
 /**
  * The first three steps of every Dify handler (charter §4.1): the session first, so a revoked token learns nothing
- * about apps; then the app; then its credentials, which never leave the server. Each refusal is the envelope, a
- * failure of the session or app read too (a lost database, an EnvError): a logged 500 envelope, not Next's empty one.
+ * about apps; then the app; then its credentials, which never leave the server. An id that is not a UUID is an unknown
+ * app, answered before the app read (spec §3.2: PostgreSQL refuses it with 22P02; lib/ids.ts). Each refusal is the
+ * envelope, a failure of the session or app read too (a lost database, an EnvError): a logged 500 envelope, not Next's
+ * empty one.
  */
 export const resolveDifyRoute = async (
 	params: Promise<{ appId: string }>,
@@ -38,7 +41,7 @@ export const resolveDifyRoute = async (
 		if (!actor)
 			return { ok: false, response: difyErrorResponse('unauthorized', 'Sign in required.', 401) }
 		const { appId } = await params
-		const app = await getAppAccess(actor, appId)
+		const app = isId(appId) ? await getAppAccess(actor, appId) : null
 		if (!app)
 			return { ok: false, response: difyErrorResponse('app_not_found', 'No such app.', 404) }
 		if (!app.enabled)
