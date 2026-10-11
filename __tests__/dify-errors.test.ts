@@ -102,6 +102,41 @@ describe('difyErrorResponse and errorResponseFrom', () => {
 		spy.mockRestore()
 	})
 
+	// Spec §3.4: a DrizzleQueryError carries the SQL and its params, which are never logged; a database that does not
+	// answer (the access lookup inside resolveDifyRoute) is logged by its name and code only.
+	it('logs a failed query by its name and code on the 500 path, never its SQL, parameters or address', async () => {
+		const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+		const refused = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:5432'), {
+			code: 'ECONNREFUSED',
+			errno: -111,
+		})
+		const failed = new DrizzleQueryError(
+			'select "access_mode" from "dify_apps" where "dify_apps"."id" = $1 limit $2',
+			['6a3f0c1e-2b4d-4e5f-8a9b-0c1d2e3f4a5b', 1],
+			refused,
+		)
+		const response = errorResponseFrom(failed, 'GET /api/dify/[appId]/parameters')
+		expect(response.status).toBe(500)
+		await expect(response.json()).resolves.toEqual({
+			code: 'internal_error',
+			message: 'Internal Server Error',
+			status: 500,
+		})
+		expect(spy).toHaveBeenCalledWith('GET /api/dify/[appId]/parameters:', {
+			name: 'DrizzleQueryError',
+			code: 'ECONNREFUSED',
+		})
+		const logged = JSON.stringify(spy.mock.calls)
+		for (const value of [
+			'6a3f0c1e-2b4d-4e5f-8a9b-0c1d2e3f4a5b',
+			'127.0.0.1',
+			'select',
+			'access_mode',
+		])
+			expect(logged).not.toContain(value)
+		spy.mockRestore()
+	})
+
 	// Spec §3.2's safety net: an id that reached a uuid column unchecked answers as an unknown app, never a 500, and is
 	// logged by its code only (the message quotes the id).
 	it('answers a malformed id (22P02) as app_not_found', async () => {

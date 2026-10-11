@@ -85,6 +85,6 @@ export const errorResponseFrom = (error: unknown, context: string): Response => 
 		logActionError(error, context)
 		return difyErrorResponse('app_not_found', 'No such app.', 404)
 	}
-	console.error(`${context}:`, error)
+	logActionError(error, context)
 	return difyErrorResponse('internal_error', 'Internal Server Error', 500)
 }
