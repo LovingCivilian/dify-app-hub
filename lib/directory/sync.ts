@@ -156,8 +156,8 @@ async function reconcile(
 		if (updated) counts.updated += 1
 		if (conflict) counts.conflicts += 1
 	}
-	// A row in the plan's add list that a sign-in inserted meanwhile is a duplicate key, which applyMembershipChanges
-	// skips row by row (lib/data/directory.ts); the next run corrects any other overlap (spec §6.4 "Claim").
+	// A row in the plan's add list that a sign-in inserted meanwhile is skipped by the batch insert's ON CONFLICT DO
+	// NOTHING and not counted in `added` (lib/data/directory.ts); the next run corrects any other overlap (spec §6.4 "Claim").
 	const memberships = planDirectoryMemberships(snapshot.lookups, plan.accountIdByKey, current)
 	counts.groupErrors = memberships.groupErrors
 	await refreshGroupLinks(memberships.linkRefreshes, at)

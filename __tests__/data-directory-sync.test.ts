@@ -300,6 +300,22 @@ describe('applyMembershipChanges (spec §2 #8: directory rows only)', () => {
 		)
 	})
 
+	it('counts no addition when the driver reports no row count (rowCount null)', async () => {
+		mocks.state.rowCount = null
+		expect(
+			await applyMembershipChanges({ add: [{ groupId: 'g1', userId: 'a' }], remove: [] }),
+		).toEqual({ added: 0, removed: 0, groupErrors: 0 })
+	})
+
+	// The fallback row's count, after a missing parent refused the batch.
+	it('counts no addition on the row-by-row path either (rowCount null)', async () => {
+		mocks.state.rowCount = null
+		mocks.state.failures = [missing()]
+		expect(
+			await applyMembershipChanges({ add: [{ groupId: 'g1', userId: 'a' }], remove: [] }),
+		).toEqual({ added: 0, removed: 0, groupErrors: 0 })
+	})
+
 	it('counts no removal when the driver reports no row count (rowCount null)', async () => {
 		mocks.state.rowCount = null
 		expect(
