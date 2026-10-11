@@ -76,7 +76,7 @@ Measured while planning: a scratch project with drizzle-orm and drizzle-kit 1.0.
   - psql's `-c` must be "completely parsable by the server (i.e., it contains no psql-specific features)", so a variable needs stdin. Measured on `postgres:18`: a `$2b$…` hash reaches the row intact.
 - **q. `createOwner` keeps its locking read; its comment changes (Task 7).** `lockAnyAccount` still finds a row when the table is not empty. Its comment now says that PostgreSQL locks only rows a read returns, so the partial index is the guarantee. The directory sign-in keeps its explicit `read committed` (PostgreSQL's default; DV 7 says it can stay).
 - **r. The old local stack is taken down by its project name (Task 14).** The command is `docker compose -p dify-app-hub-local down`, after a `--dry-run` (Compose CLI `-p, --project-name`). The branch's compose file names the new project. Measured: Compose v5.1.1 finds the old project by name without its file.
-- **s. The owner's rename steps stay in spec §8, with `CLAUDE.md` pointing there (Task 13).** They run once, between sessions; a second copy would drift.
+- **s. The owner's rename steps stay in spec §8, with `CLAUDE.md` pointing there (Task 13).** They run once, so a second copy would drift. The GitHub repo can be renamed any time; the local folders wait until the end of the programme (owner, 2026-10-12).
 - **t. Task 2's test port adds the `rowCount: null` cases spec §6 asks for** ("Every `rowCount` consumer handles `null`"): the directory writes and `deleteGroup`.
 
 ## File map
@@ -9064,7 +9064,7 @@ Line 67, the next step: replace its first sentence
 with
 
 ```
-- Next step: the provider-hub programme. Part 0 (PostgreSQL 18 and the rename to AI App Hub, ADR-0031, branch `feat/postgres-and-rename`); after it merges, the owner renames the GitHub repository, the two local folders, Claude Code's project directory and the memory paths between sessions (Part 0 spec §8); then Part 1 (the neutral provider core), Part 2 (the AG-UI spike, the shared chat on AG-UI and the AG-UI provider; Ant Design X with `@ag-ui/client` over CopilotKit; reference projects in `docs/superpowers/research/2026-10-11-provider-hub/agui-reference-projects.md`) and Part 3 (Dify onto the shared chat).
+- Next step: the provider-hub programme. Part 0 (PostgreSQL 18 and the rename to AI App Hub, ADR-0031, branch `feat/postgres-and-rename`); the GitHub repository may be renamed from the web at any time (a session then runs `git remote set-url`), and the two local folders, Claude Code's project directory and the memory paths are renamed at the end of the programme, when the owner is at the machine (Part 0 spec §8; owner, 2026-10-12); then Part 1 (the neutral provider core), Part 2 (the AG-UI spike, the shared chat on AG-UI and the AG-UI provider; Ant Design X with `@ag-ui/client` over CopilotKit; reference projects in `docs/superpowers/research/2026-10-11-provider-hub/agui-reference-projects.md`) and Part 3 (Dify onto the shared chat).
 ```
 
 "Local testing": replace the Docker stack's first paragraph (line 73)
@@ -9326,6 +9326,6 @@ Report every result above, then the checks left for the browser:
 - if `LDAP_*` is set: a directory sign-in and "Sync now" on the users page;
 - set the brand on Settings > Branding if `BRANDING_MODE=database`.
 
-Then remind them of the steps after the merge: the GitHub repo and the local folders are renamed between sessions, from the spec's §8 (`CLAUDE.md` points there, Task 13), and the old MySQL volume can go once the new stack is checked. ADR-0031 stays `proposed` until the owner's check; the PR is opened only on their word.
+Then remind them of the spec's §8 (`CLAUDE.md` points there, Task 13). The GitHub repo may be renamed from the web whenever they like. The local folders wait until the end of the programme (owner, 2026-10-12). The old MySQL volume can go once the new stack is checked. ADR-0031 stays `proposed` until the owner's check; the PR is opened only on their word.
 
 ---

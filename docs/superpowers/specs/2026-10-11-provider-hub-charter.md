@@ -125,7 +125,7 @@ Ant Design X stays (ADR-0008, ADR-0017):
 
 | Part | Branch | Contents | Spec |
 | --- | --- | --- | --- |
-| 0 | `feat/postgres-and-rename` | PostgreSQL 18 with a fresh baseline; `pg`; the schema port and its re-derivations; compose services; the product rename (built-in brand, package, Docker names). After it merges, the GitHub repo and the local folders are renamed between sessions, with written steps that include moving Claude Code's memory directory. | `2026-10-11-part-0-postgres-and-rename-design.md` |
+| 0 | `feat/postgres-and-rename` | PostgreSQL 18 with a fresh baseline; `pg`; the schema port and its re-derivations; compose services; the product rename (built-in brand, package, Docker names). The GitHub repo can be renamed from the web any time. The local folders, and Claude Code's memory directory with them, are renamed at the end of the programme, following the written steps in Part 0's §8 (owner, 2026-10-12). | `2026-10-11-part-0-postgres-and-rename-design.md` |
 | 1 | `feat/provider-core` | The `apps` reshape; the registry; the "add app" flow with the provider picker; admin-owned metadata and the image icon; Test connection; the removal of the sync and annotations; the code renames; the gallery and the chat page dispatch. The Dify chat is unchanged. | `2026-10-11-part-1-provider-core-design.md` |
 | 2 | `feat/agui-shared-chat` | It opens with the spike. Then the store, the shared chat API on AG-UI, the browser's AG-UI chat provider and shared components, and the AG-UI provider: settings, adapter, Test connection, renderers for the Dojo's features in scope. | after the spike |
 | 3 | `feat/dify-on-shared-chat` | The Dify-to-AG-UI adapter: text, reasoning, agent thoughts as tool calls, workflow nodes as steps or activity, human input as interrupts, extras as `dify:*` custom events. Dify history in the hub store, and the old Dify chat removed. | after Part 2 |
@@ -155,7 +155,7 @@ Each part ends with the gates in `CLAUDE.md`:
 | Pydantic AI still speaks AG-UI 0.x (PR #8627 open); the 1.0 client translates 0.x with warnings. | The spike runs both against `@ag-ui/client` 1.0.x. The hub builds on 1.0 and records each gap; the server-side parser accepts both shapes if it has to (`agui-and-reference-hubs.md`, implication 6). |
 | `useXChat` assumes one request produces one message, while an AG-UI run can produce several messages and interrupts. | This is the spike's first question, answered before Part 2's spec. |
 | Part 3 rebuilds a working chat. | Dify parity is measured against today's e2e specs (27 Dify specs), which stay green through the switch. |
-| The rename touches both worktrees, the shared GitHub repo and the memory path. | It runs after Part 0 merges, between sessions, from written steps. `fork/main`'s content is untouched (ADR-0019). |
+| The rename touches both worktrees, the shared GitHub repo and the memory path. | The GitHub repo is renamed whenever the owner likes. The folders are renamed at the end of the programme, between sessions, from written steps. `fork/main`'s content is untouched (ADR-0019). |
 | The schema port's MySQL-specific spots (gap lock, errno, `affectedRows`, the slot claim). | They are listed and re-derived in Part 0's spec, each with a test. |
 | Scope creep from the reference projects (agenticos's governance, the template's panels). | Part 2's scope is the Dojo features the owner picks. The rest stays in the record as ideas. |
 
