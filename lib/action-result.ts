@@ -10,6 +10,8 @@ export type ActionErrorCode =
 	| 'not_found'
 	| 'dify_unreachable'
 	| 'sync_running'
+	| 'settings_not_editable'
+	| 'invalid_image'
 	| 'operation_failed'
 
 export interface ActionFailure {

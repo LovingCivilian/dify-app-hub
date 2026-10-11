@@ -129,3 +129,11 @@ export const logSignInRefusal = (
 export const logDirectoryEmailConflict = (context: string, subject: { userId: string }): void => {
 	console.warn(`${context}: directory email kept`, { ...subject, reason: 'email_conflict' })
 }
+
+/**
+ * A setting the hub could not use (settings spec §4.2, §7): the variable or record and a code, never a path or a value,
+ * as LDAP_CA_FILE is logged (lib/directory/schedule.ts).
+ */
+export const logSettingsError = (setting: string, code: string): void => {
+	console.error(`${setting} could not be used:`, { code })
+}
