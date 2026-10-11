@@ -153,7 +153,11 @@ test.describe('the Branding page (settings spec §5.3)', () => {
 		await page.getByLabel('Name', { exact: true }).fill(nameOf())
 		await page.getByRole('button', { name: 'Save' }).click()
 		await expect(page.getByText('Branding saved')).toBeVisible()
-		await page.getByRole('button', { name: 'Remove' }).click()
+		// Remove sits in the logo's group with its Choose button.
+		await page
+			.getByRole('group', { name: 'Logo', exact: true })
+			.getByRole('button', { name: 'Remove' })
+			.click()
 		await expect(page.getByRole('switch', { name: 'Show the name beside the logo' })).toBeDisabled()
 		await page.getByRole('button', { name: 'Save' }).click()
 		await expect(
@@ -175,6 +179,24 @@ test.describe('the Branding page (settings spec §5.3)', () => {
 		})
 		await expect(
 			page.getByText('Use a PNG, JPEG or WebP image that opens correctly.'),
+		).toBeVisible()
+	})
+
+	// Each image field's label names the group of its controls (W3C WAI Forms Tutorial, "Grouping Controls"), while the
+	// buttons keep their own visible names (WCAG 2.2 SC 2.5.3 Label in Name).
+	test('each image field is a group named by its label, around its Choose button', async ({
+		page,
+	}) => {
+		await page.goto('/settings/branding')
+		await expect(
+			page
+				.getByRole('group', { name: 'Logo', exact: true })
+				.getByRole('button', { name: 'Choose logo' }),
+		).toBeVisible()
+		await expect(
+			page
+				.getByRole('group', { name: 'Browser-tab icon', exact: true })
+				.getByRole('button', { name: 'Choose icon' }),
 		).toBeVisible()
 	})
 

@@ -16,7 +16,7 @@ import {
 	Upload,
 	theme,
 } from 'antd'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { saveBrandingAction } from '@/app/(admin)/settings/branding/actions'
@@ -73,14 +73,23 @@ function ImageField({
 	const { message } = App.useApp()
 	const src = previewOf(draft, savedSrc)
 	const label = t(kind === 'logo' ? 'admin_settings.logo' : 'admin_settings.favicon')
+	// react.dev `useId`: "generating unique IDs that can be passed to accessibility attributes".
+	const labelId = useId()
 	return (
 		<Form.Item
-			label={label}
+			// The label names the field's group of controls, not one control: pointed at the Choose button (`htmlFor`), it
+			// would become that button's name, "Logo" for "Choose logo" (HTML-AAM §4.1.4: the associated label comes before
+			// the button's own text), which WCAG 2.2 SC 2.5.3 Label in Name rules out.
+			label={<span id={labelId}>{label}</span>}
 			extra={t(kind === 'logo' ? 'admin_settings.logo_hint' : 'admin_settings.favicon_hint')}
 			validateStatus={error ? 'error' : undefined}
 			help={error}
 		>
 			<Flex
+				// W3C WAI Forms Tutorial, "Grouping Controls": `role=group` marks the preview, Choose and Remove as one group,
+				// and `aria-labelledby` names it by the visible label (WAI-ARIA 1.2 `group` role); each button keeps its name.
+				role="group"
+				aria-labelledby={labelId}
 				wrap
 				align="center"
 				gap="small"
