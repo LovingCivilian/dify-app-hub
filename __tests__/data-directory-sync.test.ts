@@ -4,13 +4,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // A database fake that records each write's table, values and condition, and each read's columns, table, condition,
 // order and limit, so a test renders it on drizzle.mock(). A read answers `rows` at every step, as Drizzle's query
-// builders are awaitable at each step.
+// builders are awaitable at each step. A write answers pg's result object (`rowCount`, node-postgres "Result"). Every
+// insert of the sync ends in onConflictDoNothing (Drizzle "Insert"), which the fake records; with returning, the
+// insert answers `returned`, the rows RETURNING gave back.
 const mocks = vi.hoisted(() => {
 	type Write = {
 		op: 'insert' | 'update' | 'delete'
 		table: unknown
 		values?: unknown
 		condition?: unknown
+		/** The insert's ON CONFLICT DO NOTHING config; `undefined` when it names no conflict target. */
+		onConflict?: unknown
+		/** The insert's RETURNING fields, when it has one. */
+		returning?: unknown
 	}
 	type Read = {
 		fields: unknown
@@ -25,6 +31,7 @@ const mocks = vi.hoisted(() => {
 		rows: [] as unknown[],
 		/** node-postgres "Result": `rowCount` is the rows the statement matched, or null. */
 		rowCount: 1 as number | null,
+		returned: [{ id: 'r1' }] as unknown[],
 		failures: [] as unknown[],
 	}
 	type Query = Promise<unknown[]> & {
@@ -38,8 +45,6 @@ const mocks = vi.hoisted(() => {
 			orderBy: (...order: unknown[]) => read(Object.assign(record, { order })),
 			limit: (limit: number) => read(Object.assign(record, { limit })),
 		})
-	// A write without .returning() resolves to node-postgres's QueryResult, an object (node_modules/drizzle-orm/
-	// node-postgres/session.d.ts, NodePgQueryResultHKT), not mysql2's [ResultSetHeader, fields] array.
 	const result = () => {
 		const failure = state.failures.shift()
 		return failure ? Promise.reject(failure) : Promise.resolve({ rowCount: state.rowCount })
@@ -52,11 +57,21 @@ const mocks = vi.hoisted(() => {
 				return read(record)
 			},
 		}),
+		// One attempt is one recorded write and one answer, whether the code awaits the insert itself or its returning.
 		insert: (table: unknown) => ({
-			values: (values: unknown) => {
-				state.writes.push({ op: 'insert', table, values })
-				return result()
-			},
+			values: (values: unknown) => ({
+				onConflictDoNothing: (onConflict?: unknown) => {
+					const write: Write = { op: 'insert', table, values, onConflict }
+					state.writes.push(write)
+					const answer = result()
+					return Object.assign(answer, {
+						returning: (fields: unknown) => {
+							write.returning = fields
+							return answer.then(() => state.returned)
+						},
+					})
+				},
+			}),
 		}),
 		update: (table: unknown) => ({
 			set: (values: unknown) => ({
@@ -108,6 +123,15 @@ const render = (write: (typeof mocks.state.writes)[number]) => {
 		.where(write.condition as SQL)
 		.toSQL()
 }
+/** An insert as the fake recorded it, rendered on drizzle.mock() with its ON CONFLICT and its RETURNING. */
+const renderInsert = (write: (typeof mocks.state.writes)[number]) => {
+	const insert = drizzle
+		.mock()
+		.insert(write.table as typeof directorySyncRuns)
+		.values(write.values as never)
+		.onConflictDoNothing(write.onConflict as never)
+	return (write.returning ? insert.returning(write.returning as never) : insert).toSQL()
+}
 /** A unique index's refusal as node-postgres reports it (23505; `constraint` names the index). */
 const duplicate = (constraint = 'users_email_key') =>
 	Object.assign(new Error(`duplicate key value violates unique constraint "${constraint}"`), {
@@ -141,6 +165,7 @@ beforeEach(() => {
 	mocks.state.reads = []
 	mocks.state.rows = []
 	mocks.state.rowCount = 1
+	mocks.state.returned = [{ id: 'r1' }]
 	mocks.state.failures = []
 })
 
@@ -268,6 +293,11 @@ describe('applyMembershipChanges (spec §2 #8: directory rows only)', () => {
 		const inserted = mocks.state.writes.find(write => write.op === 'insert')!
 		expect(inserted.table).toBe(userGroupMembers)
 		expect(inserted.values).toEqual([{ groupId: 'g1', userId: 'b', source: 'directory' }])
+		// PostgreSQL 18 "INSERT": with no conflict target, "conflicts with all usable constraints (and unique indexes) are
+		// handled", here the primary key (group_id, user_id, source).
+		expect(renderInsert(inserted).sql).toBe(
+			'insert into "user_group_members" ("group_id", "user_id", "source", "created_at") values ($1, $2, $3, default) on conflict do nothing',
+		)
 	})
 
 	it('counts no removal when the driver reports no row count (rowCount null)', async () => {
@@ -277,14 +307,10 @@ describe('applyMembershipChanges (spec §2 #8: directory rows only)', () => {
 		).toEqual({ added: 0, removed: 0, groupErrors: 0 })
 	})
 
-	// A sign-in added the row meanwhile (23505 on the primary key), or the group or the account was deleted during the
-	// run (23503): row by row, a duplicate is already there and a missing reference counts as a group error.
-	it('falls back to rows one by one on a duplicate or a missing reference', async () => {
-		mocks.state.failures = [
-			duplicate('user_group_members_pkey'),
-			duplicate('user_group_members_pkey'),
-			missing(),
-		]
+	// A sign-in added the row meanwhile: PostgreSQL 18 "INSERT", "ON CONFLICT DO NOTHING simply avoids inserting a row as
+	// its alternative action", and the count is the rows inserted (the command tag's count, node-postgres `rowCount`).
+	it('skips a row that is there already and counts only the rows inserted', async () => {
+		mocks.state.rowCount = 1
 		const result = await applyMembershipChanges({
 			add: [
 				{ groupId: 'g1', userId: 'a' },
@@ -292,8 +318,38 @@ describe('applyMembershipChanges (spec §2 #8: directory rows only)', () => {
 			],
 			remove: [],
 		})
-		expect(result).toEqual({ added: 0, removed: 0, groupErrors: 1 })
-		expect(mocks.state.writes.filter(write => write.op === 'insert')).toHaveLength(3)
+		expect(result).toEqual({ added: 1, removed: 0, groupErrors: 0 })
+		const inserts = mocks.state.writes.filter(write => write.op === 'insert')
+		expect(inserts).toHaveLength(1)
+		const { sql, params } = renderInsert(inserts[0])
+		expect(sql).toBe(
+			'insert into "user_group_members" ("group_id", "user_id", "source", "created_at") values ($1, $2, $3, default), ($4, $5, $6, default) on conflict do nothing',
+		)
+		expect(params).toEqual(['g1', 'a', 'directory', 'g1', 'b', 'directory'])
+	})
+
+	// The group or an account was deleted during the run (23503): the batch is retried row by row, the rows whose parents
+	// remain are inserted, and the refused row marks its hub group.
+	it('retries a batch a missing parent refused row by row, and marks the group', async () => {
+		mocks.state.failures = [missing(), missing()]
+		const result = await applyMembershipChanges({
+			add: [
+				{ groupId: 'g1', userId: 'a' },
+				{ groupId: 'g1', userId: 'b' },
+			],
+			remove: [],
+		})
+		expect(result).toEqual({ added: 1, removed: 0, groupErrors: 1 })
+		const inserts = mocks.state.writes.filter(write => write.op === 'insert')
+		expect(inserts.map(write => write.values)).toEqual([
+			[
+				{ groupId: 'g1', userId: 'a', source: 'directory' },
+				{ groupId: 'g1', userId: 'b', source: 'directory' },
+			],
+			[{ groupId: 'g1', userId: 'a', source: 'directory' }],
+			[{ groupId: 'g1', userId: 'b', source: 'directory' }],
+		])
+		for (const write of inserts) expect(renderInsert(write).sql).toMatch(/ on conflict do nothing$/)
 	})
 
 	// Spec §6.4 step 4 counts an error per group: two refused rows of one group are one group error.
@@ -333,13 +389,16 @@ describe('refreshGroupLinks', () => {
 })
 
 describe('claimSyncRun (spec §6.4 "Claim")', () => {
-	it('claims a slot once; the unique key refuses a second container', async () => {
-		const run = {
-			id: 'r1',
-			slot: 'schedule:2026-10-10T10:00Z',
-			trigger: 'schedule' as const,
-			startedAt: new Date(),
-		}
+	const run = {
+		id: 'r1',
+		slot: 'schedule:2026-10-10T10:00Z',
+		trigger: 'schedule' as const,
+		startedAt: new Date('2026-10-10T10:00:00Z'),
+	}
+
+	// DV 6: one insert that skips on the slot's unique index (PostgreSQL 18 "INSERT", ON CONFLICT DO NOTHING with a
+	// conflict target) and gives back the id; RETURNING answers "each row actually inserted".
+	it('claims a slot with one insert that skips on the slot and returns the id', async () => {
 		expect(await claimSyncRun(run)).toBe(true)
 		expect(mocks.state.writes[0]).toMatchObject({
 			op: 'insert',
@@ -352,8 +411,33 @@ describe('claimSyncRun (spec §6.4 "Claim")', () => {
 				outcome: 'running',
 			},
 		})
-		mocks.state.failures = [duplicate('directory_sync_runs_slot_key')]
+		const { sql, params } = renderInsert(mocks.state.writes[0])
+		expect(sql).toBe(
+			'insert into "directory_sync_runs" ("id", "slot", "run_trigger", "started_at", "finished_at", "outcome", "entries_seen", "deactivated", "reactivated", "updated", "conflicts", "group_errors", "memberships_added", "memberships_removed", "error_code") values ($1, $2, $3, $4, default, $5, default, default, default, default, default, default, default, default, default) on conflict ("slot") do nothing returning "id"',
+		)
+		expect(params).toEqual([
+			'r1',
+			'schedule:2026-10-10T10:00Z',
+			'schedule',
+			'2026-10-10T10:00:00.000Z',
+			'running',
+		])
+	})
+
+	it('answers false when another container holds the slot: no row came back', async () => {
+		mocks.state.returned = []
 		expect(await claimSyncRun({ ...run, id: 'r2' })).toBe(false)
+		expect(mocks.state.writes).toHaveLength(1)
+	})
+
+	// Only the slot's conflict is skipped; a refusal of anything else, such as the primary key, reaches the caller.
+	it('lets any other refusal propagate', async () => {
+		const other = Object.assign(new Error('dup'), {
+			code: '23505',
+			constraint: 'directory_sync_runs_pkey',
+		})
+		mocks.state.failures = [other]
+		await expect(claimSyncRun(run)).rejects.toBe(other)
 	})
 })
 

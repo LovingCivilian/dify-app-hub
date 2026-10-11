@@ -211,7 +211,10 @@ async function signInWithin(
  * deadlocked install write, `attempt < 2`
  * (`TryGhost/Ghost@25b7dfad:ghost/core/server/services/app-installations/service.ts:374`); Directus makes four attempts
  * with a growing delay (`directus@8e140f94:api/src/utils/transaction.ts:29-50`). No delay: Prisma's and Ghost's run
- * again at once, and MySQL's guidance names none ("Deadlocks are not dangerous. Just try again.").
+ * again at once, and PostgreSQL names none. It ends a deadlock by "aborting one of the transactions involved, allowing
+ * the other(s) to complete" (PostgreSQL 18 "Explicit Locking", 13.3.4 Deadlocks), reports SQLSTATE 40P01
+ * `deadlock_detected` (Appendix A), and says "It may also be advisable to retry deadlock failures" ("Serialization
+ * Failure Handling", 13.5).
  */
 const DEADLOCK_ATTEMPTS = 3
 
@@ -255,10 +258,12 @@ export async function recordDirectorySignIn(
 }
 
 /**
- * Decision ae: at most 1,000 ids per statement, each its own statement. Drizzle's mysql2 session sends a query through
- * mysql2's `query`, which fills the values in on the client (mysql2 docs; not a prepared `execute`), so a statement is
- * bounded by `max_allowed_packet` (64 MB by default, MySQL 8.4 "Packet Too Large"); 1,000 ids also stay under the
- * 65,535 placeholders of a prepared statement (ER_PS_MANY_PARAM, 1390).
+ * Decision ae: at most 1,000 ids per statement, each its own statement. node-postgres sends the query text and the
+ * values apart, the values "safely substituted into the query ... within the server itself" (node-postgres "Queries",
+ * Parameterized query; `node_modules/pg/lib/query.js` `requiresPreparation`: a query with values goes as Parse and
+ * Bind), and Bind counts the values in a 16-bit field (PostgreSQL 18 "Message Formats", Bind: "Int16 The number of
+ * parameter values that follow"), so one statement takes at most 65,535 of them. 1,000 ids, or 1,000 membership rows of
+ * three values each, stay well under that.
  */
 const BATCH = 1_000
 const batches = <T>(items: readonly T[]): T[][] =>
@@ -267,12 +272,13 @@ const batches = <T>(items: readonly T[]): T[][] =>
 	)
 
 /**
- * Runs one of the sync's statements, and again when InnoDB rolled it back as a deadlock's victim (1213), up to
- * DEADLOCK_ATTEMPTS attempts in all. Under autocommit each statement "forms a single transaction on its own" (MySQL 8.4
- * "autocommit, Commit, and Rollback"), and a deadlock rolls the whole transaction back ("InnoDB Error Handling"), so
- * the statement runs again from a clean state: "Always be prepared to re-issue a transaction if it fails due to
- * deadlock" ("How to Minimize and Handle Deadlocks"). The last attempt's deadlock propagates: the run fails, and the
- * next run completes the reconciliation, which is idempotent (spec §6.4 "Claim"). Any other error is not re-issued.
+ * Runs one of the sync's statements, and again when PostgreSQL ended it as a deadlock's victim (40P01), up to
+ * DEADLOCK_ATTEMPTS attempts in all. Outside a transaction block each statement "has an implicit BEGIN and (if
+ * successful) COMMIT wrapped around it" (PostgreSQL 18 "Transactions", 3.4), and the deadlock aborts that transaction
+ * ("Explicit Locking", 13.3.4), so the statement runs again from a clean state ("It may also be advisable to retry
+ * deadlock failures", "Serialization Failure Handling", 13.5). The last attempt's deadlock propagates: the run fails,
+ * and the next run completes the reconciliation, which is idempotent (spec §6.4 "Claim"). Any other error is not
+ * re-issued.
  */
 async function reissueOnDeadlock<T>(statement: () => Promise<T>): Promise<T> {
 	for (let attempt = 1; ; attempt += 1) {
@@ -393,10 +399,13 @@ const directoryRows = (groupId: string, userIds: readonly string[]) =>
 	userIds.map(userId => ({ groupId, userId, source: 'directory' as const }))
 
 /**
- * Applies the planned `directory` memberships per hub group (spec §2 #8: manual rows untouched). An insert refused as a
- * duplicate (a sign-in added the row meanwhile) or a missing reference (the group or the account was deleted during
- * the run) is retried row by row: a duplicate is already there; a missing reference marks its hub group, and
- * `groupErrors` counts the hub groups so marked, once each (spec §6.4 step 4 counts an error per group).
+ * Applies the planned `directory` memberships per hub group (spec §2 #8: manual rows untouched). An insert skips a row
+ * that is there already, such as one a sign-in added meanwhile (PostgreSQL 18 "INSERT": with no conflict target,
+ * "conflicts with all usable constraints (and unique indexes) are handled", here the primary key; Drizzle "Insert",
+ * `onConflictDoNothing()`; DV 8), so `added` is the rows the server inserted (node-postgres `rowCount`, the command
+ * tag's count). A missing reference (23503: the group or the account was deleted during the run) refuses the whole
+ * batch, which is retried row by row: the rows whose parents remain are inserted, and each refused row marks its hub
+ * group; `groupErrors` counts the hub groups so marked, once each (spec §6.4 step 4 counts an error per group).
  */
 export async function applyMembershipChanges(
 	plan: Pick<MembershipPlan, 'add' | 'remove'>,
@@ -421,21 +430,21 @@ export async function applyMembershipChanges(
 			removed += result.rowCount ?? 0
 		}
 	const insert = (groupId: string, userIds: readonly string[]) =>
-		reissueOnDeadlock(() => db.insert(userGroupMembers).values(directoryRows(groupId, userIds)))
+		reissueOnDeadlock(() =>
+			db.insert(userGroupMembers).values(directoryRows(groupId, userIds)).onConflictDoNothing(),
+		)
 	for (const [groupId, rows] of Map.groupBy(plan.add, row => row.groupId))
 		for (const part of batches(rows.map(row => row.userId))) {
 			try {
-				await insert(groupId, part)
-				added += part.length
+				added += (await insert(groupId, part)).rowCount ?? 0
 			} catch (error) {
-				if (!isUniqueViolation(error) && !isForeignKeyViolation(error)) throw error
+				if (!isForeignKeyViolation(error)) throw error
 				for (const userId of part) {
 					try {
-						await insert(groupId, [userId])
-						added += 1
+						added += (await insert(groupId, [userId])).rowCount ?? 0
 					} catch (rowError) {
-						if (isForeignKeyViolation(rowError)) failedGroups.add(groupId)
-						else if (!isUniqueViolation(rowError)) throw rowError
+						if (!isForeignKeyViolation(rowError)) throw rowError
+						failedGroups.add(groupId)
 					}
 				}
 			}
@@ -495,8 +504,11 @@ export const EMPTY_COUNTS: SyncRunCounts = {
 }
 
 /**
- * Claims a run's slot (spec §6.4 "Claim"): the unique key refuses a second insert for the same slot (23505), and that
- * caller skips. Documenso builds a deterministic id per cron slot so that racing instances "collide on the primary key
+ * Claims a run's slot (spec §6.4 "Claim") with one insert that skips on the slot's unique index and gives back the id
+ * (PostgreSQL 18 "INSERT": "ON CONFLICT DO NOTHING simply avoids inserting a row as its alternative action", and
+ * RETURNING answers "each row actually inserted"; Drizzle "Insert", `onConflictDoNothing({ target })`; DV 6). A row
+ * back is the claim; none means another container holds the slot, and that caller skips. A refusal of anything else
+ * propagates. Documenso builds a deterministic id per cron slot so that racing instances "collide on the primary key
  * instead of creating duplicates" (`documenso@38ecb217:packages/lib/jobs/client/local.ts:19-22`); GoodJob and Solid
  * Queue keep a unique index per scheduled time (`ad-and-reference-projects.md` B.9).
  */
@@ -506,21 +518,20 @@ export async function claimSyncRun(run: {
 	trigger: SyncTrigger
 	startedAt: Date
 }): Promise<boolean> {
-	try {
-		await reissueOnDeadlock(() =>
-			getDb().insert(directorySyncRuns).values({
+	const claimed = await reissueOnDeadlock(() =>
+		getDb()
+			.insert(directorySyncRuns)
+			.values({
 				id: run.id,
 				slot: run.slot,
 				runTrigger: run.trigger,
 				startedAt: run.startedAt,
 				outcome: 'running',
-			}),
-		)
-		return true
-	} catch (error) {
-		if (isUniqueViolation(error, 'directory_sync_runs_slot_key')) return false
-		throw error
-	}
+			})
+			.onConflictDoNothing({ target: directorySyncRuns.slot })
+			.returning({ id: directorySyncRuns.id }),
+	)
+	return claimed.length > 0
 }
 
 /** A run started after `since` that has not finished (spec §6.4: no second run while one is going). */
