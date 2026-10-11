@@ -1,4 +1,3 @@
-// __tests__/settings-images.test.ts
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 
@@ -44,10 +43,22 @@ describe('processBrandImage (settings spec §4.4)', () => {
 		expect((await sharp(out.bytes).metadata()).format).toBe('png')
 	})
 
+	it('draws a vector logo with a large coordinate system at the box size', async () => {
+		const svg = Buffer.from(
+			'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10000 2500"><rect width="10000" height="2500" fill="#1677ff"/></svg>',
+		)
+		const out = await processBrandImage('logo', svg)
+		expect([out.width, out.height]).toEqual([768, 192])
+	})
+
 	it('turns a favicon into a 64 × 64 PNG with transparent padding', async () => {
 		const out = await processBrandImage('favicon', await solid(300, 100).png().toBuffer())
 		expect([out.width, out.height]).toEqual([64, 64])
-		expect((await sharp(out.bytes).metadata()).hasAlpha).toBe(true)
+		// 300 × 100 contained in 64 × 64 is 64 × 21: the first row is padding, the middle row is the picture.
+		const { data } = await sharp(out.bytes).raw().toBuffer({ resolveWithObject: true })
+		const alphaAt = (row: number) => data[(row * 64 + 32) * 4 + 3]
+		expect(alphaAt(0)).toBe(0)
+		expect(alphaAt(32)).toBe(255)
 	})
 
 	it('stores a phone photo upright and without its metadata (Review Focus 3)', async () => {
@@ -93,6 +104,44 @@ describe('processBrandImage (settings spec §4.4)', () => {
 		expect(bomb.length).toBeLessThan(512 * 1024)
 		expect(5000 * 5000).toBeGreaterThan(MAX_INPUT_PIXELS)
 		expect(await outcome(processBrandImage('logo', bomb))).toBe('not_allowed')
+	})
+
+	describe('an SVG that wraps something it must not draw (OWASP resource limits)', () => {
+		const bombPng = () =>
+			sharp({ create: { width: 5000, height: 5000, channels: 3, background: 'white' } })
+				.png({ compressionLevel: 9 })
+				.toBuffer()
+		const svgOf = (body: string) =>
+			Buffer.from(
+				`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 400 100">${body}</svg>`,
+			)
+
+		it('refuses an embedded raster over the pixel limit (<image> with a data: URL)', async () => {
+			const href = `data:image/png;base64,${(await bombPng()).toString('base64')}`
+			expect(
+				await outcome(
+					processBrandImage('logo', svgOf(`<image width="400" height="100" href="${href}"/>`)),
+				),
+			).toBe('not_allowed')
+		})
+
+		it('refuses an embedded raster loaded through a filter (<feImage>)', async () => {
+			const href = `data:image/png;base64,${(await bombPng()).toString('base64')}`
+			const body = `<filter id="f"><feImage href="${href}"/></filter><rect width="400" height="100" fill="none" filter="url(#f)"/>`
+			expect(await outcome(processBrandImage('logo', svgOf(body)))).toBe('not_allowed')
+		})
+
+		it('draws nothing from a file: reference', async () => {
+			const body = '<image width="400" height="100" href="file:///etc/hostname"/>'
+			expect(await outcome(processBrandImage('logo', svgOf(body)))).toBe('not_allowed')
+		})
+
+		it('refuses an external entity', async () => {
+			const xxe = Buffer.from(
+				'<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY w SYSTEM "file:///etc/hostname">]><svg xmlns="http://www.w3.org/2000/svg" width="&w;" height="100"><rect width="10" height="10"/></svg>',
+			)
+			expect(await outcome(processBrandImage('logo', xxe))).toBe('not_allowed')
+		})
 	})
 
 	it('refuses input over the byte limit of its kind before decoding', async () => {

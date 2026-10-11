@@ -1,4 +1,3 @@
-// lib/settings/images.ts
 import 'server-only'
 
 import { createHash } from 'node:crypto'
@@ -20,8 +19,11 @@ export interface ProcessedImage {
 }
 
 export class BrandImageError extends Error {
-	constructor(public readonly code: BrandImageErrorCode) {
-		super(code)
+	constructor(
+		public readonly code: BrandImageErrorCode,
+		options?: ErrorOptions,
+	) {
+		super(code, options)
 		this.name = 'BrandImageError'
 	}
 }
@@ -49,6 +51,15 @@ const svgDensity = (width: number, height: number, box: { width: number; height:
 	Math.min(Math.max(72 * Math.min(box.width / width, box.height / height), 1), SVG_DENSITY_MAX)
 
 /**
+ * Applied to SVG input as sharp's `svg.stylesheet` ("Custom CSS for SVG input, applied with a User Origin during the CSS
+ * cascade"; sharp api-constructor). Important user declarations beat important author ones (CSS Cascading and Inheritance
+ * Level 4, §6.1). librsvg decodes `data:` URLs itself while it renders ("Data URLs are permitted", librsvg docs, "Security and
+ * locations of referenced files"), which `limitInputPixels` does not see, so embedded rasters (`image`) and filters (which
+ * can load them through `feImage`) are switched off: OWASP's "resource limits" for uploads.
+ */
+const SVG_STYLESHEET = 'image { display: none !important } * { filter: none !important }'
+
+/**
  * Decode, check and re-encode an image as PNG (OWASP File Upload Cheat Sheet: "decode and re-encode to an allowed image
  * format, explicitly removing unnecessary metadata … restricted formats, resource limits"). sharp refuses input on any
  * decoder warning by default (`failOn`), removes metadata from its output by default ("By default all metadata will be
@@ -59,19 +70,28 @@ export async function processBrandImage(
 	input: Buffer,
 ): Promise<ProcessedImage> {
 	if (input.length > BRAND_IMAGE_MAX_BYTES[kind]) throw new BrandImageError('too_large')
-	const options = { limitInputPixels: MAX_INPUT_PIXELS, autoOrient: true }
+	// The header read decodes no pixel data (sharp api-input, `metadata()`), and an SVG's nominal size at 72 DPI is not the
+	// size it is drawn at, so the limit (`false` removes it, api-constructor) applies to the decode below.
 	let meta: Metadata
 	try {
-		meta = await sharp(input, options).metadata()
-	} catch {
-		throw new BrandImageError('not_allowed')
+		meta = await sharp(input, { limitInputPixels: false, autoOrient: true }).metadata()
+	} catch (error) {
+		throw new BrandImageError('not_allowed', { cause: error })
 	}
 	if (!meta.format || !ACCEPTED_FORMATS.has(meta.format) || !meta.width || !meta.height)
 		throw new BrandImageError('not_allowed')
 	const box = BOX[kind]
-	const density = meta.format === 'svg' ? svgDensity(meta.width, meta.height, box) : undefined
+	const isSvg = meta.format === 'svg'
+	const options = {
+		limitInputPixels: MAX_INPUT_PIXELS,
+		autoOrient: true,
+		...(isSvg && {
+			density: svgDensity(meta.width, meta.height, box),
+			svg: { stylesheet: SVG_STYLESHEET },
+		}),
+	}
 	try {
-		const { data, info } = await sharp(input, { ...options, density })
+		const { data, info } = await sharp(input, options)
 			.resize({
 				...box,
 				fit: kind === 'logo' ? 'inside' : 'contain',
@@ -80,13 +100,17 @@ export async function processBrandImage(
 			})
 			.png()
 			.toBuffer({ resolveWithObject: true })
+		// An SVG that only wrapped a raster or a filter now draws nothing: refuse it instead of storing a blank image.
+		if (isSvg && (await sharp(data).stats()).channels[3]?.max === 0)
+			throw new BrandImageError('not_allowed')
 		return {
 			bytes: data,
 			sha256: createHash('sha256').update(data).digest('hex'),
 			width: info.width,
 			height: info.height,
 		}
-	} catch {
-		throw new BrandImageError('not_allowed')
+	} catch (error) {
+		if (error instanceof BrandImageError) throw error
+		throw new BrandImageError('not_allowed', { cause: error })
 	}
 }
