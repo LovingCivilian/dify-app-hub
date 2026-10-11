@@ -227,14 +227,14 @@ describe('authorizeCredentials on a failure', () => {
 		expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('jane@example.com')
 	}
 
-	it('throws a fixed message for a failed query, and logs only its name, code and errno', async () => {
-		const cause = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:3306'), {
+	it('throws a fixed message for a failed query, and logs only its name and code', async () => {
+		const cause = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:5432'), {
 			code: 'ECONNREFUSED',
 			errno: -111,
 		})
 		limit.mockRejectedValueOnce(
 			new DrizzleQueryError(
-				'select `id`, `password` from `users` where `users`.`email` = ? limit ?',
+				'select "id", "password" from "users" where "users"."email" = $1 limit $2',
 				['jane@example.com', 1],
 				cause,
 			),
@@ -246,7 +246,6 @@ describe('authorizeCredentials on a failure', () => {
 		expect(errorSpy).toHaveBeenCalledWith('authorizeCredentials:', {
 			name: 'DrizzleQueryError',
 			code: 'ECONNREFUSED',
-			errno: -111,
 		})
 	})
 

@@ -107,10 +107,12 @@ describe('app actions', () => {
 		async (_name, call, dal) => {
 			dal.mockRejectedValue(
 				new Error('Failed query', {
-					cause: Object.assign(new Error('ER_NO_REFERENCED_ROW_2'), {
-						code: 'ER_NO_REFERENCED_ROW_2',
-						errno: 1452,
-					}),
+					cause: Object.assign(
+						new Error(
+							'insert or update on table "app_user_grants" violates foreign key constraint',
+						),
+						{ code: '23503', constraint: 'app_user_grants_user_id_users_id_fkey' },
+					),
 				}),
 			)
 			expect(await call()).toEqual({

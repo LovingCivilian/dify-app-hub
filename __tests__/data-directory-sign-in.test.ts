@@ -290,9 +290,13 @@ describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 		expect(params).toEqual([identity.email])
 	})
 
-	const duplicate = () => Object.assign(new Error('dup'), { code: 'ER_DUP_ENTRY', errno: 1062 })
-	const deadlock = () =>
-		Object.assign(new Error('deadlock'), { code: 'ER_LOCK_DEADLOCK', errno: 1213 })
+	// Two first sign-ins of one person: the second insert meets the directory key's unique index (23505).
+	const duplicate = () =>
+		Object.assign(
+			new Error('duplicate key value violates unique constraint "users_directory_id_key"'),
+			{ code: '23505', constraint: 'users_directory_id_key' },
+		)
+	const deadlock = () => Object.assign(new Error('deadlock detected'), { code: '40P01' })
 
 	it('runs the transaction once more after a duplicate key, and not a third time (decision e)', async () => {
 		mocks.state.failures = [duplicate()]

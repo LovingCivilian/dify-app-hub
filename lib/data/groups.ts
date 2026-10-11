@@ -8,7 +8,7 @@ import { fail, ok, type ActionResult } from '@/lib/action-result'
 import type { MembershipSource } from '@/lib/app-access'
 import { assertAdmin, type SessionUser } from '@/lib/auth/session'
 
-import { isDuplicateEntry, isMissingReference } from './db-errors'
+import { isForeignKeyViolation, isUniqueViolation } from './db-errors'
 
 /*
  * The groups Data Access Layer (B3 spec §4.3, ADR-0027). Every function takes the verified actor first and checks
@@ -212,10 +212,14 @@ export const directoryLinkChanges = (
 const linkRows = (groupId: string, links: readonly { id: string; name: string }[]) =>
 	links.map(link => ({ groupId, directoryGroupId: link.id, directoryGroupName: link.name }))
 
-/** A write's expected refusals as results; anything else propagates to the action (toActionFailure). */
+/**
+ * A write's expected refusals as results: the name's unique index (`user_groups_name_key`; the error names the index,
+ * lib/data/db-errors.ts), or a foreign key whose account is gone. Anything else propagates to the action
+ * (toActionFailure).
+ */
 const refusalOf = (error: unknown) => {
-	if (isDuplicateEntry(error)) return fail('name_in_use')
-	if (isMissingReference(error)) return fail('invalid_input', { memberIds: ['unknown'] })
+	if (isUniqueViolation(error, 'user_groups_name_key')) return fail('name_in_use')
+	if (isForeignKeyViolation(error)) return fail('invalid_input', { memberIds: ['unknown'] })
 	return null
 }
 

@@ -30,12 +30,12 @@ import { createOwner, lockAnyAccount } from '@/lib/data/setup'
 const input = { name: 'Owner', email: 'owner@example.com', password: 'password-1' }
 const owner = [{ id: 'o1' }]
 
-/** A failed insert as Drizzle reports it: the mysql2 error is the cause (node_modules/drizzle-orm/errors.js). */
-const queryError = (code: string, errno: number) =>
+/** A failed insert as Drizzle reports it: node-postgres's error is the cause (node_modules/drizzle-orm/errors.js). */
+const queryError = (code: string, constraint?: string) =>
 	new DrizzleQueryError(
-		'insert into `users` …',
+		'insert into "users" …',
 		['id', 'Owner', 'owner@example.com', 'hash', 'owner'],
-		Object.assign(new Error(code), { code, errno }),
+		Object.assign(new Error(`server error ${code}`), { code, constraint }),
 	)
 
 describe('lockAnyAccount (decision d)', () => {
@@ -93,13 +93,18 @@ describe('createOwner (charter §4.2, decision d: setup is open only while no ac
 		})
 	})
 
-	it('answers forbidden when the unique email index refuses the insert (another first run wrote first)', async () => {
-		mocks.values.mockRejectedValue(queryError('ER_DUP_ENTRY', 1062))
-		expect(await createOwner(input)).toEqual({ ok: false, code: 'forbidden' })
-	})
+	// Either unique index can refuse a racing first run: users_one_owner when the two emails differ, users_email_key
+	// when they are the same address in any case (measured on PostgreSQL 18; Task 7 pins the race itself).
+	it.each(['users_one_owner', 'users_email_key'])(
+		'answers forbidden when %s refuses the insert (another first run wrote first)',
+		async constraint => {
+			mocks.values.mockRejectedValue(queryError('23505', constraint))
+			expect(await createOwner(input)).toEqual({ ok: false, code: 'forbidden' })
+		},
+	)
 
 	it('rethrows any other failure, such as a deadlock victim, for the action to log', async () => {
-		const deadlock = queryError('ER_LOCK_DEADLOCK', 1213)
+		const deadlock = queryError('40P01')
 		mocks.values.mockRejectedValue(deadlock)
 		await expect(createOwner(input)).rejects.toBe(deadlock)
 	})

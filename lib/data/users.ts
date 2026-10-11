@@ -11,9 +11,7 @@ import { hashPassword, verifyPassword } from '@/lib/auth/password'
 import { canManage, type Role } from '@/lib/auth/roles'
 import { assertAdmin, type SessionUser } from '@/lib/auth/session'
 
-import { isDuplicateEntry } from './db-errors'
-
-export { isDuplicateEntry } from './db-errors'
+import { isUniqueViolation } from './db-errors'
 
 /*
  * The users Data Access Layer (charter §4.2). Every function takes the verified actor first and checks its role
@@ -256,7 +254,9 @@ export async function createUser(
 			role: input.role,
 		})
 	} catch (error) {
-		if (isDuplicateEntry(error)) return fail('email_in_use')
+		// The email index refused a write that raced the check above; users has two more unique indexes, and the error
+		// names the one that refused (lib/data/db-errors.ts).
+		if (isUniqueViolation(error, 'users_email_key')) return fail('email_in_use')
 		throw error
 	}
 	return ok({ id })
@@ -314,7 +314,9 @@ export async function updateUser(
 			return ok(undefined)
 		})
 	} catch (error) {
-		if (isDuplicateEntry(error)) return fail('email_in_use')
+		// The email index refused a write that raced the check above; users has two more unique indexes, and the error
+		// names the one that refused (lib/data/db-errors.ts).
+		if (isUniqueViolation(error, 'users_email_key')) return fail('email_in_use')
 		throw error
 	}
 }

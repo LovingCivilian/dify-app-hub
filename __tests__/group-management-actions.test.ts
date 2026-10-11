@@ -59,7 +59,15 @@ const owner = { id: 'o1', email: 'owner@example.com', name: 'Owner', role: 'owne
 const user = { id: 'u1', email: 'user@example.com', name: 'User', role: 'user' }
 const groupId = '6f1c2a9e-1b2c-4d3e-8f40-5a6b7c8d9e0f'
 const input = { name: 'Finance', description: '', memberIds: ['u2'] }
-const mysqlError = (code: string, errno: number) => Object.assign(new Error(code), { code, errno })
+/** A refusal as node-postgres reports it: the SQLSTATE in `code`, the refusing index or key in `constraint`. */
+const pgError = (code: string, constraint: string) =>
+	Object.assign(new Error(code), { code, constraint })
+const nameTaken = () =>
+	new Error('Failed query', { cause: pgError('23505', 'user_groups_name_key') })
+const memberGone = () =>
+	new Error('Failed query', {
+		cause: pgError('23503', 'user_group_members_user_id_users_id_fkey'),
+	})
 const anyWrite = () => Object.values(writes).some(fn => fn.mock.calls.length > 0)
 const dal = [createGroup, updateGroup, deleteGroup].map(fn => vi.mocked(fn))
 
@@ -129,20 +137,27 @@ describe('the owner', () => {
 
 	// Decision c and deviation 2: the unique index compares names without case.
 	it('answers name_in_use for a name the unique index refuses', async () => {
-		writes.insert.mockRejectedValueOnce(
-			new Error('Failed query', { cause: mysqlError('ER_DUP_ENTRY', 1062) }),
-		)
+		writes.insert.mockRejectedValueOnce(nameTaken())
 		expect(await createGroupAction(input)).toEqual({ ok: false, code: 'name_in_use' })
 		expect(refresh).not.toHaveBeenCalled()
 	})
 
-	// Review Focus 3: a member deleted while the drawer was open.
-	it('answers invalid_input on the members when a picked account is gone', async () => {
+	// The error names the index that refused (Appendix A): a duplicate membership row is not a taken name.
+	it('answers operation_failed, not name_in_use, for a refusal by another unique key', async () => {
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 		writes.insert
 			.mockResolvedValueOnce({ rowCount: 1 })
 			.mockRejectedValueOnce(
-				new Error('Failed query', { cause: mysqlError('ER_NO_REFERENCED_ROW_2', 1452) }),
+				new Error('Failed query', { cause: pgError('23505', 'user_group_members_pkey') }),
 			)
+		expect(await createGroupAction(input)).toEqual({ ok: false, code: 'operation_failed' })
+		expect(refresh).not.toHaveBeenCalled()
+		errorSpy.mockRestore()
+	})
+
+	// Review Focus 3: a member deleted while the drawer was open.
+	it('answers invalid_input on the members when a picked account is gone', async () => {
+		writes.insert.mockResolvedValueOnce({ rowCount: 1 }).mockRejectedValueOnce(memberGone())
 		expect(await createGroupAction(input)).toEqual({
 			ok: false,
 			code: 'invalid_input',
@@ -178,18 +193,14 @@ describe('the owner', () => {
 
 	// Decision c and deviation 2, on a rename.
 	it('answers name_in_use when a rename hits the unique index', async () => {
-		writes.update.mockRejectedValueOnce(
-			new Error('Failed query', { cause: mysqlError('ER_DUP_ENTRY', 1062) }),
-		)
+		writes.update.mockRejectedValueOnce(nameTaken())
 		expect(await updateGroupAction(groupId, input)).toEqual({ ok: false, code: 'name_in_use' })
 		expect(refresh).not.toHaveBeenCalled()
 	})
 
 	// Review Focus 3: a member picked in the edit drawer deleted before the save.
 	it('answers invalid_input on the members when an account picked for the update is gone', async () => {
-		writes.insert.mockRejectedValueOnce(
-			new Error('Failed query', { cause: mysqlError('ER_NO_REFERENCED_ROW_2', 1452) }),
-		)
+		writes.insert.mockRejectedValueOnce(memberGone())
 		expect(await updateGroupAction(groupId, input)).toEqual({
 			ok: false,
 			code: 'invalid_input',

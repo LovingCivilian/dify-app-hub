@@ -108,9 +108,21 @@ const render = (write: (typeof mocks.state.writes)[number]) => {
 		.where(write.condition as SQL)
 		.toSQL()
 }
-const duplicate = () => Object.assign(new Error('dup'), { code: 'ER_DUP_ENTRY', errno: 1062 })
+/** A unique index's refusal as node-postgres reports it (23505; `constraint` names the index). */
+const duplicate = (constraint = 'users_email_key') =>
+	Object.assign(new Error(`duplicate key value violates unique constraint "${constraint}"`), {
+		code: '23505',
+		constraint,
+	})
+/** A foreign key's refusal (23503): the group or the account was deleted during the run. */
 const missing = () =>
-	Object.assign(new Error('fk'), { code: 'ER_NO_REFERENCED_ROW_2', errno: 1452 })
+	Object.assign(
+		new Error('insert or update on table "user_group_members" violates foreign key constraint'),
+		{
+			code: '23503',
+			constraint: 'user_group_members_group_id_user_groups_id_fkey',
+		},
+	)
 
 const renderRead = (read: (typeof mocks.state.reads)[number]) => {
 	const query = drizzle
@@ -122,8 +134,7 @@ const renderRead = (read: (typeof mocks.state.reads)[number]) => {
 		.$dynamic()
 	return (read.limit === undefined ? query : query.limit(read.limit)).toSQL()
 }
-const deadlock = () =>
-	Object.assign(new Error('deadlock'), { code: 'ER_LOCK_DEADLOCK', errno: 1213 })
+const deadlock = () => Object.assign(new Error('deadlock detected'), { code: '40P01' })
 
 beforeEach(() => {
 	mocks.state.writes = []
@@ -202,7 +213,7 @@ describe('refreshDirectoryAccount (decision ac)', () => {
 		)
 	})
 
-	it('keeps the old email when another account has it (1062), and says so', async () => {
+	it('keeps the old email when another account has it (23505), and says so', async () => {
 		mocks.state.failures = [duplicate()]
 		expect(await refreshDirectoryAccount(update)).toEqual({ updated: true, conflict: true })
 		expect(mocks.state.writes.map(write => write.values)).toEqual([
@@ -266,10 +277,14 @@ describe('applyMembershipChanges (spec §2 #8: directory rows only)', () => {
 		).toEqual({ added: 0, removed: 0, groupErrors: 0 })
 	})
 
-	// A sign-in added the row meanwhile (1062), or the group or the account was deleted during the run (1452):
-	// row by row, a duplicate is already there and a missing reference counts as a group error.
+	// A sign-in added the row meanwhile (23505 on the primary key), or the group or the account was deleted during the
+	// run (23503): row by row, a duplicate is already there and a missing reference counts as a group error.
 	it('falls back to rows one by one on a duplicate or a missing reference', async () => {
-		mocks.state.failures = [duplicate(), duplicate(), missing()]
+		mocks.state.failures = [
+			duplicate('user_group_members_pkey'),
+			duplicate('user_group_members_pkey'),
+			missing(),
+		]
 		const result = await applyMembershipChanges({
 			add: [
 				{ groupId: 'g1', userId: 'a' },
@@ -337,7 +352,7 @@ describe('claimSyncRun (spec §6.4 "Claim")', () => {
 				outcome: 'running',
 			},
 		})
-		mocks.state.failures = [duplicate()]
+		mocks.state.failures = [duplicate('directory_sync_runs_slot_key')]
 		expect(await claimSyncRun({ ...run, id: 'r2' })).toBe(false)
 	})
 })

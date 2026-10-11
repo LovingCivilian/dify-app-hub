@@ -1,6 +1,8 @@
 import 'server-only'
 
 import { AuthError } from '@/lib/auth/session'
+import { isInvalidTextRepresentation } from '@/lib/data/db-errors'
+import { logActionError } from '@/lib/error-log'
 
 import { difyJson } from './response'
 
@@ -67,8 +69,10 @@ export const difyErrorFromResponse = async (response: Response): Promise<DifyErr
 
 /**
  * What a route answers for an exception: a DifyError's envelope (Dify's, or the client's upstream_unreachable),
- * an AuthError's 401/403, else a logged 500 whose body carries no detail (Backend for Frontend guide: no
- * sensitive information in error messages).
+ * an AuthError's 401/403, a value its column's type cannot read (22P02), in practice a malformed id that reached a
+ * `uuid` column unchecked, as an unknown app (spec §3.2's safety net: a 404, never a 500; logged by its code,
+ * lib/error-log.ts, since the message quotes the id), else a logged 500 whose body carries no detail (Backend for
+ * Frontend guide: no sensitive information in error messages).
  */
 export const errorResponseFrom = (error: unknown, context: string): Response => {
 	if (error instanceof DifyError) return difyErrorResponse(error.code, error.message, error.status)
@@ -76,6 +80,10 @@ export const errorResponseFrom = (error: unknown, context: string): Response => 
 		return error.code === 'forbidden'
 			? forbiddenResponse()
 			: difyErrorResponse('unauthorized', 'Sign in required.', 401)
+	}
+	if (isInvalidTextRepresentation(error)) {
+		logActionError(error, context)
+		return difyErrorResponse('app_not_found', 'No such app.', 404)
 	}
 	console.error(`${context}:`, error)
 	return difyErrorResponse('internal_error', 'Internal Server Error', 500)

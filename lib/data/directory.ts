@@ -14,7 +14,7 @@ import type {
 } from '@/lib/directory/plan'
 import type { SyncErrorCode, SyncOutcome, SyncTrigger } from '@/lib/directory-status'
 
-import { isDeadlock, isDuplicateEntry, isMissingReference } from './db-errors'
+import { isDeadlock, isForeignKeyViolation, isUniqueViolation } from './db-errors'
 
 /*
  * The directory Data Access Layer (B3 spec §6.1, ADR-0029). It takes no actor: its callers are the `ldap` provider,
@@ -225,10 +225,10 @@ const DEADLOCK_ATTEMPTS = 3
  * sees the latest committed accounts. The level applies to this one transaction only (MySQL 8.4 "SET TRANSACTION Statement").
  * `createOwner` keeps REPEATABLE READ, because its guarantee is the gap lock (ADR-0024 decision d).
  *
- * The transaction runs again after a deadlock (1213), within the sync statements' bound of DEADLOCK_ATTEMPTS in all,
- * and after a duplicate key (1062) once: the retry then finds the account the other sign-in wrote, or the email taken
- * (decision e). Any other failure, or one past the bound, propagates to the provider, which logs it and answers its
- * generic error.
+ * The transaction runs again after a deadlock (40P01), within the sync statements' bound of DEADLOCK_ATTEMPTS in all,
+ * and once after a unique violation (23505 on `users_directory_id_key` or `users_email_key`): the retry then finds the
+ * account the other sign-in wrote, or the email taken (decision e). Any other failure, or one past the bound,
+ * propagates to the provider, which logs it and answers its generic error.
  */
 export async function recordDirectorySignIn(
 	identity: DirectoryIdentity,
@@ -241,7 +241,7 @@ export async function recordDirectorySignIn(
 				isolationLevel: 'read committed',
 			})
 		} catch (error) {
-			const duplicate = isDuplicateEntry(error)
+			const duplicate = isUniqueViolation(error)
 			const again = isDeadlock(error) || (duplicate && !duplicateRetried)
 			if (!again || attempt === DEADLOCK_ATTEMPTS) throw error
 			duplicateRetried ||= duplicate
@@ -376,7 +376,7 @@ export async function refreshDirectoryAccount(
 		try {
 			return { updated: await write({ ...fields, email: update.email }), conflict: false }
 		} catch (error) {
-			if (!isDuplicateEntry(error)) throw error
+			if (!isUniqueViolation(error, 'users_email_key')) throw error
 		}
 		const updated = await write(fields)
 		return { updated, conflict: updated }
@@ -423,14 +423,14 @@ export async function applyMembershipChanges(
 				await insert(groupId, part)
 				added += part.length
 			} catch (error) {
-				if (!isDuplicateEntry(error) && !isMissingReference(error)) throw error
+				if (!isUniqueViolation(error) && !isForeignKeyViolation(error)) throw error
 				for (const userId of part) {
 					try {
 						await insert(groupId, [userId])
 						added += 1
 					} catch (rowError) {
-						if (isMissingReference(rowError)) failedGroups.add(groupId)
-						else if (!isDuplicateEntry(rowError)) throw rowError
+						if (isForeignKeyViolation(rowError)) failedGroups.add(groupId)
+						else if (!isUniqueViolation(rowError)) throw rowError
 					}
 				}
 			}
@@ -490,7 +490,7 @@ export const EMPTY_COUNTS: SyncRunCounts = {
 }
 
 /**
- * Claims a run's slot (spec §6.4 "Claim"): the unique key refuses a second insert for the same slot (1062), and that
+ * Claims a run's slot (spec §6.4 "Claim"): the unique key refuses a second insert for the same slot (23505), and that
  * caller skips. Documenso builds a deterministic id per cron slot so that racing instances "collide on the primary key
  * instead of creating duplicates" (`documenso@38ecb217:packages/lib/jobs/client/local.ts:19-22`); GoodJob and Solid
  * Queue keep a unique index per scheduled time (`ad-and-reference-projects.md` B.9).
@@ -513,7 +513,7 @@ export async function claimSyncRun(run: {
 		)
 		return true
 	} catch (error) {
-		if (isDuplicateEntry(error)) return false
+		if (isUniqueViolation(error, 'directory_sync_runs_slot_key')) return false
 		throw error
 	}
 }

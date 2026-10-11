@@ -1,3 +1,5 @@
+import { DrizzleQueryError } from 'drizzle-orm'
+import { DatabaseError } from 'pg'
 import { describe, expect, it, vi } from 'vitest'
 
 import { AuthError } from '@/lib/auth/session'
@@ -97,6 +99,32 @@ describe('difyErrorResponse and errorResponseFrom', () => {
 			status: 500,
 		})
 		expect(spy).toHaveBeenCalledWith('POST chat:', expect.any(Error))
+		spy.mockRestore()
+	})
+
+	// Spec §3.2's safety net: an id that reached a uuid column unchecked answers as an unknown app, never a 500, and is
+	// logged by its code only (the message quotes the id).
+	it('answers a malformed id (22P02) as app_not_found', async () => {
+		const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+		const malformed = new DrizzleQueryError(
+			'select "id" from "dify_apps" where "dify_apps"."id" = $1 limit $2',
+			['abc', 1],
+			Object.assign(new DatabaseError('invalid input syntax for type uuid: "abc"', 0, 'error'), {
+				code: '22P02',
+			}),
+		)
+		const response = errorResponseFrom(malformed, 'GET /api/dify/[appId]/parameters')
+		expect(response.status).toBe(404)
+		await expect(response.json()).resolves.toEqual({
+			code: 'app_not_found',
+			message: 'No such app.',
+			status: 404,
+		})
+		expect(spy).toHaveBeenCalledWith('GET /api/dify/[appId]/parameters:', {
+			name: 'DrizzleQueryError',
+			code: '22P02',
+		})
+		expect(JSON.stringify(spy.mock.calls)).not.toContain('abc')
 		spy.mockRestore()
 	})
 })

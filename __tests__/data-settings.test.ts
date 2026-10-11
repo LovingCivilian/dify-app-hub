@@ -241,7 +241,7 @@ describe('writeInstanceSetting (spec §4.3: one transaction, the row read under 
 	})
 
 	it('runs the transaction again after a deadlock, and not after another error', async () => {
-		failures.value = [Object.assign(new Error('deadlock'), { code: 'ER_LOCK_DEADLOCK' })]
+		failures.value = [Object.assign(new Error('deadlock'), { code: '40P01' })]
 		expect(await writeInstanceSetting(admin, 'branding', () => ({}), {})).toBe(true)
 		expect(calls.filter(call => call[0] === 'begin')).toHaveLength(2)
 
@@ -251,7 +251,7 @@ describe('writeInstanceSetting (spec §4.3: one transaction, the row read under 
 		expect(calls.filter(call => call[0] === 'begin')).toHaveLength(1)
 
 		calls.length = 0
-		const deadlock = () => Object.assign(new Error('deadlock'), { code: 'ER_LOCK_DEADLOCK' })
+		const deadlock = () => Object.assign(new Error('deadlock'), { code: '40P01' })
 		failures.value = [deadlock(), deadlock(), deadlock()]
 		await expect(writeInstanceSetting(admin, 'branding', () => ({}), {})).rejects.toThrow(
 			'deadlock',

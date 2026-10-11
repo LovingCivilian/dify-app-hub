@@ -29,10 +29,28 @@ beforeEach(() => {
 })
 
 describe('createUser and the unique email index', () => {
-	it('answers email_in_use when the insert loses a race to the index', async () => {
-		const dup = Object.assign(new Error('Duplicate entry'), { code: 'ER_DUP_ENTRY', errno: 1062 })
-		insertValues.mockRejectedValue(new DrizzleQueryError('insert into `users` …', [], dup))
+	it('answers email_in_use when the insert loses a race to the email index (23505 on users_email_key)', async () => {
+		const taken = Object.assign(
+			new Error('duplicate key value violates unique constraint "users_email_key"'),
+			{ code: '23505', constraint: 'users_email_key' },
+		)
+		insertValues.mockRejectedValue(new DrizzleQueryError('insert into "users" …', [], taken))
 		expect(await createUser(admin, input)).toEqual({ ok: false, code: 'email_in_use' })
+	})
+
+	// users has two more unique indexes; the error names the one that refused (Appendix A), and only the email's is
+	// an email in use.
+	it('rethrows a refusal by another unique index for the action to log', async () => {
+		const other = new DrizzleQueryError(
+			'insert into "users" …',
+			[],
+			Object.assign(
+				new Error('duplicate key value violates unique constraint "users_directory_id_key"'),
+				{ code: '23505', constraint: 'users_directory_id_key' },
+			),
+		)
+		insertValues.mockRejectedValue(other)
+		await expect(createUser(admin, input)).rejects.toBe(other)
 	})
 
 	it('rethrows any other database error for the action to log', async () => {

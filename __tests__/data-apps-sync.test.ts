@@ -293,7 +293,7 @@ describe('the mode written to the row (charter §4.4: only the six known modes)'
 	})
 
 	// Ruling M11: the row is locked before the grants are written; an app deleted after the access read answers null
-	// (the action's not_found) and nothing is written, instead of the grant insert's 1452 reading as a stale pick.
+	// (the action's not_found) and nothing is written, instead of the grant insert's 23503 reading as a stale pick.
 	it('update: answers null and writes nothing when the app is gone by the locking read', async () => {
 		dify()
 		db.locked = undefined

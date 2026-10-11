@@ -220,7 +220,7 @@ export const grantRowsFor = (appId: string, access: AppAccessSettings) =>
 				users: [...new Set(access.userIds)].map(userId => ({ appId, userId })),
 			}
 
-/** Replaces the app's grants inside the caller's transaction; a deleted group or account fails it (1452). */
+/** Replaces the app's grants inside the caller's transaction; a deleted group or account fails it (23503). */
 const writeGrants = async (
 	tx: Pick<Tx, 'delete' | 'insert'>,
 	appId: string,
@@ -477,7 +477,7 @@ export async function getAppIcon(
 
 /**
  * Creates the row from Dify's own info for the given credentials, with its grants in the same transaction (a deleted
- * group or account rejects it, 1452, and no app is left behind); rejects with DifyError when Dify refuses them.
+ * group or account rejects it, 23503, and no app is left behind); rejects with DifyError when Dify refuses them.
  */
 export async function createApp(
 	actor: SessionUser,

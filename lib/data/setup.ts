@@ -5,7 +5,7 @@ import { users } from '@/db/schema'
 import { fail, ok, type ActionResult } from '@/lib/action-result'
 import { hashPassword } from '@/lib/auth/password'
 
-import { isDuplicateEntry } from './users'
+import { isUniqueViolation } from './db-errors'
 
 /*
  * First run (charter §4.2, ADR-0024): it creates the owner. No actor: nobody can be signed in before the
@@ -62,8 +62,9 @@ export async function createOwner(input: OwnerInput): Promise<ActionResult> {
 			{ isolationLevel: 'repeatable read' },
 		)
 	} catch (error) {
-		// The unique email index refused the insert: another first run wrote its owner first, so setup is done.
-		if (isDuplicateEntry(error)) return fail('forbidden')
+		// A unique index refused the insert: another first run wrote its owner first (users_one_owner when the emails
+		// differ, users_email_key when they are the same address), so setup is done.
+		if (isUniqueViolation(error)) return fail('forbidden')
 		throw error
 	}
 }
