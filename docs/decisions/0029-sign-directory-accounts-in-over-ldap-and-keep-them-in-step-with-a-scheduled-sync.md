@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-10
 decision-makers: LovingCivilian (fork owner)
 consulted: Claude Code session (B3 brainstorm, B3b plan and run)
@@ -259,7 +259,7 @@ For rulings where practice is mixed or silent, the record states the choice as t
 - [x] `pnpm test:ldap` (`__tests__/ldap/{servers,connection,sign-in,sync}.ldap.test.ts`) passes against `ldap-ad` and `ldap-openldap` and stops both containers (re-run at the fix wave's commit; Task 16 Step 3 runs it again).
 - [x] The Playwright specs `e2e/directory-sign-in.spec.ts`, `directory-accounts.spec.ts`, `directory-groups.spec.ts`, `directory-sync.spec.ts` and the amended `auth.spec.ts` and `deactivation.spec.ts` pass in the full suite (Task 16 Step 3, 2026-10-10; More Information, note of 2026-10-10).
 - [x] Task 16: `pnpm test:ldap`, the full e2e suite from a fresh e2e stack, the migration on a copy of the local database and the Docker gate, 2026-10-10 (More Information, note of 2026-10-10).
-- [ ] The owner's live check against their Active Directory (`docs/ldap.md`, "Checking a new directory").
+- [x] The owner's live check against their Active Directory (`docs/ldap.md`, "Checking a new directory"), 2026-10-11 (More Information, note of 2026-10-11).
 
 ## Pros and Cons of the Options
 
@@ -353,3 +353,7 @@ Sources: RFC 4511 (§4.3, §4.5.1.8, Appendix A), RFC 4512 (§1.4, §2.5), RFC 4
 ### Note, 2026-10-10 (the username hint)
 
 The directory tab's Username field now carries a hint (`auth.username_hint`, the Form.Item `extra`): "Your username only, without the domain: jsmith, not CORP\jsmith or jsmith@corp.example.com", in English, Chinese and Arabic. People may type `CORP\jsmith` or the UPN `jsmith@corp.example.com`; the hub matches only the plain login attribute (`sAMAccountName` by default, `LDAP_LOGIN_ATTRIBUTE`), so those forms get the generic "Check your username and password" answer. `DOMAIN\user` and UPN input are not normalised: the owner chose the hint. Options considered: stripping the domain prefix before the search, and a UPN lookup (`userPrincipalName`) as a second attribute. The e2e spec asserts the hint on the directory tab.
+
+### Note, 2026-10-11 (the owner's live check; accepted)
+
+The owner checked directory sign-in against the company's Active Directory and reported: "I did check against ldap. it works" (2026-10-11). With that last verification item done, the record is accepted.
