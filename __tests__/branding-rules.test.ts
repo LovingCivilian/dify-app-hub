@@ -17,5 +17,6 @@ describe('effectiveShowName (spec §4.2: the header is never empty)', () => {
 		expect(effectiveShowName(true, true)).toBe(true)
 		expect(effectiveShowName(false, true)).toBe(false)
 		expect(effectiveShowName(false, false)).toBe(true)
+		expect(effectiveShowName(true, false)).toBe(true)
 	})
 })

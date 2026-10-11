@@ -7,6 +7,16 @@ const base = {
 	NEXTAUTH_SECRET: 'not-a-secret',
 }
 
+/** The names of the variables a failed parse reports, sorted; empty when it parses. */
+const failedKeys = (source: Record<string, string>) => {
+	try {
+		parseEnv({ ...base, ...source })
+	} catch (error) {
+		return (error as EnvError).keys.sort()
+	}
+	return []
+}
+
 describe('parseEnv', () => {
 	it('parses the minimal environment with no mail', () => {
 		expect(parseEnv(base)).toEqual({
@@ -142,22 +152,13 @@ describe('parseEnv', () => {
 		LDAP_BIND_PASSWORD: ' pass word ',
 		LDAP_USER_BASE_DN: 'DC=corp,DC=example',
 	}
-	const keysOfFailure = (source: Record<string, string>) => {
-		try {
-			parseEnv({ ...base, ...source })
-		} catch (e) {
-			return (e as EnvError).keys.sort()
-		}
-		return []
-	}
-
 	it('leaves the directory off without LDAP_URL, whatever else is set', () => {
 		expect(parseEnv({ ...base, LDAP_ENCRYPTION: 'ldaps' }).ldap).toBeNull()
 		expect(parseEnv({ ...base, LDAP_URL: '  ' }).ldap).toBeNull()
 	})
 
 	it('requires the whole block once LDAP_URL is set', () => {
-		expect(keysOfFailure({ LDAP_URL: 'ldaps://dc.corp.example' })).toEqual([
+		expect(failedKeys({ LDAP_URL: 'ldaps://dc.corp.example' })).toEqual([
 			'LDAP_BIND_DN',
 			'LDAP_BIND_PASSWORD',
 			'LDAP_ENCRYPTION',
@@ -199,7 +200,7 @@ describe('parseEnv', () => {
 		['ldaps://dc.corp.example', 'starttls'],
 		['ldap://dc.corp.example', 'ldaps'],
 	])('refuses %s with LDAP_ENCRYPTION=%s', (url, encryption) => {
-		expect(keysOfFailure({ ...ldapBlock, LDAP_URL: url, LDAP_ENCRYPTION: encryption })).toEqual([
+		expect(failedKeys({ ...ldapBlock, LDAP_URL: url, LDAP_ENCRYPTION: encryption })).toEqual([
 			'LDAP_ENCRYPTION',
 		])
 	})
@@ -207,16 +208,16 @@ describe('parseEnv', () => {
 	it.each([['ldap:host'], ['https://dc.corp.example'], ['dc.corp.example']])(
 		'refuses LDAP_URL %s (decision d)',
 		url => {
-			expect(keysOfFailure({ ...ldapBlock, LDAP_URL: url })).toContain('LDAP_URL')
+			expect(failedKeys({ ...ldapBlock, LDAP_URL: url })).toContain('LDAP_URL')
 		},
 	)
 
 	it('refuses an attribute setting that is not an attribute name (decision d)', () => {
 		// ldapts' filter parser cannot read a numeric OID as the attribute of a filter.
-		expect(
-			keysOfFailure({ ...ldapBlock, LDAP_LOGIN_ATTRIBUTE: '0.9.2342.19200300.100.1.1' }),
-		).toEqual(['LDAP_LOGIN_ATTRIBUTE'])
-		expect(keysOfFailure({ ...ldapBlock, LDAP_LOGIN_ATTRIBUTE: 'uid)(objectClass=*' })).toEqual([
+		expect(failedKeys({ ...ldapBlock, LDAP_LOGIN_ATTRIBUTE: '0.9.2342.19200300.100.1.1' })).toEqual(
+			['LDAP_LOGIN_ATTRIBUTE'],
+		)
+		expect(failedKeys({ ...ldapBlock, LDAP_LOGIN_ATTRIBUTE: 'uid)(objectClass=*' })).toEqual([
 			'LDAP_LOGIN_ATTRIBUTE',
 		])
 		expect(
@@ -225,13 +226,13 @@ describe('parseEnv', () => {
 	})
 
 	it('refuses a filter ldapts cannot parse, or one without its outer parentheses (decision b)', () => {
-		expect(keysOfFailure({ ...ldapBlock, LDAP_USER_FILTER: '(&(objectClass=user)))' })).toEqual([
+		expect(failedKeys({ ...ldapBlock, LDAP_USER_FILTER: '(&(objectClass=user)))' })).toEqual([
 			'LDAP_USER_FILTER',
 		])
-		expect(keysOfFailure({ ...ldapBlock, LDAP_GROUP_FILTER: 'objectClass=group' })).toEqual([
+		expect(failedKeys({ ...ldapBlock, LDAP_GROUP_FILTER: 'objectClass=group' })).toEqual([
 			'LDAP_GROUP_FILTER',
 		])
-		expect(keysOfFailure({ ...ldapBlock, LDAP_GROUP_MEMBER_FILTER: '(memberOf=cn=x)' })).toEqual([
+		expect(failedKeys({ ...ldapBlock, LDAP_GROUP_MEMBER_FILTER: '(memberOf=cn=x)' })).toEqual([
 			'LDAP_GROUP_MEMBER_FILTER',
 		])
 		expect(
@@ -255,17 +256,17 @@ describe('parseEnv', () => {
 				LDAP_SYNC_TIMEZONE: 'Asia/Riyadh',
 			}).ldap,
 		).toMatchObject({ syncSchedule: '30 6 * * 1-5', syncTimezone: 'Asia/Riyadh' })
-		expect(keysOfFailure({ ...ldapBlock, LDAP_SYNC_SCHEDULE: '*/5 * * * * *' })).toEqual([
+		expect(failedKeys({ ...ldapBlock, LDAP_SYNC_SCHEDULE: '*/5 * * * * *' })).toEqual([
 			'LDAP_SYNC_SCHEDULE',
 		])
-		expect(keysOfFailure({ ...ldapBlock, LDAP_SYNC_SCHEDULE: 'every hour' })).toEqual([
+		expect(failedKeys({ ...ldapBlock, LDAP_SYNC_SCHEDULE: 'every hour' })).toEqual([
 			'LDAP_SYNC_SCHEDULE',
 		])
 		// Spec §7.1 and Review Focus 4: a pattern no date matches parses, but would never run the sync.
-		expect(keysOfFailure({ ...ldapBlock, LDAP_SYNC_SCHEDULE: '0 0 31 2 *' })).toEqual([
+		expect(failedKeys({ ...ldapBlock, LDAP_SYNC_SCHEDULE: '0 0 31 2 *' })).toEqual([
 			'LDAP_SYNC_SCHEDULE',
 		])
-		expect(keysOfFailure({ ...ldapBlock, LDAP_SYNC_TIMEZONE: 'Mars/Olympus' })).toEqual([
+		expect(failedKeys({ ...ldapBlock, LDAP_SYNC_TIMEZONE: 'Mars/Olympus' })).toEqual([
 			'LDAP_SYNC_TIMEZONE',
 		])
 	})
@@ -275,14 +276,14 @@ describe('parseEnv', () => {
 		expect(
 			parseEnv({ ...base, ...ldapBlock, LDAP_SYNC_SCHEDULE: '@hourly' }).ldap?.syncSchedule,
 		).toBe('@hourly')
-		expect(keysOfFailure({ ...ldapBlock, LDAP_SYNC_SCHEDULE: '0 0 0 * * * 2030' })).toEqual([
+		expect(failedKeys({ ...ldapBlock, LDAP_SYNC_SCHEDULE: '0 0 0 * * * 2030' })).toEqual([
 			'LDAP_SYNC_SCHEDULE',
 		])
 	})
 
 	it('checks the time zone on its own, even when the schedule is off, and stores its canonical name', () => {
 		expect(
-			keysOfFailure({
+			failedKeys({
 				...ldapBlock,
 				LDAP_SYNC_SCHEDULE: 'off',
 				LDAP_SYNC_TIMEZONE: 'Mars/Olympus',
@@ -295,7 +296,7 @@ describe('parseEnv', () => {
 
 	it('takes IANA time zone names only: offsets are refused, UTC and Etc/GMT-1 pass', () => {
 		for (const offset of ['+01:00', '-05:30'])
-			expect(keysOfFailure({ ...ldapBlock, LDAP_SYNC_TIMEZONE: offset })).toEqual([
+			expect(failedKeys({ ...ldapBlock, LDAP_SYNC_TIMEZONE: offset })).toEqual([
 				'LDAP_SYNC_TIMEZONE',
 			])
 		for (const zone of ['UTC', 'Asia/Riyadh', 'Etc/GMT-1'])
@@ -342,15 +343,6 @@ describe('parseEnv', () => {
 })
 
 describe('BRANDING_MODE (settings spec §3.1)', () => {
-	const keysOf = (source: Record<string, string>) => {
-		try {
-			parseEnv({ ...base, ...source })
-		} catch (error) {
-			return (error as EnvError).keys
-		}
-		return []
-	}
-
 	it('is disabled when unset or blank, and reads its value leniently', () => {
 		expect(parseEnv(base).branding).toEqual({ mode: 'disabled', values: null })
 		expect(parseEnv({ ...base, BRANDING_MODE: '  ' }).branding.mode).toBe('disabled')
@@ -361,7 +353,7 @@ describe('BRANDING_MODE (settings spec §3.1)', () => {
 	})
 
 	it('refuses any other value, naming the variable', () => {
-		expect(keysOf({ BRANDING_MODE: 'gui' })).toEqual(['BRANDING_MODE'])
+		expect(failedKeys({ BRANDING_MODE: 'gui' })).toEqual(['BRANDING_MODE'])
 	})
 
 	it('ignores the BRANDING_* block outside env mode', () => {
@@ -391,15 +383,25 @@ describe('BRANDING_MODE (settings spec §3.1)', () => {
 	})
 
 	it('requires BRANDING_NAME in env mode', () => {
-		expect(keysOf({ BRANDING_MODE: 'env' })).toEqual(['BRANDING_NAME'])
-		expect(keysOf({ BRANDING_MODE: 'env', BRANDING_NAME: 'x'.repeat(65) })).toEqual([
+		expect(failedKeys({ BRANDING_MODE: 'env' })).toEqual(['BRANDING_NAME'])
+		expect(failedKeys({ BRANDING_MODE: 'env', BRANDING_NAME: 'x'.repeat(65) })).toEqual([
 			'BRANDING_NAME',
 		])
 	})
 
+	it('names the show-name rule beside a missing name, and refuses a non-flag value', () => {
+		expect(failedKeys({ BRANDING_MODE: 'env', BRANDING_SHOW_NAME: 'false' })).toEqual([
+			'BRANDING_NAME',
+			'BRANDING_SHOW_NAME',
+		])
+		expect(
+			failedKeys({ BRANDING_MODE: 'env', BRANDING_NAME: 'Acme', BRANDING_SHOW_NAME: 'maybe' }),
+		).toEqual(['BRANDING_SHOW_NAME'])
+	})
+
 	it('refuses BRANDING_SHOW_NAME=false without a logo file, and takes it with one', () => {
 		expect(
-			keysOf({ BRANDING_MODE: 'env', BRANDING_NAME: 'Acme', BRANDING_SHOW_NAME: 'false' }),
+			failedKeys({ BRANDING_MODE: 'env', BRANDING_NAME: 'Acme', BRANDING_SHOW_NAME: 'false' }),
 		).toEqual(['BRANDING_SHOW_NAME'])
 		expect(
 			parseEnv({

@@ -3,7 +3,7 @@ import * as z from 'zod'
 /** The brand the hub ships with (settings spec §4.1). */
 export const BUILT_IN_BRAND_NAME = 'Dify App Hub'
 
-/** Spec §4.1: trimmed, 1–64 characters (zod 4 counts code points). One name for every language: it is a proper name. */
+/** Spec §4.1: trimmed, 1–64 characters (zod 4.5 and later count Unicode code points, not UTF-16 units: zod docs, "Zod 4.5" release notes and the `z.string()` API page). One name for every language: it is a proper name. */
 export const BRAND_NAME_MAX = 64
 export const brandNameSchema = z.string().trim().min(1).max(BRAND_NAME_MAX)
 

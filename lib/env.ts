@@ -8,16 +8,17 @@ import { LDAP_ENCRYPTIONS, type LdapEncryption } from '@/lib/directory-status'
 import { brandNameSchema } from '@/lib/settings/branding-rules'
 import { SETTINGS_MODES, type SettingsMode } from '@/lib/settings/modes'
 
+/** The lenient read of a choice variable: blank counts as absent, anything else is trimmed and lower-cased. */
+const blankOrLowerCased = (value: unknown) =>
+	typeof value === 'string' && value.trim() ? value.trim().toLowerCase() : undefined
+
 /**
  * A `'true' | 'false'` flag, read leniently: blanks around it and its case do not matter, and a blank value counts
  * as absent, so the default applies (`SMTP_ENABLED=` in a .env file means "not set", not an invalid value). zod 4's
  * `z.preprocess` runs before the inner schema, and `.default` answers the undefined it leaves.
  */
 const flag = (fallback: 'true' | 'false') =>
-	z.preprocess(
-		value => (typeof value === 'string' && value.trim() ? value.trim().toLowerCase() : undefined),
-		z.enum(['true', 'false']).default(fallback),
-	)
+	z.preprocess(blankOrLowerCased, z.enum(['true', 'false']).default(fallback))
 
 const baseSchema = z.object({
 	NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -44,9 +45,9 @@ const blankAsAbsent = <T extends z.ZodType>(inner: T) =>
 		inner,
 	)
 
-/** Settings spec §3.1: read leniently like the flags (blanks and case do not matter); unset or blank is `disabled`. */
+/** Read leniently like `flag` above (blanks and case do not matter); unset or blank is `disabled`. */
 const brandingModeSchema = z.preprocess(
-	value => (typeof value === 'string' && value.trim() ? value.trim().toLowerCase() : undefined),
+	blankOrLowerCased,
 	z.enum(SETTINGS_MODES).default('disabled'),
 )
 
@@ -61,6 +62,13 @@ const brandingSchema = z
 	.refine(value => value.BRANDING_SHOW_NAME === 'true' || value.BRANDING_LOGO_FILE !== undefined, {
 		path: ['BRANDING_SHOW_NAME'],
 		message: 'true unless BRANDING_LOGO_FILE is set',
+		// Runs whenever its own two fields parsed, even if BRANDING_NAME failed (zod docs, "Refinements", the `when`
+		// parameter; the LDAP block below does the same), so one start reports every wrong variable.
+		when: payload =>
+			payload.issues.every(
+				issue =>
+					issue.path?.[0] !== 'BRANDING_SHOW_NAME' && issue.path?.[0] !== 'BRANDING_LOGO_FILE',
+			),
 	})
 
 /**
