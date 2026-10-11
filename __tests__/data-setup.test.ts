@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // A getDb stub whose rows the tests control: the pre-check's select chain ends in limit(), the transaction's locking
 // read in for('update'), and the insert in values(). The transaction runs its callback on the fake tx and records
-// the config it was given (Drizzle PgTransactionConfig).
+// the config it was given, if any (Drizzle PgTransactionConfig).
 const mocks = vi.hoisted(() => {
 	const preCheck = vi.fn()
 	const lockedRead = vi.fn()
@@ -74,13 +74,12 @@ describe('createOwner (charter §4.2, decision d: setup is open only while no ac
 		expect(mocks.values).not.toHaveBeenCalled()
 	})
 
-	it('creates the owner on an empty table inside a REPEATABLE READ transaction', async () => {
+	it('creates the owner on an empty table at the server default, Read Committed', async () => {
 		expect(await createOwner(input)).toEqual({ ok: true, data: undefined })
-		// The gap lock that serialises two first runs exists only under REPEATABLE READ (MySQL 8.4, "Transaction
-		// Isolation Levels"), so the transaction asks for it rather than rely on the server's default.
-		expect(mocks.transaction).toHaveBeenCalledWith(expect.any(Function), {
-			isolationLevel: 'repeatable read',
-		})
+		// The guarantee is the partial unique index users_one_owner (db/schema/users.ts), not an isolation level:
+		// Repeatable Read would only add serialization failures to retry (PostgreSQL 18 "Transaction Isolation").
+		expect(mocks.transaction).toHaveBeenCalledTimes(1)
+		expect(mocks.transaction.mock.calls[0]).toEqual([expect.any(Function)])
 		expect(mocks.lockedRead).toHaveBeenCalledWith('update')
 		expect(mocks.hashPassword).toHaveBeenCalledWith('password-1')
 		expect(mocks.insert).toHaveBeenCalledWith(users)

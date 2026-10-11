@@ -346,12 +346,12 @@ describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 		expect(mocks.state.transactions).toBe(3)
 	})
 
-	it('runs each attempt at READ COMMITTED, where a locking read takes no gap lock (decision e)', async () => {
+	it('runs each attempt at READ COMMITTED, named explicitly (decision e)', async () => {
 		mocks.state.failures = [deadlock(), deadlock()]
 		mocks.state.reads = [[known], []]
 		await recordDirectorySignIn({ ...identity, email: known.email }, [])
-		// MySQL 8.4 "How to Minimize and Handle Deadlocks" names READ COMMITTED for locking reads. At the default
-		// REPEATABLE READ, two people's first sign-ins in one gap of the key index would deadlock (§17.7.1).
+		// PostgreSQL's default level, named so the server's default_transaction_isolation cannot change it: the email
+		// check sees the accounts committed before it began (PostgreSQL 18 "Transaction Isolation", Read Committed).
 		expect(mocks.db.transaction).toHaveBeenCalledTimes(3)
 		for (const call of [1, 2, 3])
 			expect(mocks.db.transaction).toHaveBeenNthCalledWith(call, expect.any(Function), {

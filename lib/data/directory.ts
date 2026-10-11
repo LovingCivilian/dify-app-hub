@@ -220,14 +220,15 @@ const DEADLOCK_ATTEMPTS = 3
  * account is refreshed, or refused while an admin has deactivated it. A new one is created as a `user` with no
  * password, unless the entry has no email or any account uses it.
  *
- * The transaction sets READ COMMITTED itself (decision e). MySQL 8.4 "How to Minimize and Handle Deadlocks" says: "If
- * you use locking reads (SELECT ... FOR UPDATE or SELECT ... FOR SHARE), try using a lower isolation level such as READ
- * COMMITTED". At the default REPEATABLE READ, a locking read of a missing key takes a gap lock, and gap locks "can
- * co-exist" (§17.7.1 "InnoDB Locking"). So two different people's first sign-ins in one gap of the key index would
- * block each other's insert and deadlock. At READ COMMITTED, gap locking "is only used for foreign-key constraint
- * checking and duplicate-key checking", and each consistent read takes "its own fresh snapshot", so the email check
- * sees the latest committed accounts. The level applies to this one transaction only (MySQL 8.4 "SET TRANSACTION Statement").
- * `createOwner` keeps REPEATABLE READ, because its guarantee is the gap lock (ADR-0024 decision d).
+ * The transaction sets READ COMMITTED itself (decision e): it is PostgreSQL's default ("Read Committed is the default
+ * isolation level in PostgreSQL", PostgreSQL 18 "Transaction Isolation"), named here so a server whose
+ * `default_transaction_isolation` says otherwise cannot change it. At Read Committed a query "sees only data committed
+ * before the query began", so the email check sees the latest committed accounts. The locking read of a missing key
+ * locks nothing (FOR UPDATE locks "the rows retrieved by the SELECT statement", "Explicit Locking"), so two different
+ * people's first sign-ins never wait on each other, and two of the same person meet at the unique index
+ * `users_directory_id_key`, which refuses the second insert. Repeatable Read would gain nothing here and add errors:
+ * "an error will be thrown if a row to be locked has changed since the transaction started" ("Explicit Locking").
+ * `createOwner` runs at the same default; its guarantee is the partial unique index `users_one_owner`.
  *
  * The transaction runs again after a deadlock (40P01), within the sync statements' bound of DEADLOCK_ATTEMPTS in all,
  * and once after a unique violation (23505 on `users_directory_id_key` or `users_email_key`): the retry then finds the
