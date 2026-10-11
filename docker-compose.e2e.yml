@@ -1,4 +1,5 @@
-# Throwaway services for the tests, published on 127.0.0.1 only. PostgreSQL (tmpfs) is started by e2e/global-setup.ts;
+# Throwaway services for the tests, published on 127.0.0.1 only. PostgreSQL (tmpfs) is started by e2e/global-setup.ts
+# and by __tests__/db/global-setup.ts (pnpm test:db, which stops it afterwards and keeps its own database, hub_dal);
 # the two LDAP test directories (profile `ldap`) are started by name: ldap-ad by e2e/global-setup.ts, both by
 # __tests__/ldap/global-setup.ts (pnpm test:ldap). Stop them with:
 #   docker compose -f docker-compose.e2e.yml down             (PostgreSQL)

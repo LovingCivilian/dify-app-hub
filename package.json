@@ -16,6 +16,7 @@
 		"test": "vitest run --project unit",
 		"test:watch": "vitest --project unit",
 		"test:ldap": "vitest run --project ldap",
+		"test:db": "vitest run --project db",
 		"test:e2e": "playwright test",
 		"test:e2e:report": "playwright show-report e2e/report",
 		"i18n:lint": "i18next-cli lint",
