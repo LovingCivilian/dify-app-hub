@@ -69,7 +69,7 @@ describe('claimSyncRun on PostgreSQL (spec §6.4 "Claim", DV 6)', () => {
 		expect(rows).toHaveLength(1)
 	})
 
-	// Two containers whose schedules fire at once: the second insert waits for the first on the slot's index, then
+	// Two containers whose schedules fire at once: the second insert may wait for the first on the slot's index, then
 	// skips (PostgreSQL 18 "INSERT", ON CONFLICT DO NOTHING).
 	it('gives a slot to exactly one of two concurrent claims', async () => {
 		const claims = await Promise.all([

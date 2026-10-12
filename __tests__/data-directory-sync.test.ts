@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => {
 		writes: [] as Write[],
 		reads: [] as Read[],
 		rows: [] as unknown[],
-		/** node-postgres "Result": `rowCount` is the rows the statement matched, or null. */
+		/** node-postgres "Result": `rowCount` is the rows the statement matched or inserted, or null. */
 		rowCount: 1 as number | null,
 		returned: [{ id: 'r1' }] as unknown[],
 		failures: [] as unknown[],
@@ -558,7 +558,8 @@ describe('the run rows (spec §6.4 "Claim", §3.2)', () => {
 })
 
 // Final review M1: each of the sync's statements makes up to three attempts when it deadlocks (PostgreSQL 18
-// "Serialization Failure Handling", 13.5: "It may also be advisable to retry deadlock failures"), as Prisma's documented `withRetry(run, attempts = 3)` does; the third deadlock throws, and no other error is re-issued.
+// "Serialization Failure Handling", 13.5: "It may also be advisable to retry deadlock failures"), as Prisma's
+// documented `withRetry(run, attempts = 3)` does; the third deadlock throws, and no other error is re-issued.
 describe('a deadlocked sync statement makes up to three attempts', () => {
 	const at = new Date('2026-10-10T10:00:00Z')
 	const writes: [string, () => Promise<unknown>][] = [

@@ -74,6 +74,28 @@ describe('the baseline on a live PostgreSQL (Part 0 spec §3)', () => {
 		).toEqual({ code: '22P02', constraint: undefined })
 	})
 
+	// ADR-0029: the users CHECK ties the credentials to the source (PostgreSQL 18 "Check Constraints"; 23514 is
+	// check_violation, Appendix A). A directory account with its key and attribute and no password is accepted.
+	it('refuses a directory account with a password and a local account without one', async () => {
+		const directoryAccount = () => ({
+			id: crypto.randomUUID(),
+			email: `${crypto.randomUUID()}@example.com`,
+			source: 'ldap' as const,
+			directoryId: crypto.randomUUID(),
+			directoryIdAttribute: 'objectGUID',
+		})
+		await testDb.insert(users).values(directoryAccount())
+		const refused = { code: '23514', constraint: 'users_source_credentials' }
+		expect(
+			await refusal(testDb.insert(users).values({ ...directoryAccount(), password: 'hash' })),
+		).toEqual(refused)
+		expect(
+			await refusal(
+				testDb.insert(users).values({ ...account('local@example.com'), password: null }),
+			),
+		).toEqual(refused)
+	})
+
 	it('refuses a membership whose group does not exist', async () => {
 		const member = account('member@example.com')
 		await testDb.insert(users).values(member)

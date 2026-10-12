@@ -36,6 +36,7 @@ describe('the database pool (spec §3.1, DV 1b)', () => {
 		expect(pool.listenerCount('error')).toBe(1)
 		expect(() => pool.emit('error', terminated)).not.toThrow()
 		expect(logged).toHaveBeenCalledTimes(1)
-		expect(logged.mock.calls[0]?.[0]).toBe('Database pool:')
+		// By name and SQLSTATE only (lib/error-log.ts describeError), never the error itself.
+		expect(logged).toHaveBeenCalledWith('Database pool:', { name: 'error', code: '57P01' })
 	})
 })

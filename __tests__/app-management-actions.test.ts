@@ -88,8 +88,20 @@ describe('app actions', () => {
 		expect(updateApp).toHaveBeenCalledWith(actor, UUID, { ...input, apiKey: undefined })
 		updateApp.mockResolvedValue(null)
 		expect(await updateAppAction(UUID, input)).toEqual({ ok: false, code: 'not_found' })
-		expect(await updateAppAction('not-a-uuid', input)).toEqual({ ok: false, code: 'not_found' })
 	})
+
+	// Spec §3.2: an id that is not a UUID would raise 22P02 in PostgreSQL; it is answered as an unknown app.
+	it.each([
+		['updateAppAction', () => updateAppAction('not-a-uuid', input)],
+		['deleteAppAction', () => deleteAppAction('not-a-uuid')],
+		['syncAppAction', () => syncAppAction('not-a-uuid')],
+	] as const)(
+		'%s answers not_found for an id that is not a UUID, without asking the DAL',
+		async (_name, call) => {
+			expect(await call()).toEqual({ ok: false, code: 'not_found' })
+			for (const fn of [updateApp, deleteApp, syncApp, refresh]) expect(fn).not.toHaveBeenCalled()
+		},
+	)
 	it('deletes and syncs, answering not_found when the row is gone', async () => {
 		deleteApp.mockResolvedValue(true)
 		expect(await deleteAppAction(UUID)).toEqual({ ok: true, data: undefined })

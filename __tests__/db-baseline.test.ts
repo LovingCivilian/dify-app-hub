@@ -62,6 +62,14 @@ describe('the PostgreSQL baseline (Part 0 spec §3.3)', () => {
 		)
 	})
 
+	// ADR-0029: a local account has a hub password and no directory key; a directory account has a key, the attribute
+	// that produced it, and no hub password (spec §6, "the CHECKs"; __tests__/db/schema.db.test.ts refuses both live).
+	it('ties the credentials to the account source through the users CHECK', () => {
+		expect(sql()).toContain(
+			`CONSTRAINT "users_source_credentials" CHECK (("source" = 'local' AND "password" IS NOT NULL AND "directory_id" IS NULL) OR ("source" = 'ldap' AND "password" IS NULL AND "directory_id" IS NOT NULL AND "directory_id_attribute" IS NOT NULL))`,
+		)
+	})
+
 	// PostgreSQL 18 "Foreign Keys": "the declaration of a foreign key constraint does not automatically create an index
 	// on the referencing columns"; InnoDB created one (spec §3.2).
 	it('indexes the referencing columns that no primary key leads with', () => {
