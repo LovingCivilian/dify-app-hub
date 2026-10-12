@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-11
 decision-makers: LovingCivilian (fork owner)
 consulted: Claude Code session (provider-hub brainstorm, Part 0 spec and plan)
@@ -166,14 +166,16 @@ The plan's corrections to the spec's text were applied to the spec while plannin
 
 ### Verification
 
-- [ ] `git grep -nE "from '(mysql2|drizzle-orm/mysql)|drizzle-orm/mysql-core|image: mysql" -- . ':!docs/**' ':!*.md'` prints nothing, and `grep -nE "^  mysql2@" pnpm-lock.yaml` prints nothing (spec §9 asks for no import; history notes in comments and drizzle-orm's optional-peer entries in the lockfile stay).
-- [ ] `drizzle.config.ts` says `dialect: 'postgresql'`, and `db/migrations/` holds one folder, `<timestamp>_baseline`.
-- [ ] `pnpm exec next typegen && pnpm exec tsc --noEmit`, oxlint and oxfmt are clean; `pnpm test` passes.
-- [ ] `pnpm test:db` passes.
-- [ ] `pnpm test:ldap` passes.
-- [ ] `pnpm test:e2e` passes on `desktop-light`, `desktop-dark` and `mobile-light` against the throwaway PostgreSQL, the new cases included.
-- [ ] The Docker gate: the migration applied to an empty volume; `/init` signed out answers 200 on the fresh database and 307 to `/login` after setup; after `docker compose -f docker-compose.local.yml restart postgres` the hub answers `/api/health` 200; the `CLAUDE.md` curl checks pass.
-- [ ] The owner's check on the local stack.
+- [x] `git grep -nE "from '(mysql2|drizzle-orm/mysql)|drizzle-orm/mysql-core|image: mysql" -- . ':!docs/**' ':!*.md'` prints nothing, and `grep -nE "^  mysql2@" pnpm-lock.yaml` prints nothing (spec §9 asks for no import; history notes in comments and drizzle-orm's optional-peer entries in the lockfile stay).
+- [x] `drizzle.config.ts` says `dialect: 'postgresql'`, and `db/migrations/` holds one folder, `<timestamp>_baseline`.
+- [x] `pnpm exec next typegen && pnpm exec tsc --noEmit`, oxlint and oxfmt are clean; `pnpm test` passes.
+- [x] `pnpm test:db` passes.
+- [x] `pnpm test:ldap` passes.
+- [x] `pnpm test:e2e` passes on `desktop-light`, `desktop-dark` and `mobile-light` against the throwaway PostgreSQL, the new cases included.
+- [x] The Docker gate: the migration applied to an empty volume; `/init` signed out answers 200 on the fresh database and 307 to `/login` after setup; after `docker compose -f docker-compose.local.yml restart postgres` the hub answers `/api/health` 200; the `CLAUDE.md` curl checks pass.
+- [x] The owner's check on the local stack (More Information, note of 2026-10-12).
+
+Results of 2026-10-12 on the branch: the two greps print nothing; tsc, oxlint and oxfmt clean; `pnpm test` 1819 tests in 146 files; `pnpm test:db` 28 in 5 files; `pnpm test:ldap` 51 in 4 files; `pnpm test:e2e` 636 passed, 0 failed, 31 skipped on an empty PostgreSQL (the closed `/init` after setup is `e2e/database.spec.ts`'s 307 case); the Docker gate on the new `ai-app-hub-local` stack: one "Database migration complete", restart count 0, the baseline recorded once, the signed-out curl checks, and after `restart postgres` `/api/health` 200 with one `Database pool: { name: 'error', code: '57P01' }` line.
 
 ## Pros and Cons of the Options
 
@@ -264,3 +266,7 @@ Supersedes [ADR-0004](0004-keep-mysql-through-drizzle.md). Spec: `docs/superpowe
 Follow-ups: a one-shot `migrate` service before running several hub containers; accent-insensitive email matching, if it is ever wanted, through a nondeterministic collation.
 
 Sources: PostgreSQL 18 documentation ("Date/Time Types", "Binary Data Types", "JSON Types", "Enumerated Types", "ALTER TYPE", "UUID Type", "Indexes on Expressions", "Partial Indexes", "citext", "Collation Support", "Constraints", "INSERT" (ON CONFLICT), "UPDATE", "Transaction Isolation", "Error Codes", "Message Formats", "psql"); the PostgreSQL wiki "Don't Do This"; postgresql.org/support/versioning; the `postgres` image's documentation on Docker Hub; Docker Compose "Control startup order"; node-postgres ("Pool", "Result"); Drizzle ("Get started with PostgreSQL", "PostgreSQL column types", "Indexes & Constraints", "Upsert", "Migrations", the guide "Unique and Case-Insensitive Email Handling"); the Drizzle 1.0.0-rc.4 release notes. `DrizzleQueryError.cause` and pg's `DatabaseError.code` and `.constraint` are documented only by the installed packages' type declarations (`drizzle-orm` `errors.d.ts`; `pg-protocol` `messages.d.ts`) and the PostgreSQL protocol's ErrorResponse fields (`C`, `n`), not by the docs sites. Related: ADR-0002, ADR-0010, ADR-0019, ADR-0022, ADR-0023, ADR-0024, ADR-0025, ADR-0027, ADR-0029, ADR-0030.
+
+### Note, 2026-10-12 (the owner's check; accepted)
+
+The owner tested the branch after it was pushed for testing (commit `8ff56287`) and reported: "ive tested it and it looks like its working" (2026-10-12). With that last verification item done, the record is accepted.
