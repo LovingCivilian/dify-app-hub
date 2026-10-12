@@ -26,7 +26,9 @@ const actor = { id: 'u1', email: 'jane@example.com', name: null }
 const access = {
 	id: '3b241101-e2bb-4255-8caf-4136c566a962',
 	enabled: true,
-	credentials: { apiBase: 'http://d/v1', apiKey: 'k' },
+	provider: 'dify',
+	settings: { apiBase: 'http://d/v1' },
+	secrets: { apiKey: 'k' },
 }
 const ctx = { params: Promise.resolve({ appId: '3b241101-e2bb-4255-8caf-4136c566a962' }) }
 const get = (path: string) =>

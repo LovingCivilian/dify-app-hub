@@ -34,7 +34,9 @@ const actor = { id: USER, email: 'jane@example.com', name: null, role: 'admin' }
 const access = {
 	id: '3b241101-e2bb-4255-8caf-4136c566a962',
 	enabled: true,
-	credentials: { apiBase: 'https://dify.example/v1', apiKey: 'k' },
+	provider: 'dify',
+	settings: { apiBase: 'https://dify.example/v1' },
+	secrets: { apiKey: 'k' },
 }
 const base = 'http://app/api/dify/3b241101-e2bb-4255-8caf-4136c566a962'
 const params = <P extends Record<string, string>>(extra?: P) => ({

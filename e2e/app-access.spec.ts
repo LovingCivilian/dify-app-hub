@@ -51,7 +51,7 @@ test.describe('per-app access for a user-role account (B3 spec §4)', () => {
 		await expect(page.getByText(appName(), { exact: true })).toHaveCount(0)
 		await page.goto(`/chat/${appId}`)
 		await expect(
-			page.getByText('No Dify app configuration found. Contact your administrator.'),
+			page.getByText('No app configuration found. Contact your administrator.'),
 		).toBeVisible()
 		const parameters = await page.request.get(`/api/dify/${appId}/parameters`)
 		expect(parameters.status()).toBe(404)

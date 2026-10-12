@@ -85,12 +85,18 @@ import {
 
 const actor = { id: 'u1', email: 'jane@example.com', name: null, role: 'admin' as const }
 const ICON_URL = 'https://dify.example/files/x?sign=1'
-// What the narrow access read returns (the fake ignores the selection; the selection test checks it).
+// What the narrow access read returns (the fake ignores the selection; the selection test checks it): the Part 0
+// columns the documents are read from until Task 11 stores them.
 const stored = {
 	id: 'a1',
 	isEnabled: true,
+	mode: 'chat',
 	apiBase: 'https://dify.example/v1',
 	apiKey: 'app-secret',
+	enableAnswerForm: false,
+	answerFormFeedbackText: null,
+	enableUpdateInputAfterStarts: false,
+	openingStatementDisplayMode: null,
 }
 const json = (body: unknown, status = 200) =>
 	new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -386,6 +392,16 @@ describe('reads select explicit columns (charter §4.2)', () => {
 	it('syncApp reads only the access columns', async () => {
 		dify()
 		await syncApp(actor, 'a1')
-		expect(Object.keys(db.fields ?? {}).sort()).toEqual(['apiBase', 'apiKey', 'id', 'isEnabled'])
+		expect(Object.keys(db.fields ?? {}).sort()).toEqual([
+			'answerFormFeedbackText',
+			'apiBase',
+			'apiKey',
+			'enableAnswerForm',
+			'enableUpdateInputAfterStarts',
+			'id',
+			'isEnabled',
+			'mode',
+			'openingStatementDisplayMode',
+		])
 	})
 })

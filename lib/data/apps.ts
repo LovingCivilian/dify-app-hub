@@ -16,6 +16,7 @@ import {
 	type AppMode,
 	type SiteSettings,
 } from '@/lib/providers/dify/types'
+import { checkDocuments, type StoredDocuments } from '@/lib/providers/schemas'
 
 /*
  * The apps Data Access Layer (charter §4.2). Every function takes the verified actor first: the entry point
@@ -100,12 +101,11 @@ export interface ChatAppDto {
 	settings: AppSettings
 }
 
-/** What a Dify route needs: whether the app may be used, and how to reach Dify. */
-export interface AppAccess {
-	id: string
-	enabled: boolean
-	credentials: DifyCredentials
-}
+/**
+ * What a provider route needs (spec §2.3): whether the app may be used, and its documents as its provider's schemas read
+ * them. Built only for the server-only route guard (lib/providers/route.ts) and the admin writes; never a DTO.
+ */
+export type AppAccess = { id: string; enabled: boolean } & StoredDocuments
 
 /** What the admin form sends (validated by the action's schema). `apiKey` is required on create, optional on update. */
 export interface AppInput {
@@ -401,25 +401,75 @@ export const visibleTo = (actor: Pick<SessionUser, 'id' | 'role'>): SQL | undefi
 				),
 			)
 
-/** The access columns only: the Dify routes (with visibleTo), and the admin writes that re-read Dify with the stored key (without). */
+/**
+ * Task 11 moves the documents into `apps.settings` and `apps.secrets`; until then they are read from Part 0's columns,
+ * mapped exactly as Task 11's data migration maps them (spec §2.4), so the checks below already run on what the reshaped
+ * row will hold.
+ */
+const storedSettingsColumns = {
+	mode: difyApps.mode,
+	apiBase: difyApps.apiBase,
+	enableAnswerForm: difyApps.enableAnswerForm,
+	answerFormFeedbackText: difyApps.answerFormFeedbackText,
+	enableUpdateInputAfterStarts: difyApps.enableUpdateInputAfterStarts,
+	openingStatementDisplayMode: difyApps.openingStatementDisplayMode,
+}
+
+const storedSettings = (
+	row: Pick<
+		AppRow,
+		| 'mode'
+		| 'apiBase'
+		| 'enableAnswerForm'
+		| 'answerFormFeedbackText'
+		| 'enableUpdateInputAfterStarts'
+		| 'openingStatementDisplayMode'
+	>,
+) => ({
+	provider: 'dify',
+	settings: {
+		apiBase: row.apiBase,
+		appType: row.mode,
+		answerForm: { enabled: row.enableAnswerForm, feedbackText: row.answerFormFeedbackText ?? '' },
+		enableUpdateAfterConversationStarts: row.enableUpdateInputAfterStarts,
+		openingStatementDisplayMode:
+			row.openingStatementDisplayMode === 'always' ? 'always' : 'default',
+	},
+})
+
+/**
+ * A row's documents as its provider's schemas read them, or null (spec §2.3; decision 17: checked on every read). A row
+ * that fails is logged by its id and which document failed, never their values (OWASP Logging Cheat Sheet, "Data to
+ * exclude"), and is never returned half-typed: users meet it as an unknown app.
+ */
+export const readDocuments = (
+	appId: string,
+	provider: string,
+	settings: unknown,
+	secrets: unknown,
+): StoredDocuments | null => {
+	const check = checkDocuments(provider, settings, secrets)
+	if (check.ok) return check.documents
+	console.error('Stored app documents refused:', { appId, code: check.code })
+	return null
+}
+
+/** The access read: the provider routes (with visibleTo), and the admin writes (without). Null when missing or refused. */
 const readAccess = async (id: string, visible?: SQL): Promise<AppAccess | null> => {
 	const [row] = await getDb()
 		.select({
 			id: difyApps.id,
 			isEnabled: difyApps.isEnabled,
-			apiBase: difyApps.apiBase,
+			...storedSettingsColumns,
 			apiKey: difyApps.apiKey,
 		})
 		.from(difyApps)
 		.where(and(eq(difyApps.id, id), visible))
 		.limit(1)
-	return row
-		? {
-				id: row.id,
-				enabled: row.isEnabled,
-				credentials: { apiBase: row.apiBase, apiKey: row.apiKey },
-			}
-		: null
+	if (!row) return null
+	const { provider, settings } = storedSettings(row)
+	const documents = readDocuments(row.id, provider, settings, { apiKey: row.apiKey })
+	return documents && { id: row.id, enabled: row.isEnabled, ...documents }
 }
 
 export async function listApps(actor: SessionUser): Promise<AppDto[]> {
@@ -517,7 +567,7 @@ export async function updateApp(
 	assertAdmin(actor)
 	const access = await readAccess(id)
 	if (!access) return null
-	const credentials = { apiBase: input.apiBase, apiKey: input.apiKey || access.credentials.apiKey }
+	const credentials = { apiBase: input.apiBase, apiKey: input.apiKey || access.secrets.apiKey }
 	// Dify is read before the transaction, so the row lock is held for the queries only.
 	const { info, iconColumns, partial } = await fetchDifyProfile(credentials)
 	const written = await getDb().transaction(async tx => {
@@ -554,7 +604,10 @@ export async function syncApp(actor: SessionUser, id: string): Promise<SyncResul
 	assertAdmin(actor)
 	const access = await readAccess(id)
 	if (!access) return null
-	const { info, iconColumns, partial } = await fetchDifyProfile(access.credentials)
+	const { info, iconColumns, partial } = await fetchDifyProfile({
+		apiBase: access.settings.apiBase,
+		apiKey: access.secrets.apiKey,
+	})
 	await getDb()
 		.update(difyApps)
 		.set({ ...infoColumns(info), ...iconColumns })

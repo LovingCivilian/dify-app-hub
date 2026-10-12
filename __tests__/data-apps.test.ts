@@ -18,6 +18,7 @@ import {
 	listAdminApps,
 	lockApp,
 	parseTags,
+	readDocuments,
 	readIconBytes,
 	settingsOf,
 	syncApp,
@@ -303,4 +304,49 @@ describe('the apps DAL refuses a non-admin actor before anything else', () => {
 		await expect(call()).rejects.toMatchObject({ name: 'AuthError', code: 'forbidden' })
 		expect(fetch).not.toHaveBeenCalled()
 	})
+})
+
+// Spec §2.3: a row whose documents fail is logged by its id and the failing document, never its values, and is never
+// returned half-typed.
+describe('readDocuments', () => {
+	const settings = {
+		apiBase: 'https://dify.example/v1',
+		appType: 'chat',
+		answerForm: { enabled: false, feedbackText: '' },
+		enableUpdateAfterConversationStarts: false,
+		openingStatementDisplayMode: 'default',
+	}
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
+	it('reads valid documents without a log line', () => {
+		const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+		expect(readDocuments('a1', 'dify', settings, { apiKey: 'app-secret' })).toEqual({
+			provider: 'dify',
+			settings,
+			secrets: { apiKey: 'app-secret' },
+		})
+		expect(spy).not.toHaveBeenCalled()
+	})
+	it.each([
+		['an unknown provider', 'agui', settings, { apiKey: 'app-secret' }, 'unknown_provider'],
+		[
+			'broken settings',
+			'dify',
+			{ ...settings, appType: null },
+			{ apiKey: 'app-secret' },
+			'invalid_settings',
+		],
+		['broken secrets', 'dify', settings, { apiKey: '' }, 'invalid_secrets'],
+	])(
+		'answers null for %s and logs the app id and the code only',
+		(_label, provider, stored, secrets, code) => {
+			const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+			expect(readDocuments('a1', provider, stored, secrets)).toBeNull()
+			expect(spy).toHaveBeenCalledWith('Stored app documents refused:', { appId: 'a1', code })
+			expect(JSON.stringify(spy.mock.calls)).not.toContain('app-secret')
+			expect(JSON.stringify(spy.mock.calls)).not.toContain('dify.example')
+		},
+	)
 })

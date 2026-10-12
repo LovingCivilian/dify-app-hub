@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test'
  * one: the chat page's "missing" Result and the routes' 404 envelope, never a 500. Signed in as the owner (the
  * project's storage state), who may use every app.
  */
-const missing = 'No Dify app configuration found. Contact your administrator.'
+const missing = 'No app configuration found. Contact your administrator.'
 const notFound = { code: 'app_not_found', message: 'No such app.', status: 404 }
 
 const cases = [

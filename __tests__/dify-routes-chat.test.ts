@@ -42,7 +42,9 @@ const actor = { id: USER, email: 'jane@example.com', name: null }
 const access = {
 	id: '0b1c2d3e-4f50-4a61-8b72-9c8dae0f1a2b',
 	enabled: true,
-	credentials: { apiBase: 'http://d/v1', apiKey: 'k' },
+	provider: 'dify',
+	settings: { apiBase: 'http://d/v1' },
+	secrets: { apiKey: 'k' },
 }
 const base = 'http://app/api/dify/0b1c2d3e-4f50-4a61-8b72-9c8dae0f1a2b'
 const json = (path: string, method: string, body: unknown) =>
