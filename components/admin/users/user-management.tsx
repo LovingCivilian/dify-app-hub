@@ -147,12 +147,13 @@ export default function UserManagement({
 				),
 		},
 		{
-			// ADR-0026: the account id is the Dify end user; the owner copies it into Dify's log search or Langfuse.
-			title: t('admin_users.dify_user_id'),
-			key: 'difyUserId',
+			// ADR-0026: the account id is the end user every provider sees; the owner copies it into a provider's log search
+			// or Langfuse.
+			title: t('admin_users.user_id'),
+			key: 'userId',
 			render: (_, user) => (
 				<Typography.Text
-					className={styles.difyUserId}
+					className={styles.userId}
 					// The tooltips from i18next: antd's ar_EG pack calls "Copied" نقل ("moved").
 					copyable={{ text: user.id, tooltips: [t('common.copy'), t('common.copied')] }}
 					ellipsis={{ tooltip: user.id }}

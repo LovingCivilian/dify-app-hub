@@ -81,4 +81,15 @@ describe('locale files', () => {
 			.map(([key]) => key)
 		expect(offenders).toEqual([])
 	})
+
+	// Part 1 spec §7: neutral copy does not name Dify. The Dify-only places may: the Dify chat (chat, hitl, workflow),
+	// its app types, the provider names, and the Dify connection fields of the app form.
+	it('names Dify only where the copy is about Dify', () => {
+		const difyOnly = /^(chat|hitl|workflow|app_mode|provider)\.|^app_setting\.(api_|type_)/
+		const offenders = [enFlat, ...Object.values(translations)]
+			.flatMap(flat => Object.entries(flat))
+			.filter(([key, value]) => /dify/i.test(value) && !difyOnly.test(key))
+			.map(([key]) => key)
+		expect([...new Set(offenders)].sort()).toEqual([])
+	})
 })
