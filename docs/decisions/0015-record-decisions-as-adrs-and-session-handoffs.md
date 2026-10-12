@@ -48,3 +48,7 @@ Non-goals: a memory server or database; migrating upstream's own May 2026 specs 
 ## More Information
 
 Sources: Claude Code docs (`code.claude.com/docs/en/memory`, `sessions`), the skill comparison in the 2026-10-04 session, `docs/superpowers/handoffs/2026-10-04-frontend-foundation.md`. Related: [ADR-0002](0002-use-documented-library-approaches-only.md).
+
+### Note, 2026-10-12 (follow-ups to GitHub issues; CLAUDE.md slimmed)
+
+The owner chose to move `CLAUDE.md`'s "Open follow-ups" to GitHub issues labelled `fork/overhaul` (#43–#55, one per area, each item as a checklist entry), and to cut `CLAUDE.md` down to rules, commands and a folder-level layout: the one-line decision list (the index in `README.md` holds it), the file-by-file "Where things are" map, the programme status and the handoff list are gone. The reason: plans had to carry steps that edited `CLAUDE.md` whenever code moved, and those steps broke whenever `CLAUDE.md` changed (the owner: "isnt that a bad coupling?"). Claude Code's memory docs keep `CLAUDE.md` to "build commands, conventions, project layout, 'always do X' rules". The Decision's third bullet (`CLAUDE.md` keeps "structure pointers and open follow-ups; each decision gets one line pointing at its ADR") is superseded by this note; handoffs are written only when the owner asks for one (owner, 2026-10-07).
