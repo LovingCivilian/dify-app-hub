@@ -357,3 +357,7 @@ The directory tab's Username field now carries a hint (`auth.username_hint`, the
 ### Note, 2026-10-11 (the owner's live check; accepted)
 
 The owner checked directory sign-in against the company's Active Directory and reported: "I did check against ldap. it works" (2026-10-11). With that last verification item done, the record is accepted.
+
+### Note, 2026-10-12 ([ADR-0031](0031-move-the-database-to-postgresql-18.md))
+
+On PostgreSQL: the directory columns of `users` are `text` and `source` is a `pgEnum`, where the `db/schema/users.ts` bullet above says `varchar` and `mysqlEnum`; decision e's retry is on any `23505` (once) and on `40P01` (three attempts in all), and at READ COMMITTED, which the sign-in still sets, a locking read of a missing key locks nothing (there are no gap locks), so the unique index `users_directory_id_key` refuses the second of two first sign-ins and the binary-log condition no longer applies; decision ac's index is `users_email_key` on `lower(email)`, so emails compare without case but with accents; decision ae's 1,000-id batches stay under PostgreSQL's 65,535 parameters per statement instead of `max_allowed_packet`; and a write counts its matched rows through `rowCount`, not `affectedRows` with `FOUND_ROWS`. The slot claim and the membership batches use `ON CONFLICT DO NOTHING`; ADR-0031 has the details.
