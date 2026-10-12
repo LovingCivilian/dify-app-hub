@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
+import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/providers/dify/route'
 import { parseFilePart } from '@/lib/http/parse'
 
 /**

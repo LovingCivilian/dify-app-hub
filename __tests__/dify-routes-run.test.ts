@@ -19,8 +19,8 @@ vi.mock('@/lib/auth/session', () => ({
 	AuthError: class AuthError extends Error {},
 }))
 vi.mock('@/lib/data/apps', () => ({ getAppAccess }))
-vi.mock('@/lib/dify/client', async importOriginal => ({
-	...(await importOriginal<typeof import('@/lib/dify/client')>()),
+vi.mock('@/lib/providers/dify/client', async importOriginal => ({
+	...(await importOriginal<typeof import('@/lib/providers/dify/client')>()),
 	difyClient: () => client,
 }))
 
@@ -33,7 +33,7 @@ import {
 import { GET as events } from '@/app/api/dify/[appId]/workflow/[workflowRunId]/events/route'
 import { POST as runWorkflow } from '@/app/api/dify/[appId]/workflows/run/route'
 import { POST as stopWorkflow } from '@/app/api/dify/[appId]/workflows/tasks/[taskId]/stop/route'
-import { DifyError } from '@/lib/dify/errors'
+import { DifyError } from '@/lib/providers/dify/errors'
 
 /** The Dify end user: the account's id, never its email (ADR-0026). */
 const USER = 'u1'

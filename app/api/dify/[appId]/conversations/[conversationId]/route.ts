@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
+import { errorResponseFrom, resolveDifyRoute } from '@/lib/providers/dify/route'
 import { parsePathParams } from '@/lib/http/parse'
 
 /** DELETE /conversations/{conversation_id}: Dify answers 204, and so does this route. */

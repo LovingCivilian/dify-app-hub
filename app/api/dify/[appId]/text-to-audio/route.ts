@@ -1,8 +1,8 @@
 import type { NextRequest } from 'next/server'
 
-import { filePassthrough } from '@/lib/dify/client'
-import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { textToAudioBody } from '@/lib/dify/schemas'
+import { filePassthrough } from '@/lib/providers/dify/client'
+import { errorResponseFrom, resolveDifyRoute } from '@/lib/providers/dify/route'
+import { textToAudioBody } from '@/lib/providers/dify/schemas'
 import { parseJsonBody } from '@/lib/http/parse'
 
 /** POST /text-to-audio: `{ message_id | text, voice }`, user set here; the audio passes through. */

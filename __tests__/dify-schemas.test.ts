@@ -16,7 +16,7 @@ import {
 	textToAudioBody,
 	workflowEventsQuery,
 	workflowRunBody,
-} from '@/lib/dify/schemas'
+} from '@/lib/providers/dify/schemas'
 import { parseJsonBody, parseQuery } from '@/lib/http/parse'
 
 const UUID = '3b241101-e2bb-4255-8caf-4136c566a962'

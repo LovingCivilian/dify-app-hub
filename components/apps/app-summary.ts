@@ -1,5 +1,5 @@
 import type { AppDto, AppIcon } from '@/lib/data/apps'
-import type { AppMode } from '@/lib/dify/types'
+import type { AppMode } from '@/lib/providers/dify/types'
 
 /** What an app card shows: the DTO minus the base and the settings. */
 export interface AppSummary {

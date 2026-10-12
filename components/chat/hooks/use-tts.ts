@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { DifyApi } from '@/lib/dify/browser'
+import type { DifyApi } from '@/lib/providers/dify/browser'
 
 import type { RequestError } from '../provider/dify-fetch'
 import { toDifyError } from './dify-errors'

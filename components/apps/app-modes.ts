@@ -1,4 +1,4 @@
-import type { AppMode } from '@/lib/dify/types'
+import type { AppMode } from '@/lib/providers/dify/types'
 
 /*
  * Translation keys per Dify app mode: the short name (labels, filters) and the admin form's option text.

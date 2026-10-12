@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import UserShell from '@/components/shell/user-shell'
 import type { ChatAppDto } from '@/lib/data/apps'
-import { createDifyApi } from '@/lib/dify/browser'
+import { createDifyApi } from '@/lib/providers/dify/browser'
 
 import { DEFAULT_SITE_SETTINGS } from './app-answers'
 import { AppContext, type AppContextValue } from './app-context'

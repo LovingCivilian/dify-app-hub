@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
+import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/providers/dify/route'
 import { parsePathParams } from '@/lib/http/parse'
 
 /** GET /messages/{message_id}/suggested. */

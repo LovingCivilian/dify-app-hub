@@ -1,10 +1,10 @@
 import type { NextRequest } from 'next/server'
 
-import { filePassthrough } from '@/lib/dify/client'
+import { filePassthrough } from '@/lib/providers/dify/client'
 import { errorResponse } from '@/lib/http/errors'
-import { resolveRemoteFileUrl } from '@/lib/dify/remote-file'
-import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { remoteFileQuery } from '@/lib/dify/schemas'
+import { resolveRemoteFileUrl } from '@/lib/providers/dify/remote-file'
+import { errorResponseFrom, resolveDifyRoute } from '@/lib/providers/dify/route'
+import { remoteFileQuery } from '@/lib/providers/dify/schemas'
 import { parseQuery } from '@/lib/http/parse'
 
 /**

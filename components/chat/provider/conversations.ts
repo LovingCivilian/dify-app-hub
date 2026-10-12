@@ -1,6 +1,6 @@
 import type { ConversationData } from '@ant-design/x-sdk'
 
-import type { ConversationItem as DifyConversationItem } from '@/lib/dify/types'
+import type { ConversationItem as DifyConversationItem } from '@/lib/providers/dify/types'
 
 import { conversationKeyFor, parseConversationKey } from './keys'
 

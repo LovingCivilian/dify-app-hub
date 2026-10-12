@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
+import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/providers/dify/route'
 import { parsePathParams } from '@/lib/http/parse'
 
 /** POST /workflows/tasks/{task_id}/stop (a recorded follow-up of ADR-0017): the body carries only `user`, which the route sets. */

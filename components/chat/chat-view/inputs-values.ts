@@ -2,7 +2,7 @@ import type {
 	UserInputControlType,
 	UserInputFieldConfig,
 	UserInputFormItem,
-} from '@/lib/dify/types'
+} from '@/lib/providers/dify/types'
 import { unParseGzipString } from '@/lib/helpers'
 
 import { toControlFile, toFileMapping, type UploadedFile } from './file-types'

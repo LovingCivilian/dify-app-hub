@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 
-import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { humanInputBody } from '@/lib/dify/schemas'
+import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/providers/dify/route'
+import { humanInputBody } from '@/lib/providers/dify/schemas'
 import { parseJsonBody, parsePathParams } from '@/lib/http/parse'
 
 /** GET /form/human_input/{form_token}: the form definition (a recorded follow-up of ADR-0017). */

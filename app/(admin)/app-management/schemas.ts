@@ -2,7 +2,7 @@ import * as z from 'zod'
 
 import { userIdSchema } from '@/app/(admin)/user-management/schemas'
 import { ACCESS_MODES } from '@/lib/app-access'
-import { APP_MODES } from '@/lib/dify/types'
+import { APP_MODES } from '@/lib/providers/dify/types'
 import { idSchema } from '@/lib/ids'
 
 const appSettingsSchema = z.object({

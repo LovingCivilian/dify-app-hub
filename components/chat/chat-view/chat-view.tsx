@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next'
 
 import AppSider from '@/components/shell/app-sider'
 import UserShell from '@/components/shell/user-shell'
-import type { HumanInputSubmission } from '@/lib/dify/types'
+import type { HumanInputSubmission } from '@/lib/providers/dify/types'
 
 import { useAppContext } from '../app-context'
 import { ContinuationLostError, failureText, humanInputFailureText } from '../hooks/dify-errors'

@@ -11,9 +11,12 @@ vi.mock('@/lib/auth/session', () => ({
 	AuthError: class AuthError extends Error {},
 }))
 vi.mock('@/lib/data/apps', () => ({ getAppAccess }))
-vi.mock('@/lib/dify/client', () => ({ difyClient: () => client, passthrough: (r: Response) => r }))
+vi.mock('@/lib/providers/dify/client', () => ({
+	difyClient: () => client,
+	passthrough: (r: Response) => r,
+}))
 
-import { DifyError } from '@/lib/dify/errors'
+import { DifyError } from '@/lib/providers/dify/errors'
 import { GET as info } from '@/app/api/dify/[appId]/info/route'
 import { GET as meta } from '@/app/api/dify/[appId]/meta/route'
 import { GET as parameters } from '@/app/api/dify/[appId]/parameters/route'

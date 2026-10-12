@@ -1,4 +1,4 @@
-import type { RetrieverResource } from '@/lib/dify/types'
+import type { RetrieverResource } from '@/lib/providers/dify/types'
 
 import { formatCount } from './workflow-summary'
 

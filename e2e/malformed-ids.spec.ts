@@ -29,7 +29,7 @@ for (const [label, id] of cases) {
 			const parameters = await page.request.get(`/api/dify/${id}/parameters`)
 			expect(parameters.status()).toBe(404)
 			expect(await parameters.json()).toEqual(notFound)
-			// The guard runs before the body is read (session → app → role → input, lib/dify/route.ts).
+			// The guard runs before the body is read (session → app → role → input, lib/providers/dify/route.ts).
 			const send = await page.request.post(`/api/dify/${id}/chat-messages`, {
 				data: { query: 'hello', inputs: {} },
 			})

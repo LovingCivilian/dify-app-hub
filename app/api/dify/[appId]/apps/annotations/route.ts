@@ -6,8 +6,8 @@ import {
 	errorResponseFrom,
 	forbiddenResponse,
 	resolveDifyRoute,
-} from '@/lib/dify/route'
-import { annotationBody, annotationsQuery } from '@/lib/dify/schemas'
+} from '@/lib/providers/dify/route'
+import { annotationBody, annotationsQuery } from '@/lib/providers/dify/schemas'
 import { parseJsonBody, parseQuery } from '@/lib/http/parse'
 
 /**

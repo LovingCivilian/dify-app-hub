@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
+import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/providers/dify/route'
 import { parsePathParams } from '@/lib/http/parse'
 
 /** POST /chat-messages/{task_id}/stop: the body carries only `user`, which the route sets. */

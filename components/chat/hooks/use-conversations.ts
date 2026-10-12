@@ -2,8 +2,8 @@ import { useXConversations } from '@ant-design/x-sdk'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { DifyApi } from '@/lib/dify/browser'
-import type { ConversationItem as DifyConversationItem } from '@/lib/dify/types'
+import type { DifyApi } from '@/lib/providers/dify/browser'
+import type { ConversationItem as DifyConversationItem } from '@/lib/providers/dify/types'
 
 import {
 	DIFY_PLACEHOLDER_NAME,

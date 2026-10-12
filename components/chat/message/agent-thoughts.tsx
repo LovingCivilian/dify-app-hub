@@ -5,7 +5,7 @@ import { Typography } from 'antd'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { AgentThought } from '@/lib/dify/types'
+import type { AgentThought } from '@/lib/providers/dify/types'
 
 import { thoughtStatus } from './thought-status'
 import styles from './workflow-logs.module.css'

@@ -6,8 +6,8 @@ import {
 	errorResponseFrom,
 	forbiddenResponse,
 	resolveDifyRoute,
-} from '@/lib/dify/route'
-import { annotationBody } from '@/lib/dify/schemas'
+} from '@/lib/providers/dify/route'
+import { annotationBody } from '@/lib/providers/dify/schemas'
 import { parseJsonBody, parsePathParams } from '@/lib/http/parse'
 
 /** PUT /apps/annotations/{annotation_id}. Admin rights only: the owner or an admin (charter §4.1). */

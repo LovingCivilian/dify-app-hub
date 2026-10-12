@@ -1,6 +1,6 @@
 import type { MessageInfo } from '@ant-design/x-sdk'
 
-import type { FileType } from '@/lib/dify/types'
+import type { FileType } from '@/lib/providers/dify/types'
 
 import type { DifyChatFile, DifyChatMessage } from '../provider/message'
 

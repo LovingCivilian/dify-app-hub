@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 
-import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { feedbackBody } from '@/lib/dify/schemas'
+import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/providers/dify/route'
+import { feedbackBody } from '@/lib/providers/dify/schemas'
 import { parseJsonBody, parsePathParams } from '@/lib/http/parse'
 
 /** POST /messages/{message_id}/feedbacks: `{ rating, content }`, user set here; answers `{ result: "success" }`. */

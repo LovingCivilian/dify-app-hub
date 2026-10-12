@@ -10,9 +10,9 @@ vi.mock('@/lib/auth/session', () => ({
 	AuthError: class AuthError extends Error {},
 }))
 vi.mock('@/lib/data/apps', () => ({ getAppAccess }))
-vi.mock('@/lib/dify/client', () => ({ difyClient }))
+vi.mock('@/lib/providers/dify/client', () => ({ difyClient }))
 
-import { resolveDifyRoute } from '@/lib/dify/route'
+import { resolveDifyRoute } from '@/lib/providers/dify/route'
 
 const actor = { id: 'u1', email: 'jane@example.com', name: null }
 const params = Promise.resolve({ appId: '3b241101-e2bb-4255-8caf-4136c566a962' })

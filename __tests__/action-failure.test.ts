@@ -8,7 +8,7 @@ vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 import { fail, ok } from '@/lib/action-result'
 import { invalidInput, toActionFailure } from '@/lib/action-failure'
 import { AuthError } from '@/lib/auth/session'
-import { DifyError } from '@/lib/dify/errors'
+import { DifyError } from '@/lib/providers/dify/errors'
 import { describeError } from '@/lib/error-log'
 
 describe('ActionResult helpers', () => {

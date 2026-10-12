@@ -1,6 +1,6 @@
 import type { SSEOutput, XRequestOptions } from '@ant-design/x-sdk'
 
-import { createDifyApi } from '@/lib/dify/browser'
+import { createDifyApi } from '@/lib/providers/dify/browser'
 import { readRequestError } from '@/lib/http/browser'
 
 import type { DifyChatInput, DifyChatMessage } from './message'

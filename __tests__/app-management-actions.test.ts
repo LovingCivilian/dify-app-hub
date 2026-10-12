@@ -20,7 +20,7 @@ import {
 	syncAppAction,
 	updateAppAction,
 } from '@/app/(admin)/app-management/actions'
-import { DifyError } from '@/lib/dify/errors'
+import { DifyError } from '@/lib/providers/dify/errors'
 
 const actor = { id: 'u1', email: 'jane@example.com', name: null, role: 'admin' }
 const UUID = '3b241101-e2bb-4255-8caf-4136c566a962'

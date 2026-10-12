@@ -2,9 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 
-import { DifyError } from '@/lib/dify/errors'
-import { difyClient, filePassthrough, passthrough, type DifyClient } from '@/lib/dify/client'
-import type { ChatMessageRequest, MessagesQuery, WorkflowEventsQuery } from '@/lib/dify/types'
+import { DifyError } from '@/lib/providers/dify/errors'
+import {
+	difyClient,
+	filePassthrough,
+	passthrough,
+	type DifyClient,
+} from '@/lib/providers/dify/client'
+import type {
+	ChatMessageRequest,
+	MessagesQuery,
+	WorkflowEventsQuery,
+} from '@/lib/providers/dify/types'
 
 const credentials = { apiBase: 'http://dify.local/v1/', apiKey: 'app-key' }
 const USER = 'jane@example.com'

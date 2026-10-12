@@ -1,4 +1,4 @@
-import type { DifyApi } from '@/lib/dify/browser'
+import type { DifyApi } from '@/lib/providers/dify/browser'
 
 /**
  * A file link Dify handed out (a message file's url, a generated image) as the browser may load it: through the

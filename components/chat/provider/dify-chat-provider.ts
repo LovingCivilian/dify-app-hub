@@ -6,7 +6,7 @@ import type {
 	XRequestOptions,
 } from '@ant-design/x-sdk'
 
-import type { AgentThought, RetrieverResource } from '@/lib/dify/types'
+import type { AgentThought, RetrieverResource } from '@/lib/providers/dify/types'
 
 import {
 	emptyAssistant,

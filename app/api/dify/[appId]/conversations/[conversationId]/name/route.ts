@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 
-import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { renameConversationBody } from '@/lib/dify/schemas'
+import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/providers/dify/route'
+import { renameConversationBody } from '@/lib/providers/dify/schemas'
 import { parseJsonBody, parsePathParams } from '@/lib/http/parse'
 
 /** POST /conversations/{conversation_id}/name: `{ name }` or `{ auto_generate: true }`; answers the conversation. */

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createDifyApi } from '@/lib/dify/browser'
+import { createDifyApi } from '@/lib/providers/dify/browser'
 import { RequestError } from '@/lib/http/browser'
 
 const jsonResponse = (status: number, body: unknown, type = 'application/json') =>

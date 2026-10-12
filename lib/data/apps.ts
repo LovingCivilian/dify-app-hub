@@ -8,9 +8,14 @@ import { appGroupGrants, appUserGrants, difyApps, userGroupMembers } from '@/db/
 import type { AccessMode, AppAccessSettings } from '@/lib/app-access'
 import { hasAdminRights } from '@/lib/auth/roles'
 import { assertAdmin, type SessionUser } from '@/lib/auth/session'
-import { difyClient, type DifyCredentials } from '@/lib/dify/client'
-import { DifyError } from '@/lib/dify/errors'
-import { isAppMode, type AppInfo, type AppMode, type SiteSettings } from '@/lib/dify/types'
+import { difyClient, type DifyCredentials } from '@/lib/providers/dify/client'
+import { DifyError } from '@/lib/providers/dify/errors'
+import {
+	isAppMode,
+	type AppInfo,
+	type AppMode,
+	type SiteSettings,
+} from '@/lib/providers/dify/types'
 
 /*
  * The apps Data Access Layer (charter §4.2). Every function takes the verified actor first: the entry point

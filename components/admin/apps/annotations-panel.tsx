@@ -17,8 +17,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { failureText } from '@/components/chat/hooks/dify-errors'
-import { createDifyApi } from '@/lib/dify/browser'
-import type { AnnotationItem } from '@/lib/dify/types'
+import { createDifyApi } from '@/lib/providers/dify/browser'
+import type { AnnotationItem } from '@/lib/providers/dify/types'
 import { formatDateTime } from '@/libs/format-date'
 
 import AnnotationFormModal, { type AnnotationFormValues } from './annotation-form-modal'

@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 
-import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { messagesQuery } from '@/lib/dify/schemas'
+import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/providers/dify/route'
+import { messagesQuery } from '@/lib/providers/dify/schemas'
 import { parseQuery } from '@/lib/http/parse'
 
 /** GET /messages?conversation_id=&first_id=&limit= (endpoint map §1.2). */

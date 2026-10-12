@@ -4,7 +4,7 @@ import { Form, Input, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { AnnotationItem } from '@/lib/dify/types'
+import type { AnnotationItem } from '@/lib/providers/dify/types'
 
 export interface AnnotationFormValues {
 	question: string

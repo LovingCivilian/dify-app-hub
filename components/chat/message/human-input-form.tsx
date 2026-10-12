@@ -16,7 +16,7 @@ import type { FormRule } from 'antd'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { HumanInputForm as HumanInputFormDefinition } from '@/lib/dify/types'
+import type { HumanInputForm as HumanInputFormDefinition } from '@/lib/providers/dify/types'
 
 import FileUpload from '../chat-view/file-upload'
 import { RequestError } from '../provider/dify-fetch'

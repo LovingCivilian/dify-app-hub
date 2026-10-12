@@ -1,8 +1,8 @@
 import type { NextRequest } from 'next/server'
 
-import { passthrough } from '@/lib/dify/client'
-import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { workflowRunBody } from '@/lib/dify/schemas'
+import { passthrough } from '@/lib/providers/dify/client'
+import { errorResponseFrom, resolveDifyRoute } from '@/lib/providers/dify/route'
+import { workflowRunBody } from '@/lib/providers/dify/schemas'
 import { parseJsonBody } from '@/lib/http/parse'
 
 /** POST /workflows/run (endpoint map §1.4). */

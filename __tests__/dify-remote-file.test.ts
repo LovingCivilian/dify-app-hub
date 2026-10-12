@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 
-import { resolveRemoteFileUrl } from '@/lib/dify/remote-file'
+import { resolveRemoteFileUrl } from '@/lib/providers/dify/remote-file'
 
 const BASE = 'https://dify.example/v1'
 

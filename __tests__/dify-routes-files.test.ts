@@ -21,8 +21,8 @@ vi.mock('@/lib/auth/session', () => ({
 	AuthError: class AuthError extends Error {},
 }))
 vi.mock('@/lib/data/apps', () => ({ getAppAccess }))
-vi.mock('@/lib/dify/client', async importOriginal => ({
-	...(await importOriginal<typeof import('@/lib/dify/client')>()),
+vi.mock('@/lib/providers/dify/client', async importOriginal => ({
+	...(await importOriginal<typeof import('@/lib/providers/dify/client')>()),
 	difyClient: () => client,
 }))
 

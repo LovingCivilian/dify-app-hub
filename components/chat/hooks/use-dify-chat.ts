@@ -15,8 +15,8 @@ import {
 	useSyncExternalStore,
 } from 'react'
 
-import type { DifyApi } from '@/lib/dify/browser'
-import type { HumanInputSubmission } from '@/lib/dify/types'
+import type { DifyApi } from '@/lib/providers/dify/browser'
+import type { HumanInputSubmission } from '@/lib/providers/dify/types'
 
 import workflowDataStorage, { useWorkflowStore } from '../persistence/workflow-data-storage'
 import { DifyChatProvider } from '../provider/dify-chat-provider'

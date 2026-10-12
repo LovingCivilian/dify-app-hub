@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { DifyError, difyErrorFromResponse } from '@/lib/dify/errors'
+import { DifyError, difyErrorFromResponse } from '@/lib/providers/dify/errors'
 import { ProviderError } from '@/lib/http/errors'
 
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))

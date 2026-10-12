@@ -11,7 +11,7 @@ import {
 import { Avatar } from 'antd'
 
 import type { AppIcon as AppIconData } from '@/lib/data/apps'
-import type { AppMode } from '@/lib/dify/types'
+import type { AppMode } from '@/lib/providers/dify/types'
 
 const MODE_ICONS: Record<AppMode, React.ReactNode> = {
 	chat: <MessageOutlined />,

@@ -15,7 +15,7 @@ export const difyApps = pgTable('dify_apps', {
 		.notNull()
 		.$onUpdate(() => new Date()),
 	name: text().notNull(),
-	/** A Dify app mode (lib/dify/types APP_MODES); kept free so a future mode does not break the row (charter §4.4). */
+	/** A Dify app mode (lib/providers/dify/types APP_MODES); kept free so a future mode does not break the row (charter §4.4). */
 	mode: text(),
 	description: text(),
 	/**

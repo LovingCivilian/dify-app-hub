@@ -1,4 +1,4 @@
-import type { SiteSettings } from '@/lib/dify/types'
+import type { SiteSettings } from '@/lib/providers/dify/types'
 
 /** The site settings used when GET /site fails (Dify's 403 for an app without a site, or a Dify before 1.4). */
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
