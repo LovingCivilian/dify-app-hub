@@ -13,7 +13,6 @@ export const DEFAULT_APP_FORM_VALUES: AppFormValues = {
 		answerForm: { enabled: false, feedbackText: '' },
 		enableUpdateAfterConversationStarts: false,
 		openingStatementDisplayMode: 'default',
-		annotationEnabled: false,
 	},
 	// Spec §2 #9: a new app is closed, restricted with no grant, until the admin opens it.
 	access: { mode: 'restricted', groupIds: [], userIds: [] },

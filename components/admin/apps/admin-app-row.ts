@@ -1,13 +1,8 @@
 import type { AppAccessSettings } from '@/lib/app-access'
 import type { AdminAppDto } from '@/lib/data/apps'
-import type { AppMode } from '@/lib/providers/dify/types'
 
 /** The admin table's row is the admin DTO: no key (charter §4.4), and the app's access (B3 spec §4.4). */
 export type AdminAppRow = AdminAppDto
-
-/** Dify documents GET /apps/annotations for chatbot, chatflow and the legacy agent apps. */
-export const supportsAnnotations = (mode: AppMode | null) =>
-	mode === 'chat' || mode === 'advanced-chat' || mode === 'agent-chat'
 
 export type AccessSummary =
 	| { kind: 'everyone' }

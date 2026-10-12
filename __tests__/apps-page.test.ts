@@ -19,7 +19,6 @@ const settings = {
 	answerForm: { enabled: false, feedbackText: '' },
 	enableUpdateAfterConversationStarts: false,
 	openingStatementDisplayMode: 'default',
-	annotationEnabled: false,
 }
 const app = (id: string, enabled: boolean) => ({
 	id,

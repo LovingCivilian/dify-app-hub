@@ -112,7 +112,6 @@
 	},
 	"message": {
 		"action_regenerate": "إعادة توليد الرد",
-		"annotation": "تعليق توضيحي",
 		"tts": "قراءة بصوت عالٍ",
 		"dislike_reason": "ما الخطأ؟ (اختياري)",
 		"send_feedback": "إرسال الملاحظات",
@@ -442,7 +441,6 @@
 		"sync_info": "مزامنة معلومات التطبيق",
 		"sync_success": "تمت مزامنة التطبيق",
 		"sync_failed": "فشلت مزامنة التطبيق",
-		"annotations": "التعليقات التوضيحية",
 		"delete_confirm_title": "حذف هذا التطبيق؟",
 		"delete_confirm_description": "لا يمكن التراجع عن هذا الإجراء.",
 		"delete_success": "تم حذف التطبيق",
@@ -498,27 +496,11 @@
 		"opening_display_default": "افتراضي (تُعرض قبل بدء المحادثة)",
 		"opening_display_always": "العرض دائمًا",
 		"section_more": "إعدادات إضافية",
-		"allow_annotation": "السماح بالتعليقات التوضيحية",
-		"allow_annotation_tooltip": "ما إذا كان يمكن إضافة تعليقات توضيحية على الردود في المحادثات",
 		"form_reply": "الردود بنموذج",
 		"form_reply_tooltip": "يُنصح به عندما يرد سير العمل بنموذج ليملأه المستخدم",
 		"submit_text": "نص رسالة الإرسال",
 		"submit_text_tooltip": "عند تفعيل الردود بنموذج، يُرسل النموذج المُقدَّم افتراضيًا كرسالة مستخدم تحتوي على بيانات النموذج. إذا حُدِّد هذا الحقل، تُعرض قيمته كرسالة بدلًا من ذلك.",
 		"submit_text_placeholder": "أدخل نص رسالة الإرسال"
-	},
-	"annotation": {
-		"question": "السؤال",
-		"answer": "الإجابة",
-		"hit_count": "عدد مرات التطابق",
-		"add": "تعليق توضيحي جديد",
-		"edit": "تعديل التعليق التوضيحي",
-		"create_title": "إنشاء تعليق توضيحي",
-		"create_success": "تم حفظ التعليق التوضيحي",
-		"delete_confirm": "حذف هذا التعليق التوضيحي؟",
-		"question_required": "أدخل سؤالًا",
-		"answer_required": "أدخل إجابة",
-		"search_placeholder": "البحث في التعليقات التوضيحية",
-		"load_failed": "تعذّر تحميل التعليقات التوضيحية"
 	},
 	"workflow": {
 		"title": "سير العمل",

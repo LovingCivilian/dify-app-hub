@@ -113,17 +113,6 @@ export const textToAudioBody = z
 		path: ['text'],
 	})
 
-export const annotationsQuery = z.object({
-	page: z.coerce.number().int().min(1).optional(),
-	limit: limit.optional(),
-	keyword: z.string().optional(),
-})
-
-export const annotationBody = z.object({
-	question: z.string().trim().min(1),
-	answer: z.string().trim().min(1),
-})
-
 export const remoteFileQuery = z.object({ url: z.string().min(1) })
 
 export type ChatMessagesBody = z.infer<typeof chatMessagesBody>
@@ -136,5 +125,3 @@ export type WorkflowRunBody = z.infer<typeof workflowRunBody>
 export type WorkflowEventsQueryInput = z.infer<typeof workflowEventsQuery>
 export type HumanInputBody = z.infer<typeof humanInputBody>
 export type TextToAudioBody = z.infer<typeof textToAudioBody>
-export type AnnotationsQueryInput = z.infer<typeof annotationsQuery>
-export type AnnotationBody = z.infer<typeof annotationBody>

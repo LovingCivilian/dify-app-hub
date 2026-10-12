@@ -636,48 +636,4 @@ describe('stub router for the admin pages (sub-project 3)', () => {
 		expect(none.status).toBe(403)
 		expect(await none.json()).toMatchObject({ code: 'forbidden', status: 403 })
 	})
-
-	it('keeps annotations per app: create, newest-first paging, keyword, update, delete', async () => {
-		type Page = { data: { id: string; question: string; answer: string }[] } & Record<
-			string,
-			unknown
-		>
-		const list = async (query: string) =>
-			(await (await fetch(`${base}/v1/chatflow/apps/annotations${query}`)).json()) as Page
-		for (const question of ['first question', 'second question', 'third thing']) {
-			const created = await post('/v1/chatflow/apps/annotations', {
-				question,
-				answer: `answer to ${question}`,
-			})
-			expect(created.status).toBe(201)
-		}
-		const first = await list('?page=1&limit=2')
-		expect(first).toMatchObject({ total: 3, has_more: true, page: 1, limit: 2 })
-		expect(first.data.map(a => a.question)).toEqual(['third thing', 'second question'])
-		expect((await list('?keyword=QUESTION')).data.map(a => a.question)).toEqual([
-			'second question',
-			'first question',
-		])
-		// Another app's annotations are its own.
-		expect((await (await fetch(`${base}/v1/apps/annotations`)).json()).total).toBe(0)
-
-		const target = first.data[0]
-		const updated = await fetch(`${base}/v1/chatflow/apps/annotations/${target.id}`, {
-			method: 'PUT',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ question: 'third thing', answer: 'changed' }),
-		})
-		expect(updated.status).toBe(200)
-		expect(await updated.json()).toMatchObject({ id: target.id, answer: 'changed' })
-
-		const removed = await fetch(`${base}/v1/chatflow/apps/annotations/${target.id}`, {
-			method: 'DELETE',
-		})
-		expect(removed.status).toBe(204)
-		expect((await list('')).total).toBe(2)
-		const again = await fetch(`${base}/v1/chatflow/apps/annotations/${target.id}`, {
-			method: 'DELETE',
-		})
-		expect(again.status).toBe(404)
-	})
 })

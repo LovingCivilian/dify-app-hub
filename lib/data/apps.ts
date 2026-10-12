@@ -46,7 +46,6 @@ const dtoColumns = {
 	answerFormFeedbackText: difyApps.answerFormFeedbackText,
 	enableUpdateInputAfterStarts: difyApps.enableUpdateInputAfterStarts,
 	openingStatementDisplayMode: difyApps.openingStatementDisplayMode,
-	enableAnnotation: difyApps.enableAnnotation,
 	iconType: difyApps.iconType,
 	icon: difyApps.icon,
 	iconBackground: difyApps.iconBackground,
@@ -54,7 +53,10 @@ const dtoColumns = {
 }
 
 /** A row as the DTOs read it (dtoColumns). */
-type DtoRow = Omit<AppRow, 'apiKey' | 'iconImage' | 'iconMime' | 'accessMode'> & {
+type DtoRow = Omit<
+	AppRow,
+	'apiKey' | 'iconImage' | 'iconMime' | 'accessMode' | 'enableAnnotation'
+> & {
 	hasIconImage: boolean
 }
 
@@ -64,7 +66,6 @@ export interface AppSettings {
 	answerForm: { enabled: boolean; feedbackText: string }
 	enableUpdateAfterConversationStarts: boolean
 	openingStatementDisplayMode: OpeningStatementDisplayMode
-	annotationEnabled: boolean
 }
 
 /** What the browser needs to draw the icon (charter §4.1): the image itself comes from GET /api/apps/[appId]/icon. */
@@ -103,8 +104,6 @@ export interface ChatAppDto {
 export interface AppAccess {
 	id: string
 	enabled: boolean
-	/** The app's annotation switch: a user-role account may create annotations only where it is on (charter §4.1). */
-	annotationEnabled: boolean
 	credentials: DifyCredentials
 }
 
@@ -152,13 +151,11 @@ export const settingsOf = (
 		| 'answerFormFeedbackText'
 		| 'enableUpdateInputAfterStarts'
 		| 'openingStatementDisplayMode'
-		| 'enableAnnotation'
 	>,
 ): AppSettings => ({
 	answerForm: { enabled: row.enableAnswerForm, feedbackText: row.answerFormFeedbackText ?? '' },
 	enableUpdateAfterConversationStarts: row.enableUpdateInputAfterStarts,
 	openingStatementDisplayMode: row.openingStatementDisplayMode === 'always' ? 'always' : 'default',
-	annotationEnabled: row.enableAnnotation,
 })
 
 const modeOf = (mode: string | null): AppMode | null => (isAppMode(mode) ? mode : null)
@@ -370,7 +367,6 @@ const settingsColumns = (settings: AppSettings) => ({
 	answerFormFeedbackText: settings.answerForm.feedbackText || null,
 	enableUpdateInputAfterStarts: settings.enableUpdateAfterConversationStarts,
 	openingStatementDisplayMode: settings.openingStatementDisplayMode,
-	enableAnnotation: settings.annotationEnabled,
 })
 
 /** Builds the access rule's subqueries without a database instance (Drizzle docs, standalone query builder; decision d). */
@@ -411,7 +407,6 @@ const readAccess = async (id: string, visible?: SQL): Promise<AppAccess | null> 
 		.select({
 			id: difyApps.id,
 			isEnabled: difyApps.isEnabled,
-			enableAnnotation: difyApps.enableAnnotation,
 			apiBase: difyApps.apiBase,
 			apiKey: difyApps.apiKey,
 		})
@@ -422,7 +417,6 @@ const readAccess = async (id: string, visible?: SQL): Promise<AppAccess | null> 
 		? {
 				id: row.id,
 				enabled: row.isEnabled,
-				annotationEnabled: row.enableAnnotation,
 				credentials: { apiBase: row.apiBase, apiKey: row.apiKey },
 			}
 		: null

@@ -3,7 +3,6 @@
 import {
 	DislikeFilled,
 	DislikeOutlined,
-	EditOutlined,
 	LikeFilled,
 	LikeOutlined,
 	RedoOutlined,
@@ -43,12 +42,10 @@ export interface MessageFooterProps {
 		rating: FeedbackRating,
 		reason?: string,
 	) => Promise<void>
-	/** Opens the annotation drawer for this answer and its question. */
-	onAnnotate: (key: string | number) => void
 }
 
 /**
- * An assistant bubble's footer (spec §5.2): X `Actions` with regenerate, `Actions.Copy`, annotate, like and
+ * An assistant bubble's footer (spec §5.2): X `Actions` with regenerate, `Actions.Copy`, like and
  * dislike, and `Actions.Audio`, and the creation time in the active language. Which actions show is
  * `footerActions`. Like and dislike are antd Buttons rendered through `actionRender` rather than X's
  * `Actions.Feedback`, whose choices are spans no keyboard reaches and only the icons' English labels name
@@ -63,11 +60,10 @@ function MessageFooter({
 	disabled,
 	onRegenerate,
 	onFeedback,
-	onAnnotate,
 }: MessageFooterProps) {
 	const { t, i18n } = useTranslation()
 	const { token } = theme.useToken()
-	const { app, parameters, difyApi } = useAppContext()
+	const { parameters, difyApi } = useAppContext()
 	const { message: toast } = App.useApp()
 	const reportTtsError = useCallback(
 		(error: RequestError) => toast.error(failureText(error, t, t('common.request_failed_retry'))),
@@ -77,7 +73,6 @@ function MessageFooter({
 	const [dislikeOpen, setDislikeOpen] = useState(false)
 
 	const actions = footerActions(message, status, {
-		annotation: app.settings.annotationEnabled,
 		tts: Boolean(parameters.text_to_speech?.enabled),
 		hasQuestion,
 	})
@@ -116,22 +111,6 @@ function MessageFooter({
 	if (actions.copy) {
 		// antd's Typography copy button, named by antd's locale ("Copy").
 		items.push({ key: 'copy', actionRender: () => <Actions.Copy text={message.content} /> })
-	}
-	if (actions.annotate) {
-		items.push({
-			key: 'annotate',
-			actionRender: () => (
-				<Button
-					type="text"
-					size="small"
-					icon={<EditOutlined />}
-					aria-label={t('message.annotation')}
-					title={t('message.annotation')}
-					disabled={disabled}
-					onClick={() => onAnnotate(messageKey)}
-				/>
-			),
-		})
 	}
 	if (actions.feedback) {
 		// Named toggle buttons (aria-pressed); the chosen one is filled and coloured (spec §10), the other

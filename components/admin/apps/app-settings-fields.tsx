@@ -187,14 +187,6 @@ export default function AppSettingsFields({
 
 			<Divider titlePlacement="start">{t('app_setting.section_more')}</Divider>
 			<Form.Item
-				label={t('app_setting.allow_annotation')}
-				name={['settings', 'annotationEnabled']}
-				tooltip={t('app_setting.allow_annotation_tooltip')}
-				valuePropName="checked"
-			>
-				<Switch />
-			</Form.Item>
-			<Form.Item
 				label={t('app_setting.form_reply')}
 				name={['settings', 'answerForm', 'enabled']}
 				tooltip={t('app_setting.form_reply_tooltip')}

@@ -2,13 +2,12 @@ import 'server-only'
 
 import { verifySession, type SessionUser } from '@/lib/auth/session'
 import { getAppAccess } from '@/lib/data/apps'
-import { errorResponse, errorResponseFrom, forbiddenResponse } from '@/lib/http/errors'
+import { errorResponse, errorResponseFrom } from '@/lib/http/errors'
 import { isId } from '@/lib/ids'
 
 import { difyClient, type DifyClient } from './client'
 
-// A route checks the role right after the app (session → app → role → input) and answers forbiddenResponse().
-export { errorResponseFrom, forbiddenResponse }
+export { errorResponseFrom }
 export { jsonNoStore } from '@/lib/http/response'
 
 export interface DifyRouteContext {
@@ -17,8 +16,6 @@ export interface DifyRouteContext {
 	actor: SessionUser
 	appId: string
 	apiBase: string
-	/** The app's annotation switch (AppAccess). */
-	annotationEnabled: boolean
 	dify: DifyClient
 }
 
@@ -55,7 +52,6 @@ export const resolveDifyRoute = async (
 				actor,
 				appId,
 				apiBase: app.credentials.apiBase,
-				annotationEnabled: app.annotationEnabled,
 				dify: difyClient(app.credentials),
 			},
 		}

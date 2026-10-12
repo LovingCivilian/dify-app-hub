@@ -20,5 +20,7 @@ describe('app/api', () => {
 				),
 		)
 		expect(stray).toEqual([])
+		// Part 1 spec §6 (decision 21): the two annotation routes are gone with the feature.
+		expect(routes.filter(file => file.includes('annotations'))).toEqual([])
 	})
 })

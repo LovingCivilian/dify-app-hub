@@ -14,8 +14,7 @@ import type { GroupOption } from '@/lib/data/groups'
 import type { UserOption } from '@/lib/data/users'
 import { matchesQuery } from '@/lib/match-query'
 
-import { accessSummary, type AdminAppRow, supportsAnnotations } from './admin-app-row'
-import AnnotationsDrawer from './annotations-drawer'
+import { accessSummary, type AdminAppRow } from './admin-app-row'
 import AppActions from './app-actions'
 import AppFormDrawer from './app-form-drawer'
 import styles from './app-management.module.css'
@@ -40,10 +39,8 @@ export default function AppManagement({
 	const [query, setQuery] = useState('')
 	// What a drawer shows stays until its close animation has ended (afterOpenChange(false)); `open` follows the admin's action.
 	const [editor, setEditor] = useState<{ open: boolean; record?: AdminAppRow }>({ open: false })
-	const [annotations, setAnnotations] = useState<{ open: boolean; appId?: string }>({ open: false })
 	const openCreate = () => setEditor({ open: true })
 	const openEdit = (app: AdminAppRow) => setEditor({ open: true, record: app })
-	const openAnnotations = (appId: string) => setAnnotations({ open: true, appId })
 	const shown = apps.filter(app => matchesQuery([app.name, app.description, ...app.tags], query))
 
 	const columns: TableProps<AdminAppRow>['columns'] = [
@@ -139,7 +136,6 @@ export default function AppManagement({
 				<AppActions
 					app={app}
 					onEdit={() => openEdit(app)}
-					onAnnotations={supportsAnnotations(app.mode) ? () => openAnnotations(app.id) : undefined}
 				/>
 			),
 		},
@@ -202,12 +198,6 @@ export default function AppManagement({
 				users={users}
 				onClose={() => setEditor(current => ({ ...current, open: false }))}
 				onClosed={() => setEditor({ open: false })}
-			/>
-			<AnnotationsDrawer
-				open={annotations.open}
-				appId={annotations.appId}
-				onClose={() => setAnnotations(current => ({ ...current, open: false }))}
-				onClosed={() => setAnnotations({ open: false })}
 			/>
 		</Flex>
 	)

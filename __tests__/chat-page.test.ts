@@ -28,7 +28,6 @@ const app = {
 		answerForm: { enabled: false, feedbackText: '' },
 		enableUpdateAfterConversationStarts: false,
 		openingStatementDisplayMode: 'default',
-		annotationEnabled: false,
 	},
 }
 const props = {

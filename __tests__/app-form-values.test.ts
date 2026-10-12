@@ -7,7 +7,6 @@ const settings = {
 	answerForm: { enabled: true, feedbackText: 'Thanks' },
 	enableUpdateAfterConversationStarts: true,
 	openingStatementDisplayMode: 'always' as const,
-	annotationEnabled: true,
 }
 const access = { mode: 'restricted' as const, groupIds: ['g1'], userIds: ['u1'] }
 const app: AdminAppDto = {
@@ -50,7 +49,6 @@ describe('toAppFormValues', () => {
 				answerForm: { enabled: false, feedbackText: '' },
 				enableUpdateAfterConversationStarts: false,
 				openingStatementDisplayMode: 'default',
-				annotationEnabled: false,
 			},
 			access: { mode: 'restricted', groupIds: [], userIds: [] },
 		})

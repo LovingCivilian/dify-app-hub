@@ -254,7 +254,6 @@ describe('the mode written to the row (charter §4.4: only the six known modes)'
 		answerForm: { enabled: false, feedbackText: '' },
 		enableUpdateAfterConversationStarts: false,
 		openingStatementDisplayMode: 'default',
-		annotationEnabled: false,
 	}
 	const input = {
 		apiBase: 'https://dify.example/v1',
@@ -364,7 +363,6 @@ describe('reads select explicit columns (charter §4.2)', () => {
 		answerFormFeedbackText: null,
 		enableUpdateInputAfterStarts: false,
 		openingStatementDisplayMode: null,
-		enableAnnotation: false,
 		iconType: 'image',
 		icon: 'file-id',
 		iconBackground: null,
@@ -388,12 +386,6 @@ describe('reads select explicit columns (charter §4.2)', () => {
 	it('syncApp reads only the access columns', async () => {
 		dify()
 		await syncApp(actor, 'a1')
-		expect(Object.keys(db.fields ?? {}).sort()).toEqual([
-			'apiBase',
-			'apiKey',
-			'enableAnnotation',
-			'id',
-			'isEnabled',
-		])
+		expect(Object.keys(db.fields ?? {}).sort()).toEqual(['apiBase', 'apiKey', 'id', 'isEnabled'])
 	})
 })

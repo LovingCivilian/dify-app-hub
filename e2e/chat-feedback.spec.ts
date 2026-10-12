@@ -199,9 +199,8 @@ test.describe('message feedback', () => {
 	})
 })
 
-// The stub's chatflow app enables text_to_speech (its /parameters) and annotation (seeded in auth.setup.ts);
-// the chat app enables neither.
-test.describe('text to speech and annotation', () => {
+// The stub's chatflow app enables text_to_speech (its /parameters); the chat app does not.
+test.describe('text to speech', () => {
 	test('read aloud plays the answer, stop reading ends it, and it ends by itself', async ({
 		page,
 	}, testInfo) => {
@@ -228,39 +227,16 @@ test.describe('text to speech and annotation', () => {
 		await read.click()
 		await expect(stop).toHaveClass(/ant-actions-audio-running/)
 		await expect(read).toHaveClass(/ant-actions-audio-default/)
+		// Part 1 spec §6: no annotate action, even on the app that had annotations on.
+		await expect(lastAnswer(page).getByRole('button', { name: 'Annotation' })).toHaveCount(0)
 	})
 
-	test('annotation opens a drawer with the question and the answer and saves them', async ({
-		page,
-	}, testInfo) => {
-		const text = `annotate me ${runOf(testInfo)}`
-		await page.goto(`/chat/${APP_IDS['advanced-chat']}?isNewCvst=1`)
-		await send(page, text)
-		await lastAnswer(page).getByRole('button', { name: 'Annotation', exact: true }).click()
-		const drawer = page.getByRole('dialog', { name: 'Create annotation' })
-		await expect(drawer.getByRole('textbox', { name: 'Question' })).toHaveValue(text)
-		await expect(drawer.getByRole('textbox', { name: 'Answer' })).toHaveValue(`Echo: ${text}`)
-		await drawer.getByRole('textbox', { name: 'Answer' }).fill('A better answer')
-		const saved = page.waitForRequest(
-			request =>
-				request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/annotations'),
-		)
-		await drawer.getByRole('button', { name: 'Confirm', exact: true }).click()
-		expect((await saved).postDataJSON()).toMatchObject({
-			question: text,
-			answer: 'A better answer',
-		})
-		await expect(page.getByText('Annotation saved', { exact: true })).toBeVisible()
-		await expect(drawer).toBeHidden()
-	})
-
-	test('an app without them offers neither', async ({ page }, testInfo) => {
+	test('an app without it offers no read aloud', async ({ page }, testInfo) => {
 		await page.goto(`/chat/${APP_ID}?isNewCvst=1`)
 		await send(page, `plain ${runOf(testInfo)}`)
 		await expect(
 			lastAnswer(page).getByRole('button', { name: 'Regenerate response' }),
 		).toBeVisible()
 		await expect(lastAnswer(page).getByRole('button', { name: 'Read aloud' })).toHaveCount(0)
-		await expect(lastAnswer(page).getByRole('button', { name: 'Annotation' })).toHaveCount(0)
 	})
 })

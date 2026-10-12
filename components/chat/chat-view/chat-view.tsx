@@ -29,7 +29,6 @@ import { useSuggestions } from '../hooks/use-suggestions'
 import HumanInputForm from '../message/human-input-form'
 import { parseConversationKey } from '../provider/keys'
 import type { DifyChatMessage } from '../provider/message'
-import AnnotationDrawer from './annotation-drawer'
 import AssistantContent from './assistant-content'
 import ChatSender, { type SenderRef } from './chat-sender'
 import styles from './chat-view.module.css'
@@ -46,7 +45,7 @@ import {
 	pendingFileInputs,
 	resolveInitialInputs,
 } from './inputs-values'
-import { questionOf, regenerateRequest, suggestionTarget, unansweredKeys } from './message-actions'
+import { regenerateRequest, suggestionTarget, unansweredKeys } from './message-actions'
 import MessageFooter, { type FeedbackRating } from './message-footer'
 import MessageList, { type BubbleInfo } from './message-list'
 import { useSenderAttachments } from './sender-attachments'
@@ -412,17 +411,6 @@ export default function ChatView() {
 		[difyApi, t, toast],
 	)
 
-	// One annotation drawer for the page, opened with the answer and the question it replies to.
-	const [annotation, setAnnotation] = useState({ open: false, question: '', answer: '' })
-	const annotate = useCallback((key: string | number) => {
-		const { messages } = latest.current
-		setAnnotation({
-			open: true,
-			question: questionOf(messages, key)?.content ?? '',
-			answer: messages.find(m => m.id === key)?.message.content ?? '',
-		})
-	}, [])
-
 	// Answers no user turn precedes cannot be regenerated. Joined into a string, the list changes the
 	// callback below only when it changes itself, not with every streamed chunk.
 	const unanswered = unansweredKeys(chat.messages).join('\n')
@@ -441,10 +429,9 @@ export default function ChatView() {
 					disabled={isRequesting}
 					onRegenerate={regenerate}
 					onFeedback={feedback}
-					onAnnotate={annotate}
 				/>
 			),
-		[annotate, feedback, isRequesting, regenerate, unansweredSet],
+		[feedback, isRequesting, regenerate, unansweredSet],
 	)
 
 	// Welcome while the conversation has no messages, or always when the app asks for it (spec §5.2); never
@@ -657,14 +644,6 @@ export default function ChatView() {
 					createDisabled={createDisabled}
 				/>
 			</ConversationDrawer>
-			{app.settings.annotationEnabled && (
-				<AnnotationDrawer
-					open={annotation.open}
-					question={annotation.question}
-					answer={annotation.answer}
-					onClose={() => setAnnotation(current => ({ ...current, open: false }))}
-				/>
-			)}
 		</UserShell>
 	)
 }

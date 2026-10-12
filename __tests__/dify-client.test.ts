@@ -173,7 +173,7 @@ describe('difyClient: where `user` goes (endpoint map §1, the `user` column)', 
 		expect(lastCall().url).toBe('http://dify.local/v1/audio-to-text')
 	})
 
-	it('no user: info, parameters, site, meta, human-input form, annotations', async () => {
+	it('no user: info, parameters, site, meta, human-input form', async () => {
 		const client = difyClient(credentials)
 		reply(() => jsonResponse(200, { user_input_form: [] }))
 		await client.getParameters()
@@ -189,17 +189,6 @@ describe('difyClient: where `user` goes (endpoint map §1, the `user` column)', 
 		)
 		await client.getHumanInputForm('tok')
 		expect(lastCall().url).toBe('http://dify.local/v1/form/human_input/tok')
-		reply(() => jsonResponse(200, { data: [], has_more: false, limit: 10, total: 0, page: 1 }))
-		await client.listAnnotations({ page: 2, limit: 10, keyword: 'tea' })
-		expect(lastCall().url).toBe('http://dify.local/v1/apps/annotations?page=2&limit=10&keyword=tea')
-		reply(() => jsonResponse(201, { id: 'a1' }))
-		await client.createAnnotation({ question: 'q', answer: 'a' })
-		expect(lastCall().init.method).toBe('POST')
-		await client.updateAnnotation('a1', { question: 'q', answer: 'b' })
-		expect(lastCall().url).toBe('http://dify.local/v1/apps/annotations/a1')
-		expect(lastCall().init.method).toBe('PUT')
-		reply(() => new Response(null, { status: 204 }))
-		await expect(client.deleteAnnotation('a1')).resolves.toBeUndefined()
 	})
 })
 
@@ -667,38 +656,6 @@ const operations: OperationCase[] = [
 		url: `${V1}/text-to-audio`,
 		user: 'body',
 		result: 'binary',
-	},
-	{
-		name: 'listAnnotations',
-		call: c => c.listAnnotations({ page: 1 }),
-		method: 'GET',
-		url: `${V1}/apps/annotations?page=1`,
-		user: 'none',
-		result: 'json',
-	},
-	{
-		name: 'createAnnotation',
-		call: c => c.createAnnotation({ question: 'q', answer: 'a' }),
-		method: 'POST',
-		url: `${V1}/apps/annotations`,
-		user: 'none',
-		result: 'json',
-	},
-	{
-		name: 'updateAnnotation',
-		call: c => c.updateAnnotation('a1', { question: 'q', answer: 'b' }),
-		method: 'PUT',
-		url: `${V1}/apps/annotations/a1`,
-		user: 'none',
-		result: 'json',
-	},
-	{
-		name: 'deleteAnnotation',
-		call: c => c.deleteAnnotation('a1'),
-		method: 'DELETE',
-		url: `${V1}/apps/annotations/a1`,
-		user: 'none',
-		result: 'empty',
 	},
 ]
 

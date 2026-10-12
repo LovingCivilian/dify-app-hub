@@ -11,15 +11,7 @@ import type { AdminAppRow } from './admin-app-row'
 import { appErrorKey } from './app-errors'
 
 /** A row's actions (spec §5.3). Every outcome is a translated message; the actions refresh the server page. */
-export default function AppActions({
-	app,
-	onEdit,
-	onAnnotations,
-}: {
-	app: AdminAppRow
-	onEdit: () => void
-	onAnnotations?: () => void
-}) {
+export default function AppActions({ app, onEdit }: { app: AdminAppRow; onEdit: () => void }) {
 	const { t } = useTranslation()
 	const { message, modal } = App.useApp()
 	const { run } = useActionTransition()
@@ -65,13 +57,11 @@ export default function AppActions({
 			),
 		},
 		{ key: 'sync', label: t('admin_apps.sync_info') },
-		...(onAnnotations ? [{ key: 'annotations', label: t('admin_apps.annotations') }] : []),
 		{ type: 'divider' },
 		{ key: 'delete', label: t('common.delete'), danger: true },
 	]
 	const onClick: MenuProps['onClick'] = ({ key }) => {
 		if (key === 'sync') sync()
-		if (key === 'annotations') onAnnotations?.()
 		if (key === 'delete') confirmDelete()
 	}
 

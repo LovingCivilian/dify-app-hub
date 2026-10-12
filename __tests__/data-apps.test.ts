@@ -43,7 +43,6 @@ const row = {
 	answerFormFeedbackText: 'Thanks',
 	enableUpdateInputAfterStarts: false,
 	openingStatementDisplayMode: 'always',
-	enableAnnotation: true,
 	iconType: 'emoji',
 	icon: '🍵',
 	iconBackground: '#FFEAD5',
@@ -73,7 +72,6 @@ describe('iconOf and settingsOf', () => {
 			answerForm: { enabled: true, feedbackText: 'Thanks' },
 			enableUpdateAfterConversationStarts: false,
 			openingStatementDisplayMode: 'always',
-			annotationEnabled: true,
 		})
 		expect(
 			settingsOf({ ...row, answerFormFeedbackText: null, openingStatementDisplayMode: null }),
@@ -281,7 +279,6 @@ const appInput = {
 		answerForm: { enabled: false, feedbackText: '' },
 		enableUpdateAfterConversationStarts: false,
 		openingStatementDisplayMode: 'default',
-		annotationEnabled: false,
 	},
 	access: { mode: 'restricted', groupIds: [] as string[], userIds: [] as string[] },
 } as const

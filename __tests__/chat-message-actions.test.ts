@@ -23,7 +23,7 @@ const user = (content: string, extra: Partial<DifyChatMessage> = {}): DifyChatMe
 	ids: {},
 	...extra,
 })
-const none = { annotation: false, tts: false, hasQuestion: true }
+const none = { tts: false, hasQuestion: true }
 
 // Spec §5.2 (footer), §4.7 and §10 (PRs #7/#8): which actions an assistant bubble offers.
 describe('footerActions', () => {
@@ -37,7 +37,6 @@ describe('footerActions', () => {
 		expect(footerActions(answer(), 'success', none)).toStrictEqual({
 			regenerate: true,
 			copy: true,
-			annotate: false,
 			feedback: true,
 			tts: false,
 			time: true,
@@ -63,12 +62,11 @@ describe('footerActions', () => {
 		expect(footerActions(answer({ aborted: true }), 'abort', none)?.feedback).toBe(true)
 	})
 
-	it('offers annotation and text-to-speech only when the app enables them and there is text', () => {
-		const enabled = { annotation: true, tts: true, hasQuestion: true }
-		expect(footerActions(answer(), 'success', enabled)).toMatchObject({ annotate: true, tts: true })
+	it('offers text-to-speech only when the app enables it and there is text', () => {
+		const enabled = { tts: true, hasQuestion: true }
+		expect(footerActions(answer(), 'success', enabled)).toMatchObject({ tts: true })
 		expect(footerActions(answer({ content: '' }), 'success', enabled)).toMatchObject({
 			copy: false,
-			annotate: false,
 			tts: false,
 			regenerate: true,
 		})
@@ -141,7 +139,7 @@ describe('regenerateRequest', () => {
 		})
 	})
 
-	it('is the question annotation starts from too', () => {
+	it('is the user turn just before the answer', () => {
 		const messages = [info('u1', user('first')), info('a1', answer())]
 		expect(questionOf(messages, 'a1')).toBe(messages[0].message)
 	})

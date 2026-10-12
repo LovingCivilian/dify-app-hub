@@ -9,7 +9,6 @@ const appSettingsSchema = z.object({
 	answerForm: z.object({ enabled: z.boolean(), feedbackText: z.string().max(255).default('') }),
 	enableUpdateAfterConversationStarts: z.boolean(),
 	openingStatementDisplayMode: z.enum(['default', 'always']),
-	annotationEnabled: z.boolean(),
 })
 
 /** Who may use the app (B3 spec §4.4): the grants count while restricted; group and account ids are UUIDs (ADR-0031). */

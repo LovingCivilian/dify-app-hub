@@ -112,7 +112,6 @@
 	},
 	"message": {
 		"action_regenerate": "Regenerate response",
-		"annotation": "Annotation",
 		"tts": "Read aloud",
 		"dislike_reason": "What was wrong? (optional)",
 		"send_feedback": "Send feedback",
@@ -442,7 +441,6 @@
 		"sync_info": "Sync app info",
 		"sync_success": "App synced",
 		"sync_failed": "Failed to sync app",
-		"annotations": "Annotations",
 		"delete_confirm_title": "Delete this app?",
 		"delete_confirm_description": "This cannot be undone.",
 		"delete_success": "App deleted",
@@ -498,27 +496,11 @@
 		"opening_display_default": "Default (shown before the conversation starts)",
 		"opening_display_always": "Always show",
 		"section_more": "More settings",
-		"allow_annotation": "Allow annotations",
-		"allow_annotation_tooltip": "Whether replies can be annotated in conversations",
 		"form_reply": "Form replies",
 		"form_reply_tooltip": "Recommended when a workflow replies with a form for the user to fill in",
 		"submit_text": "Submission message text",
 		"submit_text_tooltip": "With form replies enabled, a submitted form is sent as a user message containing the form data by default. If this field is set, its value is shown as the message instead.",
 		"submit_text_placeholder": "Enter the submission message text"
-	},
-	"annotation": {
-		"question": "Question",
-		"answer": "Answer",
-		"hit_count": "Hits",
-		"add": "New annotation",
-		"edit": "Edit annotation",
-		"create_title": "Create annotation",
-		"create_success": "Annotation saved",
-		"delete_confirm": "Delete this annotation?",
-		"question_required": "Enter a question",
-		"answer_required": "Enter an answer",
-		"search_placeholder": "Search annotations",
-		"load_failed": "Annotations could not be loaded"
 	},
 	"workflow": {
 		"title": "Workflow",

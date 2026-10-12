@@ -4,10 +4,6 @@
 import { readRequestError } from '@/lib/http/browser'
 
 import type {
-	AnnotationInput,
-	AnnotationItem,
-	AnnotationsPage,
-	AnnotationsQuery,
 	AppParameters,
 	CompletionRequest,
 	ConversationItem,
@@ -114,18 +110,6 @@ export const createDifyApi = (appId: string) => {
 			request('/audio-to-text', filePart(file)).then(json<{ text: string }>),
 		/** The audio's Response; the caller reads it. */
 		textToAudio: (body: TextToAudioRequest) => request('/text-to-audio', jsonInit('POST', body)),
-
-		listAnnotations: (query: AnnotationsQuery) =>
-			request(`/apps/annotations${queryString(query)}`).then(json<AnnotationsPage>),
-		createAnnotation: (body: AnnotationInput) =>
-			request('/apps/annotations', jsonInit('POST', body)).then(json<AnnotationItem>),
-		updateAnnotation: (annotationId: string, body: AnnotationInput) =>
-			request(`/apps/annotations/${segment(annotationId)}`, jsonInit('PUT', body)).then(
-				json<AnnotationItem>,
-			),
-		deleteAnnotation: async (annotationId: string): Promise<void> => {
-			await request(`/apps/annotations/${segment(annotationId)}`, { method: 'DELETE' })
-		},
 
 		/** The app's URL for a file link Dify handed out (message files, generated images), fetched by the server. */
 		remoteFileUrl: (url: string) => `${base}/files/remote?url=${encodeURIComponent(url)}`,

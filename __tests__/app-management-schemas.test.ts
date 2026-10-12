@@ -15,7 +15,6 @@ const valid = {
 		answerForm: { enabled: false, feedbackText: '' },
 		enableUpdateAfterConversationStarts: false,
 		openingStatementDisplayMode: 'default',
-		annotationEnabled: false,
 	},
 	access: { mode: 'restricted', groupIds: [], userIds: [] },
 }

@@ -2,10 +2,6 @@ import 'server-only'
 
 import { DifyError, difyErrorFromResponse } from './errors'
 import type {
-	AnnotationInput,
-	AnnotationItem,
-	AnnotationsPage,
-	AnnotationsQuery,
 	AppInfo,
 	AppMeta,
 	AppParameters,
@@ -311,20 +307,6 @@ export const difyClient = (credentials: DifyCredentials) => {
 			send('/audio-to-text', multipart(file, user)).then(json<{ text: string }>),
 		textToAudio: (body: TextToAudioRequest, user: string) =>
 			send('/text-to-audio', jsonInit('POST', { ...body, user })),
-
-		// Annotations (§1.7): no end-user context.
-		listAnnotations: (query: AnnotationsQuery) =>
-			send(`/apps/annotations${queryString({ ...query })}`).then(json<AnnotationsPage>),
-		createAnnotation: (body: AnnotationInput) =>
-			send('/apps/annotations', jsonInit('POST', body)).then(json<AnnotationItem>),
-		updateAnnotation: (annotationId: string, body: AnnotationInput) =>
-			send(`/apps/annotations/${segment(annotationId)}`, jsonInit('PUT', body)).then(
-				json<AnnotationItem>,
-			),
-		/** 204: resolves with nothing. */
-		deleteAnnotation: async (annotationId: string): Promise<void> => {
-			await send(`/apps/annotations/${segment(annotationId)}`, { method: 'DELETE' })
-		},
 	}
 }
 

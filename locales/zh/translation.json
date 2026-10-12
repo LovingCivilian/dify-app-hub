@@ -112,7 +112,6 @@
 	},
 	"message": {
 		"action_regenerate": "重新生成回复",
-		"annotation": "标注",
 		"tts": "语音朗读",
 		"dislike_reason": "哪里不对？（可选）",
 		"send_feedback": "发送反馈",
@@ -442,7 +441,6 @@
 		"sync_info": "同步应用信息",
 		"sync_success": "同步应用成功",
 		"sync_failed": "同步应用失败",
-		"annotations": "标注管理",
 		"delete_confirm_title": "确定删除该应用吗？",
 		"delete_confirm_description": "删除后将无法恢复",
 		"delete_success": "删除应用成功",
@@ -498,27 +496,11 @@
 		"opening_display_default": "默认（开始对话前展示）",
 		"opening_display_always": "总是展示",
 		"section_more": "更多配置",
-		"allow_annotation": "允许标注",
-		"allow_annotation_tooltip": "是否允许在对话中进行标注",
 		"form_reply": "表单回复",
 		"form_reply_tooltip": "当工作流需要回复表单给用户填写时，建议开启此功能",
 		"submit_text": "提交消息文本",
 		"submit_text_tooltip": "当启用表单回复时，用户填写表单并提交后，默认会以用户角色将填写的表单数据作为消息文本发送，如果配置了此字段，将会固定展示配置的字段值",
 		"submit_text_placeholder": "请输入提交消息文本"
-	},
-	"annotation": {
-		"question": "问题",
-		"answer": "回答",
-		"hit_count": "命中次数",
-		"add": "新增标注",
-		"edit": "编辑标注",
-		"create_title": "创建标注",
-		"create_success": "标注成功",
-		"delete_confirm": "确认删除?",
-		"question_required": "请输入问题",
-		"answer_required": "请输入答案",
-		"search_placeholder": "搜索标注",
-		"load_failed": "标注加载失败"
 	},
 	"workflow": {
 		"title": "工作流",

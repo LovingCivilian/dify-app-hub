@@ -7,7 +7,6 @@ const settings = {
 	answerForm: { enabled: false, feedbackText: '' },
 	enableUpdateAfterConversationStarts: false,
 	openingStatementDisplayMode: 'default' as const,
-	annotationEnabled: false,
 }
 const app = (over: Partial<AppDto> = {}): AppDto => ({
 	id: 'a1',

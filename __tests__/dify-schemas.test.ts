@@ -3,8 +3,6 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 
 import {
-	annotationBody,
-	annotationsQuery,
 	chatMessagesBody,
 	completionBody,
 	conversationsQuery,
@@ -118,13 +116,6 @@ describe('query schemas', () => {
 		})
 		expect(parseQuery(query('include_state_snapshot=yes'), workflowEventsQuery).ok).toBe(false)
 	})
-	it('annotationsQuery: page ≥ 1, limit 1..100, keyword free text', () => {
-		expect(parseQuery(query('page=2&limit=10&keyword=tea'), annotationsQuery)).toEqual({
-			ok: true,
-			data: { page: 2, limit: 10, keyword: 'tea' },
-		})
-		expect(parseQuery(query('page=0'), annotationsQuery).ok).toBe(false)
-	})
 	it('filePreviewQuery takes true or false for as_attachment, nothing else', () => {
 		expect(parseQuery(query('as_attachment=true'), filePreviewQuery)).toEqual({
 			ok: true,
@@ -189,7 +180,6 @@ describe('body schemas', () => {
 			[feedbackBody, { rating: 'like' }],
 			[completionBody, { inputs: {} }],
 			[workflowRunBody, { inputs: {} }],
-			[annotationBody, { question: 'q', answer: 'a' }],
 			[textToAudioBody, { text: 'hello' }],
 		] as const
 		for (const [schema, body] of cases) {
