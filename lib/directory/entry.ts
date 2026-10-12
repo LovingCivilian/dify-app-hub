@@ -40,12 +40,14 @@ export const bufferAttributes = (config: Pick<LdapConfig, 'idAttribute'>): strin
 const COLUMN_MAX = 255
 
 /**
- * A text cut to its varchar(255) column: MySQL's strict mode refuses a longer value ("values that exceed the column
- * length are not stored, and an error results", MySQL 8.4 "The CHAR and VARCHAR Types"). The cut counts code points:
- * `Array.from` takes a string's iterator (MDN `Array.from()`), which yields code points, so "surrogate pairs will be
- * preserved" (MDN `String.prototype[Symbol.iterator]()`); zod's `max` counts them too (Zod 4.5 release notes, "String
- * length counts code points"). The one cut for an entry's texts, a refreshed link name (sync.ts) and a searched group's
- * name (admin.ts).
+ * A text cut to the hub's bound of 255 code points. The directory texts the hub stores (an entry's name and login name,
+ * a linked group's name) are `text` columns, which take any length (PostgreSQL wiki "Don't Do This": "Don't use
+ * varchar(n) by default"), so the bound is the hub's own, kept in code as ADR-0025 keeps every other length limit; the
+ * group save's zod `max(255)` checks the same bound. The cut counts code points: `Array.from` takes a string's iterator
+ * (MDN `Array.from()`), which yields code points, so "surrogate pairs will be preserved" (MDN
+ * `String.prototype[Symbol.iterator]()`); zod's `max` counts them too (Zod 4.5 release notes, "String length counts
+ * code points"). The one cut for an entry's texts, a refreshed link name (sync.ts) and a searched group's name
+ * (admin.ts).
  */
 export const cutToColumn = (text: string): string => Array.from(text).slice(0, COLUMN_MAX).join('')
 
@@ -76,7 +78,7 @@ const firstValue = (value: unknown): string | null => {
 	return trimmed === '' ? null : trimmed
 }
 
-/** The first value as trimmed text cut to its column's 255 characters (cutToColumn), or null. */
+/** The first value as trimmed text cut to the hub's 255 code points (cutToColumn), or null. */
 export const firstText = (value: unknown): string | null => {
 	const text = firstValue(value)
 	return text === null ? null : cutToColumn(text)

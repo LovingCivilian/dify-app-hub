@@ -33,7 +33,7 @@ export interface InstanceSettingFile {
 /** A file to store under the area, or `null` to delete it; a name left out keeps its file. */
 export type InstanceSettingFileChanges = Partial<Record<string, InstanceSettingFile | null>>
 
-/** Transaction attempts in all when InnoDB picks a save as a deadlock's victim. */
+/** Transaction attempts in all when PostgreSQL ends a save as a deadlock's victim (40P01). */
 const DEADLOCK_ATTEMPTS = 3
 
 export const selectInstanceSetting = (db: Pick<Db, 'select'>, area: SettingsArea) =>
@@ -63,9 +63,10 @@ export const selectInstanceSettingFile = (
 		.limit(1)
 
 /**
- * The locking read of the area's document (MySQL 8.4 "Locking Reads": "If you query data and then insert or update
- * related data within the same transaction, the regular SELECT statement does not give enough protection"), as the
- * house `lockGroup` does. Two saves of the area queue here, so the second builds its document from the first's.
+ * The locking read of the area's document (PostgreSQL 18 "SELECT", The Locking Clause), as the house `lockGroup` does.
+ * Once the row exists, two saves of the area queue here, so the second builds its document from the first's. Before the
+ * first save there is no row to lock (FOR UPDATE locks "the rows retrieved by the SELECT statement", "Explicit
+ * Locking", 13.3.2), so two first saves both build from no document; writeInstanceSetting's upsert keeps the later one.
  */
 export const lockInstanceSetting = (tx: Pick<Tx, 'select'>, area: SettingsArea) =>
 	tx
@@ -118,10 +119,13 @@ export const readInstanceSettingFile = async (
 /**
  * Saves the area's document and its file changes in one transaction, so a document never names a missing file (spec
  * §4.3). The row is read under a lock inside the transaction and `build` makes the document from it (null before the
- * first save); `build` answering `undefined` writes nothing and the save answers `false` (a refused change). Concurrent
- * first saves can deadlock on the gap lock, so the transaction runs again, up to DEADLOCK_ATTEMPTS in all (MySQL 8.4
- * "How to Minimize and Handle Deadlocks": "Always be prepared to re-issue a transaction if it fails due to deadlock");
- * `build` must therefore be repeatable. The role is checked again here (ADR-0024: the DAL's own gate).
+ * first save); `build` answering `undefined` writes nothing and the save answers `false` (a refused change). Two first
+ * saves both find no row; the second's upsert waits for the first to commit and then updates the row (PostgreSQL 18
+ * "INSERT": ON CONFLICT DO UPDATE "guarantees an atomic INSERT or UPDATE outcome"), so the later save wins. A deadlock
+ * can still end a save (deadlocks "can occur even if explicit locking is not used", "Explicit Locking", 13.3.4), so the
+ * transaction runs again, up to DEADLOCK_ATTEMPTS in all ("It may also be advisable to retry deadlock failures",
+ * "Serialization Failure Handling", 13.5); `build` must therefore be repeatable. The role is checked again here
+ * (ADR-0024: the DAL's own gate).
  */
 export const writeInstanceSetting = async (
 	actor: SessionUser,
@@ -137,12 +141,16 @@ export const writeInstanceSetting = async (
 				const data = build(row?.data ?? null)
 				if (data === undefined) return false
 				const now = new Date()
-				// An upsert updates the row in place (Drizzle "Upsert"; MySQL 8.4 "INSERT ... ON DUPLICATE KEY UPDATE
-				// Statement"), where REPLACE would delete it and cascade away the file rows that belong to it.
+				// An upsert updates the row in place (Drizzle "Upsert", `onConflictDoUpdate`; PostgreSQL 18 "INSERT": ON
+				// CONFLICT DO UPDATE "updates the existing row that conflicts with the row proposed for insertion"), where a
+				// delete and insert would cascade away the file rows that belong to it. pg-core has no onDuplicateKeyUpdate.
 				await tx
 					.insert(instanceSettings)
 					.values({ area, data, updatedAt: now, updatedBy: actor.id })
-					.onDuplicateKeyUpdate({ set: { data, updatedAt: now, updatedBy: actor.id } })
+					.onConflictDoUpdate({
+						target: instanceSettings.area,
+						set: { data, updatedAt: now, updatedBy: actor.id },
+					})
 				for (const [name, file] of Object.entries(files)) {
 					if (file === undefined) continue
 					if (file === null) {
@@ -152,7 +160,10 @@ export const writeInstanceSetting = async (
 					await tx
 						.insert(instanceSettingFiles)
 						.values({ area, name, bytes: file.bytes, mime: file.mime, updatedAt: now })
-						.onDuplicateKeyUpdate({ set: { bytes: file.bytes, mime: file.mime, updatedAt: now } })
+						.onConflictDoUpdate({
+							target: [instanceSettingFiles.area, instanceSettingFiles.name],
+							set: { bytes: file.bytes, mime: file.mime, updatedAt: now },
+						})
 				}
 				return true
 			})

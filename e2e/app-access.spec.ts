@@ -18,8 +18,8 @@ const tag = () => `access-${test.info().project.name}`
 const appName = () => `Restricted ${tag()}`
 /**
  * Every app this spec seeds ends with the project's tag, so the clean-up deletes by name and needs no id: it also runs
- * when a `beforeEach` failed before seeding (mysql2 refuses an `undefined` bind parameter), and it clears what a
- * killed run left behind.
+ * when a `beforeEach` failed before seeding (no id was set by then; node-postgres sends an `undefined` parameter as null,
+ * "Queries"), and it clears what a killed run left behind.
  */
 const deleteOwnApps = () => deleteAppsLike(`%${tag()}`)
 const notFound = { code: 'app_not_found', message: 'No such app.', status: 404 }

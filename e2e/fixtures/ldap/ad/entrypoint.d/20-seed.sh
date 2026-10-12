@@ -6,7 +6,7 @@ marker=/var/lib/samba/.e2e-seeded
 [ -f "$marker" ] && exit 0
 pw='E2e-Dir-Passw0rd'
 
-samba-tool user add svc-hub 'E2e-Svc-Passw0rd' --description='dify-app-hub read-only service account'
+samba-tool user add svc-hub 'E2e-Svc-Passw0rd' --description='ai-app-hub read-only service account'
 samba-tool user add alice "$pw" --given-name=Alice --surname=Admin --mail-address=alice@e2e.hub.test
 samba-tool user add bob "$pw" --given-name=Bob --surname=Builder --mail-address=bob@e2e.hub.test
 samba-tool user add carol "$pw" --given-name=Carol --surname=Gone --mail-address=carol@e2e.hub.test

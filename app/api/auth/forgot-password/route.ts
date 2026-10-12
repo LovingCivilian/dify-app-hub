@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/db'
 import { passwordResetTokens, users } from '@/db/schema'
 import { createPasswordResetToken } from '@/lib/auth/password'
+import { emailMatches } from '@/lib/data/email'
 import { isMailConfigured, sendPasswordResetEmail } from '@/lib/mail'
 import { generateUuidV4 } from '@/lib/helpers'
 
@@ -22,12 +23,13 @@ export async function POST(request: NextRequest) {
 		const { email } = await request.json()
 		if (typeof email !== 'string' || !email.trim()) return NextResponse.json(genericResponse)
 
-		const normalizedEmail = email.trim().toLowerCase()
 		const db = getDb()
+		// Whatever the case typed (spec §3.4): lower() on both sides in SQL, as the unique index users_email_key compares;
+		// lowering in JavaScript before a case-sensitive `=` missed an account stored with capitals.
 		const rows = await db
 			.select({ id: users.id, email: users.email })
 			.from(users)
-			.where(eq(users.email, normalizedEmail))
+			.where(emailMatches(email.trim()))
 			.limit(1)
 		if (!rows[0]) return NextResponse.json(genericResponse)
 

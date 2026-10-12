@@ -14,9 +14,9 @@ vi.mock('@/lib/data/apps', () => ({ getAppIcon }))
 import { GET } from '@/app/api/apps/[appId]/icon/route'
 
 const actor = { id: 'u1', email: 'jane@example.com', name: null }
-const ctx = { params: Promise.resolve({ appId: 'app-1' }) }
+const ctx = { params: Promise.resolve({ appId: '3b241101-e2bb-4255-8caf-4136c566a962' }) }
 const get = (headers: Record<string, string> = {}) =>
-	new NextRequest('http://app/api/apps/app-1/icon', { headers })
+	new NextRequest('http://app/api/apps/3b241101-e2bb-4255-8caf-4136c566a962/icon', { headers })
 
 beforeEach(() => {
 	verifySession.mockReset()
@@ -73,5 +73,17 @@ describe('GET /api/apps/[appId]/icon', () => {
 				"default-src 'none'; style-src 'unsafe-inline'; sandbox",
 			)
 		}
+	})
+	// Spec §3.2: a malformed id is an app without an icon, answered before any query (22P02); the session comes first.
+	it('answers 404 icon_not_found for a malformed id without reading the app, and 401 signed out', async () => {
+		const malformed = { params: Promise.resolve({ appId: 'not-a-uuid' }) }
+		const request = new NextRequest('http://app/api/apps/not-a-uuid/icon')
+		verifySession.mockResolvedValue(null)
+		expect((await GET(request, malformed)).status).toBe(401)
+		verifySession.mockResolvedValue(actor)
+		const response = await GET(request, malformed)
+		expect(response.status).toBe(404)
+		await expect(response.json()).resolves.toMatchObject({ code: 'icon_not_found', status: 404 })
+		expect(getAppIcon).not.toHaveBeenCalled()
 	})
 })

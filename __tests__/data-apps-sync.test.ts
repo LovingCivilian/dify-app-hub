@@ -13,6 +13,8 @@ const { db } = vi.hoisted(() => {
 		values: undefined as Record<string, unknown> | undefined,
 		inserted: [] as unknown[],
 		set: undefined as Record<string, unknown> | undefined,
+		/** What a delete reports (node-postgres "Result": `rowCount`, null for a command it cannot count). */
+		deleted: 0 as number | null,
 		/** Each write and lock in order, with its table, between the transaction's begin and commit. */
 		log: [] as [string, unknown?][],
 		select: (fields?: Record<string, unknown>) => {
@@ -47,7 +49,7 @@ const { db } = vi.hoisted(() => {
 				return {
 					where: async () => {
 						db.log.push(['update', table])
-						return [{ affectedRows: 1 }]
+						return { rowCount: 1 }
 					},
 				}
 			},
@@ -55,7 +57,7 @@ const { db } = vi.hoisted(() => {
 		delete: (table: unknown) => ({
 			where: async () => {
 				db.log.push(['delete', table])
-				return [{ affectedRows: 0 }]
+				return { rowCount: db.deleted }
 			},
 		}),
 		transaction: async (work: (tx: unknown) => unknown) => {
@@ -72,6 +74,7 @@ vi.mock('@/db', () => ({ getDb: () => db }))
 
 import {
 	createApp,
+	deleteApp,
 	getChatApp,
 	ICON_MAX_BYTES,
 	listApps,
@@ -122,6 +125,7 @@ beforeEach(() => {
 	db.values = undefined
 	db.inserted = []
 	db.set = undefined
+	db.deleted = 0
 	db.log = []
 	fetchMock = vi.fn()
 	vi.stubGlobal('fetch', fetchMock)
@@ -135,7 +139,8 @@ afterEach(() => {
 const writes = () =>
 	db.log.map(([op, table]) => (table ? `${op} ${getTableName(table as Table)}` : op))
 
-const infoColumns = { name: 'Tea 2', mode: 'chat', description: 'new', tags: '["x"]' }
+// Dify's tags go into the jsonb column as the array they are (PostgreSQL 18 "JSON Types").
+const infoColumns = { name: 'Tea 2', mode: 'chat', description: 'new', tags: ['x'] }
 const storedIcon = {
 	iconType: 'image',
 	icon: 'new-file',
@@ -288,7 +293,7 @@ describe('the mode written to the row (charter §4.4: only the six known modes)'
 	})
 
 	// Ruling M11: the row is locked before the grants are written; an app deleted after the access read answers null
-	// (the action's not_found) and nothing is written, instead of the grant insert's 1452 reading as a stale pick.
+	// (the action's not_found) and nothing is written, instead of the grant insert's 23503 reading as a stale pick.
 	it('update: answers null and writes nothing when the app is gone by the locking read', async () => {
 		dify()
 		db.locked = undefined
@@ -324,9 +329,23 @@ describe('the mode written to the row (charter §4.4: only the six known modes)'
 		expect(db.set).toStrictEqual({
 			name: 'Tea 2',
 			description: 'new',
-			tags: '["x"]',
+			tags: ['x'],
 			...storedIcon,
 		})
+	})
+})
+
+// Spec §6 ("Write results"): every rowCount consumer handles null. A delete the driver reports no count for removed
+// nothing the hub knows of, so the action answers not found (node-postgres "Result": `rowCount` is null then).
+describe('deleteApp reads the row count', () => {
+	it('answers true for a deleted row, and false for none or no row count (rowCount null)', async () => {
+		db.deleted = 1
+		await expect(deleteApp(actor, 'a1')).resolves.toBe(true)
+		db.deleted = 0
+		await expect(deleteApp(actor, 'a1')).resolves.toBe(false)
+		db.deleted = null
+		await expect(deleteApp(actor, 'a1')).resolves.toBe(false)
+		expect(writes()).toEqual(['delete dify_apps', 'delete dify_apps', 'delete dify_apps'])
 	})
 })
 

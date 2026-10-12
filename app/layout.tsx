@@ -31,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
 	const view = brandingView(await getBranding(), BUILT_IN_LOGO)
 	return {
 		title: view.name,
-		description: 'A Dify web app that fits your business',
+		description: "AI App Hub: the company's AI apps in one place",
 		icons: { icon: view.faviconSrc },
 	}
 }

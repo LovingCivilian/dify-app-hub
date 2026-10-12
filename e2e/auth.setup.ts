@@ -1,7 +1,7 @@
 import { expect, test as setup } from '@playwright/test'
-import mysql from 'mysql2/promise'
 
 import { ADMIN_STATE, SEEDED_EXTRA_APPS, STUB_APPS } from './fixtures/constants'
+import { withDb } from './fixtures/db'
 import { e2eEnv, stubApiBase } from './fixtures/env'
 import { signInAs } from './fixtures/users'
 
@@ -29,36 +29,32 @@ setup(
 			setup.info().annotations.push({ type: 'first-run', description: 'database already set up' })
 		}
 
-		const db = await mysql.createConnection(e2eEnv.DATABASE_URL)
-		for (const app of [...STUB_APPS, ...SEEDED_EXTRA_APPS]) {
-			// A database that survives between runs keeps its rows: the display mode, the annotation switch, the
-			// status and the icon are refreshed on them. The icon is the emoji the stub's /site answers (the DAL stores
-			// it at create and sync; a seeded row needs it set), none for the app without a site. The stub apps are
-			// open to everyone, as the B3a migration leaves existing apps (ADR-0027); specs that test access create
-			// their own restricted apps (e2e/fixtures/access.ts).
-			await db.execute(
-				'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key, opening_statement_display_mode, enable_annotation, is_enabled, icon_type, icon, icon_background, access_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE opening_statement_display_mode = ?, enable_annotation = ?, is_enabled = ?, icon_type = ?, icon = ?, icon_background = ?, access_mode = ?',
-				[
-					app.id,
-					app.name,
-					app.mode,
-					'Seeded for the e2e suite',
-					`${stubApiBase}${app.prefix}`,
-					'app-e2e',
-					app.openingStatementDisplayMode,
-					app.enableAnnotation,
-					app.enabled === false ? 0 : 1,
-					...(app.site === 'none' ? [null, null, null] : ['emoji', '🤖', '#FFEAD5']),
-					'everyone',
-					app.openingStatementDisplayMode,
-					app.enableAnnotation,
-					app.enabled === false ? 0 : 1,
-					...(app.site === 'none' ? [null, null, null] : ['emoji', '🤖', '#FFEAD5']),
-					'everyone',
-				],
-			)
-		}
-		await db.end()
+		await withDb(async db => {
+			for (const app of [...STUB_APPS, ...SEEDED_EXTRA_APPS]) {
+				// A database that survives between runs keeps its rows: the display mode, the annotation switch, the
+				// status and the icon are refreshed on them. The icon is the emoji the stub's /site answers (the DAL stores
+				// it at create and sync; a seeded row needs it set), none for the app without a site. The stub apps are
+				// open to everyone, as the B3a migration left existing apps (ADR-0027); specs that test access create
+				// their own restricted apps (e2e/fixtures/access.ts). PostgreSQL 18 "INSERT", ON CONFLICT DO UPDATE: the
+				// SET list reads the proposed row through the special table EXCLUDED.
+				await db.query(
+					'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key, opening_statement_display_mode, enable_annotation, is_enabled, icon_type, icon, icon_background, access_mode) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (id) DO UPDATE SET opening_statement_display_mode = EXCLUDED.opening_statement_display_mode, enable_annotation = EXCLUDED.enable_annotation, is_enabled = EXCLUDED.is_enabled, icon_type = EXCLUDED.icon_type, icon = EXCLUDED.icon, icon_background = EXCLUDED.icon_background, access_mode = EXCLUDED.access_mode',
+					[
+						app.id,
+						app.name,
+						app.mode,
+						'Seeded for the e2e suite',
+						`${stubApiBase}${app.prefix}`,
+						'app-e2e',
+						app.openingStatementDisplayMode,
+						app.enableAnnotation,
+						app.enabled !== false,
+						...(app.site === 'none' ? [null, null, null] : ['emoji', '🤖', '#FFEAD5']),
+						'everyone',
+					],
+				)
+			}
+		})
 
 		await signInAs(page, e2eEnv.E2E_ADMIN_EMAIL, e2eEnv.E2E_ADMIN_PASSWORD)
 		await page.context().storageState({ path: ADMIN_STATE })

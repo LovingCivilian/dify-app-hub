@@ -1,4 +1,4 @@
-// ADR-0010: Playwright against next dev, a throwaway MySQL and a stub Dify API — docs/decisions/0010-verify-the-frontend-with-playwright-and-a-stub-dify-api.md
+// ADR-0010: Playwright against next dev, a throwaway PostgreSQL and a stub Dify API — docs/decisions/0010-verify-the-frontend-with-playwright-and-a-stub-dify-api.md
 import { defineConfig, devices } from '@playwright/test'
 
 import { ADMIN_STATE } from './e2e/fixtures/constants'
@@ -26,10 +26,10 @@ export default defineConfig({
 			env: e2eEnv,
 		},
 		{
-			// Bound to 127.0.0.1 like the stub and the e2e MySQL (next dev listens on 0.0.0.0 by default);
+			// Bound to 127.0.0.1 like the stub and the e2e PostgreSQL (next dev listens on 0.0.0.0 by default);
 			// NEXTAUTH_URL in .env.e2e, and so baseURL, uses the same host.
 			command: 'pnpm exec next dev -p 5301 -H 127.0.0.1',
-			// Playwright starts web servers before globalSetup, so MySQL is not up yet on a cold run:
+			// Playwright starts web servers before globalSetup, so PostgreSQL is not up yet on a cold run:
 			// readiness must not depend on the database (/api/health answers 500 without it).
 			url: `${baseURL}/api/auth/providers`,
 			reuseExistingServer: !process.env.CI,

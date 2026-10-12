@@ -8,7 +8,7 @@ import { fail, ok, type ActionResult } from '@/lib/action-result'
 import type { MembershipSource } from '@/lib/app-access'
 import { assertAdmin, type SessionUser } from '@/lib/auth/session'
 
-import { isDuplicateEntry, isMissingReference } from './db-errors'
+import { isForeignKeyViolation, isUniqueViolation } from './db-errors'
 
 /*
  * The groups Data Access Layer (B3 spec §4.3, ADR-0027). Every function takes the verified actor first and checks
@@ -126,7 +126,9 @@ export const manualMemberChanges = (
 	}
 }
 
-/** A locking read of one group by its primary key (ADR-0024 decision d; MySQL 8.4 "Locking Reads"). */
+/**
+ * A locking read of one group by its primary key (ADR-0024 decision d; PostgreSQL 18 "SELECT", The Locking Clause).
+ */
 export const lockGroup = (tx: Pick<Tx, 'select'>, id: string) =>
 	tx
 		.select({ id: userGroups.id })
@@ -136,10 +138,10 @@ export const lockGroup = (tx: Pick<Tx, 'select'>, id: string) =>
 		.for('update')
 
 /**
- * The group's manual members, the rows an admin's save diffs and changes (spec §2 #8). A locking read (MySQL 8.4
- * "Locking Reads": before writes to related data in the same transaction, "the regular SELECT statement does not give
- * enough protection"): it reads the latest committed rows whatever the transaction read before, and holds them until
- * the commit.
+ * The group's manual members, the rows an admin's save diffs and changes (spec §2 #8). A locking read (PostgreSQL 18
+ * "Transaction Isolation", 13.2.1: at READ COMMITTED it finds the rows committed when it starts and waits for a
+ * concurrent writer of one of them; "Explicit Locking", 13.3.2: the rows stay locked "until the current transaction
+ * ends"): it reads the latest committed rows and holds them until the commit.
  */
 export const manualMembersOf = (tx: Pick<Tx, 'select'>, groupId: string) =>
 	tx
@@ -167,7 +169,9 @@ export const removeManualMembers = (
 const manualRows = (groupId: string, userIds: readonly string[]) =>
 	userIds.map(userId => ({ groupId, userId, source: 'manual' as const }))
 
-/** The group's links, with a locking read (MySQL 8.4 "Locking Reads"), before the save changes them. */
+/**
+ * The group's links, with a locking read (PostgreSQL 18 "SELECT", The Locking Clause), before the save changes them.
+ */
 export const linksOf = (tx: Pick<Tx, 'select'>, groupId: string) =>
 	tx
 		.select({ directoryGroupId: userGroupDirectoryLinks.directoryGroupId })
@@ -212,10 +216,14 @@ export const directoryLinkChanges = (
 const linkRows = (groupId: string, links: readonly { id: string; name: string }[]) =>
 	links.map(link => ({ groupId, directoryGroupId: link.id, directoryGroupName: link.name }))
 
-/** A write's expected refusals as results; anything else propagates to the action (toActionFailure). */
+/**
+ * A write's expected refusals as results: the name's unique index (`user_groups_name_key`; the error names the index,
+ * lib/data/db-errors.ts), or a foreign key whose account is gone. Anything else propagates to the action
+ * (toActionFailure).
+ */
 const refusalOf = (error: unknown) => {
-	if (isDuplicateEntry(error)) return fail('name_in_use')
-	if (isMissingReference(error)) return fail('invalid_input', { memberIds: ['unknown'] })
+	if (isUniqueViolation(error, 'user_groups_name_key')) return fail('name_in_use')
+	if (isForeignKeyViolation(error)) return fail('invalid_input', { memberIds: ['unknown'] })
 	return null
 }
 
@@ -338,6 +346,7 @@ export async function updateGroup(
 /** Deletes the group; its memberships, grants and (B3b) directory links go with it (ON DELETE CASCADE). */
 export async function deleteGroup(actor: SessionUser, id: string): Promise<ActionResult> {
 	assertAdmin(actor)
-	const [result] = await getDb().delete(userGroups).where(eq(userGroups.id, id))
-	return result.affectedRows > 0 ? ok(undefined) : fail('not_found')
+	// node-postgres "Result": `rowCount` is the rows the command processed, null for a command that reports none.
+	const result = await getDb().delete(userGroups).where(eq(userGroups.id, id))
+	return (result.rowCount ?? 0) > 0 ? ok(undefined) : fail('not_found')
 }

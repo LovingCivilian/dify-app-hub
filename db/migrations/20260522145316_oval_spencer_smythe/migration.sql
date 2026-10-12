@@ -1,1 +1,0 @@
-ALTER TABLE `dify_apps` MODIFY COLUMN `updated_at` datetime(3) DEFAULT (CURRENT_TIMESTAMP(3)) NOT NULL;

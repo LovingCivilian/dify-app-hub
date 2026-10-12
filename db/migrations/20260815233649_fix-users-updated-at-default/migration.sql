@@ -1,1 +1,0 @@
-ALTER TABLE `users` MODIFY COLUMN `updated_at` datetime(3) DEFAULT (CURRENT_TIMESTAMP(3)) NOT NULL;

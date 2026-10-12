@@ -1,4 +1,4 @@
-import { drizzle } from 'drizzle-orm/mysql2'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
@@ -35,7 +35,7 @@ const row = {
 	name: 'Tea',
 	mode: 'advanced-chat',
 	description: 'desc',
-	tags: '["a","b"]',
+	tags: ['a', 'b'],
 	isEnabled: true,
 	apiBase: 'https://dify.example/v1',
 	apiKey: 'app-secret',
@@ -51,10 +51,12 @@ const row = {
 }
 
 describe('parseTags', () => {
-	it('reads a JSON array of strings and tolerates anything else', () => {
-		expect(parseTags('["a","b"]')).toEqual(['a', 'b'])
-		expect(parseTags('["a",1]')).toEqual(['a'])
-		expect(parseTags('nope')).toEqual([])
+	// The jsonb column's value as the driver parsed it (PostgreSQL 18 "JSON Types"): only its strings are tags.
+	it('reads an array of strings from the jsonb value and tolerates anything else', () => {
+		expect(parseTags(['a', 'b'])).toEqual(['a', 'b'])
+		expect(parseTags(['a', 1])).toEqual(['a'])
+		expect(parseTags('["a"]')).toEqual([])
+		expect(parseTags({ tags: ['a'] })).toEqual([])
 		expect(parseTags(null)).toEqual([])
 	})
 })
@@ -180,7 +182,7 @@ describe('lockApp (ADR-0024 decision d)', () => {
 	it('is a locking read of one app by its primary key', () => {
 		const query = lockApp(drizzle.mock(), 'a1').toSQL()
 		expect(query.sql).toMatch(
-			/^select .* from `dify_apps` where `dify_apps`\.`id` = \? limit \? for update$/,
+			/^select .* from "dify_apps" where "dify_apps"\."id" = \$1 limit \$2 for update$/,
 		)
 		expect(query.params).toEqual(['a1', 1])
 	})

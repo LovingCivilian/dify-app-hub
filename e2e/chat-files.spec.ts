@@ -251,15 +251,15 @@ const withIconApp = async (
 	const columns = ['id', 'name', 'mode', 'description', 'api_base', 'api_key', ...Object.keys(icon)]
 	const values = [app.id, app.name, 'chat', 'icon', stubApiBase, 'app-e2e', ...Object.values(icon)]
 	await withDb(db =>
-		db.execute(
-			`INSERT INTO dify_apps (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
+		db.query(
+			`INSERT INTO dify_apps (${columns.join(', ')}) VALUES (${columns.map((_, index) => `$${index + 1}`).join(', ')})`,
 			values,
 		),
 	)
 	try {
 		await run(app)
 	} finally {
-		await withDb(db => db.execute('DELETE FROM dify_apps WHERE id = ?', [app.id]))
+		await withDb(db => db.query('DELETE FROM dify_apps WHERE id = $1', [app.id]))
 	}
 }
 

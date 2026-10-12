@@ -1,13 +1,13 @@
 'use server'
 
 import { refresh } from 'next/cache'
-import * as z from 'zod'
 
 import { invalidInput, toActionFailure } from '@/lib/action-failure'
 import { fail, ok, type ActionResult } from '@/lib/action-result'
 import { requireAdmin } from '@/lib/auth/session'
 import { createApp, deleteApp, syncApp, updateApp, type SyncResult } from '@/lib/data/apps'
-import { isMissingReference } from '@/lib/data/db-errors'
+import { isForeignKeyViolation } from '@/lib/data/db-errors'
+import { isId } from '@/lib/ids'
 
 import { appInputSchema, createAppInputSchema } from './schemas'
 
@@ -16,8 +16,6 @@ import { appInputSchema, createAppInputSchema } from './schemas'
  * (next/cache `refresh`: the page reads the database directly, so the current route's RSC payload is refetched
  * in the same round trip), answer a plain ActionResult. Every expected failure is a result, never a throw.
  */
-
-const isId = (id: string) => z.uuid().safeParse(id).success
 
 export async function createAppAction(input: unknown): Promise<ActionResult<SyncResult>> {
 	try {
@@ -29,7 +27,7 @@ export async function createAppAction(input: unknown): Promise<ActionResult<Sync
 		return ok(result)
 	} catch (error) {
 		// Deviation 3: a group or account picked in the drawer was deleted before the save; nothing was written.
-		if (isMissingReference(error)) return fail('invalid_input', { access: ['unknown'] })
+		if (isForeignKeyViolation(error)) return fail('invalid_input', { access: ['unknown'] })
 		return toActionFailure(error, 'createAppAction')
 	}
 }
@@ -52,7 +50,7 @@ export async function updateAppAction(
 		return ok(result)
 	} catch (error) {
 		// Deviation 3: a group or account picked in the drawer was deleted before the save; nothing was written.
-		if (isMissingReference(error)) return fail('invalid_input', { access: ['unknown'] })
+		if (isForeignKeyViolation(error)) return fail('invalid_input', { access: ['unknown'] })
 		return toActionFailure(error, 'updateAppAction')
 	}
 }

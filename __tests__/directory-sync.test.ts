@@ -286,9 +286,9 @@ describe('runSync (spec §6.4)', () => {
 		expect(membershipsRead).toBeLessThan(mocks.withDirectory.mock.invocationCallOrder[0]!)
 	})
 
-	// Task 9 review: `directory_group_name` is varchar(255); a longer name (a DN taken for a group without one) would be
-	// refused (1406) and fail the run, so it is cut by code points, as readEntry cuts an entry's texts.
-	it("cuts a found group's name to its column's 255 characters", async () => {
+	// Task 9 review: the hub keeps `directory_group_name` to 255 code points, the bound the groups save checks; a longer
+	// name (a DN taken for a group without one) is cut by code points, as readEntry cuts an entry's texts.
+	it("cuts a found group's name to the hub's 255 code points", async () => {
 		mocks.listGroupLinks.mockResolvedValue([
 			{ groupId: 'g1', directoryGroupId: 'd1', directoryGroupName: 'Eng', missingSince: null },
 		])
@@ -380,7 +380,7 @@ describe('runSync (spec §6.4)', () => {
 			])
 			mocks.deactivateDirectoryAccounts.mockResolvedValue(1)
 			mocks.applyMembershipChanges.mockRejectedValue(
-				Object.assign(new Error('lost'), { code: 'PROTOCOL_CONNECTION_LOST' }),
+				Object.assign(new Error('lost'), { code: 'ECONNRESET' }),
 			)
 			expect(await runSync(run)).toMatchObject({
 				outcome: 'failed',
@@ -430,7 +430,7 @@ describe('runSync (spec §6.4)', () => {
 		const log = vi.spyOn(console, 'error').mockImplementation(() => {})
 		try {
 			mocks.pruneSyncRuns.mockRejectedValue(
-				Object.assign(new Error('lost'), { code: 'PROTOCOL_CONNECTION_LOST' }),
+				Object.assign(new Error('lost'), { code: 'ECONNRESET' }),
 			)
 			expect(await runSync(run)).toMatchObject({
 				status: 'finished',
@@ -455,7 +455,7 @@ describe('runSync (spec §6.4)', () => {
 	it('logs the summary line before the row, and logs and rethrows a failed finish', async () => {
 		const log = vi.spyOn(console, 'error').mockImplementation(() => {})
 		try {
-			const lost = Object.assign(new Error('lost'), { code: 'PROTOCOL_CONNECTION_LOST' })
+			const lost = Object.assign(new Error('lost'), { code: 'ECONNRESET' })
 			mocks.finishSyncRun.mockRejectedValue(lost)
 			await expect(runSync(run)).rejects.toBe(lost)
 			expect(console.info).toHaveBeenCalledWith(

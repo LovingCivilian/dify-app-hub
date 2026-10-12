@@ -37,9 +37,10 @@ describe('user input schemas', () => {
 		const parsed = userInputSchema.parse({ ...base, sessionVersion: 9 })
 		expect(parsed).not.toHaveProperty('sessionVersion')
 	})
-	it('accepts any id up to the column length (decision h: legacy ids are not UUIDs)', () => {
-		expect(userIdSchema.safeParse('cm1abcdefghijk').success).toBe(true)
+	it("takes UUIDs as account ids (ADR-0031: every account id is the hub's UUID after the fresh start)", () => {
+		expect(userIdSchema.safeParse(crypto.randomUUID()).success).toBe(true)
 		expect(userIdSchema.safeParse('3b241101-e2bb-4255-8caf-4136c566a962').success).toBe(true)
+		expect(userIdSchema.safeParse('cm1abcdefghijk').success).toBe(false)
 		expect(userIdSchema.safeParse('').success).toBe(false)
 		expect(userIdSchema.safeParse('x'.repeat(37)).success).toBe(false)
 	})

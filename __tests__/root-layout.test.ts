@@ -37,6 +37,8 @@ describe('the root metadata (settings spec §4.6)', () => {
 		expect(order).toEqual(['connection', 'getBranding'])
 		expect(metadata).toMatchObject({
 			title: 'Acme',
+			// Spec §4: the product's own description, not upstream's "A Dify web app" line.
+			description: "AI App Hub: the company's AI apps in one place",
 			icons: { icon: '/api/branding/favicon?v=0123456789abcdef' },
 		})
 	})

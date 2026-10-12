@@ -106,5 +106,5 @@ Each refused sign-in logs one line, `authorizeDirectory: sign-in refused` with t
 - A local account cannot be switched to directory sign-in yet; the person keeps both or an admin resolves it.
 - Changing `LDAP_ID_ATTRIBUTE` after accounts exist is not supported.
 - Forgot and reset password are for local accounts; a directory account's password is the directory's.
-- With SMTP on, the inherited forgot-password handler can still mail a link to a directory account's email. The link's reset fails, because the database refuses a password on a directory account (MySQL error 3819 on the `users_source_credentials` check); the form shows its existing failure message.
+- With SMTP on, the inherited forgot-password handler can still mail a link to a directory account's email. The link's reset fails, because the database refuses a password on a directory account (SQLSTATE 23514, `check_violation`, on the `users_source_credentials` check); the form shows its existing failure message.
 - Each refused directory attempt for a known username costs one service-account search plus two per distinct linked group, counted before the person's bind: input for the throttling design.

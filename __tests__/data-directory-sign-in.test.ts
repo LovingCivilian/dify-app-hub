@@ -1,5 +1,5 @@
 import type { SQL } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/mysql2'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /*
@@ -47,27 +47,27 @@ const mocks = vi.hoisted(() => {
 		insert: (table: unknown) => ({
 			values: (values: unknown) => {
 				state.writes.push({ op: 'insert', table, values })
-				return Promise.resolve([{ affectedRows: 1 }])
+				return Promise.resolve({ rowCount: 1 })
 			},
 		}),
 		update: (table: unknown) => ({
 			set: (values: unknown) => ({
 				where: (condition: unknown) => {
 					state.writes.push({ op: 'update', table, values, condition })
-					return Promise.resolve([{ affectedRows: 1 }])
+					return Promise.resolve({ rowCount: 1 })
 				},
 			}),
 		}),
 		delete: (table: unknown) => ({
 			where: (condition: unknown) => {
 				state.writes.push({ op: 'delete', table, condition })
-				return Promise.resolve([{ affectedRows: 0 }])
+				return Promise.resolve({ rowCount: 0 })
 			},
 		}),
 	}
 	const db = {
 		select: () => read(),
-		// A spy, so a test can assert the config each attempt was given (Drizzle MySqlTransactionConfig).
+		// A spy, so a test can assert the config each attempt was given (Drizzle PgTransactionConfig).
 		transaction: vi.fn(async (work: (t: typeof tx) => Promise<unknown>, _config?: unknown) => {
 			state.transactions += 1
 			const failure = state.failures.shift()
@@ -145,7 +145,7 @@ describe('listGroupLinks (spec §6.5)', () => {
 			listGroupLinks() as unknown as { toSQL: () => { sql: string; params: unknown[] } }
 		).toSQL()
 		expect(query.sql).toBe(
-			'select `group_id`, `directory_group_id`, `directory_group_name`, `missing_since` from `user_group_directory_links`',
+			'select "group_id", "directory_group_id", "directory_group_name", "missing_since" from "user_group_directory_links"',
 		)
 		expect(query.params).toEqual([])
 	})
@@ -155,11 +155,11 @@ describe('lockDirectoryAccount (decision e; ADR-0024 decision d)', () => {
 	it('is a locking read of the ldap account by its directory key', () => {
 		const query = lockDirectoryAccount(drizzle.mock(), identity.key).toSQL()
 		expect(query.sql).toMatch(
-			/ from `users` where \(\(`users`\.`source` = \?\) and \(`users`\.`directory_id` = \?\)\) limit \? for update$/,
+			/ from "users" where \(\("users"\."source" = \$1\) and \("users"\."directory_id" = \$2\)\) limit \$3 for update$/,
 		)
 		expect(query.params).toEqual(['ldap', identity.key, 1])
 		// The admin marker is read under the lock: the directory never lifts it (ADR-0027).
-		expect(query.sql).toContain('`admin_deactivated_at`')
+		expect(query.sql).toContain('"admin_deactivated_at"')
 	})
 })
 
@@ -170,7 +170,7 @@ describe('replaceDirectoryMemberships (decision f, spec §2 #8)', () => {
 		const [deleted, inserted] = mocks.state.writes
 		const { sql, params } = renderDelete(deleted.condition)
 		expect(sql).toMatch(
-			/where \(\(`user_group_members`\.`user_id` = \?\) and \(`user_group_members`\.`source` = \?\) and \(`user_group_members`\.`group_id` not in \(\?, \?\)\)\)$/,
+			/where \(\("user_group_members"\."user_id" = \$1\) and \("user_group_members"\."source" = \$2\) and \("user_group_members"\."group_id" not in \(\$3, \$4\)\)\)$/,
 		)
 		expect(params).toEqual(['u1', 'directory', 'g1', 'g2'])
 		expect(mocks.state.strengths).toEqual(['update'])
@@ -184,7 +184,7 @@ describe('replaceDirectoryMemberships (decision f, spec §2 #8)', () => {
 		await replaceDirectoryMemberships(mocks.tx as never, 'u1', [])
 		const { sql, params } = renderDelete(mocks.state.writes[0].condition)
 		expect(sql).toMatch(
-			/where \(\(`user_group_members`\.`user_id` = \?\) and \(`user_group_members`\.`source` = \?\)\)$/,
+			/where \(\("user_group_members"\."user_id" = \$1\) and \("user_group_members"\."source" = \$2\)\)$/,
 		)
 		expect(params).toEqual(['u1', 'directory'])
 		expect(mocks.state.writes).toHaveLength(1)
@@ -194,7 +194,8 @@ describe('replaceDirectoryMemberships (decision f, spec §2 #8)', () => {
 describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 	it('refreshes a known account, clears the directory marker and answers its role and session version', async () => {
 		// The lock finds the account; the email differs only by case, so the email check finds the account itself
-		// (the collation compares without case) and there is no conflict; then the membership read under the lock.
+		// (lower() on both sides, as users_email_key compares) and there is no conflict; then the membership read under
+		// the lock.
 		mocks.state.reads = [[known], [{ id: 'u1' }], []]
 		const result = await recordDirectorySignIn({ ...identity, email: 'Alice@Example.com' }, ['g1'])
 		expect(result).toEqual({
@@ -216,10 +217,10 @@ describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 			directoryDeactivatedAt: null,
 		})
 		const { sql, params } = renderUpdate(update.values, update.condition)
-		expect(sql).toMatch(/ where `users`\.`id` = \?$/)
+		expect(sql).toMatch(/ where "users"\."id" = \$6$/)
 		expect(params.at(-1)).toBe('u1')
 		// Never the admin marker, the role, the password or the session version (ADR-0027).
-		expect(sql).not.toMatch(/admin_deactivated|`role`|`password`|session_version/)
+		expect(sql).not.toMatch(/admin_deactivated|"role"|"password"|session_version/)
 	})
 
 	it('refuses an account an admin deactivated, and writes nothing', async () => {
@@ -284,15 +285,19 @@ describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 			reason: 'email_in_use',
 		})
 		expect(mocks.state.writes).toEqual([])
-		// The email check compares as the unique index does: by the column's collation, in SQL.
+		// The email check compares as the unique index users_email_key does: lower() on the column and on the value, in SQL.
 		const { sql, params } = renderSelect(mocks.state.conditions.at(-1))
-		expect(sql).toMatch(/ where `users`\.`email` = \?$/)
+		expect(sql).toMatch(/ where lower\("users"\."email"\) = lower\(\$1\)$/)
 		expect(params).toEqual([identity.email])
 	})
 
-	const duplicate = () => Object.assign(new Error('dup'), { code: 'ER_DUP_ENTRY', errno: 1062 })
-	const deadlock = () =>
-		Object.assign(new Error('deadlock'), { code: 'ER_LOCK_DEADLOCK', errno: 1213 })
+	// Two first sign-ins of one person: the second insert meets the directory key's unique index (23505).
+	const duplicate = () =>
+		Object.assign(
+			new Error('duplicate key value violates unique constraint "users_directory_id_key"'),
+			{ code: '23505', constraint: 'users_directory_id_key' },
+		)
+	const deadlock = () => Object.assign(new Error('deadlock detected'), { code: '40P01' })
 
 	it('runs the transaction once more after a duplicate key, and not a third time (decision e)', async () => {
 		mocks.state.failures = [duplicate()]
@@ -309,8 +314,8 @@ describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 		expect(mocks.state.transactions).toBe(2)
 	})
 
-	// Final review M1: a deadlock gets the sync statements' bound, up to three attempts in all (MySQL 8.4 "How to
-	// Minimize and Handle Deadlocks"; Prisma's documented `withRetry(run, attempts = 3)`).
+	// Final review M1: a deadlock gets the sync statements' bound, up to three attempts in all (PostgreSQL 18
+	// "Serialization Failure Handling", 13.5; Prisma's documented `withRetry(run, attempts = 3)`).
 	it('makes up to three attempts after deadlocks, and throws the third (decision e)', async () => {
 		mocks.state.failures = [deadlock(), deadlock()]
 		mocks.state.reads = [[known], []]
@@ -341,12 +346,12 @@ describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 		expect(mocks.state.transactions).toBe(3)
 	})
 
-	it('runs each attempt at READ COMMITTED, where a locking read takes no gap lock (decision e)', async () => {
+	it('runs each attempt at READ COMMITTED, named explicitly (decision e)', async () => {
 		mocks.state.failures = [deadlock(), deadlock()]
 		mocks.state.reads = [[known], []]
 		await recordDirectorySignIn({ ...identity, email: known.email }, [])
-		// MySQL 8.4 "How to Minimize and Handle Deadlocks" names READ COMMITTED for locking reads. At the default
-		// REPEATABLE READ, two people's first sign-ins in one gap of the key index would deadlock (§17.7.1).
+		// PostgreSQL's default level, named so the server's default_transaction_isolation cannot change it: the email
+		// check sees the accounts committed before it began (PostgreSQL 18 "Transaction Isolation", Read Committed).
 		expect(mocks.db.transaction).toHaveBeenCalledTimes(3)
 		for (const call of [1, 2, 3])
 			expect(mocks.db.transaction).toHaveBeenNthCalledWith(call, expect.any(Function), {
@@ -355,7 +360,7 @@ describe('recordDirectorySignIn (spec §6.3 step 7)', () => {
 	})
 
 	it('propagates any other failure without a retry', async () => {
-		const other = Object.assign(new Error('gone'), { code: 'PROTOCOL_CONNECTION_LOST' })
+		const other = Object.assign(new Error('gone'), { code: 'ECONNRESET' })
 		mocks.state.failures = [other]
 		await expect(recordDirectorySignIn(identity, [])).rejects.toBe(other)
 		expect(mocks.state.transactions).toBe(1)

@@ -1,7 +1,7 @@
 module.exports = {
 	apps: [
 		{
-			name: 'dify-app-hub',
+			name: 'ai-app-hub',
 			script: 'node_modules/.bin/next',
 			args: 'start',
 			env: {

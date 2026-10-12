@@ -34,8 +34,9 @@ export async function searchDirectoryGroups(
 	const config = directoryConfig()
 	if (!config) return null
 	const groups = await withDirectory(config, client => searchGroups(client, config, text))
-	// The name a picked group's link stores is varchar(255): searchGroups falls back to the DN for a group without a
-	// name, so it is cut here (cutToColumn), before the browser shows it and the save's zod `max(255)` checks it.
+	// The name a picked group's link stores keeps the hub's 255 code points: searchGroups falls back to the DN for a
+	// group without a name, so it is cut here (cutToColumn), before the browser shows it and the save's zod `max(255)`
+	// checks it.
 	return groups.map(group => ({ key: group.key, name: cutToColumn(group.name) }))
 }
 

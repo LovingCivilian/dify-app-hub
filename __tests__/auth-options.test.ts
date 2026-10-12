@@ -22,7 +22,7 @@ vi.mock('@/lib/auth/password', () => ({ verifyPassword, UNKNOWN_ACCOUNT_HASH: no
 vi.mock('@/lib/auth/directory-provider', () => ({ authorizeDirectory: vi.fn() }))
 
 import { DrizzleQueryError, type SQL } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/mysql2'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import type { JWT } from 'next-auth/jwt'
 
 import { users } from '@/db/schema'
@@ -139,8 +139,20 @@ describe('authorizeCredentials', () => {
 		// The hash checked is the row of the email given: the lookup is by email, with that email as its only parameter.
 		expect(where).toHaveBeenCalledTimes(1)
 		const { sql, params } = renderWhere(where.mock.calls[0]![0])
-		expect(sql).toMatch(/ where `users`\.`email` = \?$/)
+		expect(sql).toMatch(/ where lower\("users"\."email"\) = lower\(\$1\)$/)
 		expect(params).toEqual(['jane@example.com'])
+	})
+
+	// Spec §3.4, Review Focus 1: the email typed in another case finds the account. The value reaches SQL as typed and
+	// PostgreSQL lowers both sides, as the unique index users_email_key is built (lib/data/email.ts).
+	it('looks the email up without case', async () => {
+		rows.value = [row]
+		expect(
+			await authorizeCredentials({ email: 'Jane@Example.COM', password: 'right-password' }),
+		).toMatchObject({ id: 'u1', email: 'jane@example.com' })
+		const { sql, params } = renderWhere(where.mock.calls[0]![0])
+		expect(sql).toMatch(/ where lower\("users"\."email"\) = lower\(\$1\)$/)
+		expect(params).toEqual(['Jane@Example.COM'])
 	})
 
 	// Spec §5 and §7.3: refused after the password check, with the same answer as a wrong password; the reason is
@@ -227,14 +239,14 @@ describe('authorizeCredentials on a failure', () => {
 		expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('jane@example.com')
 	}
 
-	it('throws a fixed message for a failed query, and logs only its name, code and errno', async () => {
-		const cause = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:3306'), {
+	it('throws a fixed message for a failed query, and logs only its name and code', async () => {
+		const cause = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:5432'), {
 			code: 'ECONNREFUSED',
 			errno: -111,
 		})
 		limit.mockRejectedValueOnce(
 			new DrizzleQueryError(
-				'select `id`, `password` from `users` where `users`.`email` = ? limit ?',
+				'select "id", "password" from "users" where "users"."email" = $1 limit $2',
 				['jane@example.com', 1],
 				cause,
 			),
@@ -246,7 +258,6 @@ describe('authorizeCredentials on a failure', () => {
 		expect(errorSpy).toHaveBeenCalledWith('authorizeCredentials:', {
 			name: 'DrizzleQueryError',
 			code: 'ECONNREFUSED',
-			errno: -111,
 		})
 	})
 
@@ -318,7 +329,7 @@ describe('jwt callback', () => {
 		} as never)
 		expect(where).toHaveBeenCalledTimes(1)
 		const { sql, params } = renderWhere(where.mock.calls[0]![0])
-		expect(sql).toMatch(/ where `users`\.`id` = \?$/)
+		expect(sql).toMatch(/ where "users"\."id" = \$1$/)
 		expect(params).toEqual(['u1'])
 	})
 

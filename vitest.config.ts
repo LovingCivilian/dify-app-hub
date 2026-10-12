@@ -3,6 +3,8 @@ import { configDefaults, defineConfig } from 'vitest/config'
 
 /** The directory suite's files: one glob on both sides, so none falls between the two projects. */
 const LDAP_TESTS = '**/*.ldap.test.ts'
+/** The live database suite's files (Part 0 Plan decision c), kept out of `unit` the same way. */
+const DB_TESTS = '**/*.db.test.ts'
 
 export default defineConfig({
 	test: {
@@ -12,13 +14,14 @@ export default defineConfig({
 		// clones carry their own test files), so it is never collected (owner, 2026-10-10).
 		exclude: [...configDefaults.exclude, 'e2e/**', 'tmp/**'],
 		// Decision j (Vitest "Test Projects"): `unit` is `pnpm test`; `ldap` needs the two test directories of
-		// docker-compose.e2e.yml and runs only through `pnpm test:ldap`.
+		// docker-compose.e2e.yml and runs only through `pnpm test:ldap`; `db` needs that file's PostgreSQL and runs only
+		// through `pnpm test:db`.
 		projects: [
 			{
 				extends: true,
 				test: {
 					name: 'unit',
-					exclude: [...configDefaults.exclude, 'e2e/**', 'tmp/**', LDAP_TESTS],
+					exclude: [...configDefaults.exclude, 'e2e/**', 'tmp/**', LDAP_TESTS, DB_TESTS],
 				},
 			},
 			{
@@ -29,6 +32,19 @@ export default defineConfig({
 					globalSetup: ['./__tests__/ldap/global-setup.ts'],
 					// The files share the two servers, so they run one at a time (Vitest recipes, "Parallel and
 					// Sequential Test Files": a project of its own with `fileParallelism: false`).
+					fileParallelism: false,
+					hookTimeout: 120_000,
+					testTimeout: 30_000,
+				},
+			},
+			{
+				extends: true,
+				test: {
+					name: 'db',
+					include: [DB_TESTS],
+					globalSetup: ['./__tests__/db/global-setup.ts'],
+					// The files share one database and empty its tables before each test, so they run one at a time
+					// (Vitest recipes, "Parallel and Sequential Test Files").
 					fileParallelism: false,
 					hookTimeout: 120_000,
 					testTimeout: 30_000,

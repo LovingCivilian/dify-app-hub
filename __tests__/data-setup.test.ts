@@ -1,10 +1,10 @@
 import { DrizzleQueryError } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/mysql2'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // A getDb stub whose rows the tests control: the pre-check's select chain ends in limit(), the transaction's locking
 // read in for('update'), and the insert in values(). The transaction runs its callback on the fake tx and records
-// the config it was given (Drizzle MySqlTransactionConfig).
+// the config it was given, if any (Drizzle PgTransactionConfig).
 const mocks = vi.hoisted(() => {
 	const preCheck = vi.fn()
 	const lockedRead = vi.fn()
@@ -30,18 +30,18 @@ import { createOwner, lockAnyAccount } from '@/lib/data/setup'
 const input = { name: 'Owner', email: 'owner@example.com', password: 'password-1' }
 const owner = [{ id: 'o1' }]
 
-/** A failed insert as Drizzle reports it: the mysql2 error is the cause (node_modules/drizzle-orm/errors.js). */
-const queryError = (code: string, errno: number) =>
+/** A failed insert as Drizzle reports it: node-postgres's error is the cause (node_modules/drizzle-orm/errors.js). */
+const queryError = (code: string, constraint?: string) =>
 	new DrizzleQueryError(
-		'insert into `users` …',
+		'insert into "users" …',
 		['id', 'Owner', 'owner@example.com', 'hash', 'owner'],
-		Object.assign(new Error(code), { code, errno }),
+		Object.assign(new Error(`server error ${code}`), { code, constraint }),
 	)
 
 describe('lockAnyAccount (decision d)', () => {
 	it('is a locking read of any one account, so only an empty table lets first run through', () => {
 		const query = lockAnyAccount(drizzle.mock()).toSQL()
-		expect(query.sql).toBe('select `id` from `users` limit ? for update')
+		expect(query.sql).toBe('select "id" from "users" limit $1 for update')
 		expect(query.params).toEqual([1])
 	})
 })
@@ -74,13 +74,12 @@ describe('createOwner (charter §4.2, decision d: setup is open only while no ac
 		expect(mocks.values).not.toHaveBeenCalled()
 	})
 
-	it('creates the owner on an empty table inside a REPEATABLE READ transaction', async () => {
+	it('creates the owner on an empty table at the server default, Read Committed', async () => {
 		expect(await createOwner(input)).toEqual({ ok: true, data: undefined })
-		// The gap lock that serialises two first runs exists only under REPEATABLE READ (MySQL 8.4, "Transaction
-		// Isolation Levels"), so the transaction asks for it rather than rely on the server's default.
-		expect(mocks.transaction).toHaveBeenCalledWith(expect.any(Function), {
-			isolationLevel: 'repeatable read',
-		})
+		// The guarantee is the partial unique index users_one_owner (db/schema/users.ts), not an isolation level:
+		// Repeatable Read would only add serialization failures to retry (PostgreSQL 18 "Transaction Isolation").
+		expect(mocks.transaction).toHaveBeenCalledTimes(1)
+		expect(mocks.transaction.mock.calls[0]).toEqual([expect.any(Function)])
 		expect(mocks.lockedRead).toHaveBeenCalledWith('update')
 		expect(mocks.hashPassword).toHaveBeenCalledWith('password-1')
 		expect(mocks.insert).toHaveBeenCalledWith(users)
@@ -93,13 +92,18 @@ describe('createOwner (charter §4.2, decision d: setup is open only while no ac
 		})
 	})
 
-	it('answers forbidden when the unique email index refuses the insert (another first run wrote first)', async () => {
-		mocks.values.mockRejectedValue(queryError('ER_DUP_ENTRY', 1062))
-		expect(await createOwner(input)).toEqual({ ok: false, code: 'forbidden' })
-	})
+	// Either unique index can refuse a racing first run: users_one_owner when the two emails differ, users_email_key
+	// when they are the same address in any case (measured on PostgreSQL 18; Task 7 pins the race itself).
+	it.each(['users_one_owner', 'users_email_key'])(
+		'answers forbidden when %s refuses the insert (another first run wrote first)',
+		async constraint => {
+			mocks.values.mockRejectedValue(queryError('23505', constraint))
+			expect(await createOwner(input)).toEqual({ ok: false, code: 'forbidden' })
+		},
+	)
 
 	it('rethrows any other failure, such as a deadlock victim, for the action to log', async () => {
-		const deadlock = queryError('ER_LOCK_DEADLOCK', 1213)
+		const deadlock = queryError('40P01')
 		mocks.values.mockRejectedValue(deadlock)
 		await expect(createOwner(input)).rejects.toBe(deadlock)
 	})

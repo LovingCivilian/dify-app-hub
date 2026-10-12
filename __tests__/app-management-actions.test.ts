@@ -24,6 +24,8 @@ import { DifyError } from '@/lib/dify/errors'
 
 const actor = { id: 'u1', email: 'jane@example.com', name: null, role: 'admin' }
 const UUID = '3b241101-e2bb-4255-8caf-4136c566a962'
+/** An account id for a grant: a UUID (ADR-0031; lib/ids.ts). */
+const ACCOUNT_ID = '3d1a6f4b-8e5a-4192-ad0e-4f5a6b7c8d93'
 const input = {
 	apiBase: 'https://dify.example/v1',
 	apiKey: 'app-abc',
@@ -86,8 +88,20 @@ describe('app actions', () => {
 		expect(updateApp).toHaveBeenCalledWith(actor, UUID, { ...input, apiKey: undefined })
 		updateApp.mockResolvedValue(null)
 		expect(await updateAppAction(UUID, input)).toEqual({ ok: false, code: 'not_found' })
-		expect(await updateAppAction('not-a-uuid', input)).toEqual({ ok: false, code: 'not_found' })
 	})
+
+	// Spec §3.2: an id that is not a UUID would raise 22P02 in PostgreSQL; it is answered as an unknown app.
+	it.each([
+		['updateAppAction', () => updateAppAction('not-a-uuid', input)],
+		['deleteAppAction', () => deleteAppAction('not-a-uuid')],
+		['syncAppAction', () => syncAppAction('not-a-uuid')],
+	] as const)(
+		'%s answers not_found for an id that is not a UUID, without asking the DAL',
+		async (_name, call) => {
+			expect(await call()).toEqual({ ok: false, code: 'not_found' })
+			for (const fn of [updateApp, deleteApp, syncApp, refresh]) expect(fn).not.toHaveBeenCalled()
+		},
+	)
 	it('deletes and syncs, answering not_found when the row is gone', async () => {
 		deleteApp.mockResolvedValue(true)
 		expect(await deleteAppAction(UUID)).toEqual({ ok: true, data: undefined })
@@ -107,10 +121,12 @@ describe('app actions', () => {
 		async (_name, call, dal) => {
 			dal.mockRejectedValue(
 				new Error('Failed query', {
-					cause: Object.assign(new Error('ER_NO_REFERENCED_ROW_2'), {
-						code: 'ER_NO_REFERENCED_ROW_2',
-						errno: 1452,
-					}),
+					cause: Object.assign(
+						new Error(
+							'insert or update on table "app_user_grants" violates foreign key constraint',
+						),
+						{ code: '23503', constraint: 'app_user_grants_user_id_users_id_fkey' },
+					),
 				}),
 			)
 			expect(await call()).toEqual({
@@ -127,10 +143,24 @@ describe('app actions', () => {
 		const groupId = '6f1c2a9e-1b2c-4d3e-8f40-5a6b7c8d9e0f'
 		const granted = {
 			...input,
-			access: { mode: 'restricted', groupIds: [groupId], userIds: ['u7'] },
+			access: { mode: 'restricted', groupIds: [groupId], userIds: [ACCOUNT_ID] },
 		}
 		await createAppAction(granted)
 		expect(createApp).toHaveBeenCalledWith(actor, granted)
+	})
+
+	// Spec §3.2: an account id that is not a UUID would raise 22P02 in PostgreSQL; the schema refuses it first.
+	it('refuses an account id that is not a UUID on the access field, before the DAL', async () => {
+		const result = await createAppAction({
+			...input,
+			access: { mode: 'restricted', groupIds: [], userIds: ['u7'] },
+		})
+		expect(result).toMatchObject({
+			ok: false,
+			code: 'invalid_input',
+			fieldErrors: { access: expect.any(Array) },
+		})
+		expect(createApp).not.toHaveBeenCalled()
 	})
 
 	// Review Focus 1 and deviation 3: every admin action refuses a user-role session before touching the DAL.

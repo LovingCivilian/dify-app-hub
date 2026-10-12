@@ -1,7 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs'
-import path from 'node:path'
-
-import { getTableConfig } from 'drizzle-orm/mysql-core'
+import { getTableConfig } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -24,6 +21,7 @@ describe('the B3a schema (B3 spec §3.1)', () => {
 
 	it('closes a new app by default (spec §2 #9)', () => {
 		expect(difyApps.accessMode.enumValues).toEqual(['everyone', 'restricted'])
+		expect(difyApps.accessMode.getSQLType()).toBe('access_mode')
 		expect(difyApps.accessMode.notNull).toBe(true)
 		expect(difyApps.accessMode.default).toBe('restricted')
 	})
@@ -34,6 +32,7 @@ describe('the B3a schema (B3 spec §3.1)', () => {
 			'user_groups_name_key',
 		])
 		expect(userGroupMembers.source.enumValues).toEqual(['manual', 'directory'])
+		expect(userGroupMembers.source.getSQLType()).toBe('membership_source')
 		const [primary] = getTableConfig(userGroupMembers).primaryKeys
 		expect(primary.columns.map(column => column.name)).toEqual(['group_id', 'user_id', 'source'])
 	})
@@ -49,63 +48,19 @@ describe('the B3a schema (B3 spec §3.1)', () => {
 			[...parents].sort(),
 		)
 	})
-})
 
-describe('the B3a migrations', () => {
-	const folders = readdirSync('db/migrations')
-	const generated = folders.find(name => name.endsWith('_b3a-groups-access'))
-	const backfill = folders.find(name => name.endsWith('_b3a-apps-open-to-everyone'))
-	const read = (dir: string) =>
-		readFileSync(path.join('db/migrations', dir, 'migration.sql'), 'utf8')
-	const statements = (sql: string) =>
-		sql
-			.split('--> statement-breakpoint')
-			.map(part =>
-				part
-					.split('\n')
-					.filter(line => !line.startsWith('--'))
-					.join('\n')
-					.trim(),
-			)
-			.filter(Boolean)
-
-	it('creates the four tables and adds the columns', () => {
-		expect(generated).toBeDefined()
-		const sql = read(generated!)
-		for (const table of [
-			'user_groups',
-			'user_group_members',
-			'app_group_grants',
-			'app_user_grants',
-		])
-			expect(sql).toContain(`CREATE TABLE \`${table}\``)
-		expect(sql).toContain(
-			"ALTER TABLE `dify_apps` ADD `access_mode` enum('everyone','restricted') DEFAULT 'restricted' NOT NULL;",
-		)
-		for (const column of [
-			'admin_deactivated_at',
-			'admin_deactivated_by',
-			'directory_deactivated_at',
-		])
-			expect(sql).toContain(`ALTER TABLE \`users\` ADD \`${column}\``)
-	})
-
-	// drizzle-kit 1.0.0-rc.3 leaves ON DELETE out when a migration creates exactly one table with foreign keys
-	// (spec §3.2); pin that every foreign key here cascades.
-	it('writes ON DELETE CASCADE on all six foreign keys', () => {
-		const sql = read(generated!)
-		expect(sql.match(/FOREIGN KEY/g)).toHaveLength(6)
-		expect(
-			sql.match(/FOREIGN KEY \(`[a-z_]+`\) REFERENCES `[a-z_]+`\(`id`\) ON DELETE CASCADE/g),
-		).toHaveLength(6)
-	})
-
-	it('opens every existing app to everyone in a later custom migration (spec §2 #9)', () => {
-		expect(backfill).toBeDefined()
-		// the migrator applies folders in name order
-		expect(backfill! > generated!).toBe(true)
-		expect(statements(read(backfill!))).toEqual([
-			"UPDATE `dify_apps` SET `access_mode` = 'everyone';",
+	// PostgreSQL 18 "Foreign Keys": no index on the referencing columns is created for a foreign key; InnoDB made one.
+	// A composite primary key serves its leading column only, so the second referencing column gets its own (spec §3.2).
+	it.each([
+		['app_group_grants', appGroupGrants, 'app_group_grants_group_id_idx', 'group_id'],
+		['app_user_grants', appUserGrants, 'app_user_grants_user_id_idx', 'user_id'],
+		['user_group_members', userGroupMembers, 'user_group_members_user_id_idx', 'user_id'],
+	] as const)('%s indexes its second referencing column', (_name, table, name, column) => {
+		const [index] = getTableConfig(table).indexes
+		expect(index.config.name).toBe(name)
+		expect(index.config.unique).toBe(false)
+		expect(index.config.columns.map(part => ('name' in part ? part.name : undefined))).toEqual([
+			column,
 		])
 	})
 })

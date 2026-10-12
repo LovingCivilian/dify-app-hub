@@ -1,5 +1,5 @@
 import { and, eq, type SQL } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/mysql2'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The fake chain keeps the condition each read passes to where(), so a test can render it on drizzle.mock().
@@ -51,16 +51,16 @@ describe('visibleTo (spec §4.1)', () => {
 
 	it('lets a user see an app open to everyone, granted to it, or granted to one of its groups', () => {
 		const { sql, params } = render(visibleTo(user))
-		expect(sql).toMatch(/`dify_apps`\.`access_mode` = \?/)
-		// Drizzle 1.0.0-rc.3 parenthesises each and()/or() operand.
+		expect(sql).toMatch(/"dify_apps"\."access_mode" = \$1/)
+		// Drizzle 1.0.0-rc.4 parenthesises each and()/or() operand.
 		expect(sql).toMatch(
-			/exists \(select 1 from `app_user_grants` where \(\(`app_user_grants`\.`app_id` = `dify_apps`\.`id`\) and \(`app_user_grants`\.`user_id` = \?\)\)\)/,
+			/exists \(select 1 from "app_user_grants" where \(\("app_user_grants"\."app_id" = "dify_apps"\."id"\) and \("app_user_grants"\."user_id" = \$2\)\)\)/,
 		)
 		expect(sql).toMatch(
-			/exists \(select 1 from `app_group_grants` inner join `user_group_members` on `user_group_members`\.`group_id` = `app_group_grants`\.`group_id` where \(\(`app_group_grants`\.`app_id` = `dify_apps`\.`id`\) and \(`user_group_members`\.`user_id` = \?\)\)\)/,
+			/exists \(select 1 from "app_group_grants" inner join "user_group_members" on "user_group_members"\."group_id" = "app_group_grants"\."group_id" where \(\("app_group_grants"\."app_id" = "dify_apps"\."id"\) and \("user_group_members"\."user_id" = \$3\)\)\)/,
 		)
 		// Any membership counts, whatever its source (spec §4.1); the actor's id is the only account parameter.
-		expect(sql).not.toMatch(/`source`/)
+		expect(sql).not.toMatch(/"source"/)
 		expect(params).toEqual(['everyone', 'u1', 'u1'])
 	})
 
@@ -90,7 +90,7 @@ describe('the app reads apply visibleTo', () => {
 		expect(await read()).toBeNull()
 		const rendered = render(where.mock.calls[0]![0])
 		expect(rendered).toEqual(render(and(eq(difyApps.id, 'app-1'), visibleTo(user))))
-		expect(rendered.sql).toMatch(/`dify_apps`\.`id` = \?\) and \(/)
+		expect(rendered.sql).toMatch(/"dify_apps"\."id" = \$1\) and \(/)
 		expect(rendered.params).toEqual(['app-1', 'everyone', 'u1', 'u1'])
 	})
 

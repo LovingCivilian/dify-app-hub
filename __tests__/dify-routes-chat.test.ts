@@ -39,8 +39,12 @@ import { DifyError } from '@/lib/dify/errors'
 const USER = 'u1'
 const UUID = '3b241101-e2bb-4255-8caf-4136c566a962'
 const actor = { id: USER, email: 'jane@example.com', name: null }
-const access = { id: 'app-1', enabled: true, credentials: { apiBase: 'http://d/v1', apiKey: 'k' } }
-const base = 'http://app/api/dify/app-1'
+const access = {
+	id: '0b1c2d3e-4f50-4a61-8b72-9c8dae0f1a2b',
+	enabled: true,
+	credentials: { apiBase: 'http://d/v1', apiKey: 'k' },
+}
+const base = 'http://app/api/dify/0b1c2d3e-4f50-4a61-8b72-9c8dae0f1a2b'
 const json = (path: string, method: string, body: unknown) =>
 	new NextRequest(`${base}${path}`, {
 		method,
@@ -49,7 +53,9 @@ const json = (path: string, method: string, body: unknown) =>
 	})
 const get = (path: string) => new NextRequest(`${base}${path}`)
 const params = <P extends Record<string, string>>(extra?: P) => ({
-	params: Promise.resolve({ appId: 'app-1', ...extra } as { appId: string } & P),
+	params: Promise.resolve({ appId: '0b1c2d3e-4f50-4a61-8b72-9c8dae0f1a2b', ...extra } as {
+		appId: string
+	} & P),
 })
 
 beforeEach(() => {

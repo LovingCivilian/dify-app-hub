@@ -38,11 +38,22 @@ test.describe('signed out', () => {
 		await expect(page).toHaveURL(/\/user-management$/)
 	})
 
+	// ADR-0031: the users_email_key index is on lower(email) and the sign-in compares lower() on both sides, so the
+	// email typed in another case finds the account, as MySQL's case-insensitive collation did (Part 0 spec §3.4).
+	test('signing in with the email typed in another case lands on /apps', async ({ page }) => {
+		await page.goto('/login')
+		await chooseLocalAccount(page)
+		await page.getByLabel('Email').fill(e2eEnv.E2E_ADMIN_EMAIL.toUpperCase())
+		await page.getByLabel('Password').fill(e2eEnv.E2E_ADMIN_PASSWORD)
+		await page.getByRole('button', { name: 'Log in' }).click()
+		await expect(page).toHaveURL(/\/apps$/)
+	})
+
 	test('the login page shows the brand header, and the forgot-password link only with mail configured', async ({
 		page,
 	}) => {
 		await page.goto('/login')
-		await expect(page.getByRole('heading', { name: 'Dify App Hub' })).toBeVisible()
+		await expect(page.getByRole('heading', { name: 'AI App Hub' })).toBeVisible()
 		// The link lives on the local tab (spec §12); the directory tab opens first (decision x).
 		await chooseLocalAccount(page)
 		await expect(page.getByRole('link', { name: 'Forgot password?' })).toHaveCount(
@@ -81,12 +92,12 @@ test.describe('password reset', () => {
 	}, testInfo) => {
 		const email = `reset-${testInfo.project.name}@e2e.local`
 		const token = randomUUID().replaceAll('-', '')
-		// A throwaway user seeded in MySQL (e2e/fixtures/users.ts), then the token row as the route
+		// A throwaway user seeded in the database (e2e/fixtures/users.ts), then the token row as the route
 		// would store it (lib/auth/password.ts: sha-256 hash, 15-minute expiry).
 		const userId = await seedUser({ email, password: 'old-password-1', name: 'Reset me' })
 		await withDb(db =>
-			db.execute(
-				'INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, DATE_ADD(NOW(3), INTERVAL 15 MINUTE), NOW(3))',
+			db.query(
+				"INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at) VALUES ($1, $2, $3, now() + interval '15 minutes', now())",
 				[randomUUID(), userId, hashPasswordResetToken(token)],
 			),
 		)
@@ -116,8 +127,8 @@ test.describe('password reset', () => {
 			await expect(page.getByRole('link', { name: 'Request a new link' })).toBeVisible()
 		} finally {
 			await withDb(async db => {
-				await db.execute('DELETE FROM password_reset_tokens WHERE user_id = ?', [userId])
-				await db.execute('DELETE FROM users WHERE id = ?', [userId])
+				await db.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [userId])
+				await db.query('DELETE FROM users WHERE id = $1', [userId])
 			})
 		}
 	})

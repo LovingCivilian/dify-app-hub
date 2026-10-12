@@ -4,13 +4,13 @@ import sharp from 'sharp'
 import { withDb } from './db'
 
 /**
- * Back to the built-in brand: the branding row and, through ON DELETE CASCADE, its files (MySQL 8.4 "FOREIGN KEY
- * Constraints", `CASCADE`: "Delete or update the row from the parent table and automatically delete or update the
- * matching rows in the child table"). The brand is global state and the suite runs serially (workers: 1), so each
- * branding test ends here (settings spec §8).
+ * Back to the built-in brand: the branding row and, through ON DELETE CASCADE, its files (PostgreSQL 18 "Foreign
+ * Keys": "CASCADE specifies that when a referenced row is deleted, row(s) referencing it should be automatically deleted
+ * as well"). The brand is global state and the suite runs serially (workers: 1), so each branding test ends here
+ * (settings spec §8).
  */
 export const resetBranding = () =>
-	withDb(db => db.execute("DELETE FROM instance_settings WHERE area = 'branding'"))
+	withDb(db => db.query("DELETE FROM instance_settings WHERE area = 'branding'"))
 
 /** A PNG made on the spot, so the repository holds no binary fixture (sharp constructor, `create`). */
 export const pngOf = (width: number, height: number, color = '#1677ff') =>

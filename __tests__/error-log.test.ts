@@ -1,3 +1,5 @@
+import { DrizzleQueryError } from 'drizzle-orm'
+import { DatabaseError } from 'pg'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { describeError, logSignInRefusal } from '@/lib/error-log'
@@ -112,7 +114,7 @@ describe('describeError and the directory (spec §7.3)', () => {
 	it('keeps an unreadable LDAP_CA_FILE to the setting and the cause’s code, never the path', async () => {
 		const { readFile } = await import('node:fs/promises')
 		const { DirectoryConfigError } = await import('@/lib/directory/errors')
-		const path = '/nonexistent/dify-app-hub-corp-root-ca.pem'
+		const path = '/nonexistent/ai-app-hub-corp-root-ca.pem'
 		const cause = await readFile(path).catch((error: unknown) => error)
 		expect(cause).toMatchObject({ code: 'ENOENT', path })
 		const described = describeError(new DirectoryConfigError('LDAP_CA_FILE', { cause }))
@@ -126,5 +128,65 @@ describe('describeError and the directory (spec §7.3)', () => {
 		expect(
 			describeError(new DirectoryConfigError('LDAP_CA_FILE', { cause: new Error(`open ${path}`) })),
 		).toStrictEqual({ name: 'DirectoryConfigError', setting: 'LDAP_CA_FILE', cause: {} })
+	})
+})
+
+describe('describeError and the database (decision g)', () => {
+	/** A server error as node-postgres builds it, with the refused value in `detail`, as PostgreSQL sends it. */
+	const serverError = () =>
+		Object.assign(
+			new DatabaseError(
+				'duplicate key value violates unique constraint "users_email_key"',
+				0,
+				'error',
+			),
+			{
+				code: '23505',
+				constraint: 'users_email_key',
+				detail: 'Key (lower(email))=(jane@example.com) already exists.',
+			},
+		)
+
+	it('keeps a failed query to its name and SQLSTATE: no detail, no SQL, no parameter', () => {
+		const hash = '$2a$12$abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQ'
+		const failed = new DrizzleQueryError(
+			'insert into "users" ("id", "email", "password") values ($1, $2, $3)',
+			['u1', 'jane@example.com', hash],
+			serverError(),
+		)
+		const described = describeError(failed)
+		expect(described).toEqual({ name: 'DrizzleQueryError', code: '23505' })
+		for (const value of ['jane@example.com', hash, 'insert', 'Key ('])
+			expect(JSON.stringify(described)).not.toContain(value)
+	})
+
+	// node-postgres "Pool", events: an idle client whose connection the server ended (a PostgreSQL restart, 57P01)
+	// reaches the pool's error listener (db/index.ts) as a bare DatabaseError, whose name is the protocol's 'error'.
+	it('keeps a bare server error to its name and SQLSTATE', () => {
+		const ended = Object.assign(
+			new DatabaseError('terminating connection due to administrator command', 0, 'error'),
+			{ code: '57P01' },
+		)
+		expect(describeError(ended)).toEqual({ name: 'error', code: '57P01' })
+		expect(describeError(serverError())).toStrictEqual({ name: 'error', code: '23505' })
+	})
+
+	it('keeps a refused connection to its code, and a lost one to its name', () => {
+		const refused = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:5432'), {
+			code: 'ECONNREFUSED',
+			errno: -111,
+		})
+		expect(describeError(new DrizzleQueryError('select 1', [], refused))).toStrictEqual({
+			name: 'DrizzleQueryError',
+			code: 'ECONNREFUSED',
+		})
+		// A Node system error on its own keeps its errno, as the directory's socket errors do.
+		expect(describeError(refused)).toEqual({ name: 'Error', code: 'ECONNREFUSED', errno: -111 })
+		// pg's own error for a connection that ended mid-query has no code (node_modules/pg/lib/client.js).
+		const lost = new Error('Connection terminated unexpectedly')
+		expect(describeError(new DrizzleQueryError('select 1', [], lost))).toStrictEqual({
+			name: 'DrizzleQueryError',
+			code: undefined,
+		})
 	})
 })

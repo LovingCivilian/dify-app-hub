@@ -216,7 +216,7 @@ describe('authorizeDirectory (spec §6.3, §7.3)', () => {
 
 	it('throws Default for anything else, such as a database failure', async () => {
 		mocks.recordDirectorySignIn.mockRejectedValue(
-			Object.assign(new Error('lost'), { code: 'PROTOCOL_CONNECTION_LOST' }),
+			Object.assign(new Error('lost'), { code: 'ECONNRESET' }),
 		)
 		await expect(authorizeDirectory({ username: 'alice', password: 'x' })).rejects.toThrow(
 			'Default',

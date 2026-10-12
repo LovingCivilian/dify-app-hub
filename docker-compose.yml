@@ -1,19 +1,57 @@
-# Dify App Hub 独立部署配置
-# 此文件可以独立使用，无需 clone 源码仓库
+# AI App Hub, production template: the hub and its own PostgreSQL 18, usable without the source tree.
+# Put a .env file beside this one (see .env.template in the repository) with at least DOCKERHUB_USERNAME (the Docker
+# Hub account that publishes the image), POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD,
+# DATABASE_URL=postgres://<user>:<password>@postgres:5432/<db>, NEXTAUTH_SECRET and NEXTAUTH_URL. Compose reads that
+# .env for interpolation on every command, so `logs`, `exec` and `down` find DOCKERHUB_USERNAME as `up` does (Compose
+# "Interpolation", the .env file in the project directory).
+# Start: docker compose up -d
+# The hub migrates the database when its container starts (docker/entrypoint.sh). Run one hub container per database
+# until migrations move to a one-shot service (Part 0 spec §1, decision 25).
+name: ai-app-hub
+
 services:
-  app:
-    image: lexmin0412/dify-app-hub:latest
-    container_name: dify-app-hub
-    ports:
-      - '5300:5300'
-    # 自定义环境变量
+  postgres:
+    image: postgres:18
+    container_name: ai-app-hub-postgres
     environment:
-      - DATABASE_URL=mysql://username:password@host:port/database_name
-      - NEXTAUTH_SECRET=your-secret-key-here
+      # Compose "Interpolation": ${VAR:?error} stops with the message when the variable is unset or empty.
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      # The 18 images declare VOLUME /var/lib/postgresql (the postgres image's docs, "PGDATA").
+      - pgdata:/var/lib/postgresql
+    # The default 64 MB /dev/shm can fail with "could not resize shared memory segment" (the image's docs, "Caveats").
+    shm_size: 128mb
+    healthcheck:
+      # Compose "Control startup order" example, with -h 127.0.0.1 (the first-start server listens on the socket only).
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
     networks:
-      - dify-app-hub-network
+      - ai-app-hub-network
+
+  app:
+    # The image docker-bake.hcl publishes (`${DOCKERHUB_USERNAME}/ai-app-hub`).
+    image: ${DOCKERHUB_USERNAME:?Set DOCKERHUB_USERNAME to the Docker Hub account that publishes the image}/ai-app-hub:latest
+    container_name: ai-app-hub
+    ports:
+      - '5300:5300'
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ai-app-hub-network
 
 networks:
-  dify-app-hub-network:
+  ai-app-hub-network:
     driver: bridge
+
+volumes:
+  pgdata:

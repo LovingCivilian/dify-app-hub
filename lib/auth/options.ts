@@ -6,6 +6,7 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 
 import { getDb } from '@/db'
 import { users } from '@/db/schema'
+import { emailMatches } from '@/lib/data/email'
 import { logActionError, logSignInRefusal } from '@/lib/error-log'
 
 import { isActive } from './account-status'
@@ -29,7 +30,8 @@ async function findAccount(email: string, password: string): Promise<User | null
 			directoryDeactivatedAt: users.directoryDeactivatedAt,
 		})
 		.from(users)
-		.where(eq(users.email, email))
+		// Whatever the case typed (spec §3.4): lower() on both sides, as the unique index users_email_key compares.
+		.where(emailMatches(email))
 		.limit(1)
 	if (!user) {
 		// OWASP "Authentication Responses": no quick exit. The same bcrypt work as a wrong password, against a fixed
@@ -65,7 +67,7 @@ async function findAccount(email: string, password: string): Promise<User | null
  * The credentials check of next-auth's Credentials provider (next-auth Credentials provider: return null and "an
  * error will be displayed advising the user to check their details"; throw an Error and "the user will be sent to
  * the error page with the error message as a query parameter"). Refused credentials answer null, next-auth's
- * `CredentialsSignin`. A failure of the lookup or the check is logged by name, code and errno only (decision g), and
+ * `CredentialsSignin`. A failure of the lookup or the check is logged by name and code only (decision g), and
  * rethrown as next-auth's catch-all code `Default` (next-auth Pages, "Error codes"): a Drizzle error's message holds
  * the SQL and its parameters, the typed email among them, and would reach the browser in that URL. Exported for its
  * tests.

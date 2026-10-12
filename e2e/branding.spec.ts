@@ -8,8 +8,8 @@ import { deleteUsersLike, seedUser, signInAs } from './fixtures/users'
 test.describe('the built-in brand', () => {
 	test('the header and the tab show it, and the GitHub button is gone', async ({ page }) => {
 		await page.goto('/apps')
-		await expect(page).toHaveTitle('Dify App Hub')
-		await expect(page.getByRole('banner').getByRole('link', { name: 'Dify App Hub' })).toBeVisible()
+		await expect(page).toHaveTitle('AI App Hub')
+		await expect(page.getByRole('banner').getByRole('link', { name: 'AI App Hub' })).toBeVisible()
 		await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
 			'href',
 			/\/_next\/static\/media\/logo/,
@@ -22,7 +22,7 @@ test.describe('the built-in brand', () => {
 		const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
 		const page = await context.newPage()
 		await page.goto('/login')
-		await expect(page.getByRole('heading', { name: 'Dify App Hub' })).toBeVisible()
+		await expect(page.getByRole('heading', { name: 'AI App Hub' })).toBeVisible()
 		// The built-in image through Next's optimizer, as before (spec §4.6); signed out, so /_next/image must stay
 		// outside the proxy (proxy.ts matcher). It is alt="" beside the name, so it has no img role to find it by.
 		const logo = page.locator('img[src^="/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Flogo"]')

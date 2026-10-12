@@ -106,5 +106,20 @@ test.describe('directory sign-in (ADR-0029)', () => {
 				directory_id: null,
 			})
 		})
+
+		// Part 0 spec §3.4: the directory DAL's email check compares lower() on both sides, as the users_email_key index
+		// on lower(email) does, so a local account holding the entry's email in another case refuses the first sign-in
+		// exactly as the same email does (spec §2 #10). The afterEach's deleteUsersLike('erin@e2e.hub.test') removes the
+		// mixed-case account too: the fixture matches with ILIKE.
+		test('an email a local account uses, in another case', async ({ page }) => {
+			await seedUser({ email: 'Erin@E2E.hub.test', password: 'local-pass-1', name: 'Local Erin' })
+			await signInWithDirectory(page, 'erin', DIRECTORY_PASSWORD)
+			await expect(page.getByText(refused)).toBeVisible()
+			expect(await directoryAccountsByUsername('erin')).toEqual([])
+			expect(await directoryAccount('Erin@E2E.hub.test')).toMatchObject({
+				source: 'local',
+				directory_id: null,
+			})
+		})
 	})
 })

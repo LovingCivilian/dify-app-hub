@@ -49,9 +49,10 @@ describe('searchDirectoryGroups (spec §6.5)', () => {
 		expect(mocks.searchGroups).toHaveBeenCalledWith('client', { url: 'ldaps://dc' }, 'eng')
 	})
 
-	// Carry (Task 10 note): searchGroups falls back to the DN for a group without a name, uncut; the link's name column is
-	// varchar(255), so the name the admin picks, and the route answers, is cut to 255 code points (MDN `Array.from()`).
-	it('cuts a name longer than the link column to 255 code points, surrogate pairs whole', async () => {
+	// Carry (Task 10 note): searchGroups falls back to the DN for a group without a name, uncut; the hub keeps a link's
+	// name to 255 code points (cutToColumn), so the name the admin picks, and the route answers, is cut there (MDN
+	// `Array.from()`).
+	it("cuts a name longer than the hub's bound to 255 code points, surrogate pairs whole", async () => {
 		mocks.directoryConfig.mockReturnValue({ url: 'ldaps://dc' })
 		const dn = `CN=${'😀'.repeat(300)},OU=Groups,DC=corp,DC=example`
 		mocks.searchGroups.mockResolvedValue([{ key: 'k1', name: dn }])

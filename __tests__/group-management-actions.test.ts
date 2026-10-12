@@ -58,8 +58,20 @@ import { createGroup, deleteGroup, updateGroup } from '@/lib/data/groups'
 const owner = { id: 'o1', email: 'owner@example.com', name: 'Owner', role: 'owner' }
 const user = { id: 'u1', email: 'user@example.com', name: 'User', role: 'user' }
 const groupId = '6f1c2a9e-1b2c-4d3e-8f40-5a6b7c8d9e0f'
-const input = { name: 'Finance', description: '', memberIds: ['u2'] }
-const mysqlError = (code: string, errno: number) => Object.assign(new Error(code), { code, errno })
+/** Member ids are account UUIDs (ADR-0031; lib/ids.ts). */
+const MEMBER_ID = '4e2b7a5c-9f6b-42a3-be1f-5a6b7c8d9ea4'
+const DROPPED_MEMBER_ID = '5f3c8b6d-a07c-43b4-8f20-6b7c8d9eafb5'
+const ADDED_MEMBER_ID = '60d4c97e-b18d-44c5-9031-7c8d9eafb0c6'
+const input = { name: 'Finance', description: '', memberIds: [MEMBER_ID] }
+/** A refusal as node-postgres reports it: the SQLSTATE in `code`, the refusing index or key in `constraint`. */
+const pgError = (code: string, constraint: string) =>
+	Object.assign(new Error(code), { code, constraint })
+const nameTaken = () =>
+	new Error('Failed query', { cause: pgError('23505', 'user_groups_name_key') })
+const memberGone = () =>
+	new Error('Failed query', {
+		cause: pgError('23503', 'user_group_members_user_id_users_id_fkey'),
+	})
 const anyWrite = () => Object.values(writes).some(fn => fn.mock.calls.length > 0)
 const dal = [createGroup, updateGroup, deleteGroup].map(fn => vi.mocked(fn))
 
@@ -68,7 +80,7 @@ beforeEach(() => {
 	refresh.mockReset()
 	for (const fn of Object.values(writes)) {
 		fn.mockReset()
-		fn.mockResolvedValue([{ affectedRows: 1 }])
+		fn.mockResolvedValue({ rowCount: 1 })
 	}
 	locked.value = { id: groupId }
 	manual.value = []
@@ -113,7 +125,7 @@ describe('the owner', () => {
 		expect(result).toMatchObject({ ok: true })
 		expect(writes.insert).toHaveBeenCalledTimes(2)
 		expect(writes.insert.mock.calls[1]![0]).toEqual([
-			{ groupId: expect.any(String), userId: 'u2', source: 'manual' },
+			{ groupId: expect.any(String), userId: MEMBER_ID, source: 'manual' },
 		])
 		expect(refresh).toHaveBeenCalledTimes(1)
 	})
@@ -127,22 +139,39 @@ describe('the owner', () => {
 		expect(anyWrite()).toBe(false)
 	})
 
+	// Spec §3.2: a member id that is not a UUID would raise 22P02 in PostgreSQL; the schema refuses it first.
+	it('refuses a member id that is not a UUID on its field, before any write', async () => {
+		expect(await createGroupAction({ ...input, memberIds: ['legacy-id'] })).toMatchObject({
+			ok: false,
+			code: 'invalid_input',
+			fieldErrors: { memberIds: expect.any(Array) },
+		})
+		expect(anyWrite()).toBe(false)
+	})
+
 	// Decision c and deviation 2: the unique index compares names without case.
 	it('answers name_in_use for a name the unique index refuses', async () => {
-		writes.insert.mockRejectedValueOnce(
-			new Error('Failed query', { cause: mysqlError('ER_DUP_ENTRY', 1062) }),
-		)
+		writes.insert.mockRejectedValueOnce(nameTaken())
 		expect(await createGroupAction(input)).toEqual({ ok: false, code: 'name_in_use' })
 		expect(refresh).not.toHaveBeenCalled()
 	})
 
+	// The error names the index that refused (Appendix A): a duplicate membership row is not a taken name.
+	it('answers operation_failed, not name_in_use, for a refusal by another unique key', async () => {
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+		writes.insert
+			.mockResolvedValueOnce({ rowCount: 1 })
+			.mockRejectedValueOnce(
+				new Error('Failed query', { cause: pgError('23505', 'user_group_members_pkey') }),
+			)
+		expect(await createGroupAction(input)).toEqual({ ok: false, code: 'operation_failed' })
+		expect(refresh).not.toHaveBeenCalled()
+		errorSpy.mockRestore()
+	})
+
 	// Review Focus 3: a member deleted while the drawer was open.
 	it('answers invalid_input on the members when a picked account is gone', async () => {
-		writes.insert
-			.mockResolvedValueOnce([{ affectedRows: 1 }])
-			.mockRejectedValueOnce(
-				new Error('Failed query', { cause: mysqlError('ER_NO_REFERENCED_ROW_2', 1452) }),
-			)
+		writes.insert.mockResolvedValueOnce({ rowCount: 1 }).mockRejectedValueOnce(memberGone())
 		expect(await createGroupAction(input)).toEqual({
 			ok: false,
 			code: 'invalid_input',
@@ -161,35 +190,35 @@ describe('the owner', () => {
 		expect(await updateGroupAction(groupId, input)).toEqual({ ok: true, data: undefined })
 		expect(writes.update).toHaveBeenCalledTimes(1)
 		expect(writes.insert).toHaveBeenCalledTimes(1)
-		expect(writes.insert.mock.calls[0]![0]).toEqual([{ groupId, userId: 'u2', source: 'manual' }])
+		expect(writes.insert.mock.calls[0]![0]).toEqual([
+			{ groupId, userId: MEMBER_ID, source: 'manual' },
+		])
 		expect(writes.delete).not.toHaveBeenCalled()
 		expect(refresh).toHaveBeenCalledTimes(1)
 	})
 
 	// Spec §2 #8: the save diffs against the manual members only (the SQL is pinned in data-groups.test.ts).
 	it('replaces the manual members: deletes the dropped one and inserts the new one as manual', async () => {
-		manual.value = [{ userId: 'u2' }, { userId: 'u3' }]
-		const next = { ...input, memberIds: ['u2', 'u4'] }
+		manual.value = [{ userId: MEMBER_ID }, { userId: DROPPED_MEMBER_ID }]
+		const next = { ...input, memberIds: [MEMBER_ID, ADDED_MEMBER_ID] }
 		expect(await updateGroupAction(groupId, next)).toEqual({ ok: true, data: undefined })
 		expect(writes.delete).toHaveBeenCalledTimes(1)
 		expect(writes.insert).toHaveBeenCalledTimes(1)
-		expect(writes.insert.mock.calls[0]![0]).toEqual([{ groupId, userId: 'u4', source: 'manual' }])
+		expect(writes.insert.mock.calls[0]![0]).toEqual([
+			{ groupId, userId: ADDED_MEMBER_ID, source: 'manual' },
+		])
 	})
 
 	// Decision c and deviation 2, on a rename.
 	it('answers name_in_use when a rename hits the unique index', async () => {
-		writes.update.mockRejectedValueOnce(
-			new Error('Failed query', { cause: mysqlError('ER_DUP_ENTRY', 1062) }),
-		)
+		writes.update.mockRejectedValueOnce(nameTaken())
 		expect(await updateGroupAction(groupId, input)).toEqual({ ok: false, code: 'name_in_use' })
 		expect(refresh).not.toHaveBeenCalled()
 	})
 
 	// Review Focus 3: a member picked in the edit drawer deleted before the save.
 	it('answers invalid_input on the members when an account picked for the update is gone', async () => {
-		writes.insert.mockRejectedValueOnce(
-			new Error('Failed query', { cause: mysqlError('ER_NO_REFERENCED_ROW_2', 1452) }),
-		)
+		writes.insert.mockRejectedValueOnce(memberGone())
 		expect(await updateGroupAction(groupId, input)).toEqual({
 			ok: false,
 			code: 'invalid_input',
@@ -200,7 +229,10 @@ describe('the owner', () => {
 
 	it('deletes a group, and answers not_found when nothing was deleted', async () => {
 		expect(await deleteGroupAction(groupId)).toEqual({ ok: true, data: undefined })
-		writes.delete.mockResolvedValueOnce([{ affectedRows: 0 }])
+		writes.delete.mockResolvedValueOnce({ rowCount: 0 })
+		expect(await deleteGroupAction(groupId)).toEqual({ ok: false, code: 'not_found' })
+		// node-postgres "Result": rowCount is null for a command it cannot count; nothing was deleted then.
+		writes.delete.mockResolvedValueOnce({ rowCount: null })
 		expect(await deleteGroupAction(groupId)).toEqual({ ok: false, code: 'not_found' })
 		expect(await deleteGroupAction('nope')).toEqual({ ok: false, code: 'not_found' })
 	})
@@ -242,7 +274,7 @@ describe('the owner', () => {
 	// form that does not show the field cannot delete the links or the directory members.
 	it('an input without directoryGroups reads no links and deletes nothing', async () => {
 		links.value = [{ directoryGroupId: 'b95f3990-b59a-4a1b-9e96-86c66cb18d99' }]
-		manual.value = [{ userId: 'u2' }]
+		manual.value = [{ userId: MEMBER_ID }]
 		expect(await updateGroupAction(groupId, input)).toEqual({ ok: true, data: undefined })
 		expect(linkReads).not.toHaveBeenCalled()
 		expect(writes.insert).not.toHaveBeenCalled()
@@ -255,7 +287,7 @@ describe('the owner', () => {
 	// name the drawer loaded for it.
 	it('writes nothing for a kept link, whatever name the input carries', async () => {
 		links.value = [{ directoryGroupId: 'b95f3990-b59a-4a1b-9e96-86c66cb18d99' }]
-		manual.value = [{ userId: 'u2' }]
+		manual.value = [{ userId: MEMBER_ID }]
 		expect(
 			await updateGroupAction(groupId, {
 				...input,

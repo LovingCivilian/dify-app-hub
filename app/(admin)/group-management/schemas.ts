@@ -2,6 +2,7 @@ import * as z from 'zod'
 
 import { userIdSchema } from '@/app/(admin)/user-management/schemas'
 import { DIRECTORY_KEY_PATTERN } from '@/lib/directory-status'
+import { idSchema } from '@/lib/ids'
 
 export const GROUP_NAME_MAX = 255
 export const GROUP_DESCRIPTION_MAX = 1000
@@ -50,7 +51,7 @@ export const groupInputSchema = z.object({
 		.optional(),
 })
 
-/** Group ids are this line's UUIDs (B1's app-id rule). */
-export const groupIdSchema = z.uuid()
+/** Group ids are the hub's UUIDs (ADR-0031; lib/ids.ts). The member ids above are account UUIDs (userIdSchema). */
+export const groupIdSchema = idSchema
 
 export type GroupFormInput = z.input<typeof groupInputSchema>

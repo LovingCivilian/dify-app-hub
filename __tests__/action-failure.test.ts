@@ -1,4 +1,5 @@
 import { DrizzleQueryError } from 'drizzle-orm'
+import { DatabaseError } from 'pg'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import * as z from 'zod'
 
@@ -62,31 +63,33 @@ describe('toActionFailure', () => {
 
 	describe('failure logging without secrets (Review Focus 3, decision g)', () => {
 		const hash = '$2a$12$abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQ'
+		// node-postgres's server error: the refused value is in `detail` (pg-protocol `DatabaseError`).
 		const cause = Object.assign(
-			new Error("Duplicate entry 'jane@example.com' for key 'users_email_key'"),
+			new DatabaseError(
+				'duplicate key value violates unique constraint "users_email_key"',
+				0,
+				'error',
+			),
 			{
-				code: 'ER_DUP_ENTRY',
-				errno: 1062,
+				code: '23505',
+				constraint: 'users_email_key',
+				detail: 'Key (lower(email))=(jane@example.com) already exists.',
 			},
 		)
 		const queryError = new DrizzleQueryError(
-			'insert into `users` …',
+			'insert into "users" …',
 			['u1', 'Jane', 'jane@example.com', hash],
 			cause,
 		)
 
-		it('describes a failed query by its driver code only', () => {
-			expect(describeError(queryError)).toEqual({
-				name: 'DrizzleQueryError',
-				code: 'ER_DUP_ENTRY',
-				errno: 1062,
-			})
-			expect(describeError(cause)).toEqual({ name: 'Error', code: 'ER_DUP_ENTRY', errno: 1062 })
+		it('describes a failed query by its SQLSTATE only', () => {
+			expect(describeError(queryError)).toEqual({ name: 'DrizzleQueryError', code: '23505' })
+			expect(describeError(cause)).toEqual({ name: 'error', code: '23505' })
 			const plain = new Error('boom')
 			expect(describeError(plain)).toBe(plain)
 		})
 
-		it('logs neither the parameters nor the message of a failed query', () => {
+		it('logs neither the parameters, the detail nor the message of a failed query', () => {
 			expect(toActionFailure(queryError, 'createUserAction')).toEqual({
 				ok: false,
 				code: 'operation_failed',
@@ -94,38 +97,56 @@ describe('toActionFailure', () => {
 			const logged = JSON.stringify(errorSpy.mock.calls)
 			expect(logged).not.toContain(hash)
 			expect(logged).not.toContain('jane@example.com')
-			expect(logged).toContain('ER_DUP_ENTRY')
+			expect(logged).toContain('23505')
 		})
 
-		// mysql2's lost connection, connect timeout and protocol errors carry a code and no errno
-		// (node_modules/mysql2/lib/base/connection.js); the code alone still says why the query failed.
-		it('logs the driver code of a lost connection, never the parameters or the message', () => {
-			const lost = Object.assign(new Error('Connection lost: The server closed the connection.'), {
-				code: 'PROTOCOL_CONNECTION_LOST',
-				fatal: true,
+		// A refused connection carries Node's code (ECONNREFUSED) and pg's lost connection none (node_modules/pg/lib/client.js,
+		// "Connection terminated unexpectedly"); either way the log keeps no parameter and no address.
+		it('logs the code of a refused connection, never the parameters or the message', () => {
+			const refused = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:5432'), {
+				code: 'ECONNREFUSED',
+				errno: -111,
 			})
-			const lostQuery = new DrizzleQueryError('update `users` …', ['Jane', hash, 'u1'], lost)
-			expect(describeError(lostQuery)).toEqual({
+			const refusedQuery = new DrizzleQueryError('update "users" …', ['Jane', hash, 'u1'], refused)
+			expect(describeError(refusedQuery)).toStrictEqual({
 				name: 'DrizzleQueryError',
-				code: 'PROTOCOL_CONNECTION_LOST',
-				errno: undefined,
+				code: 'ECONNREFUSED',
 			})
-			expect(toActionFailure(lostQuery, 'updateUserAction')).toEqual({
+			expect(toActionFailure(refusedQuery, 'updateUserAction')).toEqual({
 				ok: false,
 				code: 'operation_failed',
 			})
 			const logged = JSON.stringify(errorSpy.mock.calls)
 			expect(logged).not.toContain(hash)
-			expect(logged).not.toContain('Connection lost')
-			expect(logged).toContain('PROTOCOL_CONNECTION_LOST')
+			expect(logged).not.toContain('127.0.0.1')
+			expect(logged).toContain('ECONNREFUSED')
 		})
 
-		it('keeps only a string code and a numeric errno from the cause (fixed labels)', () => {
-			const odd = Object.assign(new Error('x'), { code: { leaked: hash }, errno: '1062' })
-			expect(describeError(new DrizzleQueryError('select …', [], odd))).toEqual({
+		it('keeps only a string code from the cause (a fixed label)', () => {
+			const odd = Object.assign(new Error('x'), { code: { leaked: hash } })
+			expect(describeError(new DrizzleQueryError('select …', [], odd))).toStrictEqual({
 				name: 'DrizzleQueryError',
 				code: undefined,
-				errno: undefined,
+			})
+		})
+
+		// Spec §3.2's safety net: an id that reached a uuid column unchecked answers as an unknown one, and the log names
+		// the action by its code only (the message quotes the id).
+		it('answers not_found for a malformed id (22P02), logged by its code', () => {
+			const malformed = new DrizzleQueryError(
+				'delete from "dify_apps" where "dify_apps"."id" = $1',
+				['abc'],
+				Object.assign(new DatabaseError('invalid input syntax for type uuid: "abc"', 0, 'error'), {
+					code: '22P02',
+				}),
+			)
+			expect(toActionFailure(malformed, 'deleteAppAction')).toEqual({
+				ok: false,
+				code: 'not_found',
+			})
+			expect(errorSpy).toHaveBeenCalledWith('deleteAppAction:', {
+				name: 'DrizzleQueryError',
+				code: '22P02',
 			})
 		})
 

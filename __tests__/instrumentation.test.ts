@@ -1,3 +1,4 @@
+import { DatabaseError } from 'pg'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const { startDirectorySchedule } = vi.hoisted(() => ({ startDirectorySchedule: vi.fn() }))
@@ -35,7 +36,7 @@ describe('register (Next instrumentation)', () => {
 	})
 
 	// Final review M9: the throw is logged through describeError (lib/error-log.ts), so a hub error keeps its message
-	// and a driver error is reduced to its name, code and errno, not to its name alone.
+	// and a database error is reduced to its name and SQLSTATE, not to its name alone.
 	it('logs the throw through describeError, not by its name only', async () => {
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {})
 		try {
@@ -50,15 +51,18 @@ describe('register (Next instrumentation)', () => {
 				bug,
 			)
 			startDirectorySchedule.mockImplementationOnce(() => {
-				throw Object.assign(new Error("Duplicate entry 'secret' for key 'x'"), {
-					code: 'ER_DUP_ENTRY',
-					errno: 1062,
-				})
+				throw Object.assign(
+					new DatabaseError('duplicate key value violates unique constraint "x"', 0, 'error'),
+					{ code: '23505', detail: 'Key (slot)=(secret) already exists.' },
+				)
 			})
 			await register()
 			expect(error).toHaveBeenLastCalledWith(
 				'instrumentation: the directory schedule did not start:',
-				{ name: 'Error', code: 'ER_DUP_ENTRY', errno: 1062 },
+				{
+					name: 'error',
+					code: '23505',
+				},
 			)
 		} finally {
 			error.mockRestore()

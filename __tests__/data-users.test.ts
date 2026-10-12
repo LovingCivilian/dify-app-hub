@@ -1,4 +1,4 @@
-import { drizzle } from 'drizzle-orm/mysql2'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { DrizzleQueryError, type SQL } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,7 +27,6 @@ import {
 	deactivateRefusal,
 	deleteRefusal,
 	deleteUser,
-	isDuplicateEntry,
 	listUserOptions,
 	listUsers,
 	lockTarget,
@@ -265,21 +264,57 @@ describe('deactivateRefusal', () => {
 	})
 })
 
-describe('isDuplicateEntry (MySQL 1062 ER_DUP_ENTRY)', () => {
-	const dup = Object.assign(new Error("Duplicate entry 'a@b.c' for key 'users_email_key'"), {
-		code: 'ER_DUP_ENTRY',
-		errno: 1062,
-	})
-	it('recognises the driver error bare and inside DrizzleQueryError', () => {
-		expect(isDuplicateEntry(dup)).toBe(true)
-		expect(isDuplicateEntry(new DrizzleQueryError('insert …', [], dup))).toBe(true)
-	})
-	it('ignores anything else', () => {
-		expect(isDuplicateEntry(new Error('boom'))).toBe(false)
-		expect(isDuplicateEntry(Object.assign(new Error('x'), { code: 'ER_LOCK_DEADLOCK' }))).toBe(
-			false,
+describe('updateUser and the email index (a 23505 that names users_email_key)', () => {
+	const ownerSession = { id: 'o1', email: 'owner@example.com', name: null, role: 'owner' as const }
+	const input = { name: 'N', email: 'n@e.com', role: 'user' as const }
+
+	/** A transaction that finds a local user under the lock and the email free, and whose update is refused. */
+	const failUpdateWith = (error: Error) => {
+		const tx = {
+			select: () => ({
+				from: () => ({
+					where: () => ({
+						// The email check awaits .limit() and finds the email free; lockTarget ends in .for('update').
+						limit: () =>
+							Object.assign(Promise.resolve([]), {
+								for: () =>
+									Promise.resolve([
+										{ id: 'u9', role: 'user', adminDeactivatedAt: null, source: 'local' },
+									]),
+							}),
+					}),
+				}),
+			}),
+			update: () => ({ set: () => ({ where: () => Promise.reject(error) }) }),
+		}
+		database.value = { transaction: (work: (t: typeof tx) => unknown) => work(tx) }
+	}
+	const uniqueViolation = (constraint: string) =>
+		new DrizzleQueryError(
+			'update "users" …',
+			[],
+			Object.assign(new Error(`duplicate key value violates unique constraint "${constraint}"`), {
+				code: '23505',
+				constraint,
+			}),
 		)
-		expect(isDuplicateEntry(null)).toBe(false)
+
+	afterEach(() => {
+		database.value = undefined
+	})
+
+	it('answers email_in_use when the email index refuses an update that raced the check', async () => {
+		failUpdateWith(uniqueViolation('users_email_key'))
+		expect(await updateUser(ownerSession, 'u9', input)).toEqual({
+			ok: false,
+			code: 'email_in_use',
+		})
+	})
+
+	it('rethrows a refusal by any other unique index for the action to log', async () => {
+		const other = uniqueViolation('users_directory_id_key')
+		failUpdateWith(other)
+		await expect(updateUser(ownerSession, 'u9', input)).rejects.toBe(other)
 	})
 })
 
@@ -287,10 +322,10 @@ describe('lockTarget (decision d, Review Focus 2)', () => {
 	it('is a locking read of one account by its primary key', () => {
 		const query = lockTarget(drizzle.mock(), 'u9').toSQL()
 		expect(query.sql).toMatch(
-			/^select .* from `users` where `users`\.`id` = \? limit \? for update$/,
+			/^select .* from "users" where "users"\."id" = \$1 limit \$2 for update$/,
 		)
 		// setUserActive's no-op branch reads the admin marker from this row.
-		expect(query.sql).toMatch(/^select [^]*`admin_deactivated_at`[^]* from `users` /)
+		expect(query.sql).toMatch(/^select [^]*"admin_deactivated_at"[^]* from "users" /)
 		expect(query.params).toEqual(['u9', 1])
 	})
 })
@@ -318,14 +353,14 @@ describe('setUserActive and pending reset links (controller ruling on C2)', () =
 				set: () => ({
 					where: (condition: SQL) => {
 						writes.push({ op: 'update', table, condition })
-						return Promise.resolve([{ affectedRows: 1 }])
+						return Promise.resolve({ rowCount: 1 })
 					},
 				}),
 			}),
 			delete: (table: unknown) => ({
 				where: (condition: SQL) => {
 					writes.push({ op: 'delete', table, condition })
-					return Promise.resolve([{ affectedRows: 1 }])
+					return Promise.resolve({ rowCount: 1 })
 				},
 			}),
 		}
@@ -348,7 +383,7 @@ describe('setUserActive and pending reset links (controller ruling on C2)', () =
 		])
 		const deleted = drizzle.mock().delete(passwordResetTokens).where(writes[1]!.condition).toSQL()
 		expect(deleted.sql).toBe(
-			'delete from `password_reset_tokens` where `password_reset_tokens`.`user_id` = ?',
+			'delete from "password_reset_tokens" where "password_reset_tokens"."user_id" = $1',
 		)
 		expect(deleted.params).toEqual(['u9'])
 	})
@@ -412,7 +447,7 @@ describe('directory accounts (spec §6.3, decision an)', () => {
 
 	it('reads the source under the lock', () => {
 		expect(lockTarget(drizzle.mock(), 'u9').toSQL().sql).toMatch(
-			/^select [^]*`source`[^]* from `users` /,
+			/^select [^]*"source"[^]* from "users" /,
 		)
 	})
 
@@ -444,7 +479,7 @@ describe('directory accounts (spec §6.3, decision an)', () => {
 				set: (values: unknown) => ({
 					where: (condition: SQL) => {
 						updates.push({ values, condition })
-						return Promise.resolve([{ affectedRows: 1 }])
+						return Promise.resolve({ rowCount: 1 })
 					},
 				}),
 			}),

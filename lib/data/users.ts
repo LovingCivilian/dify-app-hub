@@ -11,9 +11,8 @@ import { hashPassword, verifyPassword } from '@/lib/auth/password'
 import { canManage, type Role } from '@/lib/auth/roles'
 import { assertAdmin, type SessionUser } from '@/lib/auth/session'
 
-import { isDuplicateEntry } from './db-errors'
-
-export { isDuplicateEntry } from './db-errors'
+import { isUniqueViolation } from './db-errors'
+import { emailMatches } from './email'
 
 /*
  * The users Data Access Layer (charter §4.2). Every function takes the verified actor first and checks its role
@@ -176,10 +175,12 @@ export const deactivateRefusal = (pair: ActorAndTarget): ActionErrorCode | null 
 	selfOrRankRefusal('cannot_deactivate_self', pair)
 
 /**
- * A locking read of one account by its primary key (decision d; MySQL "Locking Reads": SELECT … FOR UPDATE). A
- * concurrent change to the same account, such as the owner promoting a user an admin is editing, waits and is then
- * read, so the rank is never checked against a stale role. One row, for the few milliseconds the transaction lasts;
- * consistent reads such as sign-in do not wait.
+ * A locking read of one account by its primary key (decision d; PostgreSQL 18 "SELECT", The Locking Clause: SELECT …
+ * FOR UPDATE). A concurrent change to the same account, such as the owner promoting a user an admin is editing, waits
+ * and is then read: at READ COMMITTED "it is the updated version of the row that is locked and returned" ("Transaction
+ * Isolation", 13.2.1), so the rank is never checked against a stale role. One row, for the few milliseconds the
+ * transaction lasts; plain reads such as sign-in do not wait ("reading never blocks writing and writing never blocks
+ * reading", "Concurrency Control", 13.1).
  */
 export const lockTarget = (tx: Pick<Tx, 'select'>, id: string) =>
 	tx
@@ -194,8 +195,9 @@ export const lockTarget = (tx: Pick<Tx, 'select'>, id: string) =>
 		.limit(1)
 		.for('update')
 
+/** The account using this email, whatever its case: lower() on both sides, as the unique index users_email_key compares. */
 const emailTakenBy = (tx: Pick<Tx, 'select'>, email: string) =>
-	tx.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
+	tx.select({ id: users.id }).from(users).where(emailMatches(email)).limit(1)
 
 export async function listUsers(actor: SessionUser): Promise<UserDto[]> {
 	assertAdmin(actor)
@@ -256,7 +258,9 @@ export async function createUser(
 			role: input.role,
 		})
 	} catch (error) {
-		if (isDuplicateEntry(error)) return fail('email_in_use')
+		// The email index refused a write that raced the check above; users has two more unique indexes, and the error
+		// names the one that refused (lib/data/db-errors.ts).
+		if (isUniqueViolation(error, 'users_email_key')) return fail('email_in_use')
 		throw error
 	}
 	return ok({ id })
@@ -314,7 +318,9 @@ export async function updateUser(
 			return ok(undefined)
 		})
 	} catch (error) {
-		if (isDuplicateEntry(error)) return fail('email_in_use')
+		// The email index refused a write that raced the check above; users has two more unique indexes, and the error
+		// names the one that refused (lib/data/db-errors.ts).
+		if (isUniqueViolation(error, 'users_email_key')) return fail('email_in_use')
 		throw error
 	}
 }
@@ -401,10 +407,10 @@ export async function setUserActive(
  * out. Any role, for the actor's own account only (no target id comes from the client).
  *
  * The check is tied to the row it overwrites (decision d). A wrong password is refused on the plain read, before any
- * lock. The write then reads the row again with a locking read on its primary key (MySQL 8.4 "Locking Reads": "the
- * regular SELECT statement does not give enough protection. Other transactions can update or delete the same rows
- * you just queried") and goes ahead only while the row still holds the hash that was verified. A password the owner
- * or an admin set in between is not overwritten: the change is refused as a wrong current password.
+ * lock. The write then reads the row again with a locking read on its primary key, which keeps other transactions from
+ * changing it "until the current transaction ends" (PostgreSQL 18 "Explicit Locking", 13.3.2 Row-Level Locks; the plain
+ * read takes no such lock), and goes ahead only while the row still holds the hash that was verified. A password the
+ * owner or an admin set in between is not overwritten: the change is refused as a wrong current password.
  */
 export async function changeOwnPassword(
 	actor: SessionUser,

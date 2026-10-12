@@ -95,8 +95,8 @@ async function lookUpLinks(
 				group
 					? {
 							status: 'found',
-							// `directory_group_name` is varchar(255): findGroupByKey falls back to the DN for a group without a
-							// name, and a longer value would fail the run (cutToColumn).
+							// `directory_group_name` keeps the hub's 255 code points, the bound the groups save checks:
+							// findGroupByKey falls back to the DN for a group without a name, which can be longer (cutToColumn).
 							name: cutToColumn(group.name),
 							memberKeys: await listMemberKeys(client, config, group.dn),
 						}
@@ -156,8 +156,8 @@ async function reconcile(
 		if (updated) counts.updated += 1
 		if (conflict) counts.conflicts += 1
 	}
-	// A row in the plan's add list that a sign-in inserted meanwhile is a duplicate key, which applyMembershipChanges
-	// skips row by row (lib/data/directory.ts); the next run corrects any other overlap (spec §6.4 "Claim").
+	// A row in the plan's add list that a sign-in inserted meanwhile is skipped by the batch insert's ON CONFLICT DO
+	// NOTHING and not counted in `added` (lib/data/directory.ts); the next run corrects any other overlap (spec §6.4 "Claim").
 	const memberships = planDirectoryMemberships(snapshot.lookups, plan.accountIdByKey, current)
 	counts.groupErrors = memberships.groupErrors
 	await refreshGroupLinks(memberships.linkRefreshes, at)

@@ -2,6 +2,7 @@ import 'server-only'
 
 import { DrizzleQueryError } from 'drizzle-orm'
 import { ResultCodeError } from 'ldapts'
+import { DatabaseError } from 'pg'
 
 import {
 	DirectoryConfigError,
@@ -10,13 +11,18 @@ import {
 } from '@/lib/directory/errors'
 
 /*
- * Server error logging without secrets (decision g). A leaf module: it imports drizzle-orm, ldapts and the directory's
- * error classes only (lib/directory/errors.ts imports nothing of the hub's), so the auth options can log a sign-in
- * failure without importing lib/action-failure.ts, whose AuthError import from lib/auth/session.ts would close a cycle
- * back to lib/auth/options.ts (MDN "JavaScript modules", "Cyclic imports": "You should usually avoid cyclic imports";
- * "Move the shared code into a third module").
+ * Server error logging without secrets (decision g). A leaf module: it imports drizzle-orm, ldapts, pg and the
+ * directory's error classes only (lib/directory/errors.ts imports nothing of the hub's), so the auth options can log a
+ * sign-in failure without importing lib/action-failure.ts, whose AuthError import from lib/auth/session.ts would close a
+ * cycle back to lib/auth/options.ts (MDN "JavaScript modules", "Cyclic imports": "You should usually avoid cyclic
+ * imports"; "Move the shared code into a third module").
  */
 
+/**
+ * A Node system error by its code and errno (Node "Class: SystemError": `code`, "the string error code", and `errno`,
+ * "the system-provided error number"): a socket error such as a refused connection, to the database or to the
+ * directory. Both are labels; its message (an address and a port) is left out.
+ */
 const driverFields = (value: unknown) =>
 	typeof value === 'object' && value !== null && 'errno' in value
 		? {
@@ -26,18 +32,16 @@ const driverFields = (value: unknown) =>
 		: null
 
 /**
- * The driver error under a DrizzleQueryError, by its code and errno, each kept only with its documented type: a
- * string label (mysql2's QueryError.code, e.g. 'ER_DUP_ENTRY' or 'PROTOCOL_CONNECTION_LOST'; Node: "error.code
- * is the most stable way to identify an error") and a number. mysql2's lost connection, connect timeout and
- * protocol errors carry a code and no errno (node_modules/mysql2/lib/base/connection.js).
+ * The code of the error under a DrizzleQueryError, kept only as a string: PostgreSQL's SQLSTATE (node-postgres
+ * `DatabaseError.code`, e.g. '23505'; PostgreSQL 18 Appendix A) or Node's code for a connection that failed
+ * ('ECONNREFUSED'; Node: "error.code is the most stable way to identify an error"). Nothing else of it is kept: its
+ * `detail` names the refused value ("Key (lower(email))=(…) already exists."), its message can quote it ("invalid input
+ * syntax for type uuid: …"), and pg's lost connection ("Connection terminated unexpectedly") has no code at all.
  */
-const causeFields = (cause: unknown) => {
-	const fields = typeof cause === 'object' && cause !== null ? cause : {}
-	return {
-		code: 'code' in fields && typeof fields.code === 'string' ? fields.code : undefined,
-		errno: 'errno' in fields && typeof fields.errno === 'number' ? fields.errno : undefined,
-	}
-}
+const causeCode = (cause: unknown): string | undefined =>
+	typeof cause === 'object' && cause !== null && 'code' in cause && typeof cause.code === 'string'
+		? cause.code
+		: undefined
 
 /**
  * A directory error's cause: a result error, a directory error or a socket error with an errno as describeError reduces
@@ -62,11 +66,12 @@ const directoryCause = (cause: unknown): unknown => {
 }
 
 /**
- * What the server log may carry for an error (decision g). Drizzle's DrizzleQueryError puts the query's
- * parameters in its message (node_modules/drizzle-orm/errors.js), and mysql2's error carries the SQL and the
- * duplicate value: a users write would log the bcrypt hash, an apps write the API key. A DrizzleQueryError is
- * logged by its name and its cause's code and errno, a bare driver error (one with an errno, mysql2's server
- * errors) by name, code and errno; any other error as it is.
+ * What the server log may carry for an error (decision g). Drizzle's DrizzleQueryError puts the query's parameters in
+ * its message (node_modules/drizzle-orm/errors.js), and node-postgres's DatabaseError carries the refused value in its
+ * `detail` and, for some codes, in its message: a users write would log an email or the bcrypt hash, an apps write the
+ * API key. A DrizzleQueryError is logged by its name and its cause's code, a bare DatabaseError (an idle pool client's,
+ * or a failure outside a query) by its name and SQLSTATE, a Node system error by name, code and errno; any other error
+ * as it is.
  */
 export const describeError = (error: unknown): unknown => {
 	// Spec §7.3: an ldapts result error by its class and LDAP result code (its message carries the server's diagnostic
@@ -74,13 +79,14 @@ export const describeError = (error: unknown): unknown => {
 	if (error instanceof ResultCodeError) return { name: error.name, code: error.code }
 	if (error instanceof DirectoryUnavailableError || error instanceof DirectoryRefusedError)
 		return { name: error.name, cause: directoryCause(error.cause) }
-	// A setting the hub cannot use (final review I1): its name, and the cause's string code only (Node: "error.code is
-	// the most stable way to identify an error"), since a file error's `path` and message carry the path.
+	// A setting the hub cannot use (final review I1): its name, and the cause's string code only (Node: "error.code is the
+	// most stable way to identify an error"), since a file error's `path` and message carry the path.
 	if (error instanceof DirectoryConfigError) {
-		const { code } = causeFields(error.cause)
+		const code = causeCode(error.cause)
 		return { name: error.name, setting: error.setting, cause: code === undefined ? {} : { code } }
 	}
-	if (error instanceof DrizzleQueryError) return { name: error.name, ...causeFields(error.cause) }
+	if (error instanceof DrizzleQueryError) return { name: error.name, code: causeCode(error.cause) }
+	if (error instanceof DatabaseError) return { name: error.name, code: error.code }
 	const driver = driverFields(error)
 	if (driver && error instanceof Error) return { name: error.name, ...driver }
 	return error

@@ -2,6 +2,7 @@ import * as z from 'zod'
 
 import { emailField, nameField, passwordField } from '@/lib/auth/fields'
 import { ROLES } from '@/lib/auth/roles'
+import { idSchema } from '@/lib/ids'
 
 /**
  * The users drawer's input (charter §4.5); on update a blank or missing password means "keep the current one". Any
@@ -20,9 +21,10 @@ export const createUserInputSchema = userInputSchema.extend({ password: password
 export const userRoleInputSchema = z.object({ role: z.enum(ROLES) })
 
 /**
- * Account ids are not checked as UUIDs (decision h): rows older than this line's generator may use another
- * format; the column is varchar(36), and an unknown id answers not_found.
+ * Account ids are the hub's UUIDs (ADR-0031: the fresh PostgreSQL start retired decision h's older formats, and the
+ * `uuid` column refuses anything else with 22P02). An id that is not one answers not_found before any query, and a
+ * member or grant list that holds one is invalid input (spec §3.2; lib/ids.ts).
  */
-export const userIdSchema = z.string().min(1).max(36)
+export const userIdSchema = idSchema
 
 export type UserFormInput = z.infer<typeof userInputSchema>

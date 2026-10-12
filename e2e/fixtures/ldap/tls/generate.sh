@@ -13,7 +13,7 @@ distinguished_name = dn
 prompt = no
 x509_extensions = v3_ca
 [dn]
-CN = dify-app-hub e2e LDAP test CA
+CN = ai-app-hub e2e LDAP test CA
 [v3_ca]
 basicConstraints = critical,CA:TRUE
 keyUsage = critical,keyCertSign,cRLSign

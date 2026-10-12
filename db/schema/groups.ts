@@ -1,57 +1,55 @@
-import { sql } from 'drizzle-orm'
-import {
-	datetime,
-	mysqlEnum,
-	mysqlTable,
-	primaryKey,
-	text,
-	uniqueIndex,
-	varchar,
-} from 'drizzle-orm/mysql-core'
+import { index, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 
-import { MEMBERSHIP_SOURCES } from '@/lib/app-access'
 import { generateUuidV4 } from '@/lib/helpers'
 
-import { users } from './users'
+import { timestamptz } from './columns'
+import { membershipSource } from './enums'
+import { lower, users } from './users'
 
-/** Hub groups (B3 spec §3.1). `groups` is a reserved word in MySQL 8.4, hence `user_groups`. */
-export const userGroups = mysqlTable(
+/**
+ * Hub groups (B3 spec §3.1); `user_groups`, the name the MySQL schema gave them because MySQL reserves `groups`. Names
+ * are unique whatever their case, as MySQL's case-insensitive collation kept them (`__tests__/group-management-actions.test.ts`
+ * pins "Finance" against "finance"): a unique index on `lower(name)` (PostgreSQL 18 "Indexes on Expressions"; Part 0
+ * Plan decision e). It folds case, not accents (ADR-0031).
+ */
+export const userGroups = pgTable(
 	'user_groups',
 	{
-		id: varchar({ length: 36 })
+		id: uuid()
 			.primaryKey()
 			.$defaultFn(() => generateUuidV4()),
-		name: varchar({ length: 255 }).notNull(),
+		name: text().notNull(),
 		description: text(),
-		createdAt: datetime('created_at', { fsp: 3 })
-			.default(sql`CURRENT_TIMESTAMP(3)`)
-			.notNull(),
-		updatedAt: datetime('updated_at', { fsp: 3 })
-			.default(sql`CURRENT_TIMESTAMP(3)`)
+		createdAt: timestamptz('created_at').defaultNow().notNull(),
+		updatedAt: timestamptz('updated_at')
+			.defaultNow()
 			.notNull()
 			.$onUpdate(() => new Date()),
 	},
-	table => [uniqueIndex('user_groups_name_key').on(table.name)],
+	table => [uniqueIndex('user_groups_name_key').on(lower(table.name))],
 )
 
 /**
- * Memberships (spec §2 #8): a person can be a member by hand and through the directory at once, one row per source;
- * an admin changes only `manual` rows and the sync only `directory` rows. Deleting the group or the account removes
- * its rows (ON DELETE CASCADE, MySQL 8.4 "FOREIGN KEY Constraints").
+ * Memberships (B3 spec §2 #8): a person can be a member by hand and through the directory at once, one row per source;
+ * an admin changes only `manual` rows and the sync only `directory` rows. Deleting the group or the account removes its
+ * rows (PostgreSQL 18 "Foreign Keys", ON DELETE CASCADE). The primary key leads with `group_id`; `user_id` gets its own
+ * index, which PostgreSQL does not create for a foreign key (Part 0 spec §3.2): an account's delete and the sign-in's
+ * lookup by account read it.
  */
-export const userGroupMembers = mysqlTable(
+export const userGroupMembers = pgTable(
 	'user_group_members',
 	{
-		groupId: varchar('group_id', { length: 36 })
+		groupId: uuid('group_id')
 			.notNull()
 			.references(() => userGroups.id, { onDelete: 'cascade' }),
-		userId: varchar('user_id', { length: 36 })
+		userId: uuid('user_id')
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
-		source: mysqlEnum(MEMBERSHIP_SOURCES).notNull(),
-		createdAt: datetime('created_at', { fsp: 3 })
-			.default(sql`CURRENT_TIMESTAMP(3)`)
-			.notNull(),
+		source: membershipSource().notNull(),
+		createdAt: timestamptz('created_at').defaultNow().notNull(),
 	},
-	table => [primaryKey({ columns: [table.groupId, table.userId, table.source] })],
+	table => [
+		primaryKey({ columns: [table.groupId, table.userId, table.source] }),
+		index('user_group_members_user_id_idx').on(table.userId),
+	],
 )

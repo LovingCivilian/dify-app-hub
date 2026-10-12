@@ -38,8 +38,12 @@ import { DifyError } from '@/lib/dify/errors'
 /** The Dify end user: the account's id, never its email (ADR-0026). */
 const USER = 'u1'
 const actor = { id: USER, email: 'jane@example.com', name: null }
-const access = { id: 'app-1', enabled: true, credentials: { apiBase: 'http://d/v1', apiKey: 'k' } }
-const base = 'http://app/api/dify/app-1'
+const access = {
+	id: '3b241101-e2bb-4255-8caf-4136c566a962',
+	enabled: true,
+	credentials: { apiBase: 'http://d/v1', apiKey: 'k' },
+}
+const base = 'http://app/api/dify/3b241101-e2bb-4255-8caf-4136c566a962'
 const json = (path: string, body: unknown) =>
 	new NextRequest(`${base}${path}`, {
 		method: 'POST',
@@ -48,7 +52,9 @@ const json = (path: string, body: unknown) =>
 	})
 const get = (path: string) => new NextRequest(`${base}${path}`)
 const params = <P extends Record<string, string>>(extra?: P) => ({
-	params: Promise.resolve({ appId: 'app-1', ...extra } as { appId: string } & P),
+	params: Promise.resolve({ appId: '3b241101-e2bb-4255-8caf-4136c566a962', ...extra } as {
+		appId: string
+	} & P),
 })
 const stream = () =>
 	new Response('event: ping\n\n', { status: 200, headers: { 'content-type': 'text/event-stream' } })
