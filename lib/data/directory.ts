@@ -235,8 +235,9 @@ const DEADLOCK_ATTEMPTS = 3
  * `createOwner` runs at the same default; its guarantee is the partial unique index `users_one_owner`.
  *
  * The transaction runs again after a deadlock (40P01), within the sync statements' bound of DEADLOCK_ATTEMPTS in all,
- * and once after a unique violation (23505 on `users_directory_id_key` or `users_email_key`): the retry then finds the
- * account the other sign-in wrote, or the email taken (decision e). Any other failure, or one past the bound,
+ * and once after any unique violation (23505), such as on `users_directory_id_key`, `users_email_key` or a racing
+ * sync's membership row (`user_group_members_pkey`, replaceDirectoryMemberships): the retry then finds the account the
+ * other sign-in wrote, the email taken, or the membership in place (decision e). Any other failure, or one past the bound,
  * propagates to the provider, which logs it and answers its generic error.
  */
 export async function recordDirectorySignIn(
