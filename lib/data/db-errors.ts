@@ -1,4 +1,3 @@
-// lib/data/db-errors.ts
 import 'server-only'
 
 /*

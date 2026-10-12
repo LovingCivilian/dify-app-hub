@@ -1,4 +1,3 @@
-// __tests__/data-db-errors.test.ts
 import { DrizzleQueryError } from 'drizzle-orm'
 import { DatabaseError } from 'pg'
 import { describe, expect, it } from 'vitest'

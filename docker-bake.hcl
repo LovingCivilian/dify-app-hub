@@ -1,4 +1,6 @@
 # The Docker Hub account that publishes the image; no default (owner, 2026-10-12), so a build never tags another account.
+# The validation block fails the build when the value is empty (Docker docs, Bake "Variables", "Validating variables":
+# https://docs.docker.com/build/bake/variables/#validating-variables).
 variable "DOCKERHUB_USERNAME" {
   default = ""
   validation {

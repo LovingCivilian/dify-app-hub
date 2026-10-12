@@ -1,4 +1,3 @@
-// __tests__/db/global-setup.ts
 import { execSync } from 'node:child_process'
 
 import { Client } from 'pg'

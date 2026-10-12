@@ -1,7 +1,10 @@
 # AI App Hub, production template: the hub and its own PostgreSQL 18, usable without the source tree.
-# Put a .env file beside this one (see .env.template in the repository) with at least POSTGRES_DB, POSTGRES_USER,
-# POSTGRES_PASSWORD, DATABASE_URL=postgres://<user>:<password>@postgres:5432/<db>, NEXTAUTH_SECRET and NEXTAUTH_URL.
-# Start: DOCKERHUB_USERNAME=<the Docker Hub account that publishes the image> docker compose up -d
+# Put a .env file beside this one (see .env.template in the repository) with at least DOCKERHUB_USERNAME (the Docker
+# Hub account that publishes the image), POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD,
+# DATABASE_URL=postgres://<user>:<password>@postgres:5432/<db>, NEXTAUTH_SECRET and NEXTAUTH_URL. Compose reads that
+# .env for interpolation on every command, so `logs`, `exec` and `down` find DOCKERHUB_USERNAME as `up` does (Compose
+# "Interpolation", the .env file in the project directory).
+# Start: docker compose up -d
 # The hub migrates the database when its container starts (docker/entrypoint.sh). Run one hub container per database
 # until migrations move to a one-shot service (Part 0 spec §1, decision 25).
 name: ai-app-hub

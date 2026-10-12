@@ -1,4 +1,3 @@
-// __tests__/db/errors.db.test.ts
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 
