@@ -20,7 +20,7 @@ The guide for every coding agent working on this line; Claude Code reads it thro
 - Commits: conventional (`feat|fix|docs|chore(scope): …`), in English.
 - PR descriptions follow `.github/PULL_REQUEST_TEMPLATE.md` (Overview / Changes table / Testing / Related Issue), in English, and name the ADRs they implement.
 - `.env` and `.env*.local` are git-ignored and never committed; never print their values. The owner's email is not sent to any service other than this app.
-- Frontend work follows `docs/frontend-conventions.md` (charter: `docs/superpowers/specs/2026-10-04-frontend-overhaul-charter.md`) and `.claude/rules/frontend.md`. Before touching a component, check antd's and Ant Design X's current docs: antd through its MCP server or the `antd` CLI (`antd doc`, `antd demo`, `antd token`), Ant Design X through its skills (`use-x-chat`, `x-chat-provider`, `x-request`, `x-markdown`, `x-components`, from `ant-design/x`'s `packages/x-skill/skills`).
+- Frontend work follows `docs/frontend-conventions.md` (charter: `docs/superpowers/specs/2026-10-04-frontend-overhaul-charter.md`) and `.claude/rules/frontend.md`. Before touching a component, check antd's and Ant Design X's current docs: antd through its `antd` skill and CLI (`antd doc`, `antd demo`, `antd token`), Ant Design X through its skills (`use-x-chat`, `x-chat-provider`, `x-request`, `x-markdown`, `x-components`). The skills are installed globally for every agent with the `skills` CLI (`npx skills add … -g`).
 
 ## Layout
 
