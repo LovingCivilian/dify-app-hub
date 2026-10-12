@@ -1,6 +1,6 @@
 # Part 1: The Provider-Neutral Core Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers-extended-cc:subagent-driven-development (recommended) or superpowers-extended-cc:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the app record, the admin flow and the user pages provider-neutral, with Dify as the first provider in a registry, so that Part 2's AG-UI provider plugs into named places; the Dify chat behaves exactly as before, apart from the annotate action.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Branch `feat/provider-core` from `fork/overhaul` (`dfeff12e`), created when execution starts. Nothing is pushed and no PR is opened until the owner says so; the PR then targets `fork/overhaul` (`gh pr create -R LovingCivilian/dify-app-hub --base fork/overhaul …`).
+- Branch `feat/provider-core` from `fork/overhaul` (`e459ca26` or later; after `dfeff12e`, PRs #42, #56 and the plan-format PR changed only `CLAUDE.md`, this plan and other docs no task touches), created when execution starts. Nothing is pushed and no PR is opened until the owner says so; the PR then targets `fork/overhaul` (`gh pr create -R LovingCivilian/dify-app-hub --base fork/overhaul …`).
 - Commits: conventional (`feat|fix|refactor|test|docs|chore(scope): …`), English, `git add <paths>`, never `-A`. Each message ends with the session's two trailers inside the same `-m` argument, after a blank line: `Co-Authored-By: <the implementer's model> <noreply@anthropic.com>` and `Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn`. The plan's commands show `Claude Opus 5.5`; an implementer on another model writes its own name.
 - ADR-0002: documented approaches only; every non-obvious choice carries its source in a comment, as the surrounding code does. The sources are the DV rows, the docs each task names, and the measurements under "Plan decisions".
 - Gates before each commit (CLAUDE.md): `pnpm exec next typegen && pnpm exec tsc --noEmit`, `pnpm exec oxlint <changed files>`, `pnpm exec oxfmt --check <changed files>`, `pnpm test`. A task that touches the data layer (`db/`, `lib/data/`, the documents) also runs `pnpm test:db`. A task that names e2e specs runs them.
@@ -31,7 +31,28 @@
 - Unit tests run in Vitest's node environment (no DOM); browser behaviour is proven by the e2e suite on `desktop-light`, `desktop-dark` and `mobile-light`.
 - Never read or print `.env` or `.env*.local`; never send an email address to any service.
 - Scratch files go to the repo's git-ignored `tmp/`, never `/tmp`; nothing under `tmp/` ends in `.ts` (`tsconfig.json` excludes `tmp`, but the scratch habit stays).
-- Line numbers are those of `dfeff12e` unless a step says "as of Task N"; earlier tasks shift some of them, so the quoted text decides. `oxfmt` strips the leading tabs of a fragment quoted from inside a function: find each "replace" fragment by its text and keep the indentation of the lines it replaces. A step that says "replace the whole of" a file gives the file's complete new content.
+- Line numbers are those of `dfeff12e` (still true for every file a task touches) unless a step says "as of Task N"; earlier tasks shift some of them, so the quoted text decides. `oxfmt` strips the leading tabs of a fragment quoted from inside a function: find each "replace" fragment by its text and keep the indentation of the lines it replaces. A step that says "replace the whole of" a file gives the file's complete new content.
+
+**User decisions (already made):**
+
+- Part 1 is the provider-neutral core (Dify as provider #1, behaviour unchanged), before the AG-UI and Dify-on-shared-chat parts (owner, 2026-10-11: "split them"; record decision 1)
+- Name, description, tags and icon are admin-owned for every provider, and the Dify sync is removed (owner, 2026-10-11; record decision 5)
+- Provider secrets stay plain text in Part 1, kept apart from settings, write-only in the form, with encryption deferred to the SMTP/LDAP work (owner, 2026-10-11; record decision 8)
+- The shape is a hybrid: a shared chat API and shared components for what providers have in common, plus per-provider specifics (owner, 2026-10-11: "somewhere in between. shared chat api for shared components between them. which is gonna be most of them. and per provider specific things"; record decision 9)
+- Part 0 is a fresh start (new PostgreSQL baseline, nothing copied from MySQL) and ids are `uuid` (owner, 2026-10-11: "specs looks good"; record decisions 14 and 27)
+- Provider settings are a `provider` column plus `settings jsonb` (no secrets) and `secrets jsonb`, each checked by the provider's zod schemas on every write and read; a new provider needs no migration (owner, 2026-10-11; option A of 3; record decision 17)
+- The Dify app type is an admin field, the form has a "Test connection" button that copies nothing, and saving never calls Dify (owner, 2026-10-11; record decision 18)
+- App icons are image-only: upload through ADR-0030's pipeline (PNG, JPEG or WebP in, PNG out, no SVG, size-capped) or leave empty for a provider fallback icon, and the emoji columns are dropped (owner, 2026-10-11; record decision 19)
+- Annotations are removed from the product (owner, 2026-10-11: "remove the annotations. I don't use that feature. that way all the options are the same. otherwise good"; record decision 21)
+- The gallery, the chat page at `/chat/[appId]` and the Dify chat (unchanged apart from the annotate action) follow the approved user-side design (owner, 2026-10-11: "good"; record decision 22)
+- `apps.provider` is `text` with a CHECK listing the known ids plus the registry's zod check, not a PostgreSQL enum (owner, 2026-10-11; recommended option; record decision 24)
+- Migrations keep running in the container's entrypoint (owner, 2026-10-11; record decision 25)
+- "Add app" and "Edit app" use layout B: the provider choice sits at the top of the drawer, and editing makes it read-only (owner, 2026-10-11, chosen from three mockups; record decision 29)
+- The UI components are the owner's picks E1–E11 and nothing outside them: E1 to E4 picked by the owner (a plain `Select`, today's Drawer, plain Dividers with no Collapse, Upload + Button with a square Avatar), E5 to E11 delegated ("for the rest do as you see fit. vanilla showcase style"), full list in `ui-picks-part1.md` (record decision 30)
+- Part 1's spec is approved, including the choices decision 31 lists (owner, 2026-10-11: "go"; record decision 32)
+- The icon's input cap is 512 KB (owner, 2026-10-12: "Cap at 512 KB"; record decision 37)
+- The icon's Remove is a default Button with `DeleteOutlined`, as on the branding page (owner, 2026-10-12: "Default, like branding"; record decision 37)
+- The local folders and Claude Code's memory directory keep their paths until after Part 3 (owner, 2026-10-12: "how about moving naming the folder it self to last? cause currently im on remote and can't edit files"; record decision 35)
 
 ## Review Focus
 
@@ -96,12 +117,14 @@ Measured while planning, against a throwaway `postgres:18` (the e2e service, 127
 | 11 Table, DAL, actions | three migrations, `__tests__/{apps-schema,db-apps-migrations,data-apps-reads}.test.ts`, `__tests__/db/{apps-migration,apps}.db.test.ts` | `db/schema/apps.ts`, `lib/data/apps.ts`, `app/(admin)/app-management/{actions,schemas}.ts`, `components/admin/apps/*`, `api-base-rule.ts` → `components/provider-ui/dify/`, locales (the sync keys), e2e seeds | `__tests__/data-apps-sync.test.ts` |
 | 12 Drawer, layout B | `components/admin/apps/{required-mark,icon-field,connection-test}.tsx`, `connection-outcome.ts`, `components/provider-ui/{provider-form-section.tsx,dify/form-section.tsx}` | `app-form-drawer.tsx`, `app-common-fields.tsx` (renamed), `app-management.tsx` (`tagOptions`), `components/provider-ui/registry.tsx` (`typeName`), locales, stub, `e2e/admin-apps.spec.ts`; test `__tests__/connection-outcome.test.ts` | `app-settings-fields.tsx` (renamed) |
 | 13 Table | `__tests__/provider-boundary.test.ts` | `components/provider-ui/registry.tsx`, `app-management.tsx`, locales, `e2e/admin-apps.spec.ts` | — |
-| 14 Records | ADR-0032 | ADR index, ADR-0023/0026/0027/0030, `CLAUDE.md`, `docs/{frontend-conventions,auth-gate}.md`, `.cii-assessment.md` | — |
+| 14 Records | ADR-0032 | ADR index, ADR-0023/0026/0027/0030, `docs/{frontend-conventions,auth-gate}.md`, `.cii-assessment.md` | — |
 | 15 Gates | — | — (Step 16 accepts ADR-0032 on the owner's word; outside the repo, Step 9's backup and the `part0` image tag) | — |
 
 ---
 
 ### Task 1: `@ant-design/icons` 6.3.4, one copy in the tree
+
+**Goal:** The hub depends on @ant-design/icons 6.3.4 so that one copy is installed and shared with antd and Ant Design X.
 
 Spec §8 and decision 28. antd 6.6.5 depends on `^6.3.4` and Ant Design X 2.9.0 on `^6.0.0`, while the hub's own imports resolve 5.6.1, so both majors ship. antd's v5 → v6 migration guide (`antd migrate 5 6 --format json`, the "Global" item): "@ant-design/icons must be upgraded to v6. Icons v6 is not compatible with antd v5."
 
@@ -109,6 +132,17 @@ Spec §8 and decision 28. antd 6.6.5 depends on `^6.3.4` and Ant Design X 2.9.0 
 
 - Create: `__tests__/icons-version.test.ts`
 - Modify: `package.json` (line 27 `"@ant-design/icons": "^5.6.1"`), `pnpm-lock.yaml` (by pnpm)
+
+**Acceptance Criteria:**
+
+- [ ] `__tests__/icons-version.test.ts` exists, and before the bump its two cases fail (Step 2: 2 failed).
+- [ ] After the bump, `pnpm exec vitest run --project unit __tests__/icons-version.test.ts` reports 2 passed: 'resolves to the copy antd uses' and 'resolves to the copy Ant Design X uses'.
+- [ ] `package.json` line 27 reads `"@ant-design/icons": "^6.3.4",`.
+- [ ] `pnpm why @ant-design/icons` shows one version, `@ant-design/icons@6.3.4`, with no 'Found 2 versions'.
+- [ ] The Step 4 script prints `sources [ '@ant-design/icons' ] count 52 missing []`.
+- [ ] `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test` prints nothing from tsc and every unit test passes.
+
+**Verify:** `pnpm exec vitest run --project unit __tests__/icons-version.test.ts && pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test && pnpm exec oxlint __tests__/icons-version.test.ts && pnpm exec oxfmt --check __tests__/icons-version.test.ts` → 2 passed; tsc prints nothing; all unit tests pass; no lint or format findings
 
 **Interfaces:**
 
@@ -212,6 +246,8 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 2: The envelope and the request helpers under neutral names (`lib/http`)
 
+**Goal:** The error envelope, the no-store JSON answer, the parse helpers and the browser request error live in neutral lib/http modules, with a ProviderError base class and the action code provider_unreachable.
+
 Spec §3 (`lib/http/`) and §7. The envelope, the no-store JSON answer, the `parse*` helpers and the browser's request error leave `lib/dify` under neutral names: `errorResponse` (was `difyErrorResponse`), `forbiddenResponse`, `errorResponseFrom`, `jsonNoStore` (was `difyJson`), `ErrorBody`/`isErrorBody` (were `DifyErrorBody`/`isDifyErrorBody`), `parseJsonBody`, `parseQuery`, `parsePathParams`, `parseFilePart`, and `RequestError`/`readRequestError` (were `DifyRequestError`/`readDifyError`). A new base class, `ProviderError`, lets `errorResponseFrom` and `toActionFailure` answer a provider's error without importing the provider (Plan decision r). The action code `dify_unreachable` becomes `provider_unreachable` (spec §7). Nothing changes in behaviour.
 
 **Files:**
@@ -220,6 +256,17 @@ Spec §3 (`lib/http/`) and §7. The envelope, the no-store JSON answer, the `par
 - Rename: `__tests__/dify-response.test.ts` → `__tests__/http-response.test.ts`
 - Delete: `lib/dify/response.ts`
 - Modify: `lib/dify/{errors,schemas,route,browser}.ts`, `lib/action-failure.ts`, `lib/action-result.ts`, `lib/data/db-errors.ts` (a comment), `components/admin/apps/app-errors.ts`, `components/chat/provider/dify-fetch.ts`, `locales/{en,zh,ar}/translation.json`, `e2e/admin-apps.spec.ts`, `__tests__/{dify-errors,dify-schemas}.test.ts`; and, by the rename script in Step 8, every other file that names the old helpers: `app/api/dify/[appId]/**/route.ts` (the 25 files), `app/api/apps/[appId]/icon/route.ts`, `app/api/branding/{logo,favicon}/route.ts`, `app/api/directory/groups/route.ts`, `lib/settings/image-response.ts`, `components/admin/groups/directory-group-select.tsx`, `components/chat/**` (the `DifyRequestError` mentions), `__tests__/{action-failure,app-errors,app-management-actions,user-errors,dify-browser,dify-fetch,chat-dify-errors,chat-use-dify-chat}.test.ts`
+
+**Acceptance Criteria:**
+
+- [ ] `__tests__/http-errors.test.ts`, `__tests__/http-parse.test.ts` and `__tests__/http-response.test.ts` exist; before `lib/http` is written they fail with 'Failed to resolve import "@/lib/http/errors"' (or `…/parse`, `…/response`).
+- [ ] `lib/http/errors.ts`, `lib/http/response.ts`, `lib/http/parse.ts` and `lib/http/browser.ts` exist and `lib/dify/response.ts` is removed.
+- [ ] `pnpm exec vitest run --project unit` over http-errors, http-parse, http-response, dify-errors, dify-schemas, action-failure, app-errors, dify-browser, dify-fetch, chat-dify-errors and i18n-locales passes for every file (Step 10).
+- [ ] `git grep -nE "DifyRequestError|readDifyError|difyErrorResponse|difyJson|DifyErrorBody|isDifyErrorBody|dify_unreachable|lib/dify/response" -- ':!docs'` prints nothing.
+- [ ] `pnpm exec next typegen && pnpm exec tsc --noEmit` prints nothing.
+- [ ] `pnpm test` passes (the moved cases plus the two new ones).
+
+**Verify:** `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm exec oxlint $(git diff --name-only --diff-filter=AMR HEAD -- '*.ts' '*.tsx') lib/http/*.ts __tests__/http-*.test.ts && pnpm exec oxfmt --check $(git diff --name-only --diff-filter=AMR HEAD -- '*.ts' '*.tsx' '*.json') lib/http/*.ts __tests__/http-*.test.ts && pnpm test` → tsc prints nothing; no lint or format findings; all unit tests pass
 
 **Interfaces:**
 
@@ -1062,7 +1109,7 @@ Run: `pnpm exec vitest run --project unit __tests__/http-errors.test.ts __tests_
 
 - [ ] **Step 11: Check that no old name is left, then run the gates**
 
-Run: `git grep -nE "DifyRequestError|readDifyError|difyErrorResponse|difyJson|DifyErrorBody|isDifyErrorBody|dify_unreachable|lib/dify/response" -- ':!docs'` Expected: one line, `CLAUDE.md:63:` (its `difyJson` pointer; Task 14 rewrites it).
+Run: `git grep -nE "DifyRequestError|readDifyError|difyErrorResponse|difyJson|DifyErrorBody|isDifyErrorBody|dify_unreachable|lib/dify/response" -- ':!docs'` Expected: no output (since PR #56, `CLAUDE.md` names none of these).
 
 Run: `pnpm exec oxfmt $(git diff --name-only --diff-filter=AMR HEAD -- '*.ts' '*.tsx' '*.json') lib/http/*.ts __tests__/http-*.test.ts` Expected: the files are written; the split imports are sorted into place.
 
@@ -1089,12 +1136,25 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 3: `lib/dify` moves to `lib/providers/dify`
 
+**Goal:** The Dify client, types, schemas, remote-file guard and browser client sit under lib/providers/dify with every import path updated and no name changed.
+
 Spec §3 and §7: the Dify client, types, request schemas, the remote-file guard and the browser client become the first provider module. The move changes paths only; every name stays (`difyClient`, `createDifyApi`, `resolveDifyRoute`, `DifyError`, …; spec §7: Dify-only code keeps the Dify name).
 
 **Files:**
 
 - Rename: `lib/dify/` → `lib/providers/dify/` (`browser.ts`, `client.ts`, `errors.ts`, `remote-file.ts`, `route.ts`, `schemas.ts`, `types/{annotations,app,chat,events,files,human-input,index,workflow}.ts`)
 - Modify (the path only, by the script in Step 3): every file that names `lib/dify/` — the 25 `app/api/dify/[appId]/**/route.ts`, `lib/data/apps.ts`, `app/(admin)/app-management/schemas.ts`, `components/admin/apps/{admin-app-row.ts,annotation-form-modal.tsx,annotations-panel.tsx}`, `components/apps/{app-icon.tsx,app-modes.ts,app-summary.ts}`, `components/chat/**`, `db/schema/apps.ts` (a comment), `e2e/malformed-ids.spec.ts` (a comment), and the `__tests__` files that import or mock `@/lib/dify/…`
+
+**Acceptance Criteria:**
+
+- [ ] `git mv lib/dify lib/providers/dify` shows the eight `types/` files and the six modules as renamed (`R  lib/dify/… -> lib/providers/dify/…`).
+- [ ] Before the rewrite, `pnpm exec next typegen && pnpm exec tsc --noEmit 2>&1 | grep -c "Cannot find module '@/lib/dify/"` prints a positive count.
+- [ ] `git grep -n "lib/dify/" -- ':!docs'` returns only `.cii-assessment.md` lines 59 and 60.
+- [ ] `pnpm exec next typegen && pnpm exec tsc --noEmit` prints nothing.
+- [ ] `pnpm exec oxlint` and `pnpm exec oxfmt --check` on the changed .ts/.tsx files report no findings.
+- [ ] `pnpm test` passes with the same count as after Task 2.
+
+**Verify:** `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm exec oxlint $(git diff --name-only --diff-filter=AMR HEAD -- '*.ts' '*.tsx') && pnpm exec oxfmt --check $(git diff --name-only --diff-filter=AMR HEAD -- '*.ts' '*.tsx') && pnpm test` → tsc prints nothing; no findings; PASS with the same test count as after Task 2
 
 **Interfaces:**
 
@@ -1113,7 +1173,7 @@ Run: `pnpm exec next typegen && pnpm exec tsc --noEmit 2>&1 | grep -c "Cannot fi
 
 Run: `git grep -lz "lib/dify/" -- app components hooks lib __tests__ e2e db | xargs -0 sed -i 's#lib/dify/#lib/providers/dify/#g'` Expected: no output. The substitution is idempotent (`lib/providers/dify/` does not contain `lib/dify/`), and it also updates the comments that name a file (`db/schema/apps.ts:18`, `e2e/malformed-ids.spec.ts:32`, the chat's "(lib/dify/browser.ts)" remarks).
 
-Run: `git grep -n "lib/dify/" -- ':!docs'` Expected: only `CLAUDE.md` lines (its decision lines and structure pointers) and `.cii-assessment.md` lines 59 and 60; Task 14 rewrites them.
+Run: `git grep -n "lib/dify/" -- ':!docs'` Expected: only `.cii-assessment.md` lines 59 and 60; Task 14 rewrites them.
 
 - [ ] **Step 4: Format and run the gates**
 
@@ -1144,6 +1204,8 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 4: Annotations removed
 
+**Goal:** The Dify annotation feature (routes, client and browser methods, admin drawer/panel/modal, chat annotate action, app switch, i18n keys, stub endpoints and their tests) is gone.
+
 Spec §6 and decision 21 ("remove the annotations. I don't use that feature. that way all the options are the same"). The two Dify annotation routes, their client, browser and schema pieces, the admin drawer, panel and modal, the chat's annotate action and drawer, the app's annotation switch (`annotationEnabled` everywhere; the `enable_annotation` column itself is dropped by Task 11's migration and is no longer read or written from here on), the i18n keys, the stub's endpoints and every test of them go. The Dify routes' re-export of `forbiddenResponse` goes with its last users (Plan decision y).
 
 **Files:**
@@ -1151,6 +1213,17 @@ Spec §6 and decision 21 ("remove the annotations. I don't use that feature. tha
 - Delete: `app/api/dify/[appId]/apps/annotations/route.ts`, `app/api/dify/[appId]/apps/annotations/[annotationId]/route.ts`, `lib/providers/dify/types/annotations.ts`, `components/admin/apps/{annotations-drawer,annotations-panel,annotation-form-modal}.tsx`, `components/chat/chat-view/annotation-drawer.tsx`
 - Modify: `lib/providers/dify/{client,browser,schemas,route}.ts`, `lib/providers/dify/types/index.ts`, `lib/data/apps.ts`, `app/(admin)/app-management/schemas.ts`, `components/admin/apps/{admin-app-row.ts,app-actions.tsx,app-form-values.ts,app-management.tsx,app-settings-fields.tsx}`, `components/chat/chat-view/{chat-view.tsx,message-actions.ts,message-footer.tsx}`, `locales/{en,zh,ar}/translation.json`, `e2e/fixtures/stub/{apps,router,store}.ts`, `e2e/auth.setup.ts`, `e2e/{admin-apps,chat-feedback,roles,screenshots}.spec.ts`, `lib/auth/roles.ts` (a comment)
 - Test: `__tests__/{api-routes,chat-message-actions,dify-client,dify-browser,dify-schemas,dify-routes-files,admin-app-row,app-form-values,app-management-schemas,app-management-actions,app-summary,apps-page,chat-page,data-apps,data-apps-sync,stub-events,stub-router}.test.ts`
+
+**Acceptance Criteria:**
+
+- [ ] The files listed under Delete no longer exist: both `app/api/dify/[appId]/apps/annotations/**/route.ts`, `lib/providers/dify/types/annotations.ts`, `components/admin/apps/{annotations-drawer,annotations-panel,annotation-form-modal}.tsx` and `components/chat/chat-view/annotation-drawer.tsx`.
+- [ ] `__tests__/api-routes.test.ts` (no route file includes 'annotations'), `__tests__/dify-browser.test.ts` case 'has no annotation method', `__tests__/chat-message-actions.test.ts` and `__tests__/dify-client.test.ts` 'covers every method of the client' pass; they fail before the removal in Step 2.
+- [ ] `git grep -n -i "annotat" -- app components hooks lib __tests__ e2e locales` returns only the listed exceptions (`lib/providers/dify/types/app.ts` annotation_reply, `e2e/fixtures/stub/scenarios.ts` annotation_reply, `e2e/auth.setup.ts` Playwright annotations, and this task's new comment/test lines in `__tests__/api-routes.test.ts`, `__tests__/dify-browser.test.ts`, `e2e/chat-feedback.spec.ts`, `e2e/roles.spec.ts`); nothing in `e2e/screenshots.spec.ts` or `lib/auth/roles.ts`.
+- [ ] `pnpm exec next typegen && pnpm exec tsc --noEmit` prints nothing.
+- [ ] `pnpm test` passes.
+- [ ] `pnpm test:e2e e2e/roles.spec.ts e2e/chat-feedback.spec.ts e2e/screenshots.spec.ts --project desktop-light` passes.
+
+**Verify:** `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm exec oxlint $(git diff --name-only --diff-filter=AMR HEAD -- '*.ts' '*.tsx') && pnpm exec oxfmt --check $(git diff --name-only --diff-filter=AMR HEAD -- '*.ts' '*.tsx' '*.json') && pnpm test && pnpm test:e2e e2e/roles.spec.ts e2e/chat-feedback.spec.ts e2e/screenshots.spec.ts --project desktop-light` → tsc prints nothing; no findings; unit tests and the three e2e specs pass
 
 **Interfaces:**
 
@@ -1527,12 +1600,25 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 5: Neutral wording on the users page and in the shared copy
 
+**Goal:** The users page names the account id column 'User ID' and the shared copy no longer names Dify, with a locale test that keeps Dify's name inside Dify-only areas.
+
 Spec §5 ("The users page") and §7: "Dify user ID" becomes "User ID" (`admin_users.user_id`, CSS class `userId`), and the keys that name Dify in neutral places are reworded: `admin_apps.subtitle`, `app.no_config_default_text`, and `admin_users.delete_directory_confirm_description` (Plan decision z). A locale test keeps Dify's name inside the Dify-only areas from now on.
 
 **Files:**
 
 - Modify: `components/admin/users/user-management.tsx` (lines 150–155), `components/admin/users/user-management.module.css` (line 4), `locales/{en,zh,ar}/translation.json`, `e2e/admin-users.spec.ts`
 - Test: `__tests__/i18n-locales.test.ts`
+
+**Acceptance Criteria:**
+
+- [ ] `__tests__/i18n-locales.test.ts` case 'names Dify only where the copy is about Dify' exists; before the rewording it fails listing `['admin_apps.subtitle', 'admin_users.delete_directory_confirm_description', 'admin_users.dify_user_id', 'app.no_config_default_text']`, and afterwards `pnpm exec vitest run --project unit __tests__/i18n-locales.test.ts` passes.
+- [ ] `git grep -n "dify_user_id\|difyUserId" -- ':!docs'` returns no output.
+- [ ] `admin_users.user_id` is 'User ID' in en (and translated in zh and ar), and `admin_users.dify_user_id` is removed from all three `locales/{en,zh,ar}/translation.json`.
+- [ ] The users table column uses `key: 'userId'` and the CSS class `.userId` in `components/admin/users/user-management.module.css`.
+- [ ] `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test` prints nothing from tsc and passes.
+- [ ] `pnpm test:e2e e2e/admin-users.spec.ts --project desktop-light` passes.
+
+**Verify:** `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test && pnpm exec oxlint components/admin/users/user-management.tsx __tests__/i18n-locales.test.ts && pnpm exec oxfmt --check components/admin/users/user-management.tsx components/admin/users/user-management.module.css __tests__/i18n-locales.test.ts locales/en/translation.json locales/zh/translation.json locales/ar/translation.json e2e/admin-users.spec.ts && pnpm test:e2e e2e/admin-users.spec.ts --project desktop-light` → tsc prints nothing; unit tests pass; no findings; the e2e spec passes
 
 **Interfaces:**
 
@@ -1650,7 +1736,7 @@ In `components/admin/users/user-management.module.css`, replace line 4 `.difyUse
 
 Run: `pnpm exec vitest run --project unit __tests__/i18n-locales.test.ts` Expected: PASS.
 
-Run: `git grep -n "dify_user_id\|difyUserId" -- ':!docs'` Expected: no output. (`CLAUDE.md` and `docs/auth-gate.md` say "Dify user ID" in words; Task 14 rewrites them.)
+Run: `git grep -n "dify_user_id\|difyUserId" -- ':!docs'` Expected: no output. (`docs/auth-gate.md` says "Dify user ID" in words; Task 14 rewrites it.)
 
 Run: `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test` Expected: tsc prints nothing; PASS.
 
@@ -1672,12 +1758,25 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 6: The provider ids and Dify's documents
 
+**Goal:** Add the client-safe provider id list, Dify's settings and secrets zod schemas, and the shared checkSettings/checkDocuments/mergeSecrets helpers, with nothing using them yet.
+
 Spec §2.1–§2.3 and §3 (`lib/providers/ids.ts`, `lib/providers/dify/schema.ts`). Decision 17: each provider has zod schemas for its `settings` and `secrets` documents, checked on every write and read. The schemas are client-safe, so the admin form validates with the same rules the server parses (DV 9a); a client-safe map from provider id to schemas, `lib/providers/schemas.ts`, is the half of the registry the form and the data layer share (Plan decision d). Nothing uses these modules yet; Tasks 7, 9, 10 and 11 do.
 
 **Files:**
 
 - Create: `lib/providers/ids.ts`, `lib/providers/dify/schema.ts`, `lib/providers/schemas.ts`
 - Test: `__tests__/provider-schemas.test.ts`
+
+**Acceptance Criteria:**
+
+- [ ] `pnpm exec vitest run --project unit __tests__/provider-schemas.test.ts` passes, including the cases 'are Dify only in Part 1' and 'each have their schemas (DV 11: the map is exhaustive)'.
+- [ ] In `__tests__/provider-schemas.test.ts`, the Dify settings cases 'reads a valid document and drops keys it does not know' and 'starts a new app as a chatbot with the switches off and no key' pass, and every 'refuses %s' case (unknown app type, no app type, ftp base, base without a scheme, base over 500 characters, submit text over 255 characters, unknown opener display) passes.
+- [ ] The secrets cases pass: 'takes a key of 1–255 characters, trimmed', the 'refuses %s' cases for an empty, blank and over-255 key, and 'reads a blank key on an edit as not given'.
+- [ ] `checkDocuments` cases 'refuses an unknown provider' and 'says which document failed' pass, answering `unknown_provider`, `invalid_settings` and `invalid_secrets` as the test states, and the `checkSettings` and `mergeSecrets` describe blocks pass.
+- [ ] `lib/providers/ids.ts`, `lib/providers/dify/schema.ts` and `lib/providers/schemas.ts` exist, and `pnpm exec next typegen && pnpm exec tsc --noEmit` prints nothing.
+- [ ] `pnpm test` passes, and `pnpm exec oxlint` and `pnpm exec oxfmt --check` on the four task files report no findings.
+
+**Verify:** `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test && pnpm exec oxlint lib/providers/ids.ts lib/providers/schemas.ts lib/providers/dify/schema.ts __tests__/provider-schemas.test.ts && pnpm exec oxfmt --check lib/providers/ids.ts lib/providers/schemas.ts lib/providers/dify/schema.ts __tests__/provider-schemas.test.ts` → tsc prints nothing; tests PASS; no lint or format findings
 
 **Interfaces:**
 
@@ -2066,6 +2165,8 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 7: The server registry and Dify's Test connection
 
+**Goal:** Add the server-only provider registry and Dify's GET /info connection test, through a new raw fetchInfo client method, so DTOs can be built without importing Dify.
+
 Spec §3 (`lib/providers/registry.ts`) and §4.2 (decision 18). The server-only registry holds, per provider, the schemas of Task 6, its `testConnection(settings, secrets)` and what of its settings each DTO carries (Plan decision e), so the neutral data layer builds the DTOs without importing Dify (spec §11). Dify's test is `GET /info` with the key, read by a new raw client method so that an OK answer that is not Dify's JSON is an upstream error, not "unreachable" (Plan decision f).
 
 **Files:**
@@ -2073,6 +2174,18 @@ Spec §3 (`lib/providers/registry.ts`) and §4.2 (decision 18). The server-only 
 - Create: `lib/providers/connection.ts`, `lib/providers/dify/test-connection.ts`, `lib/providers/dify/provider.ts`, `lib/providers/registry.ts`
 - Modify: `lib/providers/dify/client.ts` (after `getInfo`, line 207 as of Task 4)
 - Test: `__tests__/provider-registry.test.ts`, `__tests__/dify-test-connection.test.ts`, `__tests__/dify-client.test.ts`
+
+**Acceptance Criteria:**
+
+- [ ] `pnpm exec vitest run --project unit __tests__/dify-test-connection.test.ts __tests__/provider-registry.test.ts __tests__/dify-client.test.ts` passes.
+- [ ] In `__tests__/dify-test-connection.test.ts`, 'calls GET <base>/info with the key as a bearer', 'is reachable when Dify answers with the chosen type' and 'warns, still reachable, when Dify reports another type' pass.
+- [ ] The failure cases pass: "answers key_refused on Dify's 401", 'answers unreachable on a network failure', the 'answers unreachable on %s' cases (502 page, Dify's 500, 503) and 'answers unreachable when Dify does not answer within 10 s' with `CONNECTION_TEST_TIMEOUT_MS` equal to 10_000.
+- [ ] The 'answers upstream_error on %s' cases pass, including 'an OK answer that is not JSON' (the Review Focus 3 case, a base without /v1).
+- [ ] `__tests__/provider-registry.test.ts` passes: 'has one definition per provider id (DV 11)', 'answers undefined for an id it does not know, with no fallback (DV 11)', and the DTO-field cases showing the chat fields never contain the API base and the secrets-set result never contains the key value.
+- [ ] `__tests__/dify-client.test.ts` passes with the new `fetchInfo` operation entry, and 'covers every method of the client' passes.
+- [ ] `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test` passes with tsc printing nothing, and oxlint and oxfmt --check report no findings on the task files.
+
+**Verify:** `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test && pnpm exec oxlint lib/providers __tests__/dify-test-connection.test.ts __tests__/provider-registry.test.ts __tests__/dify-client.test.ts && pnpm exec oxfmt --check lib/providers/connection.ts lib/providers/registry.ts lib/providers/dify/provider.ts lib/providers/dify/test-connection.ts lib/providers/dify/client.ts __tests__/dify-test-connection.test.ts __tests__/provider-registry.test.ts __tests__/dify-client.test.ts` → tsc prints nothing; tests PASS; no findings
 
 **Interfaces:**
 
@@ -2457,6 +2570,8 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 8: The app icon as an image kind of the settings pipeline
 
+**Goal:** Make the app icon a third image kind of ADR-0030's settings pipeline (PNG, JPEG or WebP in, PNG at most 256 px out, 512 KB input cap), renaming the pipeline's brand-specific names, with branding behaviour unchanged.
+
 Spec §4.4: the icon goes through `lib/settings/images.ts`, ADR-0030's pipeline, as a new image kind, `appIcon`: PNG, JPEG or WebP in; sharp with `limitInputPixels`, auto-orient and metadata stripped; re-encoded to PNG; at most 256 × 256 px, in proportion; an input cap. The pipeline's names lose "brand" now that it serves app icons too (`processImage`, `ImageError`, `IMAGE_MIME_TYPES`, `ImageErrorCode` in a new client-safe `lib/settings/image-rules.ts`), with no change for the branding images.
 
 The input cap is **512 KB** (`APP_ICON_MAX_BYTES = 512 * 1024`), the owner's answer of 2026-10-12 (Plan decision af): a save with the icon stays under Next's default 1 MB Server Action body, as the branding logo's does.
@@ -2466,6 +2581,17 @@ The input cap is **512 KB** (`APP_ICON_MAX_BYTES = 512 * 1024`), the owner's ans
 - Create: `lib/settings/image-rules.ts`
 - Modify: `lib/settings/images.ts` (whole file), `lib/settings/branding-rules.ts` (lines 19–24), `lib/settings/branding.ts` (the names, by the script in Step 4), `components/admin/settings/branding-settings.tsx` (lines 28–34, 109, 114)
 - Test: `__tests__/settings-images.test.ts`
+
+**Acceptance Criteria:**
+
+- [ ] `pnpm exec vitest run --project unit __tests__/settings-images.test.ts __tests__/settings-branding.test.ts __tests__/branding-actions.test.ts` passes, the branding cases unchanged.
+- [ ] In `__tests__/settings-images.test.ts`, the describe 'processImage for an app icon (Part 1 spec §4.4)' passes: the limits case (PNG/JPEG/WebP, 256 px, 512 KB), 're-encodes a %s icon as a PNG inside 256 × 256, in proportion' for png, jpeg and webp, and 'does not enlarge a small icon'.
+- [ ] 'refuses an SVG icon as not_allowed' and 'refuses an icon over its byte limit before decoding' pass in `__tests__/settings-images.test.ts`.
+- [ ] `git grep -nE "processBrandImage|BrandImageError|BRAND_IMAGE_MIME_TYPES|BRAND_IMAGE_ERROR_CODES|BrandImageErrorCode" -- ':!docs'` prints no output.
+- [ ] `lib/settings/image-rules.ts` exists and `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test` passes with tsc printing nothing.
+- [ ] `pnpm exec oxlint` and `pnpm exec oxfmt --check` on the task files report no findings.
+
+**Verify:** `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test && git grep -nE "processBrandImage|BrandImageError|BRAND_IMAGE_MIME_TYPES|BRAND_IMAGE_ERROR_CODES|BrandImageErrorCode" -- ':!docs'; pnpm exec oxlint lib/settings components/admin/settings/branding-settings.tsx __tests__/settings-images.test.ts && pnpm exec oxfmt --check lib/settings/images.ts lib/settings/image-rules.ts lib/settings/branding-rules.ts lib/settings/branding.ts components/admin/settings/branding-settings.tsx __tests__/settings-images.test.ts` → tsc prints nothing; tests PASS; the grep prints no output; no lint or format findings
 
 **Interfaces:**
 
@@ -2713,6 +2839,8 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 9: The shared route guard and the checked documents
 
+**Goal:** Add the shared resolveAppRoute guard and have getAppAccess return an app's documents as its provider's schemas read them, with resolveDifyRoute built on the guard and the 25 Dify routes unchanged.
+
 Spec §2.3 and §3 (`lib/providers/route.ts`). `getAppAccess` answers the final `AppAccess` — `{ id, enabled }` plus the app's documents as its provider's schemas read them — and `resolveAppRoute(params, provider)` is the shared guard: session → `z.uuid()` on the id → `getAppAccess` (visibility) → enabled → provider match, answering 401, 404 `app_not_found` (unknown, invisible, malformed or another provider's) or 403 `app_disabled` in the envelope. `resolveDifyRoute` wraps it and builds today's Dify context from `settings.apiBase` and `secrets.apiKey`; the 25 Dify routes do not change.
 
 The table still has Part 0's columns until Task 11. Here the settings document is read from them through `storedSettings(row)`, which maps the columns exactly as Task 11's data migration will (spec §2.4), and the secrets document is `{ apiKey: row.apiKey }`; Task 11 replaces both with the two `jsonb` columns (Plan decision a). `readDocuments` — the check and its log line — stays as written here.
@@ -2722,6 +2850,18 @@ The table still has Part 0's columns until Task 11. Here the settings document i
 - Create: `lib/providers/route.ts`
 - Modify: `lib/data/apps.ts` (imports; `AppAccess`; `readAccess`; one line each in `updateApp` and `syncApp`), `lib/providers/dify/route.ts` (whole file)
 - Test: `__tests__/provider-route.test.ts` (new), `__tests__/dify-route.test.ts` (whole file), `__tests__/data-apps.test.ts`, `__tests__/data-apps-sync.test.ts`, `__tests__/dify-routes-{app,app-upstream,chat,files,run}.test.ts` (their `access` fixtures)
+
+**Acceptance Criteria:**
+
+- [ ] `pnpm exec vitest run --project unit` on `__tests__/provider-route.test.ts`, `__tests__/dify-route.test.ts`, `__tests__/data-apps.test.ts`, `__tests__/data-apps-sync.test.ts`, `__tests__/data-apps-access.test.ts` and the five `__tests__/dify-routes-{app,app-upstream,chat,files,run}.test.ts` passes.
+- [ ] `__tests__/provider-route.test.ts` passes: 401 before the id or app is looked at, 'answers a malformed id as an unknown app without reading it', 'answers 403 app_disabled for a disabled app, before the provider check', "answers another provider's app as unknown", and 'answers a logged 500 envelope when %s throws'.
+- [ ] `__tests__/dify-route.test.ts` passes, including 'builds the context with the account id as the Dify user, never the email, and a client from the documents'.
+- [ ] The `readDocuments` describe in `__tests__/data-apps.test.ts` passes: valid documents with no log line, and null for an unknown provider, broken settings and broken secrets, logging only the app id and the code and never 'app-secret' or 'dify.example'.
+- [ ] `git grep -n "credentials:" -- __tests__/dify-routes-*.test.ts` prints nothing after the sed in Step 5.
+- [ ] `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test` passes with tsc printing nothing, and oxlint and oxfmt --check report no findings.
+- [ ] `pnpm test:e2e e2e/chat.spec.ts e2e/malformed-ids.spec.ts e2e/app-access.spec.ts --project desktop-light` passes.
+
+**Verify:** `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test && pnpm exec oxlint lib/data/apps.ts lib/providers/route.ts lib/providers/dify/route.ts __tests__/provider-route.test.ts __tests__/dify-route.test.ts __tests__/data-apps.test.ts __tests__/data-apps-sync.test.ts && pnpm exec oxfmt --check lib/data/apps.ts lib/providers/route.ts lib/providers/dify/route.ts __tests__/provider-route.test.ts __tests__/dify-route.test.ts __tests__/data-apps.test.ts __tests__/data-apps-sync.test.ts __tests__/dify-routes-*.test.ts && pnpm test:e2e e2e/chat.spec.ts e2e/malformed-ids.spec.ts e2e/app-access.spec.ts --project desktop-light` → tsc prints nothing; unit tests PASS; no findings; e2e PASS
 
 **Interfaces:**
 
@@ -3293,6 +3433,8 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 10: The user side: the gallery, the chat page dispatch and the client registry
 
+**Goal:** Make the gallery and chat page provider-aware: the data layer returns provider-neutral AppSummary and ChatAppDto, cards name the provider and type with a provider fallback icon, and the chat page dispatches through ProviderChat to the unchanged Dify workspace.
+
 Spec §2.3 (`ChatAppDto`, `AppSummary`), §3 (`components/provider-ui/`) and §5. The gallery receives `AppSummary` straight from the data layer (the enabled apps the actor may use whose settings read cleanly); the card's description names the provider and, for Dify, the type ("Dify · Chatflow", E10); an app without a stored image shows its provider's fallback icon (E11: Dify `ApartmentOutlined`, unknown `AppstoreOutlined`). The chat page renders `ProviderChat`, the one client switch, which renders today's `ChatWorkspace` for Dify; the workspace reads `app.appType` where it read `app.mode` (three places), and its avatar `app.hasIcon` (the emoji branch goes, decision 19). The admin DTO's base, `AppDto`, trades `icon` for `provider` and `hasIcon` so the shared `AppIcon` serves the admin table too; Task 11 reshapes the rest of it.
 
 The DTO reads never select the secrets (Plan decision ab); they check the settings with `checkSettings` and log a refusal the way `readDocuments` does. They still read Part 0's columns through Task 9's `storedSettings` until Task 11.
@@ -3304,6 +3446,18 @@ The DTO reads never select the secrets (Plan decision ab); they check the settin
 - Delete: `components/apps/app-summary.ts`, `__tests__/app-summary.test.ts`
 - Modify: `lib/data/apps.ts`, `components/apps/{app-card,app-icon,app-gallery}.tsx`, `app/(user)/apps/page.tsx`, `app/(user)/chat/page.tsx`, `app/(user)/chat/[appId]/page.tsx`, `components/chat/{app-context,chat-workspace}.tsx`, `components/chat/hooks/use-workflow-run.ts` (line 33), `components/chat/workflow-view/workflow-view.tsx` (line 125), `components/chat/chat-view/conversation-sidebar.tsx` (`AppAvatar`), `components/admin/apps/app-management.tsx` (the `AppIcon` and the app-types import), `components/admin/apps/app-settings-fields.tsx` (the app-types import), `locales/{en,zh,ar}/translation.json`, `e2e/apps.spec.ts`, `e2e/chat-files.spec.ts`, `e2e/screenshots.spec.ts` (four readiness waits)
 - Test: `__tests__/{data-apps,data-apps-access,data-apps-sync,apps-page,chat-index-page,chat-page,app-form-values,i18n-locales}.test.ts`
+
+**Acceptance Criteria:**
+
+- [ ] `pnpm exec vitest run --project unit __tests__/provider-ui.test.ts __tests__/data-apps.test.ts __tests__/data-apps-access.test.ts __tests__/data-apps-sync.test.ts __tests__/apps-page.test.ts __tests__/chat-index-page.test.ts __tests__/chat-page.test.ts __tests__/app-form-values.test.ts __tests__/i18n-locales.test.ts` passes.
+- [ ] `__tests__/provider-ui.test.ts` passes: 'has an entry per provider id (DV 11)', 'gives each provider its fallback icon, and an unknown one the generic icon' and 'names the provider and the app type, or the provider alone'.
+- [ ] In `__tests__/data-apps.test.ts`, the DTO cases pass: the chat DTO never contains 'dify.example', the gallery card carries the provider and type only, and 'reads the settings alone for the DTO reads, with the same log line on a refusal'; in `__tests__/data-apps-access.test.ts` the 'listApps: the enabled apps under the whole rule for a user, the enabled apps for an admin' case passes.
+- [ ] `components/apps/app-summary.ts` and `__tests__/app-summary.test.ts` are removed, `components/apps/app-modes.ts` is renamed to `components/provider-ui/dify/app-types.ts`, and `grep -c "getByRole('img', { name: 'apartment' })" e2e/screenshots.spec.ts` prints `4` while `grep -c "🤖" e2e/screenshots.spec.ts` prints `0`.
+- [ ] `pnpm exec next typegen && pnpm exec tsc --noEmit` prints nothing and `pnpm test` passes.
+- [ ] `pnpm test:e2e e2e/apps.spec.ts e2e/chat.spec.ts e2e/chat-files.spec.ts e2e/workflow.spec.ts e2e/completion.spec.ts` passes on the three projects, including the new 'a card names its provider and type, and shows the provider icon when no image is stored' and 'an app without a stored image shows its first letter, not an emoji'.
+- [ ] `pnpm test:e2e e2e/screenshots.spec.ts --project desktop-light` passes.
+
+**Verify:** `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test && pnpm test:e2e e2e/apps.spec.ts e2e/chat.spec.ts e2e/chat-files.spec.ts e2e/workflow.spec.ts e2e/completion.spec.ts && pnpm test:e2e e2e/screenshots.spec.ts --project desktop-light` → tsc prints nothing; unit tests PASS; e2e PASS on the three projects, then the screenshots spec PASS on desktop-light
 
 **Interfaces:**
 
@@ -4293,6 +4447,8 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 11: The `apps` table, the admin's data layer and the save actions
 
+**Goal:** Replace the dify_apps table with a provider-neutral apps table (provider, settings and secrets documents) through three migrations, and move the admin data layer and save actions onto it, with the sync and old Dify columns removed.
+
 Spec §2 and §4.3. The table becomes `apps` with `provider`, `settings` and `secrets`, Part 0's rows kept (§2.4); the data layer reads and writes the documents in it through the registry (§2.3): the admin DTO with `invalid` and `secretsSet`, `createApp`/`updateApp` that validate both documents, keep a blank secret, keep the provider, store the icon through Task 8's pipeline and never call the provider (decision 18); the sync, its icon fetch and the old columns go (§2.3 "Removed"); `createAppAction`/`updateAppAction` take FormData, and `testAppConnectionAction` is new (§4.2). The admin form keeps its look until Task 12 and the table until Task 13; here they change only as far as the new values and DTO require.
 
 This is the "switch" task (Plan decision a): the table, the data layer and the actions change together, because tsc and the tests can be green only when the columns, the DTOs and the action inputs move as one. Between this task and Task 12, creating an app in the browser is refused (`invalid_input`: the form has no name field yet); editing works. The e2e cases of the old create flow go here and Task 12 brings the new ones.
@@ -4306,6 +4462,19 @@ The migration (Plan decision b) is three drizzle-kit migrations, applied in one 
 - Delete: `__tests__/data-apps-sync.test.ts`
 - Modify: `db/schema/apps.ts` (whole file, twice), `db/schema/app-grants.ts`, `db/schema/index.ts`, `db/schema/settings.ts` (a comment), `lib/data/apps.ts` (whole file), `lib/providers/schemas.ts` (`documentFieldErrors`), `lib/providers/dify/client.ts` (`fetchSignedFile` goes), `lib/action-result.ts`, `app/(admin)/app-management/{actions,schemas}.ts` (whole files), `components/admin/apps/{app-form-values.ts,app-form-drawer.tsx,app-settings-fields.tsx,app-actions.tsx,app-errors.ts,app-management.tsx}`, `e2e/auth.setup.ts`, `e2e/fixtures/{access,constants}.ts`, `e2e/fixtures/stub/apps.ts` (comments), `e2e/{admin-apps,chat-files}.spec.ts`, `locales/{en,zh,ar}/translation.json` (the sync keys), `__tests__/action-failure.test.ts` (a context string)
 - Test: `__tests__/{data-apps,data-apps-access,app-management-actions,app-management-schemas,app-form-values,app-errors,api-base-rule,b3a-schema,db-baseline,dify-client}.test.ts`, `__tests__/db/{database.ts,schema.db.test.ts}`
+
+**Acceptance Criteria:**
+
+- [ ] `pnpm db:generate` produces exactly three new migration folders after the baseline, `db/migrations/<timestamp>_apps_expand`, `db/migrations/<timestamp>_apps_data` and `db/migrations/<timestamp>_apps_contract`. The expand SQL renames the table (`ALTER TABLE "dify_apps" RENAME TO "apps";`) and adds `provider`, `settings` and `secrets` as nullable columns. The contract SQL drops the eleven Part 0 columns, sets NOT NULL, and adds `apps_provider_check` and `apps_icon_check`. A following `pnpm db:generate --name nothing` prints `No schema changes, nothing to migrate` and leaves four folders in `db/migrations`.
+- [ ] `__tests__/apps-schema.test.ts` (the apps table: its thirteen columns with no Dify column, the NOT NULL columns and defaults, and the two named CHECKs), `__tests__/db-apps-migrations.test.ts` ("Part 1's migrations": follow the baseline as expand, data and contract; rename; fill; then add the constraints and drop the eleven columns) and `__tests__/db-baseline.test.ts` pass.
+- [ ] `__tests__/db/apps-migration.db.test.ts` passes ("Part 1's migration on Part 0's rows (spec §2.4)"): Dify columns become the settings document, the key becomes the secrets, the provider becomes dify, an emoji icon becomes no icon, an image icon keeps its bytes, an app without a mode keeps appType null, the grants are kept, and no Part 0 column and no dify_apps table remain.
+- [ ] `__tests__/db/apps.db.test.ts` passes against live PostgreSQL: createApp and updateApp validate both documents, keep a blank stored secret, keep the provider, store icons as PNG inside 256 x 256, refuse non-PNG/JPEG/WebP icons with `invalid_image`, and never call the provider. The reads give the admin which secrets are set without their values, mark a broken row invalid, and hide it from users. `__tests__/db/schema.db.test.ts` also passes, including the refusals from `apps_provider_check` and `apps_icon_check` and the four-migration log check.
+- [ ] `__tests__/data-apps-reads.test.ts`, `__tests__/app-management-schemas.test.ts` and `__tests__/app-management-actions.test.ts` pass (including `createAppAction and updateAppAction (spec §4.3)` and `testAppConnectionAction`), along with `__tests__/app-form-values.test.ts` ("the drawer's values (spec §4.1)"). `__tests__/data-apps-sync.test.ts` is deleted.
+- [ ] `git grep -nE "syncApp|SyncResult|readIconBytes|iconColumnsFrom|fetchSignedFile|\bICON_MAX_BYTES\b|fetchDifyProfile|annotationEnabled" -- app components lib hooks __tests__ e2e` prints nothing. `git grep -nE "\bdifyApps\b|dify_apps" -- ':!docs' ':!db/migrations' ':!media'` prints only the lines the plan lists (the three migration test files, and the query texts in `__tests__/action-failure.test.ts` and `__tests__/http-errors.test.ts`).
+- [ ] `pnpm exec next typegen && pnpm exec tsc --noEmit` prints nothing, and the oxlint and oxfmt checks on the changed files report no findings.
+- [ ] `pnpm test:e2e e2e/admin-apps.spec.ts e2e/app-access.spec.ts e2e/admin-groups.spec.ts e2e/directory-groups.spec.ts e2e/apps.spec.ts e2e/chat.spec.ts e2e/chat-files.spec.ts e2e/malformed-ids.spec.ts` passes on desktop-light, desktop-dark and mobile-light, with the seeds moved onto the `apps` table.
+
+**Verify:** `git grep -nE "syncApp|SyncResult|readIconBytes|iconColumnsFrom|fetchSignedFile|\bICON_MAX_BYTES\b|fetchDifyProfile|annotationEnabled" -- app components lib hooks __tests__ e2e` → no output; `pnpm exec next typegen && pnpm exec tsc --noEmit` → no output; `pnpm test` → PASS; `pnpm test:db` → PASS, every file; oxlint and oxfmt --check on the changed files → no findings; `pnpm test:e2e e2e/admin-apps.spec.ts e2e/app-access.spec.ts e2e/admin-groups.spec.ts e2e/directory-groups.spec.ts e2e/apps.spec.ts e2e/chat.spec.ts e2e/chat-files.spec.ts e2e/malformed-ids.spec.ts` → PASS on the three projects
 
 **Interfaces:**
 
@@ -7432,7 +7601,7 @@ const values = [app.id, 'dify', app.name, 'icon', settings, secrets, ...Object.v
 
 - [ ] **Step 16: Run everything this task touches**
 
-Run: `git grep -nE "\bdifyApps\b|dify_apps" -- ':!docs' ':!db/migrations' ':!media'` Expected: only `CLAUDE.md`'s ADR-0027 line (Task 14 rewrites it); `__tests__/db/apps-migration.db.test.ts`, `__tests__/db-apps-migrations.test.ts` and `__tests__/db-baseline.test.ts` (the Part 0 table the baseline creates and the migrations start from); and the query texts in `__tests__/action-failure.test.ts` and `__tests__/http-errors.test.ts` (SQL a failed query carries, which the tests prove stays out of the log; the table name in them does not matter). (`media/archived/` is upstream's archived notes.)
+Run: `git grep -nE "\bdifyApps\b|dify_apps" -- ':!docs' ':!db/migrations' ':!media'` Expected: only `__tests__/db/apps-migration.db.test.ts`, `__tests__/db-apps-migrations.test.ts` and `__tests__/db-baseline.test.ts` (the Part 0 table the baseline creates and the migrations start from); and the query texts in `__tests__/action-failure.test.ts` and `__tests__/http-errors.test.ts` (SQL a failed query carries, which the tests prove stays out of the log; the table name in them does not matter). (`media/archived/` is upstream's archived notes.)
 
 Run: `git grep -nE "syncApp|SyncResult|readIconBytes|iconColumnsFrom|fetchSignedFile|\bICON_MAX_BYTES\b|fetchDifyProfile|annotationEnabled" -- app components lib hooks __tests__ e2e` Expected: no output. (The word boundaries keep Task 8's `APP_ICON_MAX_BYTES` out of the match: `_` is a word character. `syncApp` also covers `syncAppAction`, gone from `actions.ts` and `app-actions.tsx`; the two context strings of `action-failure.test.ts` were renamed in Step 8.)
 
@@ -7461,6 +7630,8 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 12: The drawer, layout B: the provider first, the shared fields, the provider's sections and Test connection
 
+**Goal:** Rebuild the admin app drawer so the provider is picked first, followed by the shared fields (name, description, tags, icon, access) and the provider's own sections with a Test connection button.
+
 Spec §4.1 and §4.2, decision 29 and the owner's picks E1–E8 (`ui-picks-part1.md`). Today's Drawer stays (E2). "Add app" opens it with the provider `Select` as its only row (E1); once a provider is picked, the shared sections and the provider's sections appear, and switching the provider before saving resets its fields to the new provider's defaults. "Edit app" opens the same drawer with the Select disabled (E8). The form is `layout="horizontal"` with responsive `labelCol`/`wrapperCol` spans (labels above the fields on a phone), and a `requiredMark` render that draws an asterisk on required fields and "(optional)" on the others (E3). Name, description (E6), tags (E5) and the icon (E4) are fields now; the Descriptions block goes (spec §6). The Dify section is Connection (API base, API key, App type, Test connection: E7), Conversation and More. The admin-form half of the client registry, `provider-form-section.tsx`, picks the provider's sections.
 
 The icon's Remove is a default Button with `DeleteOutlined`, as on the branding page: the owner's answer of 2026-10-12 (Plan decision ag).
@@ -7471,6 +7642,17 @@ The icon's Remove is a default Button with `DeleteOutlined`, as on the branding 
 - Rename: `components/admin/apps/app-settings-fields.tsx` → `components/admin/apps/app-common-fields.tsx` (whole file rewritten)
 - Modify: `components/admin/apps/app-form-drawer.tsx` (whole file), `components/admin/apps/app-management.tsx` (the drawer's `tagOptions`), `components/provider-ui/registry.tsx` (`typeName`), `locales/{en,zh,ar}/translation.json`, `e2e/fixtures/stub/router.ts`, `e2e/admin-apps.spec.ts`
 - Test: `__tests__/provider-ui.test.ts`, `__tests__/stub-router.test.ts`, `__tests__/i18n-locales.test.ts` (unchanged; it checks the new keys)
+
+**Acceptance Criteria:**
+
+- [ ] `pnpm exec vitest run --project unit __tests__/connection-outcome.test.ts __tests__/provider-ui.test.ts __tests__/stub-router.test.ts __tests__/i18n-locales.test.ts` passes, including the `connectionOutcome` cases, the `typeName` case ('names a type, or gives a type it does not know back as written') and the stub cases "answers Dify's 401 for the refused key, on any path" and 'drops the connection for a path under /v1/unreachable'.
+- [ ] `git grep -nE "api_secret|section_request|app-settings-fields|AppSettingsFields" -- app components lib locales __tests__ e2e` returns no output.
+- [ ] `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test` prints no tsc output and passes.
+- [ ] oxlint and `oxfmt --check` on `components/admin/apps`, `components/provider-ui`, `e2e/fixtures/stub/router.ts`, the three test files and `locales` report no findings; `pnpm exec antd lint components/admin/apps components/provider-ui --format json` names no deprecated prop; `pnpm i18n:lint` reports no hardcoded text in those two folders.
+- [ ] `pnpm test:e2e e2e/admin-apps.spec.ts e2e/apps.spec.ts e2e/app-access.spec.ts` passes on desktop-light, desktop-dark and mobile-light, including 'each opening of the drawer starts from its own app, and New starts with the provider alone', 'an admin adds a Dify app: the provider, its fields, a passing test, and the save', 'Test connection warns of another type, and reports a refused key and an unreachable base' and 'an edit keeps the provider and a blank key, and replaces then removes the icon'.
+- [ ] The new files exist: `components/admin/apps/{required-mark.tsx,icon-field.tsx,connection-test.tsx,connection-outcome.ts}`, `components/provider-ui/provider-form-section.tsx`, `components/provider-ui/dify/form-section.tsx`, and `app-settings-fields.tsx` is renamed to `app-common-fields.tsx`.
+
+**Verify:** `pnpm exec vitest run --project unit __tests__/connection-outcome.test.ts __tests__/provider-ui.test.ts __tests__/stub-router.test.ts __tests__/i18n-locales.test.ts && pnpm test:e2e e2e/admin-apps.spec.ts e2e/apps.spec.ts e2e/app-access.spec.ts` → unit tests PASS; e2e PASS on the three projects
 
 **Interfaces:**
 
@@ -8930,6 +9112,8 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 13: The table: the Provider column, its filter, "Invalid settings", and the provider boundary
 
+**Goal:** Turn the apps table's Type column into a Provider column with a nested type filter, mark apps whose stored settings fail as 'Invalid settings', and pin the provider boundary with a unit test.
+
 Spec §4.5 (E9) and §2.3. The "Type" column becomes a "Provider" column of plain text ("Dify · Chatflow"), whose built-in `filters` list the providers with the Dify types nested under "Dify" (`children`), so today's filter by type stays (antd Table, column `filters` with `children`; the default `filterMode` "menu" shows a provider with types as a submenu). An app whose documents fail shows `Tag color="error"` "Invalid settings" in the status column (spec §2.3, the column's existing Tag pattern), and its Edit opens on the provider's defaults (Task 11's `toAppFormValues`) so the admin can repair it. Last, spec §11's check — nothing neutral imports from `lib/providers/dify` except the registry, the route guard and the provider UI — becomes a unit test.
 
 **Files:**
@@ -8937,6 +9121,16 @@ Spec §4.5 (E9) and §2.3. The "Type" column becomes a "Provider" column of plai
 - Create: `__tests__/provider-boundary.test.ts`
 - Modify: `components/provider-ui/registry.tsx` (`types`, `adminAppType`), `components/admin/apps/app-management.tsx` (the Provider and status columns), `locales/{en,zh,ar}/translation.json`, `e2e/admin-apps.spec.ts`
 - Test: `__tests__/provider-ui.test.ts`
+
+**Acceptance Criteria:**
+
+- [ ] `pnpm exec vitest run --project unit __tests__/provider-ui.test.ts __tests__/provider-boundary.test.ts __tests__/i18n-locales.test.ts` passes, including 'reads the admin DTO’s type, and none for an invalid app', 'lists Dify’s types in the console’s order' and the 'the provider boundary' case 'keeps every import of the Dify module inside the provider code'.
+- [ ] `__tests__/provider-boundary.test.ts` exists.
+- [ ] `git grep -n "column_type\|APP_MODE_NAME_KEYS\[app\|app\.mode\b" -- components app` returns no output.
+- [ ] `pnpm exec next typegen && pnpm exec tsc --noEmit && pnpm test` prints no tsc output and passes; oxlint and `oxfmt --check` on the changed files and `locales` report no findings.
+- [ ] `pnpm test:e2e e2e/admin-apps.spec.ts` passes on desktop-light, desktop-dark and mobile-light, including 'the table shows every app with its provider and status, and the provider filter narrows it by type' and 'an app with invalid settings is marked, hidden from the gallery, and repaired from its Edit'.
+
+**Verify:** `pnpm exec vitest run --project unit __tests__/provider-ui.test.ts __tests__/provider-boundary.test.ts __tests__/i18n-locales.test.ts && pnpm test:e2e e2e/admin-apps.spec.ts` → unit tests PASS; e2e PASS on the three projects
 
 **Interfaces:**
 
@@ -9248,16 +9442,29 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 14: Records
 
-Spec §10: ADR-0032 "Organise apps by provider: a shared core with provider modules" (status `proposed` until the owner's check, spec §11), dated notes on ADR-0023 (the record, the guard, the removed routes), ADR-0026 (every provider's end user) and ADR-0027 (grants on `apps`), plus one on ADR-0030 (its pipeline now serves app icons, under new names); `CLAUDE.md` (the decision line, the structure pointers, the next step and the follow-ups), `docs/frontend-conventions.md` (the form conventions) and `docs/auth-gate.md` follow the code. `AGENTS.md` asks for the `.cii-assessment.md` re-check before a commit; it goes in its own commit. The running record's entry for Part 1 is written after the merge, as Part 0's decision 36 was (PR #40; Plan decision w).
+**Goal:** Write ADR-0032 (proposed) and bring the ADR index, four earlier ADRs, the frontend-conventions and auth-gate docs, and the CII assessment in line with the provider-core code.
+
+Spec §10: ADR-0032 "Organise apps by provider: a shared core with provider modules" (status `proposed` until the owner's check, spec §11), dated notes on ADR-0023 (the record, the guard, the removed routes), ADR-0026 (every provider's end user) and ADR-0027 (grants on `apps`), plus one on ADR-0030 (its pipeline now serves app icons, under new names); `docs/frontend-conventions.md` (the form conventions) and `docs/auth-gate.md` follow the code, and three GitHub issues take the backlog updates (Step 5; since PR #56 `CLAUDE.md` holds no file map, decision lines or follow-ups, so this task leaves it alone). `AGENTS.md` asks for the `.cii-assessment.md` re-check before a commit; it goes in its own commit. The running record's entry for Part 1 is written after the merge, as Part 0's decision 36 was (PR #40; Plan decision w).
 
 **Files:**
 
 - Create: `docs/decisions/0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md`
 - Modify: `docs/decisions/README.md` (a row after 0031), `docs/decisions/0023-build-the-dify-layer-as-one-route-per-operation.md`, `docs/decisions/0026-use-the-accounts-permanent-id-as-the-dify-end-user.md`, `docs/decisions/0027-gate-apps-by-groups-and-grants-and-deactivate-accounts-with-two-markers.md`, `docs/decisions/0030-set-each-settings-area-from-the-environment-or-the-admin-page.md` (a dated note at the end of each)
-- Modify: `CLAUDE.md` (lines 50, 53 and 54, the ADR-0023, ADR-0026 and ADR-0027 lines; a new ADR-0032 line after line 58; lines 63, 66, 67 and 69, the pointers and the next step; lines 109, 111 and 115, the follow-ups)
 - Modify: `docs/frontend-conventions.md` (line 7; the §4.4 table's `MessageFooter` row; §4.5; a status entry before the `- Next:` line)
 - Modify: `docs/auth-gate.md` (lines 17, 28, 33, 34 and 43)
 - Modify: `.cii-assessment.md` (rows #19, #20, #25, #26, #32, the last-updated date and the change log; its own commit)
+
+**Acceptance Criteria:**
+
+- [ ] `docs/decisions/0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md` exists with `status: proposed` and is committed in the docs commit; `docs/decisions/README.md` has its row after 0031.
+- [ ] Dated notes are added at the end of ADR-0023, ADR-0026, ADR-0027 and ADR-0030; `git diff --stat` before the commit shows the seven files of Steps 3, 4 and 6 and no other.
+- [ ] `CLAUDE.md` is unchanged; the three backlog updates for issues #44, #45 and #49 are written down for the PR description (Step 5); the frontend-conventions and auth-gate script prints `docs/frontend-conventions.md: 4 edits` and `docs/auth-gate.md: 5 edits`.
+- [ ] The Step 8 path check prints no `missing:` line, and `find app/api/dify -name route.ts | wc -l` prints `23`.
+- [ ] Step 9's `git grep` over `docs/auth-gate.md docs/frontend-conventions.md` prints only the deliberate mentions the step lists.
+- [ ] `pnpm exec oxfmt --check` on the two docs, the ADR index and the five ADRs is clean, and the docs commit 'docs: record apps organised by provider (ADR-0032)' exists.
+- [ ] The `.cii-assessment.md` script prints `11 edits`, `git grep -c "lib/dify/" -- .cii-assessment.md` prints nothing, the summary stays 24/35, and it is committed alone as 'docs: update CII assessment'.
+
+**Verify:** `find app/api/dify -name route.ts | wc -l && git grep -c "lib/dify/" -- .cii-assessment.md; pnpm exec oxfmt --check docs/auth-gate.md docs/frontend-conventions.md docs/decisions/README.md docs/decisions/0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md .cii-assessment.md` → `23`, no grep output, oxfmt clean
 
 **Interfaces:**
 
@@ -9267,10 +9474,10 @@ Spec §10: ADR-0032 "Organise apps by provider: a shared core with provider modu
 - [ ] **Step 1: List the records that still name the old paths and features**
 
 ```bash
-git grep -n -o -E "lib/dify\b|dify_apps|[Aa]nnotation[a-z]*|Dify user ID|two \`@ant-design/icons\` majors|encrypting the Dify API keys" -- CLAUDE.md docs/auth-gate.md docs/frontend-conventions.md .cii-assessment.md
+git grep -n -o -E "lib/dify\b|dify_apps|[Aa]nnotation[a-z]*|Dify user ID|two \`@ant-design/icons\` majors|encrypting the Dify API keys" -- docs/auth-gate.md docs/frontend-conventions.md .cii-assessment.md
 ```
 
-Expected now (the earlier tasks touch none of these files): `.cii-assessment.md` lines 59 and 60; `CLAUDE.md` lines 50, 53 (twice), 54, 63, 66, 67, 111 and 115; `docs/auth-gate.md` lines 17 (three times), 28, 33, 34 (twice: `lib/dify/` and upstream's old `lib/dify-client.ts`) and 43; `docs/frontend-conventions.md` lines 7, 93 (three times) and 97 (three times). Step 9 runs it again.
+Expected now (the earlier tasks touch none of these files): `.cii-assessment.md` lines 59 and 60; `docs/auth-gate.md` lines 17 (three times), 28, 33, 34 (twice: `lib/dify/` and upstream's old `lib/dify-client.ts`) and 43; `docs/frontend-conventions.md` lines 7, 93 (three times) and 97 (three times). Step 9 runs it again.
 
 - [ ] **Step 2: Write ADR-0032**
 
@@ -9528,86 +9735,15 @@ Note, 2026-10-12 (Part 1, [ADR-0032](0032-organise-apps-by-provider-with-a-share
 MD
 ```
 
-- [ ] **Step 5: `CLAUDE.md`**
+- [ ] **Step 5: The backlog updates (GitHub issues)**
 
-Every replacement below names text that occurs once; the script refuses to write anything if one does not.
+Since PR #56, `CLAUDE.md` holds no file map, no decision lines and no follow-ups, so nothing in it changes. The follow-ups live in GitHub issues labelled `fork/overhaul`; Part 1 changes three of them. Posting to GitHub waits for the owner's word, like the PR: write the three updates into the PR description (Task 15 opens the PR on the owner's word), and post them as issue comments after the merge.
 
-```bash
-node --input-type=module <<'JS'
-import { readFileSync, writeFileSync } from 'node:fs'
+- #44 (i18n): add Part 1's new and reworded keys to the owner's review list: `provider.dify`, `form.optional`, `connection_test.*`, the drawer's new and reworded `app_setting.*` keys, `admin_apps.provider_unreachable`, `admin_apps.column_provider`, `admin_apps.status_invalid`, `admin_apps.field_invalid`, `admin_users.user_id`, and the reworded `admin_apps.subtitle`, `app.no_config_default_text` and `admin_users.delete_directory_confirm_description`.
+- #45 (frontend): the item "two `@ant-design/icons` majors in the tree" is done (Task 1 leaves one).
+- #49 (settings and branding): "encrypting the Dify API keys with the settings key" becomes "encrypting provider secrets (`apps.secrets`) with the settings key (ADR-0032)".
 
-const file = 'CLAUDE.md'
-let text = readFileSync(file, 'utf8')
-const EDITS = [
-	// Line 50, ADR-0023.
-	[
-		"`lib/dify/` (types, server client, schemas, browser client), Dify's envelope passed through",
-		"`lib/dify/` (types, server client, schemas, browser client; `lib/providers/dify/` since ADR-0032), Dify's envelope passed through",
-	],
-	// Line 53, ADR-0026.
-	[
-		'(`users.id`, set once in `lib/dify/route.ts`)',
-		'(`users.id`, set once in `lib/providers/dify/route.ts`; the end user for every provider, ADR-0032 note)',
-	],
-	['the users page shows it as "Dify user ID" with a copy button', 'the users page shows it as "User ID" with a copy button'],
-	// Line 54, ADR-0027.
-	['`dify_apps.access_mode` (`everyone`/`restricted`', '`apps.access_mode` (`dify_apps` until ADR-0032; `everyone`/`restricted`'],
-	// After line 58, ADR-0031: the new decision line.
-	[
-		'accepted 2026-10-12 after the owner\'s check (built in the Part 0 PR).\n',
-		'accepted 2026-10-12 after the owner\'s check (built in the Part 0 PR).\n' +
-			'- ADR-0032 Apps organised by provider: one `apps` table with `provider` (`text`, CHECK `apps_provider_check`) and two `jsonb` documents, `settings` and `secrets`, checked by the provider\'s zod schemas on every write and read (`lib/providers/schemas.ts`); the server registry `lib/providers/registry.ts` (schemas, Test connection, the DTO fields), the client registry `components/provider-ui/` (label, fallback icon, form section, `ProviderChat`) and the shared route guard `lib/providers/route.ts`; secrets write-only (a blank field keeps the stored value, the admin DTO says only whether each is set); name, description, tags and icon admin-owned, no sync, Test connection instead; image-only icons through ADR-0030\'s pipeline; a row whose documents do not read shows "Invalid settings" and is repaired from Edit; the provider fixed at creation; annotations removed; proposed until the owner\'s check (built in the Part 1 PR).\n',
-	],
-	// Line 63, the backend pointers.
-	[
-		'`lib/dify/` (`types/`, `client.ts` server-only, `schemas.ts`, `route.ts`, `errors.ts`, `response.ts` (`difyJson`, no-store JSON answers), `remote-file.ts`, `browser.ts`), `lib/data/apps.ts` (the apps DAL and DTOs, `visibleTo`)',
-		'`lib/http/` (`errors.ts`: the envelope, `ProviderError`, `errorResponseFrom`; `response.ts`: `jsonNoStore`, no-store JSON answers; `parse.ts`: the request parsers; `browser.ts`: `RequestError`), `lib/providers/` (ADR-0032: `ids.ts`, `schemas.ts` (the documents\' schemas, client-safe), `registry.ts` (server-only), `route.ts` (the shared guard), `connection.ts`), `lib/providers/dify/` (`types/`, `client.ts` server-only, `schemas.ts` (request bodies), `schema.ts` (the settings and secrets documents), `route.ts`, `errors.ts`, `remote-file.ts`, `browser.ts`, `provider.ts`, `test-connection.ts`), `lib/data/apps.ts` (the apps DAL and DTOs, `visibleTo`, the documents read through the registry)',
-	],
-	['`app/api/dify/[appId]/<Dify path>/route.ts` (25 files: the 27 operations in 24, plus `files/remote`)', '`app/api/dify/[appId]/<Dify path>/route.ts` (23 files: the 23 operations in 22, plus `files/remote`)'],
-	// Line 66, the app list and admin pages.
-	[
-		'`components/apps/` (gallery, card, `AppIcon` from the stored icon), `components/admin/apps/` (table, drawers, annotations)',
-		'`components/apps/` (gallery, card, `AppIcon` from the stored image or the provider\'s fallback), `components/admin/apps/` (table, the layout-B drawer with its shared fields, icon field and Test connection), `components/provider-ui/` (the client registry, ADR-0032)',
-	],
-	// Line 67, the chat.
-	[
-		'`app/(user)/chat/[appId]/page.tsx` (the app DTO from the server, `app-unavailable.tsx` for a missing or disabled app)',
-		'`app/(user)/chat/[appId]/page.tsx` (the app DTO from the server, rendered through `ProviderChat` (`components/provider-ui/provider-chat.tsx`), `app-unavailable.tsx` for a missing or disabled app)',
-	],
-	["x-sdk's fetch on `lib/dify/browser.ts`", "x-sdk's fetch on `lib/providers/dify/browser.ts`"],
-	// Line 69, the next step.
-	[
-		'**Part 1** the provider-neutral core (spec `docs/superpowers/specs/2026-10-11-part-1-provider-core-design.md`; its plan is written only after Part 0 merges, against the code as it stands then)',
-		'**Part 1** the provider-neutral core (built on `feat/provider-core`: spec `docs/superpowers/specs/2026-10-11-part-1-provider-core-design.md`, plan `docs/superpowers/plans/2026-10-12-part-1-provider-core.md`; ADR-0032 proposed until the owner\'s check; the branch goes to `fork/overhaul` through its PR, merged on the owner\'s word)',
-	],
-	// Line 109, i18n: the new keys for review.
-	[
-		'`admin_users.*` status and deactivation keys);',
-		'`admin_users.*` status and deactivation keys), and of Part 1\'s new and reworded keys (`provider.dify`, `form.optional`, `connection_test.*`, the drawer\'s new and reworded `app_setting.*` keys, `admin_apps.provider_unreachable`, `admin_apps.column_provider`, `admin_apps.status_invalid`, `admin_apps.field_invalid`, `admin_users.user_id`, and the reworded `admin_apps.subtitle`, `app.no_config_default_text` and `admin_users.delete_directory_confirm_description`);',
-	],
-	// Line 111: icons 6 leaves one major in the tree (Task 1).
-	['- Frontend: two `@ant-design/icons` majors in the tree; antd\'s Tooltip', '- Frontend: antd\'s Tooltip'],
-	// Line 115: the encryption follow-up covers every provider.
-	['encrypting the Dify API keys with the settings key', 'encrypting provider secrets (`apps.secrets`) with the settings key (ADR-0032)'],
-	// Line 50, ADR-0023: the icon on the row is the admin's upload now.
-	['the icon stored on the row,', 'the icon stored on the row (an admin upload since ADR-0032),'],
-	// Line 64, the settings pointers: Task 8's client-safe image rules.
-	[
-		'`lib/settings/` (`modes`, `branding-rules`, `built-in-logo`, `images`, `branding`, `image-response`)',
-		'`lib/settings/` (`modes`, `branding-rules`, `built-in-logo`, `images`, `image-rules` (the image types and the app icon\'s limits, ADR-0032), `branding`, `image-response`)',
-	],
-]
-for (const [from, to] of EDITS) {
-	const count = text.split(from).length - 1
-	if (count !== 1) throw new Error(`${count} matches for: ${from.slice(0, 80)}`)
-	text = text.replace(from, () => to)
-}
-writeFileSync(file, text)
-console.log(`${EDITS.length} edits`)
-JS
-```
-
-Expected: `16 edits`. Then `wc -l CLAUDE.md` prints `147 CLAUDE.md` (146 before, one decision line added; the file stays under 200 lines).
+Expected: nothing to run; the three updates are written down for the PR.
 
 - [ ] **Step 6: `docs/frontend-conventions.md` and `docs/auth-gate.md`**
 
@@ -9674,9 +9810,9 @@ Expected: `docs/frontend-conventions.md: 4 edits` and `docs/auth-gate.md: 5 edit
 
 - [ ] **Step 7: Read the diff**
 
-Run: `git diff --stat` Expected: the eight files of Steps 3 to 6 (`CLAUDE.md`, `docs/auth-gate.md`, `docs/frontend-conventions.md`, `docs/decisions/README.md` and the four ADRs) and no other; ADR-0032 is untracked (`git status --short` shows it with `??`).
+Run: `git diff --stat` Expected: the seven files of Steps 3, 4 and 6 (`docs/auth-gate.md`, `docs/frontend-conventions.md`, `docs/decisions/README.md` and the four ADRs) and no other; ADR-0032 is untracked (`git status --short` shows it with `??`).
 
-Run: `git diff -- CLAUDE.md docs/auth-gate.md docs/frontend-conventions.md` and read each hunk against Steps 5 and 6: every hunk is one of the listed replacements, and nothing else moved.
+Run: `git diff -- docs/auth-gate.md docs/frontend-conventions.md` and read each hunk against Step 6: every hunk is one of the listed replacements, and nothing else moved.
 
 - [ ] **Step 8: Check the paths the records name**
 
@@ -9699,17 +9835,17 @@ Expected: no `missing:` line, then `23`.
 - [ ] **Step 9: Run Step 1's search again**
 
 ```bash
-git grep -n -o -E "lib/dify\b|dify_apps|[Aa]nnotation[a-z]*|Dify user ID|two \`@ant-design/icons\` majors|encrypting the Dify API keys" -- CLAUDE.md docs/auth-gate.md docs/frontend-conventions.md
+git grep -n -o -E "lib/dify\b|dify_apps|[Aa]nnotation[a-z]*|Dify user ID|two \`@ant-design/icons\` majors|encrypting the Dify API keys" -- docs/auth-gate.md docs/frontend-conventions.md
 ```
 
-Expected, and nothing else (each a deliberate mention: history, or the removal itself): `CLAUDE.md` line 50 (`lib/dify`, the ADR-0023 line's "`lib/dify/` … `lib/providers/dify/` since ADR-0032"), line 54 (`dify_apps`, "until ADR-0032") and line 59 (`annotations`, the new ADR-0032 line); `docs/auth-gate.md` line 17 (`annotation`, "since the annotation routes went") and line 34 (`lib/dify`, upstream's old `lib/dify-client.ts`); `docs/frontend-conventions.md` line 7 (`lib/dify`, "since B1"), line 95 (three times) and line 99 (three times), the sub-project 3 and B1 status entries, and line 101 (`annotations`, Part 1's own entry). `.cii-assessment.md` is Step 11's.
+Expected, and nothing else (each a deliberate mention: history, or the removal itself): `docs/auth-gate.md` line 17 (`annotation`, "since the annotation routes went") and line 34 (`lib/dify`, upstream's old `lib/dify-client.ts`); `docs/frontend-conventions.md` line 7 (`lib/dify`, "since B1"), line 95 (three times) and line 99 (three times), the sub-project 3 and B1 status entries, and line 101 (`annotations`, Part 1's own entry). `.cii-assessment.md` is Step 11's.
 
 - [ ] **Step 10: Format check and commit**
 
-Run: `pnpm exec oxfmt --check CLAUDE.md docs/auth-gate.md docs/frontend-conventions.md docs/decisions/README.md docs/decisions/0023-build-the-dify-layer-as-one-route-per-operation.md docs/decisions/0026-use-the-accounts-permanent-id-as-the-dify-end-user.md docs/decisions/0027-gate-apps-by-groups-and-grants-and-deactivate-accounts-with-two-markers.md docs/decisions/0030-set-each-settings-area-from-the-environment-or-the-admin-page.md docs/decisions/0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md` Expected: clean. If it is not, run `pnpm exec oxfmt <file>` on the files it names and read the diff: a Markdown table it realigns is fine; a changed word is not.
+Run: `pnpm exec oxfmt --check docs/auth-gate.md docs/frontend-conventions.md docs/decisions/README.md docs/decisions/0023-build-the-dify-layer-as-one-route-per-operation.md docs/decisions/0026-use-the-accounts-permanent-id-as-the-dify-end-user.md docs/decisions/0027-gate-apps-by-groups-and-grants-and-deactivate-accounts-with-two-markers.md docs/decisions/0030-set-each-settings-area-from-the-environment-or-the-admin-page.md docs/decisions/0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md` Expected: clean. If it is not, run `pnpm exec oxfmt <file>` on the files it names and read the diff: a Markdown table it realigns is fine; a changed word is not.
 
 ```bash
-git add CLAUDE.md docs/auth-gate.md docs/frontend-conventions.md docs/decisions/README.md \
+git add docs/auth-gate.md docs/frontend-conventions.md docs/decisions/README.md \
   docs/decisions/0023-build-the-dify-layer-as-one-route-per-operation.md \
   docs/decisions/0026-use-the-accounts-permanent-id-as-the-dify-end-user.md \
   docs/decisions/0027-gate-apps-by-groups-and-grants-and-deactivate-accounts-with-two-markers.md \
@@ -9799,9 +9935,25 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 15: Final verification and the Docker gate
 
+**Goal:** Every whole-branch gate exits clean (Steps 1–6), and only after the owner's captured go-ahead the local stack is backed up (the `part0` image tag and a mode-600 dump with 12 tables), the migration is rehearsed on `hub_copy` with counts equal to Step 8's, and the rebuild logs `Database migration complete` once with RestartCount 0, four migration rows and Step 13's counts equal to the rehearsal's.
+
+> **USER-ORDERED GATE — NON-SKIPPABLE.** This task was requested by the user in the current conversation. It MUST NOT be closed by walking around it, by declaring it "verified inline", or by substituting a cheaper check. Close only after every item in `acceptanceCriteria` has been re-validated independently, with output captured.
+
 Spec §9 and §11. Every gate in `CLAUDE.md` on the whole branch, then the Docker gate on the owner's running stack (`ai-app-hub-local`, `docker-compose.local.yml`, port 5300, PostgreSQL on 127.0.0.1:5432). No earlier task touches that stack, and this one does so only after the owner's word (Step 7): the app is taken down so nothing writes, the old image is kept under a second tag and the database is dumped (always), the dump is restored into a copy and the three migrations are rehearsed on it (spec §2.4: "tested on a copy of the local database before it runs on the real one"), then the rebuild, whose entrypoint migrates the real one. Step 15 is the written way back (restore the dump, start the old image), run only on the owner's word.
 
 **Files:** none changed in the repository, except Step 16 (the acceptance), which runs only on the owner's word after their check. Outside it: the backup `~/ai-app-hub-backups/local-before-part1.sql` (Step 9) and the image tag `ai-app-hub-local-app:part0` (Step 8), kept until the owner lets them go.
+
+**Acceptance Criteria:**
+
+- [ ] Steps 1 to 6 are green on the whole branch: tsc, oxlint, oxfmt, `npx -y @ant-design/cli lint ./ --format json` (`"summary": { "total": 0, …}`), `pnpm i18n:lint && pnpm i18n:status` ("No issues found.", zh and ar at 100%), both Step 2 greps with no output, `pnpm test`, `pnpm test:db` (including `apps.db.test.ts` and `apps-migration.db.test.ts`), `pnpm test:ldap`, and `pnpm test:e2e` with 0 failed on desktop-light, desktop-dark and mobile-light.
+- [ ] The owner's explicit go-ahead to Step 7's message is captured before Step 8; nothing touches the owner's stack (`ai-app-hub-local`) before it.
+- [ ] The old image is tagged `ai-app-hub-local-app:part0` (never overwritten), and the dump `~/ai-app-hub-backups/local-before-part1.sql` exists with mode `600`, a size above zero and `12` `CREATE TABLE` lines (`stat -c '%a %s'` and `grep -c '^CREATE TABLE'`).
+- [ ] The rehearsal on `hub_copy` restores the dump with no `ERROR`, applies the `*_apps_expand`, `*_apps_data` and `*_apps_contract` migrations in one transaction with no `ERROR`, and its apps and grants counts equal Step 8's (every app `provider` `dify`, `has_key` `t`; 'without a type' equals 'apps without a mode'); `hub_copy` is then dropped.
+- [ ] After the rebuild, `docker compose -f docker-compose.local.yml logs app | grep -c "Database migration complete"` prints `1`, `docker inspect -f '{{.RestartCount}}' ai-app-hub-local-app` prints `0`, and `drizzle.__drizzle_migrations` lists four rows: `<14 digits>_baseline`, `_apps_expand`, `_apps_data`, `_apps_contract`.
+- [ ] Step 13's four counts (apps, group grants, user grants, without a type) equal the rehearsal's and Step 8's.
+- [ ] Step 14's signed-out checks give: `/api/health` 200; `/apps` 307 to `http://localhost:5300/login?callbackUrl=%2Fapps`; `/api/dify/<app id>/parameters`, `/api/client/apps`, `/api/users`, `/api/init/status` 401 with `{"code":"unauthorized",…}`; `/api/branding/logo` 404 with `{"code":"not_found",…}`; `/init` 307 to `http://localhost:5300/login`; `grep -c 'href="/forgot-password"'` on `/login` gives `0`; `grep -c 'id="antd-cssinjs"'` gives `1`.
+
+**Verify:** `docker compose -f docker-compose.local.yml logs app | grep -c "Database migration complete" && docker inspect -f '{{.RestartCount}}' ai-app-hub-local-app` → `1` then `0`
 
 **Interfaces:**
 
@@ -10047,11 +10199,10 @@ The owner checked the branch on the local stack after the migration and reported
 where the two angle-bracket parts are the date and the owner's words, verbatim.
 
 - `docs/decisions/README.md`: in the 0032 row, `| proposed |` → `| accepted |`.
-- `CLAUDE.md`: `proposed until the owner's check (built in the Part 1 PR).` → `accepted <the day> after the owner's check (built in the Part 1 PR).`, and `ADR-0032 proposed until the owner's check;` → `ADR-0032 accepted on <the day> after the owner's check;`.
 
 ```bash
-pnpm exec oxfmt --check docs/decisions/0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md docs/decisions/README.md CLAUDE.md
-git add docs/decisions/0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md docs/decisions/README.md CLAUDE.md
+pnpm exec oxfmt --check docs/decisions/0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md docs/decisions/README.md
+git add docs/decisions/0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md docs/decisions/README.md
 git commit -m "docs: accept ADR-0032 after the owner's check
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
