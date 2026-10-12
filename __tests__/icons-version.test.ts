@@ -1,5 +1,4 @@
 import { createRequire } from 'node:module'
-import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
@@ -8,7 +7,7 @@ import { describe, expect, it } from 'vitest'
  * "@ant-design/icons must be upgraded to v6"). Node's `createRequire` resolves a package as the named file's
  * directory would, so the same resolved path means the same installed copy (pnpm keeps one directory per version).
  */
-const fromRoot = createRequire(path.resolve('package.json'))
+const fromRoot = createRequire(import.meta.url)
 const resolvedFrom = (pkg: string) =>
 	createRequire(fromRoot.resolve(pkg)).resolve('@ant-design/icons')
 

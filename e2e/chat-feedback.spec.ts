@@ -228,7 +228,12 @@ test.describe('text to speech', () => {
 		await expect(stop).toHaveClass(/ant-actions-audio-running/)
 		await expect(read).toHaveClass(/ant-actions-audio-default/)
 		// Part 1 spec §6: no annotate action, even on the app that had annotations on.
-		await expect(lastAnswer(page).getByRole('button', { name: 'Annotation' })).toHaveCount(0)
+		await expect(
+			lastAnswer(page).getByRole('button', { name: 'Regenerate response', exact: true }),
+		).toBeVisible()
+		await expect(
+			lastAnswer(page).getByRole('button', { name: 'Annotation', exact: true }),
+		).toHaveCount(0)
 	})
 
 	test('an app without it offers no read aloud', async ({ page }, testInfo) => {

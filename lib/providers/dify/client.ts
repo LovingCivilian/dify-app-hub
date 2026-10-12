@@ -158,13 +158,11 @@ export const difyClient = (credentials: DifyCredentials) => {
 	const request = async (url: string, init: RequestInit = {}, bearer = true): Promise<Response> => {
 		let response: Response
 		try {
-			response = await fetch(url, {
-				...init,
-				headers: {
-					...(init.headers as Record<string, string> | undefined),
-					...(bearer && { Authorization: `Bearer ${credentials.apiKey}` }),
-				},
-			})
+			// `new Headers()` accepts any HeadersInit (a Headers, pairs or a record; MDN, `Headers()` constructor); a spread of
+			// a Headers instance would give `{}`.
+			const headers = new Headers(init.headers)
+			if (bearer) headers.set('Authorization', `Bearer ${credentials.apiKey}`)
+			response = await fetch(url, { ...init, headers })
 		} catch (error) {
 			// The cause stays in the server log: Node's fetch puts the full URL (the Dify host, the account id in a
 			// query string) in its message, and errorResponseFrom sends a DifyError's message to the browser.
