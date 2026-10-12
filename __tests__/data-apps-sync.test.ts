@@ -369,10 +369,7 @@ describe('reads select explicit columns (charter §4.2)', () => {
 		answerFormFeedbackText: null,
 		enableUpdateInputAfterStarts: false,
 		openingStatementDisplayMode: null,
-		iconType: 'image',
-		icon: 'file-id',
-		iconBackground: null,
-		hasIconImage: true,
+		hasIcon: true,
 	}
 
 	it.each([
@@ -382,11 +379,11 @@ describe('reads select explicit columns (charter §4.2)', () => {
 		db.row = dtoRow
 		const result = await read()
 		const fields = Object.keys(db.fields ?? {})
-		expect(fields).toContain('hasIconImage')
+		expect(fields).toContain('hasIcon')
 		expect(fields).not.toContain('apiKey')
 		expect(fields).not.toContain('iconImage')
 		expect(fields).not.toContain('iconMime')
-		expect(Array.isArray(result) ? result[0] : result).toMatchObject({ icon: { kind: 'image' } })
+		expect(Array.isArray(result) ? result[0] : result).toMatchObject({ hasIcon: true })
 	})
 
 	it('syncApp reads only the access columns', async () => {

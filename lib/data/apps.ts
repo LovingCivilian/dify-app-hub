@@ -16,7 +16,18 @@ import {
 	type AppMode,
 	type SiteSettings,
 } from '@/lib/providers/dify/types'
-import { checkDocuments, type StoredDocuments } from '@/lib/providers/schemas'
+import type { ProviderId } from '@/lib/providers/ids'
+import {
+	PROVIDERS,
+	type ProviderChatFields,
+	type ProviderSummaryFields,
+} from '@/lib/providers/registry'
+import {
+	checkDocuments,
+	checkSettings,
+	type StoredDocuments,
+	type StoredSettings,
+} from '@/lib/providers/schemas'
 
 /*
  * The apps Data Access Layer (charter §4.2). Every function takes the verified actor first: the entry point
@@ -30,9 +41,12 @@ type AppRow = typeof difyApps.$inferSelect
 type IconColumns = Pick<AppRow, 'iconType' | 'icon' | 'iconBackground' | 'iconImage' | 'iconMime'>
 
 /**
- * Every column the DTOs read, never the key or the icon bytes (charter §4.2: explicit columns; the image itself is
- * served through getAppIcon). Whether an image is stored is computed by the database.
+ * Whether an image is stored, computed by the database: no DTO read selects the bytes (charter §4.2: explicit columns;
+ * the image itself is served through getAppIcon).
  */
+const hasIcon = sql<boolean>`${difyApps.iconImage} IS NOT NULL`.mapWith(Boolean)
+
+/** Every column the admin DTO reads, never the key or the icon bytes. */
 const dtoColumns = {
 	id: difyApps.id,
 	createdAt: difyApps.createdAt,
@@ -47,19 +61,21 @@ const dtoColumns = {
 	answerFormFeedbackText: difyApps.answerFormFeedbackText,
 	enableUpdateInputAfterStarts: difyApps.enableUpdateInputAfterStarts,
 	openingStatementDisplayMode: difyApps.openingStatementDisplayMode,
-	iconType: difyApps.iconType,
-	icon: difyApps.icon,
-	iconBackground: difyApps.iconBackground,
-	hasIconImage: sql<boolean>`${difyApps.iconImage} IS NOT NULL`.mapWith(Boolean),
+	hasIcon,
 }
 
-/** A row as the DTOs read it (dtoColumns). */
+/** A row as the admin DTO reads it (dtoColumns). */
 type DtoRow = Omit<
 	AppRow,
-	'apiKey' | 'iconImage' | 'iconMime' | 'accessMode' | 'enableAnnotation'
-> & {
-	hasIconImage: boolean
-}
+	| 'apiKey'
+	| 'iconImage'
+	| 'iconMime'
+	| 'accessMode'
+	| 'enableAnnotation'
+	| 'iconType'
+	| 'icon'
+	| 'iconBackground'
+> & { hasIcon: boolean }
 
 export type OpeningStatementDisplayMode = 'default' | 'always'
 
@@ -69,12 +85,6 @@ export interface AppSettings {
 	openingStatementDisplayMode: OpeningStatementDisplayMode
 }
 
-/** What the browser needs to draw the icon (charter §4.1): the image itself comes from GET /api/apps/[appId]/icon. */
-export type AppIcon =
-	| { kind: 'emoji'; emoji: string; background: string | null }
-	| { kind: 'image' }
-	| null
-
 /** The admin's view: everything but the key (the edit form never shows the stored key). */
 export interface AppDto {
 	id: string
@@ -83,22 +93,12 @@ export interface AppDto {
 	description: string
 	tags: string[]
 	enabled: boolean
-	icon: AppIcon
+	provider: ProviderId
+	hasIcon: boolean
 	settings: AppSettings
 	apiBase: string
 	createdAt: string
 	updatedAt: string
-}
-
-/** The chat's view: no key, no base (file links go through the proxy). */
-export interface ChatAppDto {
-	id: string
-	name: string
-	mode: AppMode | null
-	description: string
-	enabled: boolean
-	icon: AppIcon
-	settings: AppSettings
 }
 
 /**
@@ -134,16 +134,6 @@ export const ICON_MAX_BYTES = 1024 * 1024
 export const parseTags = (value: unknown): string[] =>
 	Array.isArray(value) ? value.filter((tag): tag is string => typeof tag === 'string') : []
 
-export const iconOf = (
-	row: Pick<DtoRow, 'iconType' | 'icon' | 'iconBackground' | 'hasIconImage'>,
-): AppIcon => {
-	if (row.iconType === 'emoji' && row.icon) {
-		return { kind: 'emoji', emoji: row.icon, background: row.iconBackground ?? null }
-	}
-	if (row.iconType === 'image' && row.hasIconImage) return { kind: 'image' }
-	return null
-}
-
 export const settingsOf = (
 	row: Pick<
 		AppRow,
@@ -167,21 +157,12 @@ export const toAppDto = (row: DtoRow): AppDto => ({
 	description: row.description ?? '',
 	tags: parseTags(row.tags),
 	enabled: row.isEnabled,
-	icon: iconOf(row),
+	provider: 'dify',
+	hasIcon: row.hasIcon,
 	settings: settingsOf(row),
 	apiBase: row.apiBase,
 	createdAt: row.createdAt.toISOString(),
 	updatedAt: row.updatedAt.toISOString(),
-})
-
-export const toChatAppDto = (row: DtoRow): ChatAppDto => ({
-	id: row.id,
-	name: row.name,
-	mode: modeOf(row.mode),
-	description: row.description ?? '',
-	enabled: row.isEnabled,
-	icon: iconOf(row),
-	settings: settingsOf(row),
 })
 
 type AdminDtoRow = DtoRow & { accessMode: AccessMode }
@@ -454,6 +435,101 @@ export const readDocuments = (
 	return null
 }
 
+/** The settings alone, as a user's DTO reads need them, checked and logged as readDocuments does (spec §2.3). */
+export const readSettings = (
+	appId: string,
+	provider: string,
+	settings: unknown,
+): StoredSettings | null => {
+	const check = checkSettings(provider, settings)
+	if (check.ok) return check.documents
+	console.error('Stored app documents refused:', { appId, code: check.code })
+	return null
+}
+
+/**
+ * The columns a user's DTO reads (spec §2.3): the neutral fields and the settings, never the secrets, the key or the icon
+ * bytes (Plan decision ab: a mapper cannot leak what is never read).
+ */
+const recordColumns = {
+	id: difyApps.id,
+	name: difyApps.name,
+	description: difyApps.description,
+	tags: difyApps.tags,
+	isEnabled: difyApps.isEnabled,
+	hasIcon,
+	...storedSettingsColumns,
+}
+
+type RecordRow = {
+	id: string
+	name: string
+	description: string | null
+	tags: unknown
+	isEnabled: boolean
+	hasIcon: boolean
+} & Parameters<typeof storedSettings>[0]
+
+/** An app as a user's DTOs see it: its neutral fields and its settings as its provider's schema reads them. */
+export type AppRecord = {
+	id: string
+	name: string
+	description: string
+	tags: string[]
+	enabled: boolean
+	hasIcon: boolean
+} & StoredSettings
+
+const toRecord = (row: RecordRow): AppRecord | null => {
+	const { provider, settings } = storedSettings(row)
+	const documents = readSettings(row.id, provider, settings)
+	return (
+		documents && {
+			id: row.id,
+			name: row.name,
+			description: row.description ?? '',
+			tags: parseTags(row.tags),
+			enabled: row.isEnabled,
+			hasIcon: row.hasIcon,
+			...documents,
+		}
+	)
+}
+
+type ChatAppCommon = Pick<AppRecord, 'id' | 'name' | 'description' | 'enabled' | 'hasIcon'>
+
+/** The chat's view (spec §2.3): a union keyed by provider; never the base URL or the secrets (file links go through the proxy). */
+export type ChatAppDto = {
+	[P in ProviderId]: ChatAppCommon & { provider: P } & ProviderChatFields<P>
+}[ProviderId]
+
+type SummaryCommon = Pick<AppRecord, 'id' | 'name' | 'description' | 'tags' | 'hasIcon'>
+
+/** What a gallery card shows (spec §2.3, E10): the provider's own fields are its summary fields (for Dify, the type). */
+export type AppSummary = {
+	[P in ProviderId]: SummaryCommon & { provider: P } & ProviderSummaryFields<P>
+}[ProviderId]
+
+export const toChatAppDto = (record: AppRecord): ChatAppDto => ({
+	id: record.id,
+	provider: record.provider,
+	name: record.name,
+	description: record.description,
+	enabled: record.enabled,
+	hasIcon: record.hasIcon,
+	...PROVIDERS[record.provider].chatFields(record.settings),
+})
+
+export const toAppSummary = (record: AppRecord): AppSummary => ({
+	id: record.id,
+	provider: record.provider,
+	name: record.name,
+	description: record.description,
+	tags: record.tags,
+	hasIcon: record.hasIcon,
+	...PROVIDERS[record.provider].summaryFields(record.settings),
+})
+
 /** The access read: the provider routes (with visibleTo), and the admin writes (without). Null when missing or refused. */
 const readAccess = async (id: string, visible?: SQL): Promise<AppAccess | null> => {
 	const [row] = await getDb()
@@ -472,13 +548,20 @@ const readAccess = async (id: string, visible?: SQL): Promise<AppAccess | null> 
 	return documents && { id: row.id, enabled: row.isEnabled, ...documents }
 }
 
-export async function listApps(actor: SessionUser): Promise<AppDto[]> {
+/**
+ * The gallery (spec §2.3, §5): the enabled apps the actor may use, newest first, as cards. An app whose settings fail
+ * is left out (readSettings logs it); the access rule is visibleTo, as for every read (ADR-0027).
+ */
+export async function listApps(actor: SessionUser): Promise<AppSummary[]> {
 	const rows = await getDb()
-		.select(dtoColumns)
+		.select(recordColumns)
 		.from(difyApps)
-		.where(visibleTo(actor))
+		.where(and(eq(difyApps.isEnabled, true), visibleTo(actor)))
 		.orderBy(desc(difyApps.createdAt))
-	return rows.map(toAppDto)
+	return rows.flatMap(row => {
+		const record = toRecord(row)
+		return record ? [toAppSummary(record)] : []
+	})
 }
 
 /** Every app with its access, for /app-management (deviation 1). */
@@ -498,14 +581,18 @@ export async function listAdminApps(actor: SessionUser): Promise<AdminAppDto[]> 
 	return toAdminAppDtos(rows, groupGrants, userGrants)
 }
 
-/** Null for a missing app and for one the actor may not use alike (spec §4.2: no difference to probe). */
+/**
+ * Null for a missing app, one the actor may not use, and one whose settings fail alike (B3 spec §4.2: no difference to
+ * probe; Part 1 spec §2.3: users meet a broken row as an unknown app).
+ */
 export async function getChatApp(actor: SessionUser, id: string): Promise<ChatAppDto | null> {
 	const [row] = await getDb()
-		.select(dtoColumns)
+		.select(recordColumns)
 		.from(difyApps)
 		.where(and(eq(difyApps.id, id), visibleTo(actor)))
 		.limit(1)
-	return row ? toChatAppDto(row) : null
+	const record = row ? toRecord(row) : null
+	return record ? toChatAppDto(record) : null
 }
 
 /** For the Dify routes: the credentials never leave the server; null when missing or not the actor's to use. */

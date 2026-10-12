@@ -30,7 +30,7 @@ export const useWorkflowRun = () => {
 	// are read and written in event handlers and effects, not during render), so a Stop between an event and its
 	// commit still reaches Dify. Unset before the first event and once the run's stream has ended.
 	const taskIdRef = useRef<string | undefined>(undefined)
-	const mode = app.mode
+	const mode = app.appType
 	const form = parameters.user_input_form
 
 	useEffect(() => () => controller.current?.abort(), [])

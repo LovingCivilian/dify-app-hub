@@ -32,7 +32,7 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 			await noSpinner(page)
 			await expect(header(page)).toBeVisible()
 			await expect(stubApp(page)).toBeVisible()
-			await expect(page.getByText('🤖').first()).toBeVisible()
+			await expect(page.getByRole('img', { name: 'apartment' }).first()).toBeVisible()
 		},
 	},
 	admin: {
@@ -41,7 +41,7 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 			await noSpinner(page)
 			await expect(header(page)).toBeVisible()
 			await expect(stubApp(page)).toBeVisible()
-			await expect(page.getByText('🤖').first()).toBeVisible()
+			await expect(page.getByRole('img', { name: 'apartment' }).first()).toBeVisible()
 		},
 	},
 	users: {
@@ -239,7 +239,7 @@ async function openAppManagement(page: Page) {
 	await shellSettled(page)
 	await noSpinner(page)
 	await expect(stubApp(page)).toBeVisible()
-	await expect(page.getByText('🤖').first()).toBeVisible()
+	await expect(page.getByRole('img', { name: 'apartment' }).first()).toBeVisible()
 }
 
 /**
@@ -305,7 +305,7 @@ test.describe('branding', () => {
 		await noSpinner(page)
 		await expect(page.getByRole('banner').getByRole('link', { name: DEMO_BRAND })).toBeVisible()
 		await expect(stubApp(page)).toBeVisible()
-		await expect(page.getByText('🤖').first()).toBeVisible()
+		await expect(page.getByRole('img', { name: 'apartment' }).first()).toBeVisible()
 		await imagesLoaded(page.getByRole('banner').locator('img'))
 		await capture(page, 'apps-branded', testInfo)
 

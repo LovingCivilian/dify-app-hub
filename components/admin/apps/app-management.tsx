@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { tablePagination } from '@/components/admin/table-pagination'
 import PageHeader from '@/components/shell/page-header'
 import AppIcon from '@/components/apps/app-icon'
-import { APP_MODE_NAME_KEYS, APP_MODE_OPTIONS } from '@/components/apps/app-modes'
+import { APP_MODE_NAME_KEYS, APP_MODE_OPTIONS } from '@/components/provider-ui/dify/app-types'
 import SearchInput from '@/components/shell/search-input'
 import type { GroupOption } from '@/lib/data/groups'
 import type { UserOption } from '@/lib/data/users'
@@ -55,8 +55,8 @@ export default function AppManagement({
 				>
 					<AppIcon
 						appId={app.id}
-						icon={app.icon}
-						mode={app.mode}
+						provider={app.provider}
+						hasIcon={app.hasIcon}
 						size="small"
 					/>
 					<span>{app.name || t('common.none')}</span>

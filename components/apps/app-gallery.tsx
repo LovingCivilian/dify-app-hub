@@ -10,7 +10,7 @@ import { matchesQuery } from '@/lib/match-query'
 
 import AppCard from './app-card'
 import styles from './app-gallery.module.css'
-import type { AppSummary } from './app-summary'
+import type { AppSummary } from '@/lib/data/apps'
 
 /** The app list (spec §4.2, §4.4): title, search, a responsive card grid and the two empty states. */
 export default function AppGallery({ apps }: { apps: AppSummary[] }) {

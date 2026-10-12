@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { accountOptionLabel } from '@/components/admin/account-option'
 import { drawerPopupContainer } from '@/components/admin/drawer-popup-container'
-import { APP_MODE_OPTION_KEYS, APP_MODE_OPTIONS } from '@/components/apps/app-modes'
+import { APP_MODE_OPTION_KEYS, APP_MODE_OPTIONS } from '@/components/provider-ui/dify/app-types'
 import type { GroupOption } from '@/lib/data/groups'
 import type { UserOption } from '@/lib/data/users'
 

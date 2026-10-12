@@ -75,11 +75,13 @@ describe('visibleTo (spec §4.1)', () => {
 // condition is compared with the whole rule rendered on its own (pinned above), so a read that kept only part of it
 // (one arm of the `or`, one subquery) fails.
 describe('the app reads apply visibleTo', () => {
-	it('listApps: the whole rule for a user, nothing for an admin', async () => {
+	it('listApps: the enabled apps under the whole rule for a user, the enabled apps for an admin', async () => {
 		await listApps(user)
-		expect(render(where.mock.calls[0]![0])).toEqual(render(visibleTo(user)))
+		expect(render(where.mock.calls[0]![0])).toEqual(
+			render(and(eq(difyApps.isEnabled, true), visibleTo(user))),
+		)
 		await listApps(admin)
-		expect(where.mock.calls[1]![0]).toBeUndefined()
+		expect(render(where.mock.calls[1]![0])).toEqual(render(eq(difyApps.isEnabled, true)))
 	})
 
 	it.each([

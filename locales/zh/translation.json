@@ -557,5 +557,8 @@
 		"resume_failed": "您的回答已提交，但未能加载后续回复。请重新打开对话查看。",
 		"already_submitted": "此表单已提交。",
 		"not_waiting": "此表单已不再等待回答。请重新打开对话查看结果。"
+	},
+	"provider": {
+		"dify": "Dify"
 	}
 }

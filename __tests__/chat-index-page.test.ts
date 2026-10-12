@@ -13,7 +13,7 @@ vi.mock('next/navigation', () => ({ redirect }))
 import ChatIndexPage from '@/app/(user)/chat/page'
 
 const actor = { id: 'u1', email: 'jane@example.com', name: null, role: 'user' as const }
-const app = (id: string, enabled: boolean) => ({ id, enabled })
+const app = (id: string) => ({ id })
 
 beforeEach(() => {
 	requireUser.mockReset()
@@ -32,19 +32,13 @@ describe('/chat page', () => {
 		expect(listApps).not.toHaveBeenCalled()
 	})
 
-	it('reads the apps as the session actor and opens the first enabled one', async () => {
+	// listApps answers the enabled apps the actor may use (lib/data/apps.ts), so the page opens the first.
+	it('reads the apps as the session actor and opens the first one', async () => {
 		requireUser.mockResolvedValue(actor)
-		listApps.mockResolvedValue([app('a1', false), app('a2', true), app('a3', true)])
+		listApps.mockResolvedValue([app('a2'), app('a3')])
 		await expect(ChatIndexPage()).rejects.toBe(redirectSignal)
 		expect(listApps).toHaveBeenCalledWith(actor)
 		expect(redirect).toHaveBeenCalledWith('/chat/a2')
-	})
-
-	it('sends the actor to /apps when no enabled app is visible to it', async () => {
-		requireUser.mockResolvedValue(actor)
-		listApps.mockResolvedValue([app('a1', false)])
-		await expect(ChatIndexPage()).rejects.toBe(redirectSignal)
-		expect(redirect).toHaveBeenCalledWith('/apps')
 	})
 
 	it('sends the actor to /apps when the rule leaves it no app', async () => {

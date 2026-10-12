@@ -122,7 +122,7 @@ export default function WorkflowView() {
 						<div className={styles.pane}>
 							<RunResult
 								state={state}
-								workflowApp={app.mode === 'workflow'}
+								workflowApp={app.appType === 'workflow'}
 							/>
 						</div>
 					</Col>

@@ -4,10 +4,11 @@ import { Card, Flex, Tag, Typography, theme } from 'antd'
 import Link from 'next/link'
 import { useTranslation } from 'react-i18next'
 
+import { providerLine } from '@/components/provider-ui/registry'
+import type { AppSummary } from '@/lib/data/apps'
+
 import styles from './app-gallery.module.css'
 import AppIcon from './app-icon'
-import { APP_MODE_NAME_KEYS } from './app-modes'
-import type { AppSummary } from './app-summary'
 
 /**
  * One app (spec §4.2): a real link around a hoverable Card, so the keyboard and "open in new tab" work. antd
@@ -29,12 +30,13 @@ export default function AppCard({ app }: { app: AppSummary }) {
 					avatar={
 						<AppIcon
 							appId={app.id}
-							icon={app.icon}
-							mode={app.mode}
+							provider={app.provider}
+							hasIcon={app.hasIcon}
 						/>
 					}
 					title={app.name}
-					description={app.mode ? t(APP_MODE_NAME_KEYS[app.mode]) : undefined}
+					// E10: the provider and, when it has one, the app's type, as today's plain description text.
+					description={providerLine(t, app.provider, 'appType' in app ? app.appType : undefined)}
 				/>
 				<Typography.Paragraph
 					type="secondary"

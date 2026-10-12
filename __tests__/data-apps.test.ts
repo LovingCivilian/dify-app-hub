@@ -14,17 +14,18 @@ import {
 	grantRowsFor,
 	ICON_MAX_BYTES,
 	iconColumnsFrom,
-	iconOf,
 	listAdminApps,
 	lockApp,
 	parseTags,
 	readDocuments,
 	readIconBytes,
+	readSettings,
 	settingsOf,
 	syncApp,
 	toAdminAppDto,
 	toAdminAppDtos,
 	toAppDto,
+	toAppSummary,
 	toChatAppDto,
 	updateApp,
 } from '@/lib/data/apps'
@@ -44,10 +45,7 @@ const row = {
 	answerFormFeedbackText: 'Thanks',
 	enableUpdateInputAfterStarts: false,
 	openingStatementDisplayMode: 'always',
-	iconType: 'emoji',
-	icon: '🍵',
-	iconBackground: '#FFEAD5',
-	hasIconImage: false,
+	hasIcon: false,
 }
 
 describe('parseTags', () => {
@@ -61,13 +59,7 @@ describe('parseTags', () => {
 	})
 })
 
-describe('iconOf and settingsOf', () => {
-	it('maps an emoji icon, an image icon and no icon', () => {
-		expect(iconOf(row)).toEqual({ kind: 'emoji', emoji: '🍵', background: '#FFEAD5' })
-		expect(iconOf({ ...row, iconType: 'image', hasIconImage: true })).toEqual({ kind: 'image' })
-		expect(iconOf({ ...row, iconType: 'image', hasIconImage: false })).toBeNull()
-		expect(iconOf({ ...row, iconType: null, icon: null })).toBeNull()
-	})
+describe('settingsOf', () => {
 	it('maps the settings with defaults for missing values', () => {
 		expect(settingsOf(row)).toEqual({
 			answerForm: { enabled: true, feedbackText: 'Thanks' },
@@ -83,37 +75,60 @@ describe('iconOf and settingsOf', () => {
 	})
 })
 
+// Spec §2.3: what each DTO carries; never the key, and outside the admin's never the API base.
 describe('DTOs', () => {
-	it('the admin DTO carries the base but never the key; an unknown mode becomes null', () => {
-		const dto = toAppDto(row)
-		expect(dto).toEqual({
-			id: 'a1',
-			name: 'Tea',
-			mode: 'advanced-chat',
-			description: 'desc',
-			tags: ['a', 'b'],
-			enabled: true,
-			icon: { kind: 'emoji', emoji: '🍵', background: '#FFEAD5' },
-			settings: settingsOf(row),
+	const record = {
+		id: 'a1',
+		provider: 'dify' as const,
+		name: 'Tea',
+		description: 'desc',
+		tags: ['a', 'b'],
+		enabled: true,
+		hasIcon: true,
+		settings: {
 			apiBase: 'https://dify.example/v1',
-			createdAt: '2026-10-07T10:00:00.000Z',
-			updatedAt: '2026-10-07T11:00:00.000Z',
-		})
+			appType: 'advanced-chat' as const,
+			answerForm: { enabled: true, feedbackText: 'Thanks' },
+			enableUpdateAfterConversationStarts: false,
+			openingStatementDisplayMode: 'always' as const,
+		},
+	}
+	it('the admin DTO carries the provider, whether an image is stored, and the base; never the key', () => {
+		const dto = toAppDto(row)
+		expect(dto).toMatchObject({ id: 'a1', provider: 'dify', hasIcon: false, mode: 'advanced-chat' })
+		expect(dto).not.toHaveProperty('icon')
 		expect(JSON.stringify(dto)).not.toContain('app-secret')
 		expect(toAppDto({ ...row, mode: 'rag-pipeline' }).mode).toBeNull()
 	})
-	it('the chat DTO carries neither the key nor the base', () => {
-		const dto = toChatAppDto(row)
+	it('the chat DTO carries the type and the chat switches, never the base', () => {
+		const dto = toChatAppDto(record)
 		expect(dto).toEqual({
 			id: 'a1',
+			provider: 'dify',
 			name: 'Tea',
-			mode: 'advanced-chat',
 			description: 'desc',
 			enabled: true,
-			icon: { kind: 'emoji', emoji: '🍵', background: '#FFEAD5' },
-			settings: settingsOf(row),
+			hasIcon: true,
+			appType: 'advanced-chat',
+			settings: {
+				answerForm: { enabled: true, feedbackText: 'Thanks' },
+				enableUpdateAfterConversationStarts: false,
+				openingStatementDisplayMode: 'always',
+			},
 		})
 		expect(JSON.stringify(dto)).not.toContain('dify.example')
+	})
+	it('the gallery card carries the provider and the type, never the base or the switches', () => {
+		const summary = toAppSummary(record)
+		expect(summary).toEqual({
+			id: 'a1',
+			provider: 'dify',
+			name: 'Tea',
+			description: 'desc',
+			tags: ['a', 'b'],
+			hasIcon: true,
+			appType: 'advanced-chat',
+		})
 	})
 })
 
@@ -349,4 +364,13 @@ describe('readDocuments', () => {
 			expect(JSON.stringify(spy.mock.calls)).not.toContain('dify.example')
 		},
 	)
+	it('reads the settings alone for the DTO reads, with the same log line on a refusal', () => {
+		const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+		expect(readSettings('a1', 'dify', settings)).toEqual({ provider: 'dify', settings })
+		expect(readSettings('a1', 'dify', { ...settings, apiBase: 'nope' })).toBeNull()
+		expect(spy).toHaveBeenCalledWith('Stored app documents refused:', {
+			appId: 'a1',
+			code: 'invalid_settings',
+		})
+	})
 })

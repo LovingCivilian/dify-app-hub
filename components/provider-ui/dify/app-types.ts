@@ -1,7 +1,8 @@
 import type { AppMode } from '@/lib/providers/dify/types'
 
 /*
- * Translation keys per Dify app mode: the short name (labels, filters) and the admin form's option text.
+ * Dify's app types in the client registry (Part 1 spec §3): the translation key of each type's short name (the card,
+ * the table and its filter) and of the admin form's option text.
  * `as const satisfies` keeps each value a literal key, which the typed `t()` requires (types/i18next.d.ts).
  */
 export const APP_MODE_NAME_KEYS = {

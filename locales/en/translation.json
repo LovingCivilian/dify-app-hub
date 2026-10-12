@@ -557,5 +557,8 @@
 		"resume_failed": "Your answer was sent, but the rest of the reply could not be loaded. Reopen the conversation to see it.",
 		"already_submitted": "This form was already submitted.",
 		"not_waiting": "This form no longer waits for an answer. Reopen the conversation to see the result."
+	},
+	"provider": {
+		"dify": "Dify"
 	}
 }

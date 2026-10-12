@@ -263,7 +263,8 @@ const withIconApp = async (
 	}
 }
 
-test('the app icon is the stored emoji on its colour, in the welcome panel and the sider', async ({
+// Decision 19: an emoji stored by an older sync is no longer drawn; the avatar shows the app's first letter.
+test('an app without a stored image shows its first letter, not an emoji', async ({
 	page,
 	isMobile,
 }, testInfo) => {
@@ -272,15 +273,12 @@ test('the app icon is the stored emoji on its colour, in the welcome panel and t
 		{ icon_type: 'emoji', icon: '🦊', icon_background: '#FFEAD5' },
 		async app => {
 			await page.goto(`/chat/${app.id}?isNewCvst=1`)
-			// The welcome panel's avatar and, on a desktop, the sider's (it is in the page below md but hidden).
-			const avatars = page.locator('.ant-avatar', { hasText: '🦊' }).visible()
-			await expect(avatars).toHaveCount(isMobile ? 1 : 2)
-			// Dify's icon colour (#FFEAD5) is the background.
-			for (const avatar of await avatars.all()) {
-				await expect(avatar).toHaveCSS('background-color', 'rgb(255, 234, 213)')
-			}
-			// Not the emoji of the stub's /site (a Dify answer the avatar no longer reads).
-			await expect(page.getByText('🤖', { exact: true })).toHaveCount(0)
+			// The welcome panel's avatar and, on a desktop, the sider's (hidden below md). The stub's /site names the app
+			// "Stub app", which the avatar shows first.
+			await expect(page.locator('.ant-avatar', { hasText: /^S$/ }).visible()).toHaveCount(
+				isMobile ? 1 : 2,
+			)
+			await expect(page.getByText('🦊')).toHaveCount(0)
 		},
 	)
 })
