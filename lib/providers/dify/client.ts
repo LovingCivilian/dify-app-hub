@@ -205,6 +205,11 @@ export const difyClient = (credentials: DifyCredentials) => {
 	return {
 		// Application metadata (endpoint map §1.1): no end-user context.
 		getInfo: () => send('/info').then(json<AppInfo>),
+		/**
+		 * GET /info as Dify's raw answer, for the connection test (lib/providers/dify/test-connection.ts), which reads the
+		 * body itself: an OK answer that is not Dify's JSON then reads as an upstream error, not as an unreachable host.
+		 */
+		fetchInfo: (signal?: AbortSignal) => send('/info', { signal }),
 		getParameters: () => send('/parameters').then(json<AppParameters>),
 		getSite: () => send('/site').then(json<SiteSettings>),
 		getMeta: () => send('/meta').then(json<AppMeta>),

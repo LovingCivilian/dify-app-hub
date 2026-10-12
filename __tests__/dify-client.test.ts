@@ -465,6 +465,15 @@ const operations: OperationCase[] = [
 		result: 'json',
 	},
 	{
+		// The connection test reads the body itself (Plan decision f), so the Response comes back untouched.
+		name: 'fetchInfo',
+		call: c => c.fetchInfo(),
+		method: 'GET',
+		url: `${V1}/info`,
+		user: 'none',
+		result: 'binary',
+	},
+	{
 		name: 'getParameters',
 		call: c => c.getParameters(),
 		method: 'GET',
