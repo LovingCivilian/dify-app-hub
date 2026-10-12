@@ -18,6 +18,9 @@ pnpm-debug.log*
 .env.test.local
 .env.production.local
 
+# Python venv for the crawl4ai helper (per machine, not part of the image)
+.venv
+
 # 测试和覆盖率
 .nyc_output
 coverage
