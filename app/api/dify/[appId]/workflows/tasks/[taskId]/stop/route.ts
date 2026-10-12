@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 
-import { difyJson, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { parsePathParams } from '@/lib/dify/schemas'
+import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
+import { parsePathParams } from '@/lib/http/parse'
 
 /** POST /workflows/tasks/{task_id}/stop (a recorded follow-up of ADR-0017): the body carries only `user`, which the route sets. */
 export async function POST(
@@ -13,7 +13,9 @@ export async function POST(
 	const segments = await parsePathParams(ctx.params, 'taskId')
 	if (!segments.ok) return segments.response
 	try {
-		return difyJson(await resolved.ctx.dify.stopWorkflow(segments.data.taskId, resolved.ctx.user))
+		return jsonNoStore(
+			await resolved.ctx.dify.stopWorkflow(segments.data.taskId, resolved.ctx.user),
+		)
 	} catch (error) {
 		return errorResponseFrom(error, 'POST /api/dify/[appId]/workflows/tasks/[taskId]/stop')
 	}

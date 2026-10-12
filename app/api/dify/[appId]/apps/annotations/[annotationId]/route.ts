@@ -1,8 +1,14 @@
 import type { NextRequest } from 'next/server'
 
 import { hasAdminRights } from '@/lib/auth/roles'
-import { difyJson, errorResponseFrom, forbiddenResponse, resolveDifyRoute } from '@/lib/dify/route'
-import { annotationBody, parseJsonBody, parsePathParams } from '@/lib/dify/schemas'
+import {
+	jsonNoStore,
+	errorResponseFrom,
+	forbiddenResponse,
+	resolveDifyRoute,
+} from '@/lib/dify/route'
+import { annotationBody } from '@/lib/dify/schemas'
+import { parseJsonBody, parsePathParams } from '@/lib/http/parse'
 
 /** PUT /apps/annotations/{annotation_id}. Admin rights only: the owner or an admin (charter §4.1). */
 export async function PUT(
@@ -17,7 +23,9 @@ export async function PUT(
 	const body = await parseJsonBody(request, annotationBody)
 	if (!body.ok) return body.response
 	try {
-		return difyJson(await resolved.ctx.dify.updateAnnotation(segments.data.annotationId, body.data))
+		return jsonNoStore(
+			await resolved.ctx.dify.updateAnnotation(segments.data.annotationId, body.data),
+		)
 	} catch (error) {
 		return errorResponseFrom(error, 'PUT /api/dify/[appId]/apps/annotations/[annotationId]')
 	}

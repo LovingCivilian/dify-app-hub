@@ -75,7 +75,7 @@ export default function AnnotationsPanel({ appId }: { appId: string }) {
 	}, [difyApi, query])
 	const reload = () => setQuery(current => ({ ...current, version: current.version + 1 }))
 
-	// The browser client rejects a non-OK answer with DifyRequestError; failureText words it (charter §4.5).
+	// The browser client rejects a non-OK answer with RequestError; failureText words it (charter §4.5).
 	const save = async (values: AnnotationFormValues) => {
 		try {
 			if (editing?.item) await difyApi.updateAnnotation(editing.item.id, values)

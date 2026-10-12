@@ -1,4 +1,4 @@
-import { difyErrorResponse } from '@/lib/dify/errors'
+import { errorResponse } from '@/lib/http/errors'
 
 import type { BrandImageKind } from './branding-rules'
 import { readBrandImage, readBrandImageVersion } from './branding'
@@ -52,4 +52,4 @@ export const brandImageResponse = async (
 	})
 }
 
-const notFound = () => difyErrorResponse('not_found', 'No custom image is set.', 404)
+const notFound = () => errorResponse('not_found', 'No custom image is set.', 404)

@@ -2,14 +2,14 @@ import 'server-only'
 
 import { verifySession, type SessionUser } from '@/lib/auth/session'
 import { getAppAccess } from '@/lib/data/apps'
+import { errorResponse, errorResponseFrom, forbiddenResponse } from '@/lib/http/errors'
 import { isId } from '@/lib/ids'
 
 import { difyClient, type DifyClient } from './client'
-import { difyErrorResponse, errorResponseFrom, forbiddenResponse } from './errors'
 
 // A route checks the role right after the app (session → app → role → input) and answers forbiddenResponse().
 export { errorResponseFrom, forbiddenResponse }
-export { difyJson } from './response'
+export { jsonNoStore } from '@/lib/http/response'
 
 export interface DifyRouteContext {
 	/** The Dify end user: the account's permanent id, never the email (ADR-0026). */
@@ -39,15 +39,14 @@ export const resolveDifyRoute = async (
 	try {
 		const actor = await verifySession()
 		if (!actor)
-			return { ok: false, response: difyErrorResponse('unauthorized', 'Sign in required.', 401) }
+			return { ok: false, response: errorResponse('unauthorized', 'Sign in required.', 401) }
 		const { appId } = await params
 		const app = isId(appId) ? await getAppAccess(actor, appId) : null
-		if (!app)
-			return { ok: false, response: difyErrorResponse('app_not_found', 'No such app.', 404) }
+		if (!app) return { ok: false, response: errorResponse('app_not_found', 'No such app.', 404) }
 		if (!app.enabled)
 			return {
 				ok: false,
-				response: difyErrorResponse('app_disabled', 'This app is disabled.', 403),
+				response: errorResponse('app_disabled', 'This app is disabled.', 403),
 			}
 		return {
 			ok: true,

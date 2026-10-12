@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 
 import { verifySession } from '@/lib/auth/session'
 import { getAppIcon } from '@/lib/data/apps'
-import { difyErrorResponse, errorResponseFrom } from '@/lib/dify/errors'
+import { errorResponse, errorResponseFrom } from '@/lib/http/errors'
 import { isId } from '@/lib/ids'
 
 /**
@@ -16,12 +16,12 @@ import { isId } from '@/lib/ids'
  */
 export async function GET(request: NextRequest, ctx: RouteContext<'/api/apps/[appId]/icon'>) {
 	const actor = await verifySession()
-	if (!actor) return difyErrorResponse('unauthorized', 'Sign in required.', 401)
+	if (!actor) return errorResponse('unauthorized', 'Sign in required.', 401)
 	try {
 		const { appId } = await ctx.params
 		// Spec §3.2: an id that is not a UUID is an app without an icon, answered before any query (lib/ids.ts).
 		const icon = isId(appId) ? await getAppIcon(actor, appId) : null
-		if (!icon) return difyErrorResponse('icon_not_found', 'This app has no stored icon image.', 404)
+		if (!icon) return errorResponse('icon_not_found', 'This app has no stored icon image.', 404)
 		const etag = `"${createHash('sha256').update(icon.bytes).digest('hex').slice(0, 32)}"`
 		const headers = {
 			etag,

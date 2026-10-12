@@ -12,7 +12,7 @@ import {
 	toConversationItem,
 	type ConversationItem,
 } from '../provider/conversations'
-import type { DifyRequestError } from '../provider/dify-fetch'
+import type { RequestError } from '../provider/dify-fetch'
 import { conversationKeyFor, newTempConversationKey, parseConversationKey } from '../provider/keys'
 import { toDifyError } from './dify-errors'
 
@@ -45,7 +45,7 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 	const conversations = items as ConversationItem[]
 	const [loading, setLoading] = useState(true)
 	/** The last failed load: `{ status, code?, message }`, `message` being Dify's text or ''. */
-	const [error, setError] = useState<DifyRequestError | null>(null)
+	const [error, setError] = useState<RequestError | null>(null)
 
 	// Read by the callbacks after an await (React: refs are written in effects, not during rendering).
 	const latest = useRef({ appId, difyApi, t, startNew, conversations, activeKey })
@@ -164,13 +164,13 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 		[setConversation],
 	)
 
-	/** Renames on Dify, then locally; rejects with a DifyRequestError and keeps the label on failure. */
+	/** Renames on Dify, then locally; rejects with a RequestError and keeps the label on failure. */
 	const rename = useCallback(
 		async (key: string, name: string) => {
 			const difyId = getDifyId(key)
 			if (difyId) {
 				try {
-					// The browser client rejects with DifyRequestError when Dify refuses the name.
+					// The browser client rejects with RequestError when Dify refuses the name.
 					await latest.current.difyApi.renameConversation(difyId, { name })
 				} catch (e) {
 					throw toDifyError(e)
@@ -210,7 +210,7 @@ export const useConversations = ({ appId, difyApi, startNew = false }: Options) 
 		[getConversation, getDifyId, setConversation],
 	)
 
-	/** Deletes on Dify, then locally; rejects with a DifyRequestError and keeps the item on failure. */
+	/** Deletes on Dify, then locally; rejects with a RequestError and keeps the item on failure. */
 	const remove = useCallback(
 		async (key: string) => {
 			const difyId = getDifyId(key)

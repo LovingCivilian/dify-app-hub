@@ -2,7 +2,8 @@ import type { NextRequest } from 'next/server'
 
 import { filePassthrough } from '@/lib/dify/client'
 import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { parseJsonBody, textToAudioBody } from '@/lib/dify/schemas'
+import { textToAudioBody } from '@/lib/dify/schemas'
+import { parseJsonBody } from '@/lib/http/parse'
 
 /** POST /text-to-audio: `{ message_id | text, voice }`, user set here; the audio passes through. */
 export async function POST(

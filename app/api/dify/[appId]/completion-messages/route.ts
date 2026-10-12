@@ -2,7 +2,8 @@ import type { NextRequest } from 'next/server'
 
 import { passthrough } from '@/lib/dify/client'
 import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { completionBody, parseJsonBody } from '@/lib/dify/schemas'
+import { completionBody } from '@/lib/dify/schemas'
+import { parseJsonBody } from '@/lib/http/parse'
 
 /** POST /completion-messages (endpoint map §1.3). */
 export async function POST(

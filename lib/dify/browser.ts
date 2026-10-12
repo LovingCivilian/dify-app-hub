@@ -1,5 +1,8 @@
 // Client-safe: no server-only import. The browser's one way to the Dify routes (charter §4.1): every JSON
-// method resolves the typed body and rejects with DifyRequestError on a non-OK answer, so the chat keeps one parser.
+// method resolves the typed body and rejects with RequestError (lib/http/browser.ts) on a non-OK answer, so the chat
+// keeps one parser.
+import { readRequestError } from '@/lib/http/browser'
+
 import type {
 	AnnotationInput,
 	AnnotationItem,
@@ -23,36 +26,6 @@ import type {
 	TextToAudioRequest,
 	WorkflowRunRequest,
 } from './types'
-
-/** Dify's error body (`{ code, message, status }`) as a thrown error; `code` is undefined for a body of another shape. */
-export class DifyRequestError extends Error {
-	constructor(
-		public readonly status: number,
-		public readonly code: string | undefined,
-		message: string,
-	) {
-		super(message)
-		this.name = 'DifyRequestError'
-	}
-}
-
-/**
- * Reads a non-OK answer. An empty or non-JSON body (a proxy page, Next's empty 500) keeps no message, never the
- * status text: nothing user-facing is English from the wire, the view shows its own i18n text (charter §4.5).
- */
-export const readDifyError = async (response: Response): Promise<DifyRequestError> => {
-	let body: { code?: unknown; message?: unknown } | null = null
-	try {
-		body = await response.json()
-	} catch {
-		body = null
-	}
-	return new DifyRequestError(
-		response.status,
-		typeof body?.code === 'string' ? body.code : undefined,
-		typeof body?.message === 'string' ? body.message : '',
-	)
-}
 
 type QueryValue = string | number | boolean | undefined
 const queryString = (params: object) => {
@@ -78,7 +51,7 @@ export const createDifyApi = (appId: string) => {
 	const base = `/api/dify/${segment(appId)}`
 	const request = async (path: string, init?: RequestInit): Promise<Response> => {
 		const response = await fetch(`${base}${path}`, init)
-		if (!response.ok) throw await readDifyError(response)
+		if (!response.ok) throw await readRequestError(response)
 		return response
 	}
 	const json = <T>(response: Response) => response.json() as Promise<T>

@@ -380,7 +380,7 @@ export default function ChatView() {
 
 	/**
 	 * Rates an answer by its Dify message id (spec §4.7): shown at once, taken back if Dify refuses
-	 * (the browser client rejects with DifyRequestError) with the failure's text (failureText) or the generic one.
+	 * (the browser client rejects with RequestError) with the failure's text (failureText) or the generic one.
 	 */
 	const feedback = useCallback(
 		async (

@@ -18,7 +18,7 @@ import { formatDateTime } from '@/libs/format-date'
 import { useAppContext } from '../app-context'
 import { failureText } from '../hooks/dify-errors'
 import { useTts } from '../hooks/use-tts'
-import type { DifyRequestError } from '../provider/dify-fetch'
+import type { RequestError } from '../provider/dify-fetch'
 import type { DifyChatMessage } from '../provider/message'
 import DislikePopover from './dislike-popover'
 import { footerActions } from './message-actions'
@@ -70,8 +70,7 @@ function MessageFooter({
 	const { app, parameters, difyApi } = useAppContext()
 	const { message: toast } = App.useApp()
 	const reportTtsError = useCallback(
-		(error: DifyRequestError) =>
-			toast.error(failureText(error, t, t('common.request_failed_retry'))),
+		(error: RequestError) => toast.error(failureText(error, t, t('common.request_failed_retry'))),
 		[t, toast],
 	)
 	const tts = useTts(difyApi, reportTtsError)

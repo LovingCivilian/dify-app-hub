@@ -2,7 +2,8 @@ import type { NextRequest } from 'next/server'
 
 import { passthrough } from '@/lib/dify/client'
 import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { chatMessagesBody, parseJsonBody } from '@/lib/dify/schemas'
+import { chatMessagesBody } from '@/lib/dify/schemas'
+import { parseJsonBody } from '@/lib/http/parse'
 
 /** POST /chat-messages (endpoint map §1.2): the stream passes through; a blocking answer is JSON and passes through too. */
 export async function POST(

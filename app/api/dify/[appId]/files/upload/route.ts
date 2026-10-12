@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 
-import { difyJson, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { parseFilePart } from '@/lib/dify/schemas'
+import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
+import { parseFilePart } from '@/lib/http/parse'
 
 /** POST /files/upload (endpoint map §1.6): one file part, user set here; Dify answers 201 with the file. */
 export async function POST(
@@ -13,7 +13,7 @@ export async function POST(
 	const part = await parseFilePart(request)
 	if (!part.ok) return part.response
 	try {
-		return difyJson(await resolved.ctx.dify.uploadFile(part.data, resolved.ctx.user), {
+		return jsonNoStore(await resolved.ctx.dify.uploadFile(part.data, resolved.ctx.user), {
 			status: 201,
 		})
 	} catch (error) {

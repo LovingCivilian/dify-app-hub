@@ -39,10 +39,10 @@ describe('toActionFailure', () => {
 		})
 		expect(errorSpy).not.toHaveBeenCalled()
 	})
-	it('maps any DifyError to dify_unreachable (the admin cannot fix Dify’s wording)', () => {
+	it('maps any DifyError to provider_unreachable (the admin cannot fix Dify’s wording)', () => {
 		expect(toActionFailure(new DifyError(401, 'unauthorized', 'bad key'), 'x')).toEqual({
 			ok: false,
-			code: 'dify_unreachable',
+			code: 'provider_unreachable',
 		})
 	})
 	it('logs the context with the status, code and message of a DifyError before mapping it', () => {

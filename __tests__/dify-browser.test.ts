@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createDifyApi, DifyRequestError } from '@/lib/dify/browser'
+import { createDifyApi } from '@/lib/dify/browser'
+import { RequestError } from '@/lib/http/browser'
 
 const jsonResponse = (status: number, body: unknown, type = 'application/json') =>
 	new Response(JSON.stringify(body), { status, headers: { 'content-type': type } })
@@ -99,12 +100,12 @@ describe('createDifyApi: paths on the app route tree, Dify’s verbs', () => {
 })
 
 describe('createDifyApi: errors', () => {
-	it("rejects with DifyRequestError carrying Dify's code and message", async () => {
+	it("rejects with RequestError carrying Dify's code and message", async () => {
 		fetchMock.mockResolvedValue(
 			jsonResponse(412, { code: 'human_input_form_expired', message: 'Expired.', status: 412 }),
 		)
 		const error = await api.submitHumanInput('tok', { inputs: {}, action: 'a' }).catch(e => e)
-		expect(error).toBeInstanceOf(DifyRequestError)
+		expect(error).toBeInstanceOf(RequestError)
 		expect(error).toMatchObject({
 			status: 412,
 			code: 'human_input_form_expired',
@@ -139,7 +140,7 @@ describe('createDifyApi: errors', () => {
 			status: 403,
 			code: 'app_disabled',
 		})
-		await expect(api.filePreview('f1')).rejects.toBeInstanceOf(DifyRequestError)
-		await expect(api.deleteConversation('c1')).rejects.toBeInstanceOf(DifyRequestError)
+		await expect(api.filePreview('f1')).rejects.toBeInstanceOf(RequestError)
+		await expect(api.deleteConversation('c1')).rejects.toBeInstanceOf(RequestError)
 	})
 })

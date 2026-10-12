@@ -1,15 +1,15 @@
 import type { TFunction } from 'i18next'
 
-import { DifyRequestError } from '../provider/dify-fetch'
+import { RequestError } from '../provider/dify-fetch'
 
 /**
- * Any failure as the error the chat hooks report: the browser client's DifyRequestError as it is (the code and
+ * Any failure as the error the chat hooks report: the browser client's RequestError as it is (the code and
  * message of the answer's envelope, or no message); a network failure or the like keeps no text and is kept as
  * `cause`. What the user reads comes from `failureText`; hooks never make up English text of their own.
  */
-export const toDifyError = (error: unknown): DifyRequestError => {
-	if (error instanceof DifyRequestError) return error
-	const wrapped = new DifyRequestError(0, undefined, '')
+export const toDifyError = (error: unknown): RequestError => {
+	if (error instanceof RequestError) return error
+	const wrapped = new RequestError(0, undefined, '')
 	wrapped.cause = error
 	return wrapped
 }

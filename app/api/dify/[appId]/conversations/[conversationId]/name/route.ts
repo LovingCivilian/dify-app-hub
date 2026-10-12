@@ -1,7 +1,8 @@
 import type { NextRequest } from 'next/server'
 
-import { difyJson, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { parseJsonBody, parsePathParams, renameConversationBody } from '@/lib/dify/schemas'
+import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
+import { renameConversationBody } from '@/lib/dify/schemas'
+import { parseJsonBody, parsePathParams } from '@/lib/http/parse'
 
 /** POST /conversations/{conversation_id}/name: `{ name }` or `{ auto_generate: true }`; answers the conversation. */
 export async function POST(
@@ -15,7 +16,7 @@ export async function POST(
 	const body = await parseJsonBody(request, renameConversationBody)
 	if (!body.ok) return body.response
 	try {
-		return difyJson(
+		return jsonNoStore(
 			await resolved.ctx.dify.renameConversation(
 				segments.data.conversationId,
 				body.data,

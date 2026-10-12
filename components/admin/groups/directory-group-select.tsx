@@ -11,7 +11,7 @@ import {
 	directorySearchText,
 } from '@/app/(admin)/group-management/schemas'
 import { drawerPopupContainer } from '@/components/admin/drawer-popup-container'
-import { readDifyError } from '@/lib/dify/browser'
+import { readRequestError } from '@/lib/http/browser'
 import type { DirectoryGroupOption } from '@/lib/directory/admin'
 import { DIRECTORY_GROUP_SEARCH_LIMIT } from '@/lib/directory-status'
 
@@ -68,7 +68,7 @@ export default function DirectoryGroupSelect({
 				})
 				if (!response.ok) {
 					// The envelope's code, never its English message (charter §4.5).
-					const { code } = await readDifyError(response)
+					const { code } = await readRequestError(response)
 					if (!controller.signal.aborted) message.error(t(directorySearchErrorKey(code)))
 					return
 				}

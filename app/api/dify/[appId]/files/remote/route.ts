@@ -1,10 +1,11 @@
 import type { NextRequest } from 'next/server'
 
 import { filePassthrough } from '@/lib/dify/client'
-import { difyErrorResponse } from '@/lib/dify/errors'
+import { errorResponse } from '@/lib/http/errors'
 import { resolveRemoteFileUrl } from '@/lib/dify/remote-file'
 import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { parseQuery, remoteFileQuery } from '@/lib/dify/schemas'
+import { remoteFileQuery } from '@/lib/dify/schemas'
+import { parseQuery } from '@/lib/http/parse'
 
 /**
  * GET /files/remote?url= : a link Dify handed out (message files, generated images), fetched on the user's behalf so
@@ -20,11 +21,7 @@ export async function GET(
 	if (!query.ok) return query.response
 	const target = resolveRemoteFileUrl(query.data.url, resolved.ctx.apiBase)
 	if (!target)
-		return difyErrorResponse(
-			'invalid_param',
-			'url must be a file link on the app’s Dify server.',
-			400,
-		)
+		return errorResponse('invalid_param', 'url must be a file link on the app’s Dify server.', 400)
 	try {
 		return filePassthrough(await resolved.ctx.dify.fetchRemoteFile(target))
 	} catch (error) {

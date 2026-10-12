@@ -11,8 +11,8 @@ export const appErrorKey = (code: ActionErrorCode, action: AppAction) => {
 			return 'common.forbidden' as const
 		case 'not_found':
 			return 'admin_apps.not_found' as const
-		case 'dify_unreachable':
-			return 'admin_apps.dify_unreachable' as const
+		case 'provider_unreachable':
+			return 'admin_apps.provider_unreachable' as const
 		case 'invalid_input':
 			return 'admin_apps.invalid_input' as const
 		default:

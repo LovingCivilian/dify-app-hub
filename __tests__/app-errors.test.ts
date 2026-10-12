@@ -7,7 +7,7 @@ describe('appErrorKey', () => {
 		expect(appErrorKey('unauthorized', 'save')).toBe('common.session_expired')
 		expect(appErrorKey('forbidden', 'sync')).toBe('common.forbidden')
 		expect(appErrorKey('not_found', 'delete')).toBe('admin_apps.not_found')
-		expect(appErrorKey('dify_unreachable', 'save')).toBe('admin_apps.dify_unreachable')
+		expect(appErrorKey('provider_unreachable', 'save')).toBe('admin_apps.provider_unreachable')
 		expect(appErrorKey('invalid_input', 'save')).toBe('admin_apps.invalid_input')
 		expect(appErrorKey('operation_failed', 'save')).toBe('admin_apps.save_failed')
 		expect(appErrorKey('operation_failed', 'sync')).toBe('admin_apps.sync_failed')

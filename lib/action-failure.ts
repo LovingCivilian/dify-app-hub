@@ -5,7 +5,7 @@ import * as z from 'zod'
 import { fail, type ActionFailure } from '@/lib/action-result'
 import { AuthError } from '@/lib/auth/session'
 import { isInvalidTextRepresentation } from '@/lib/data/db-errors'
-import { DifyError } from '@/lib/dify/errors'
+import { ProviderError } from '@/lib/http/errors'
 import { logActionError } from '@/lib/error-log'
 
 /** A zod refusal as the action result (charter §4.5: fieldErrors keyed by field path). */
@@ -13,18 +13,18 @@ export const invalidInput = (error: z.ZodError): ActionFailure =>
 	fail('invalid_input', z.flattenError(error).fieldErrors as Record<string, string[]>)
 
 /**
- * An exception inside an action as its failure result (charter §4.5: two vocabularies on purpose; a DifyError
- * becomes dify_unreachable, never a raw envelope). A DifyError and an unexpected error are logged with their
- * context first, so a wrong key or a failing Dify leaves a trace on the server; the message of a DifyError never
- * carries the API key. An AuthError is an expected outcome and is not logged. A value its column's type cannot read
- * (22P02), in practice a malformed id that reached a `uuid` column unchecked, answers not_found, as an unknown id does
- * (spec §3.2's safety net); its log line names the action whose id check missed it.
+ * An exception inside an action as its failure result (charter §4.5: two vocabularies on purpose; a provider's error
+ * becomes provider_unreachable, never a raw envelope). A ProviderError (Dify's DifyError) and an unexpected error are
+ * logged with their context first, so a wrong key or a failing provider leaves a trace on the server; a provider
+ * error's message never carries the key. An AuthError is an expected outcome and is not logged. A value its column's
+ * type cannot read (22P02), in practice a malformed id that reached a `uuid` column unchecked, answers not_found, as an
+ * unknown id does (Part 0 spec §3.2's safety net); its log line names the action whose id check missed it.
  */
 export const toActionFailure = (error: unknown, context: string): ActionFailure => {
 	if (error instanceof AuthError) return fail(error.code)
-	if (error instanceof DifyError) {
+	if (error instanceof ProviderError) {
 		console.error(`${context}:`, { status: error.status, code: error.code, message: error.message })
-		return fail('dify_unreachable')
+		return fail('provider_unreachable')
 	}
 	logActionError(error, context)
 	return isInvalidTextRepresentation(error) ? fail('not_found') : fail('operation_failed')

@@ -160,12 +160,12 @@ test.describe('create and edit', () => {
 		await page.goto('/app-management')
 		await page.getByRole('button', { name: 'New' }).click()
 		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
-		// An unknown stub path answers Dify's 404 JSON body: the server client throws, the action answers dify_unreachable.
+		// An unknown stub path answers Dify's 404 JSON body: the server client throws, the action answers provider_unreachable.
 		await create.getByLabel('API Base').fill(`${stubApiBase}/nope`)
 		await create.getByLabel('API Secret').fill('app-e2e')
 		await create.getByRole('button', { name: 'OK' }).click()
 		await expect(
-			page.getByText('Could not reach the Dify app. Check the API Base and API Secret.'),
+			page.getByText("Could not reach the app's provider. Check the connection settings."),
 		).toBeVisible()
 		await expect(create).toBeVisible()
 		await expect(page.getByRole('row', { name: /nope/ })).toHaveCount(0)

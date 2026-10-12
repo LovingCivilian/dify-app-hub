@@ -8,7 +8,7 @@ export type ActionErrorCode =
 	| 'cannot_delete_self'
 	| 'cannot_deactivate_self'
 	| 'not_found'
-	| 'dify_unreachable'
+	| 'provider_unreachable'
 	| 'sync_running'
 	| 'settings_not_editable'
 	| 'invalid_image'

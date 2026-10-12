@@ -68,10 +68,10 @@ describe('app actions', () => {
 		expect(createApp).toHaveBeenCalledWith(actor, input)
 		expect(refresh).toHaveBeenCalled()
 	})
-	it("maps Dify's refusal of the credentials to dify_unreachable", async () => {
+	it("maps Dify's refusal of the credentials to provider_unreachable", async () => {
 		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 		createApp.mockRejectedValue(new DifyError(401, 'unauthorized', 'bad key'))
-		expect(await createAppAction(input)).toEqual({ ok: false, code: 'dify_unreachable' })
+		expect(await createAppAction(input)).toEqual({ ok: false, code: 'provider_unreachable' })
 		expect(refresh).not.toHaveBeenCalled()
 		expect(errorSpy).toHaveBeenCalledWith('createAppAction:', {
 			status: 401,

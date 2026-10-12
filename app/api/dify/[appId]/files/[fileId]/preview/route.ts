@@ -2,7 +2,8 @@ import type { NextRequest } from 'next/server'
 
 import { filePassthrough } from '@/lib/dify/client'
 import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { filePreviewQuery, parsePathParams, parseQuery } from '@/lib/dify/schemas'
+import { filePreviewQuery } from '@/lib/dify/schemas'
+import { parsePathParams, parseQuery } from '@/lib/http/parse'
 
 /** GET /files/{file_id}/preview?as_attachment= : the binary with its type and disposition (endpoint map §1.6). */
 export async function GET(

@@ -68,7 +68,7 @@ export const useWorkflowRun = () => {
 					await response.body?.cancel().catch(() => {})
 					return true
 				}
-				// The browser client rejects a non-OK answer with DifyRequestError (caught below); an answer
+				// The browser client rejects a non-OK answer with RequestError (caught below); an answer
 				// without a body has no text to show (the view uses the generic one).
 				if (!response.body) {
 					update(s => ({ ...s, status: 'failed', error: '' }))

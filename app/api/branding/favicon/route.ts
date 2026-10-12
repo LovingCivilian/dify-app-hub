@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { errorResponseFrom } from '@/lib/dify/errors'
+import { errorResponseFrom } from '@/lib/http/errors'
 import { readBrandImageVersion } from '@/lib/settings/branding'
 import { brandImageResponse } from '@/lib/settings/image-response'
 

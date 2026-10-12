@@ -451,9 +451,9 @@
 		"create_success": "新增应用配置成功",
 		"edit_success": "编辑应用配置成功",
 		"save_failed": "保存应用配置失败",
-		"dify_unreachable": "无法连接到 Dify 应用，请检查 API Base 和 API Secret。",
 		"invalid_input": "部分取值无效，请检查表单后重试。",
-		"icon_not_stored": "已保存，但无法保存应用图标图片"
+		"icon_not_stored": "已保存，但无法保存应用图标图片",
+		"provider_unreachable": "无法连接到应用的提供方，请检查连接设置。"
 	},
 	"app_setting": {
 		"section_request": "请求配置",

@@ -5,14 +5,14 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 
-import { difyErrorResponse } from '@/lib/dify/errors'
-import { difyJson } from '@/lib/dify/response'
+import { errorResponse } from '@/lib/http/errors'
+import { jsonNoStore } from '@/lib/http/response'
 
 // Next adds no Cache-Control to a dynamic Route Handler's answer (its app-route handler sends the handler's own
-// headers only), so every JSON answer of /api/dify says itself that no cache may store it (ADR-0023).
-describe('difyJson', () => {
+// headers only), so every JSON answer of the hub's routes says itself that no cache may store it (ADR-0023).
+describe('jsonNoStore', () => {
 	it('answers JSON with private, no-store, keeping the status and the other headers', async () => {
-		const response = difyJson({ ok: true }, { status: 201, headers: { 'x-extra': '1' } })
+		const response = jsonNoStore({ ok: true }, { status: 201, headers: { 'x-extra': '1' } })
 		expect(response.status).toBe(201)
 		expect(response.headers.get('cache-control')).toBe('private, no-store')
 		expect(response.headers.get('content-type')).toBe('application/json')
@@ -20,7 +20,7 @@ describe('difyJson', () => {
 		await expect(response.json()).resolves.toEqual({ ok: true })
 	})
 	it('carries no-store on the envelope too', () => {
-		const response = difyErrorResponse('app_not_found', 'No such app.', 404)
+		const response = errorResponse('app_not_found', 'No such app.', 404)
 		expect(response.status).toBe(404)
 		expect(response.headers.get('cache-control')).toBe('private, no-store')
 	})
@@ -40,7 +40,7 @@ describe('the Dify routes', () => {
 		expect(files.length).toBeGreaterThan(20)
 	})
 	it.each(files.map(file => [path.relative(path.resolve(__dirname, '..'), file), file]))(
-		'%s answers JSON through difyJson only',
+		'%s answers JSON through jsonNoStore only',
 		(_name, file) => {
 			expect(readFileSync(file, 'utf8')).not.toMatch(/\b(Response|NextResponse)\.json\(/)
 		},
