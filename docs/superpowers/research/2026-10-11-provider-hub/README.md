@@ -323,7 +323,7 @@ Rules that apply throughout:
     - **E3, the sections:** today's plain `Divider`s with the title at the start, and **no Collapse** ("its plain dividers with no collapse"; the earlier Collapse pick is withdrawn).
       - Form `layout="horizontal"`.
       - `requiredMark` is a render function that draws an asterisk on required fields and "(optional)" on optional ones. This is antd's documented customize route; its built-in values are either-or.
-    - **E4, the icon:** Upload + Button with no list, as on the branding page. The preview is a square Avatar, whose corners are rounded through the token. Remove is a separate danger Button, assumed from the branding page.
+    - **E4, the icon:** Upload + Button with no list, as on the branding page. The preview is a square Avatar, whose corners are rounded through the token. Remove is a separate danger Button, assumed from the branding page. (Revised by decision 37 (owner, 2026-10-12): a default Button, as the branding page's is.)
     - **E5 to E11 were delegated** ("for the rest do as you see fit. vanilla showcase style"). Claude chose antd's showcase defaults:
       - **E5, tags:** `Select mode="tags"` with comma tokenization and existing tags as suggestions; default `Tag` chips.
       - **E6, description:** `Input.TextArea` with `autoSize` from 2 to 6 rows.
@@ -334,7 +334,7 @@ Rules that apply throughout:
       - **E11, fallback icons:** a square Avatar with the default background. Dify `ApartmentOutlined`, AG-UI `RobotOutlined`, OpenAI-compatible `ApiOutlined`, generic `AppstoreOutlined`.
 31. **Part 1's spec is written** (2026-10-11): `docs/superpowers/specs/2026-10-11-part-1-provider-core-design.md`. It waits for the owner's review. Choices it makes that were not asked separately:
     - **Limits:** at most 10 tags of 1–32 characters; a description of up to 2,000 characters.
-    - **App icons:** at most 256 × 256 px PNG, from a 1 MB input.
+    - **App icons:** at most 256 × 256 px PNG, from a 1 MB input. (Revised by decision 37 (owner, 2026-10-12): a 512 KB input.)
     - **Responsive labels:** the labels go above the fields on narrow screens.
     - **Rows whose stored documents fail their schema:** 404 for users; for admins, an "Invalid settings" Tag and an Edit that repairs the row.
     - **The client registry folder** is `components/provider-ui/`.
@@ -378,6 +378,12 @@ Rules that apply throughout:
     - The owner tested the pushed branch: "ive tested it and it looks like its working". ADR-0031 was accepted, and PR #39 was merged into `fork/overhaul` as `fd05be49`.
     - Cleaned up on the owner's word: the old MySQL volume and the `.env` backups.
     - Next: Part 1's plan, written against the merged code (decision 33).
+
+37. **Part 1's plan is written and reviewed** (2026-10-12): `docs/superpowers/plans/2026-10-12-part-1-provider-core.md`, 15 tasks.
+    - It was written against `fork/overhaul` at `dfeff12e` (Part 0 merged), with its migrations measured on a throwaway PostgreSQL 18.
+    - Two Opus reviewers checked it, one on Tasks 1–10 and one on Tasks 11–15. One fix round took every Blocker and Important finding: the drawer now sends the form's whole store (a save with the form reply switched off was refused), the screenshot spec follows the removed annotations and emoji icons, the e2e no longer presses Escape inside the drawer, the two pins of the deleted sync test keep a home, and the Docker gate always backs the database up, with a written way back. The few Minor findings not taken are listed at the end of the plan.
+    - The owner answered the plan's two questions: "Cap at 512 KB" (the icon's input cap: Next's default 1 MB Server Action body has to carry the icon and the form's other fields) and "Default, like branding" (the icon's Remove is a default Button, as on the branding page). Spec §4.4 and §4.1 now say so, each marked "(owner, 2026-10-12)".
+    - Next: the owner's approval of the plan, then its execution on `feat/provider-core`.
 
 ## Research findings that shape the design (2026-10-11)
 

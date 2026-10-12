@@ -140,7 +140,7 @@ Owner's pick (owner, 2026-10-11: "bordered collapse per section. layout beside. 
 Owner's pick: **1, Upload + Button with no list**, the branding page's pattern (owner, 2026-10-11).
 
 - The preview is an **Avatar with `shape="square"`**. antd's square Avatar has rounded corners through the border-radius token, which is the "square with rounded corners" asked for. It is drawn at the size the gallery card uses.
-- Remove works as on the branding page: a separate danger Button with `DeleteOutlined`. The owner named no remove style, so the branding page's is assumed.
+- Remove works as on the branding page: a separate default Button with `DeleteOutlined`, not a danger one (owner, 2026-10-12: "Default, like branding"; this line first said "danger", which the branding page's button is not).
 
 ---
 
