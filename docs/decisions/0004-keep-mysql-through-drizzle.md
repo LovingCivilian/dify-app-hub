@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by [ADR-0031](0031-move-the-database-to-postgresql-18.md)
 date: 2026-10-04
 decision-makers: LovingCivilian (fork owner)
 ---
@@ -60,3 +60,5 @@ Chosen option: keep MySQL, because the app is MySQL-only through Drizzle at ever
 Source: `CLAUDE.md` "Infrastructure" ("MySQL stays … Postgres was considered and rejected"). Upstream's migration record is inherited, not a fork decision.
 
 Note, 2026-10-09: the owner wants to move this line to PostgreSQL after backend rework B3 or after frontend phase 2 (their other projects and Dify on the production server run PostgreSQL). That move gets its own ADR superseding this one. This record's main reason, cheap upstream merges, fell away with ADR-0022. B3 keeps to features both engines have (foreign keys with cascade, `CHECK`, composite primary keys, enums, a unique index that allows several `NULL`s).
+
+Note, 2026-10-12 (owner, provider-hub decisions 13 to 16): superseded by [ADR-0031](0031-move-the-database-to-postgresql-18.md), Part 0 of the provider-hub programme. This line moves to PostgreSQL 18 in the hub's own container, through `pg` and `drizzle-orm/node-postgres`, from a fresh start with one baseline migration. `fork/main` keeps MySQL and its own copy of this record ([ADR-0019](0019-keep-two-product-lines.md)).

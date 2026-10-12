@@ -25,7 +25,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0001](0001-adopt-architecture-decision-records.md) | Adopt architecture decision records | accepted | 2026-10-04 |
 | [0002](0002-use-documented-library-approaches-only.md) | Use documented library approaches only, verified against current docs | accepted | 2026-10-04 |
 | [0003](0003-run-the-fork-on-a-two-branch-model.md) | Run the fork on a two-branch model: `main` mirrors upstream, `fork/main` integrates | superseded by [ADR-0019](0019-keep-two-product-lines.md) | 2026-10-04 |
-| [0004](0004-keep-mysql-through-drizzle.md) | Keep MySQL (through Drizzle) instead of moving to PostgreSQL | accepted | 2026-10-04 |
+| [0004](0004-keep-mysql-through-drizzle.md) | Keep MySQL (through Drizzle) instead of moving to PostgreSQL | superseded by [ADR-0031](0031-move-the-database-to-postgresql-18.md) | 2026-10-04 |
 | [0005](0005-internationalise-the-ui-with-typed-i18next-keys-and-msa-arabic.md) | Internationalise the UI with typed i18next keys, with Modern Standard Arabic and Arabic-Indic digits | accepted | 2026-10-03 |
 | [0006](0006-require-login-everywhere-and-use-the-email-as-dify-end-user-id.md) | Require the app's own login for every page and API, and use the signed-in email as the Dify end-user id | accepted | 2026-10-04 |
 | [0007](0007-leave-the-ant-design-look-as-upstream-has-it.md) | Leave the Ant Design / Ant Design X look as upstream has it | superseded by [ADR-0008](0008-rebuild-frontend-on-ant-design-6-and-x-2.md) | 2026-10-04 |
@@ -52,6 +52,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0028](0028-navigate-the-admin-area-in-a-sidebar-shared-with-the-chat.md) | Navigate the admin area in a sidebar shared with the chat | accepted | 2026-10-10 |
 | [0029](0029-sign-directory-accounts-in-over-ldap-and-keep-them-in-step-with-a-scheduled-sync.md) | Sign directory accounts in over LDAP and keep them in step with a scheduled sync | accepted | 2026-10-10 |
 | [0030](0030-set-each-settings-area-from-the-environment-or-the-admin-page.md) | Set each settings area from the environment or the admin page | accepted | 2026-10-11 |
+| [0031](0031-move-the-database-to-postgresql-18.md) | Move the database to PostgreSQL 18 | proposed | 2026-10-11 |
 
 ## Inherited from upstream (not fork decisions)
 
