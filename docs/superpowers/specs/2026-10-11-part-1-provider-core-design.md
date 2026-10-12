@@ -124,7 +124,7 @@ Then the Dify columns are dropped. How drizzle-kit produces it (a generated sche
 
 | Section | Fields (required ones marked \*) |
 | --- | --- |
-| Basic | Provider*. Name*. Description: `Input.TextArea`, `autoSize` 2–6 rows (E6). Tags: `Select mode="tags"`, comma separator, the tags of other apps as suggestions (E5). Icon: Upload + Button with no list, a square `Avatar` preview, a danger Remove button, the branding page's pattern (E4). Status. |
+| Basic | Provider*. Name*. Description: `Input.TextArea`, `autoSize` 2–6 rows (E6). Tags: `Select mode="tags"`, comma separator, the tags of other apps as suggestions (E5). Icon: Upload + Button with no list, a square `Avatar` preview, a default Remove button as on the branding page (owner, 2026-10-12), the branding page's pattern (E4). Status. |
 | Access | unchanged (ADR-0027) |
 | Connection (from the provider) | for Dify: API base*, API key* (on create; on edit "optional", placeholder "Leave blank to keep"), App type\*, **Test connection** |
 | Conversation (from the provider) | for Dify: update inputs after the conversation starts; opening statement display |
@@ -164,7 +164,7 @@ The image goes through `lib/settings/images.ts`, ADR-0030's pipeline:
 - sharp with `limitInputPixels`, auto-orient and metadata stripped;
 - re-encoded to PNG;
 - at most 256 × 256 px, in proportion;
-- an input cap of 1 MB.
+- an input cap of 512 KB (owner, 2026-10-12: Next's default 1 MB Server Action body has to carry the icon and the form's other fields; the branding logo's cap is 512 KB for the same reason).
 
 "Remove" clears both icon columns. `GET /api/apps/[appId]/icon` serves the stored PNG as today.
 
