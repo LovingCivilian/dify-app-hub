@@ -23,7 +23,7 @@ export default function DislikeConfirm(props: {
 			<LucideIcon
 				name="thumbs-down"
 				className={
-					isDisLiked ? 'text-[var(--theme-primary-color)]' : 'text-[var(--theme-text-color)]'
+					isDisLiked ? 'text-(color:--theme-danger-color)' : 'text-[var(--theme-text-color)]'
 				}
 				onClick={() => {
 					if (isDisLiked) {

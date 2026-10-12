@@ -172,7 +172,7 @@ export const Chatbox = (props: ChatboxProps) => {
 						<MessageFooter
 							ttsConfig={currentApp?.parameters?.text_to_speech}
 							question={messageItems?.[index - 1]?.content}
-							messageId={messageItem.id}
+							messageId={messageItem.messageId ?? ''}
 							messageContent={messageItem.content}
 							feedback={{
 								rating: messageItem.feedback?.rating,
