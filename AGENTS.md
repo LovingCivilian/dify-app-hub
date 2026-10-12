@@ -1,104 +1,86 @@
-# AGENTS Guidelines for This Repository
+# AGENTS.md — AI App Hub (`fork/overhaul`)
 
-## 仓库概览
+The guide for every coding agent working on this line; Claude Code reads it through `CLAUDE.md`'s `@AGENTS.md` import. The repository started as a fork of `lexmin0412/dify-app-hub`; this line is our own and takes nothing from upstream (ADR-0022, note of 2026-10-12). Decisions are Architecture Decision Records in `docs/decisions/` (index: `docs/decisions/README.md`) — read the accepted ones for an area before changing it.
 
-Dify App Hub 是一个基于 pnpm workspace 构建的 Monorepo 项目，当前包含以下部分：
+## Branch model (ADR-0019: two product lines)
 
-- **根目录** — 平台主应用 (dify-app-hub)，基于 Next.js 16 App Router 模式。集成了 Dify API 代理、应用配置管理、用户认证、数据库交互等功能。前身是独立的 platform + react-app 两个子包，现已合并为根目录单应用。
-- **packages/docs/** — 文档站点 (dify-app-hub-docs)，基于 Rspress 构建。
+- **`fork/overhaul` is this product line** (the antd 6 / Ant Design X rebuild, now the provider-agnostic AI App Hub). Feature branches start from `fork/overhaul`; PRs target it: `gh pr create -R LovingCivilian/dify-app-hub --base fork/overhaul …`, `gh pr merge <n> -R LovingCivilian/dify-app-hub --merge` (merge commits, history kept). Stack a branch on another only when it needs unmerged work. Branch names follow the Conventional Branch spec: `<type>/<description>` with this line's commit types `feat/`, `fix/`, `chore/` and `docs/`, in lowercase letters, digits and single hyphens (`feat/backend-b2-accounts`). A merged branch is deleted on GitHub and locally. `gh pr merge <n> -R LovingCivilian/dify-app-hub --merge --delete-branch` deletes only the GitHub branch (with `-R`, `gh` leaves the local checkout alone; seen on 2026-10-08), so `git branch -d <name>` always follows. Without `gh`, it is `git push origin --delete <name>` and `git branch -d <name>`. The merge commit keeps the branch's commits in the base's history, and the PR's **Restore branch** brings it back (ADR-0019 note of 2026-10-08).
+- `fork/main` and `main` belong to the other product line, which lives in `~/repos/dify-app-hub-main` with its own guide. Never merge `fork/overhaul` into `fork/main`, and never bring anything from `main`, `fork/main` or upstream into this line.
+- The GitHub default branch is `fork/main`.
+- Local folders: each line has its own folder on this machine, a git worktree of the same repository. This line lives in `~/repos/dify-app-hub` (the main worktree). Start the agent in the folder of the line you work on. Git refuses to check out a branch in both folders. Each folder has its own git-ignored `.env`, `.env.development.local`, `node_modules` and `.venv`, and its own Docker stack, so nothing in one folder touches the other.
 
-## 项目结构
+## How to work here
 
+- Documented, standard approaches only — no custom mechanisms or workarounds (ADR-0002). Check the library's current docs before using an API, even a familiar one; when a wanted behaviour has no documented way, say so instead of hacking around it. The owner asks "does this follow docs?" and expects a per-piece answer with sources.
+- Looking things up: Context7 first. When its snippets are shallow or a page needs a real browser, crawl4ai is installed in the repo's `.venv`: `.venv/bin/crwl <url> -o markdown --bypass-cache` prints the page as markdown (`crawl4ai-doctor` is its health check); a plain fetch is fine for plain pages. The venv is per machine (no `pyproject.toml`), git-ignored by its own `.gitignore` and excluded from the Docker build context by `.dockerignore`. For architectural decisions the docs leave open, look at how two or three well-known, well-architected projects on the same stack do it (Context7 indexes repositories; crawl4ai for a specific file) and cite them beside the docs; the docs still win on what a library supports.
+- The line is our own (ADR-0022): backend and frontend follow their stack's current documentation. Backend conventions: ADR-0023 (one route per Dify operation, the typed client, the envelope, the Data Access Layer with the verified actor, Server Actions returning `ActionResult`), ADR-0024 (roles, the rank map, the admin gates in the layout, the pages, the actions and the DAL), ADR-0025 (zod). The endpoint map the routes implement is `docs/dify-service-api-1.17.1.md`.
+- Decisions (ADR-0015): a decision that changes a pattern, adds a dependency or reverses a plan gets an ADR in the same PR (the `adr-skill`). A handoff document is written only when the owner asks for one (saved under `docs/superpowers/handoffs/`). This file holds rules, commands and a folder-level layout, under 200 lines: status belongs in specs and plans, follow-ups in GitHub issues, decisions in ADRs.
+- Database migrations (Drizzle, ADR-0031): change `db/schema/*.ts`, run `pnpm db:generate --name <name>` (`--custom` for a data migration), read the generated SQL in `db/migrations/` before committing it, and never run `drizzle-kit push`, which changes the database without a reviewable migration. The container's entrypoint applies migrations; `next dev` does not (see "Quick dev loop").
+- Before a commit: `pnpm exec next typegen && pnpm exec tsc --noEmit` (`RouteContext` and `PageProps` are generated types: a fresh checkout fails tsc without typegen, and CI runs no tsc), `pnpm exec oxlint <files>`, `pnpm exec oxfmt --check <files>`, `pnpm test` (vitest, node environment — no DOM tests; layout changes are verified by the e2e suite and the browser), and `pnpm test:db` when the schema or the data layer changed (a live PostgreSQL, ADR-0031). lint-staged runs oxfmt/oxlint on commit.
+- Commits: conventional (`feat|fix|docs|chore(scope): …`), in English.
+- PR descriptions follow `.github/PULL_REQUEST_TEMPLATE.md` (Overview / Changes table / Testing / Related Issue), in English, and name the ADRs they implement.
+- `.env` and `.env*.local` are git-ignored and never committed; never print their values. The owner's email is not sent to any service other than this app.
+- Frontend work follows `docs/frontend-conventions.md` (charter: `docs/superpowers/specs/2026-10-04-frontend-overhaul-charter.md`) and `.claude/rules/frontend.md`. Before touching a component, check antd's and Ant Design X's current docs: antd through its MCP server or the `antd` CLI (`antd doc`, `antd demo`, `antd token`), Ant Design X through its skills (the `x-agent-skills` plugins: `x-sdk-skills`, `x-markdown`, `x-components`).
+
+## Layout
+
+- `app/`: the route groups `(auth)` (login, forgot and reset password), `(admin)` (app, user and group management, settings) and `(user)` (apps, chat), each with its own layout; `(admin)` and `(user)` gate on the server (ADR-0018), and server pages load the first paint and hand trimmed props to client components (ADR-0020). `app/api/` holds only the routes `__tests__/api-routes.test.ts` pins.
+- `components/`: client components by area (`providers/` with the single client provider stack, `shell/`, `apps/`, `admin/`, `auth/`, `chat/`); token-only CSS Modules, and antd's `reset.css` is the only global CSS (ADR-0021).
+- `lib/`: server-side modules: `env.ts` (ADR-0025), `auth/` (ADR-0006, ADR-0024), `data/` (the data access layer, ADR-0024), the Dify layer (ADR-0023), `settings/` (ADR-0030) and `directory/` (ADR-0029).
+- `db/`: the Drizzle schema and migrations on PostgreSQL 18 (ADR-0031).
+- Tests: `__tests__/` (Vitest; `__tests__/db/` and `__tests__/ldap/` are projects of their own) and `e2e/` (Playwright with a stub Dify API, ADR-0010).
+- `docs/`: `decisions/` (the ADRs and their index), `superpowers/` (specs, plans and their research), the operator guides (`auth-gate.md`, `ldap.md`, `settings.md`, `i18n-maintenance.md`), `frontend-conventions.md` (frontend rules and status) and `dify-service-api-1.17.1.md` (the endpoint map the Dify routes implement).
+
+## Backlog
+
+Follow-ups are GitHub issues labelled `fork/overhaul`: `gh issue list -R LovingCivilian/dify-app-hub --label fork/overhaul`.
+
+## Local testing
+
+### Docker stack (the real check before merging)
+
+`docker-compose.local.yml` (project `ai-app-hub-local`) builds the image from the checkout and runs it with PostgreSQL 18 (service `postgres`, volume `pgdata`, ADR-0031) on `http://localhost:5300`, settings from `.env` (`POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `DATABASE_URL=postgres://…@postgres:5432/…`). The `fork/main` folder runs its own stack beside it (project `dify-app-hub-main-local` on `127.0.0.1:5310`, MySQL `127.0.0.1:3316`; that line stays on MySQL); never build both folders' images at the same time. Rebuild from the branch under test:
+
+```bash
+docker compose -f docker-compose.local.yml stop app && docker compose -f docker-compose.local.yml rm -f app
+docker compose -f docker-compose.local.yml up -d --build app   # ~2 min, 80 s of it is next build
 ```
-.                           # 主应用 (dify-app-hub)
-├── app/                    # Next.js App Router 页面与 API 路由
-│   ├── (user)/             # 用户端页面 (apps, auth, chat)
-│   ├── api/                # API 路由 (代理 Dify API)
-│   ├── app-management/     # 应用管理页面
-│   ├── user-management/    # 用户管理页面
-│   ├── login/              # 登录页面
-│   └── init/               # 初始化/设置页面
-├── components/             # UI 组件 (auth, chat, layout, shared, ui)
-├── lib/
-│   ├── api/                # Dify API 客户端封装
-│   ├── core/               # 核心业务逻辑 (store, repository, types)
-│   ├── helpers/            # 工具函数 (base-request, gzip, id, localstorage)
-│   └── theme/              # 主题系统
-├── db/                     # 数据库层 (Drizzle ORM schema, migrations)
-├── hooks/                  # 自定义 React hooks
-├── services/               # 服务层
-├── repository/             # 数据仓库层
-├── types/                  # TypeScript 类型定义
-└── config/                 # 应用配置
 
-packages/docs/              # Rspress 文档站点 (dify-app-hub-docs)
-├── docs/                   # 文档源文件 (多版本: Latest, v0.6.x, v0.5.x, v0.4.x)
-└── rspress.config.ts       # Rspress 配置
+Take the old app container down first: this WSL machine has ~5 GB RAM and builds were killed otherwise. PostgreSQL and its volume stay up, so the admin login and data survive. If a build is killed for memory, do not restart it unprompted. The owner verifies in the browser; report the curl checks (`/api/health` 200, `/apps` signed out → 307 `/login?callbackUrl=%2Fapps`, `/api/dify/<an app id>/parameters` signed out → 401 with `{"code":"unauthorized",…}`, `/api/client/apps` signed out → the same 401 (the proxy denies every unknown `/api/*` path before routing, so the deleted route is not a 404 to a signed-out curl), `/api/users` and `/api/init/status` signed out → the same 401 envelope (deny by default; both handlers are deleted), `/api/branding/logo` signed out → 404 `{"code":"not_found",…}` while `BRANDING_MODE` is unset (the brand routes are public, ADR-0030; a 401 would mean the proxy's public list lost them), `/init` on the set-up local database → 307 to `/login`, `curl -s localhost:5300/login | grep -c 'href="/forgot-password"'` → 0 while SMTP is off (the login page hides the link, ADR-0024), and `curl -s localhost:5300/login | grep -c 'id="antd-cssinjs"'` → 1). After a change to the database layer or a compose file, also: the app's log shows `Database migration complete` once and `docker inspect -f '{{.RestartCount}}' ai-app-hub-local-app` prints `0`; `/init` signed out answers 200 on an empty volume until the owner exists, then 307 to `/login`; after `docker compose -f docker-compose.local.yml restart postgres`, `/api/health` answers 200 again (the pool's error listener).
+
+Deployment (owner, 2026-10-07): production is a dedicated 16 GB Docker server running the hub and Dify on one Docker network. Give the hub container a memory limit (512 MB–1 GB); uploads are its memory spike, because Next's proxy buffers request bodies up to 10 MB (`proxyClientMaxBodySize`). Scale out to several hub containers before growing one. Before running several, move the migrations into a one-shot `migrate` service (ADR-0031: `migrate()` takes no lock).
+
+### Quick dev loop (no image build)
+
+```bash
+docker compose -f docker-compose.local.yml stop app   # frees port 5300; PostgreSQL keeps running
+pnpm dev                                              # http://localhost:5300, hot reload
 ```
 
-## 依赖管理
+PostgreSQL is published on `127.0.0.1:5432` only, and the git-ignored `.env.development.local` overrides `DATABASE_URL` to `postgres://…@127.0.0.1:5432/…` for `next dev` (Next's load order: `.env.development.local` over `.env`; Docker builds never read it). Port 5300 is kept so `NEXTAUTH_URL` and the session cookie keep working. Schema changes need `env $(grep DATABASE_URL .env.development.local) pnpm db:migrate` by hand; only the container's entrypoint runs migrations automatically. Dev mode skips `next build`, the standalone server and the entrypoint, so still do one Docker rebuild before merging. Next 16 allows one `next dev` per checkout, so stop `pnpm dev` (5300) before `pnpm test:e2e` and vice versa (the second one fails loudly with "Another next dev server is already running").
 
-- 依赖版本直接在各自 `package.json` 中定义
-- 根目录 `pnpm-workspace.yaml` 管理 workspace 成员和 overrides
-- 安装/更新依赖：在项目根目录运行 `pnpm install`
+### LDAP test directories (ADR-0029)
 
-## 样式处理
+`pnpm test:ldap` runs the directory suite (a Vitest project of its own) against two test directories in `docker-compose.e2e.yml` (profile `ldap`: `ldap-ad` smblds on 127.0.0.1:10636/10389, `ldap-openldap` on 13890/16360); it starts and stops them. `pnpm test:e2e` starts `ldap-ad` with PostgreSQL. The test CA is committed in `e2e/fixtures/ldap/tls/` (`generate.sh` remakes it).
 
-主应用使用 Tailwind CSS v4，配置在：
+### Database test project (ADR-0031)
 
-- `postcss.config.mjs` — PostCSS 集成
-- `tailwindcss` (devDependency) — v4，直接在 `package.json` 中定义版本
+`pnpm test:db` runs `__tests__/db/*.db.test.ts`, a Vitest project of its own like `pnpm test:ldap`, against the e2e compose's `postgres` on 127.0.0.1:5433, in its own database `hub_dal`, which its global setup drops, recreates and migrates; afterwards it stops and removes the e2e `postgres` container, whose tmpfs database goes with it. Run it when the schema or the data layer changes, never beside `pnpm test:e2e`, which uses the same server.
 
-## 开发调试
+### e2e suite (ADR-0010)
 
-在进行代码变更之后，**你不需要**尝试启动开发服务器来验证修改是否生效，因为此应用所有的页面都有登录校验，在你变更代码之后我会自行验证。
+`pnpm test:e2e` runs the Playwright suite (three projects: `desktop-light`, `desktop-dark`, `mobile-light`). It has its own environment, `.env.e2e` (test-only values, committed), and never touches the `.env` database or port 5300: a throwaway PostgreSQL from `docker-compose.e2e.yml` on 127.0.0.1:5433 (project `ai-app-hub-e2e`; `docker compose -f docker-compose.e2e.yml --profile ldap down -v` resets it and the test directories (a plain `down` leaves `ldap-ad` running); `next.config.ts` puts Next's dev indicator at the bottom-right, `devIndicators.position`, so it does not cover the sidebar trigger, ADR-0028), a stub Dify API (`e2e/fixtures/stub/`, port 5399, five apps by path prefix, scenarios chosen by the query text) and the app under `next dev` on 127.0.0.1:5301. Screenshots go to the git-ignored `e2e/screenshots/`; the HTML report opens with `pnpm test:e2e:report`. Browser evidence comes from this suite, never from the owner's instance or a real Dify server.
 
-### 调试准则：两轮无效则取证
+## Next.js bundled docs
 
-排查 bug 时，如果基于代码推理的修复在 **两轮** 内仍不生效，立即停止继续猜测，转而收集真实数据。**先判断问题属于哪一类，再选择对应的取证手段：**
+The block below is managed by `next dev` (`node_modules/next/dist/docs/01-app/02-guides/ai-agents.md`). Keep it, and read the bundled docs it points to before using a Next.js API.
 
-**A. 数据/状态问题**（数据丢了、没更新、传错了）：
+<!-- BEGIN:nextjs-agent-rules -->
 
-1. **localStorage / Zustand 持久化数据** — `localStorage.getItem()` 或 `useXxxStore.getState()`，查看运行时状态，对比"应该是"vs"实际是"
-2. **网络请求** — `list_network_requests` + `get_network_request`，确认 API 实际返回了什么、事件流的顺序和内容
-3. **控制台日志** — `list_console_messages`，查找报错或异常日志
+# This is NOT the Next.js you know
 
-**B. UI/渲染问题**（数据对但显示不对）：
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
-1. **DOM 快照** — Chrome MCP `take_snapshot`，确认组件树和可见文本
-2. **DOM 样式检查** — `evaluate_script` 读取 `getComputedStyle()`，验证具体 CSS 值
-3. **截图对比** — `take_screenshot`，肉眼确认视觉差异
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
-**原则**：代码告诉你"理论上应该怎样"，浏览器告诉你"实际上怎样"。两者矛盾时，信浏览器。修复之后，**必须用浏览器真实数据验证效果**，不得仅凭代码推理宣告完成。API 问题和 UI 问题要分开验证——数据对了不代表显示对了，反之亦然。
-
-## 数据库迁移
-
-本项目使用 Drizzle ORM + drizzle-kit 管理数据库迁移。
-
-**变更流程**：
-
-1. 修改 `db/schema/*.ts` 中的表定义
-2. 运行 `pnpm --filter dify-app-hub db:generate` 生成迁移 SQL
-3. Review 生成的 `db/migrations/` 中的 SQL 文件
-4. 确认无误后运行 `pnpm --filter dify-app-hub db:migrate` 执行
-
-**🚫 禁止 `drizzle-kit push`**：该命令会直接修改数据库结构而不生成可 review 的 SQL 文件，可能导致数据丢失。
-
-**迁移文件**：存放在 `db/migrations/` 目录，应纳入 git 版本控制。
-
-## 项目成熟度追踪
-
-本项目使用 OpenSSF 标准进行项目成熟度评估：
-
-- **自动化扫描**：`.github/workflows/scorecard.yml` 每周自动运行 OpenSSF Scorecard，结果推送到 GitHub Security 面板和 [公开 API](https://api.scorecard.dev/projects/github.com/lexmin0412/dify-app-hub)。
-- **人工自评**：`.cii-assessment.md` 基于 CII Best Practices（通过级）35 项标准，记录每项的证据和差距。
-
-### 代码变更前必须重新评估
-
-在用户明确要求提交代码之前，**必须**做以下操作：
-
-1. 基于 [.cii-assessment.md](./.cii-assessment.md) 中的评估标准，检查每一项的结果是否有任何变化，有则直接更新
-2. 如果上一步评估结果有变化，则需要更新文件底部的「变更记录」表格，记录本次评估结果的变更内容
-3. 基于以上两步，如果 [.cii-assessment.md](./.cii-assessment.md) 文件存在任何变更，**必须单独提交** `.cii-assessment.md` 的变更，不要与业务代码改动混在同一个 commit 中
-
-例如：本次添加了 `CONTRIBUTING.md`，则应更新 #2（改为 ✅ 并填写证据链接）、#13（改为 ✅），并在变更记录中加一行，然后单独 `git commit -m "docs: update CII assessment"` 。
+<!-- END:nextjs-agent-rules -->

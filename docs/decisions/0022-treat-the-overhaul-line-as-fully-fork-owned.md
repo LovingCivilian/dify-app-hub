@@ -52,3 +52,7 @@ Chosen option: the whole `fork/overhaul` line is fork-owned. Files and folders a
 ## More Information
 
 Supersedes [ADR-0009](0009-treat-the-frontend-as-fork-owned.md) on this line (on `fork/main` ADR-0009 still governs). Charter: `docs/superpowers/specs/2026-10-07-backend-rework-charter.md` §1, §2, §6; the brainstorm record behind it: `docs/superpowers/research/2026-10-07-backend-rework/design-notes.md`. Related: [ADR-0019](0019-keep-two-product-lines.md), [ADR-0023](0023-build-the-dify-layer-as-one-route-per-operation.md).
+
+### Note, 2026-10-12 (upstream disregarded; AGENTS.md is this line's guide)
+
+The owner: "disregared upstream from now on, this repo is our own". Upstream is no longer even a cherry-pick source for this line: nothing comes from `upstream`, `main` or `fork/main`, and `AGENTS.md` (upstream's Chinese guide until now) is replaced by this line's own guide in English, which `CLAUDE.md` imports (`@AGENTS.md`), the setup Next.js and Claude Code document. Upstream's maturity tracking goes with it: `.cii-assessment.md` and the per-commit re-check, and `.github/workflows/scorecard.yml` (a scheduled workflow GitHub never ran on this fork). The owner also chose global installs for agent skills and plugins: the project copies of `adr-skill` and the antd and Ant Design X skills are removed, antd comes from its MCP server at user scope and Ant Design X from its `x-agent-skills` plugins. `fork/main` keeps upstream's `AGENTS.md` and ADR-0009.
