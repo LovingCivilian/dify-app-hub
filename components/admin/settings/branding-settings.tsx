@@ -27,11 +27,11 @@ import { useActionTransition } from '@/hooks/use-action-transition'
 import type { BrandingSettingsView } from '@/lib/settings/branding'
 import {
 	BRAND_IMAGE_MAX_BYTES,
-	BRAND_IMAGE_MIME_TYPES,
 	BRAND_NAME_MAX,
 	effectiveShowName,
 	type BrandImageKind,
 } from '@/lib/settings/branding-rules'
+import { IMAGE_MIME_TYPES } from '@/lib/settings/image-rules'
 
 import { brandingErrorKey, imageErrorKey } from './branding-errors'
 
@@ -106,12 +106,12 @@ function ImageField({
 					/>
 				)}
 				<Upload
-					accept={BRAND_IMAGE_MIME_TYPES.join(',')}
+					accept={IMAGE_MIME_TYPES.join(',')}
 					showUploadList={false}
 					// antd demos "Upload manually" and "Upload png file only": keep the file in the browser (return false)
 					// or drop it from the list (Upload.LIST_IGNORE). A convenience only; the server decides (OWASP).
 					beforeUpload={file => {
-						if (!(BRAND_IMAGE_MIME_TYPES as readonly string[]).includes(file.type)) {
+						if (!(IMAGE_MIME_TYPES as readonly string[]).includes(file.type)) {
 							message.error(t('admin_settings.image_not_allowed'))
 							return Upload.LIST_IGNORE
 						}

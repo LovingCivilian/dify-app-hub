@@ -16,13 +16,6 @@ export const BRAND_IMAGE_MAX_BYTES: Readonly<Record<BrandImageKind, number>> = {
 	favicon: 256 * 1024,
 }
 
-/** What the file picker offers and the browser's quick check takes; the server decides (OWASP File Upload Cheat Sheet). */
-export const BRAND_IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const
-
-/** Why the server refused an image (spec §4.4): over the byte limit, or not a PNG, JPEG or WebP that decodes. */
-export const BRAND_IMAGE_ERROR_CODES = ['too_large', 'not_allowed'] as const
-export type BrandImageErrorCode = (typeof BRAND_IMAGE_ERROR_CODES)[number]
-
 /** The two public image routes (spec §4.5). */
 export const BRAND_LOGO_PATH = '/api/branding/logo'
 export const BRAND_FAVICON_PATH = '/api/branding/favicon'
