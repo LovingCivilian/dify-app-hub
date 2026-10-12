@@ -371,6 +371,14 @@ Rules that apply throughout:
 
     Also decided on 2026-10-12: Part 0 runs subagent-driven, in a new session; the docs went to `fork/overhaul` in PR #37 (`8e105912`).
 
+36. **Part 0 is built, tested by the owner and merged** (2026-10-12).
+    - It ran subagent-driven on `feat/postgres-and-rename`, with a review of each task, a three-seat final review and one fix wave. The run records are in `part0-execution/`.
+    - The owner asked "did you follow adr 02?". A docs check of the execution-time choices followed (`part0-execution/doc-verification-execution.md`), and `tsconfig.json` now excludes `tmp/`.
+    - The owner's answers (2026-10-12): "leave the commit" (the per-model `Co-Authored-By` trailers stay), "use pnpm remove" (mysql2 removed with the documented command), "use the exclude", "you can edit the .env yourself" (Claude switched both `.env` files to PostgreSQL without printing a value).
+    - The owner tested the pushed branch: "ive tested it and it looks like its working". ADR-0031 was accepted, and PR #39 was merged into `fork/overhaul` as `fd05be49`.
+    - Cleaned up on the owner's word: the old MySQL volume and the `.env` backups.
+    - Next: Part 1's plan, written against the merged code (decision 33).
+
 ## Research findings that shape the design (2026-10-11)
 
 Sources are in `agui-and-reference-hubs.md`.
@@ -432,6 +440,7 @@ All of them keep history themselves. None mixes history kept by the provider wit
 
 ## Research in this folder
 
+- `part0-execution/`: Part 0's run records: the ledger, the rulings, the pre-flight scan, the docs check of the execution-time choices, the final review, the fix wave.
 - `dify-coupling-map.md`: every place the code assumes Dify, classified as neutral core, Dify-only, or name only.
 - `agui-and-reference-hubs.md`: the AG-UI protocol and `@ag-ui/client`, Pydantic AI's adapter, Ant Design X and AG-UI, and how LibreChat, Open WebUI and LobeChat model their providers.
 - `agui-reference-projects.md`: `vstorm-co/full-stack-ai-agent-template`, `vstorm-co/agenticos` (build or adopt), the AG-UI Dojo, Pydantic AI's AG-UI examples.
