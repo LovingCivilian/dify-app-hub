@@ -385,6 +385,11 @@ Rules that apply throughout:
     - The owner answered the plan's two questions: "Cap at 512 KB" (the icon's input cap: Next's default 1 MB Server Action body has to carry the icon and the form's other fields) and "Default, like branding" (the icon's Remove is a default Button, as on the branding page). Spec §4.4 and §4.1 now say so, each marked "(owner, 2026-10-12)".
     - Next: the owner's approval of the plan, then its execution on `feat/provider-core`.
 
+38. **The superpowers-extended-cc defaults replace our own process rules** (owner, 2026-10-12: "it should follow deafults superpowers, and the things superpowers owns are loaded with its skills, we shouldnt have to re explain it in our files").
+    - The plugin `superpowers-extended-cc` 6.5.3-dev replaced `superpowers` 6.4.1. Its skills now decide the steps, reviews, commits, worktrees and finish of every plan run.
+    - Dropped: the Opus pre-flight, the three-seat final review, the run records archived in a docs PR, this record's "update after every answer" rule, and the owner-picks-every-component rule (brainstorming's 2–3 options with a recommendation instead; the Part 1 picks E1–E11 stay in the plan).
+    - Next: Part 1's plan is converted to the plugin's plan format (task fields, per-task metadata with a model tier, the `.tasks.json` file), then run by its skills. From here the specs and plans carry the decisions; this record keeps the history.
+
 ## Research findings that shape the design (2026-10-11)
 
 Sources are in `agui-and-reference-hubs.md`.

@@ -1,5 +1,7 @@
 # Handoff, 2026-10-12: Part 0 executed and merged, Part 1 planned
 
+> **Superseded in part (owner, 2026-10-12):** the run brief ("How the owner wants Part 1 run"), "What worked in Part 0's run" and the `superpowers:` skill names below no longer apply. The superpowers-extended-cc plugin's skills run Part 1 with their defaults, after the plan is converted to that plugin's plan format (running record, decision 38). The status sections still hold.
+
 The next session executes **Part 1 of the provider-hub programme** (the provider-neutral core), subagent-driven. Everything it needs is in the repository; this file says where things stand and where to look.
 
 ## Where things stand
