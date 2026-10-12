@@ -5,7 +5,7 @@
 # with DATABASE_URL=postgres://<user>:<password>@postgres:5432/<db>.
 #
 # Quick dev loop (no image build): stop the app container, keep PostgreSQL, run `pnpm dev`
-# on the host against 127.0.0.1:5432 (DATABASE_URL in .env.development.local). See CLAUDE.md.
+# on the host against 127.0.0.1:5432 (DATABASE_URL in .env.development.local). See AGENTS.md.
 name: ai-app-hub-local
 
 services:

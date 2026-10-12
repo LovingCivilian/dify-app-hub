@@ -12,13 +12,13 @@
 
 ## Global Constraints
 
-- Branch `feat/provider-core` from `fork/overhaul` (`e459ca26` or later; after `dfeff12e`, PRs #42, #56 and the plan-format PR changed only `CLAUDE.md`, this plan and other docs no task touches), created when execution starts. Nothing is pushed and no PR is opened until the owner says so; the PR then targets `fork/overhaul` (`gh pr create -R LovingCivilian/dify-app-hub --base fork/overhaul …`).
+- Branch `feat/provider-core` from `fork/overhaul` (`e459ca26` or later; after `dfeff12e`, PRs #42, #56, #57 and the AGENTS.md PR changed only the agent guides, this plan, the project skills and other files no task touches), created when execution starts. Nothing is pushed and no PR is opened until the owner says so; the PR then targets `fork/overhaul` (`gh pr create -R LovingCivilian/dify-app-hub --base fork/overhaul …`).
 - Commits: conventional (`feat|fix|refactor|test|docs|chore(scope): …`), English, `git add <paths>`, never `-A`. Each message ends with the session's two trailers inside the same `-m` argument, after a blank line: `Co-Authored-By: <the implementer's model> <noreply@anthropic.com>` and `Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn`. The plan's commands show `Claude Opus 5.5`; an implementer on another model writes its own name.
 - ADR-0002: documented approaches only; every non-obvious choice carries its source in a comment, as the surrounding code does. The sources are the DV rows, the docs each task names, and the measurements under "Plan decisions".
-- Gates before each commit (CLAUDE.md): `pnpm exec next typegen && pnpm exec tsc --noEmit`, `pnpm exec oxlint <changed files>`, `pnpm exec oxfmt --check <changed files>`, `pnpm test`. A task that touches the data layer (`db/`, `lib/data/`, the documents) also runs `pnpm test:db`. A task that names e2e specs runs them.
+- Gates before each commit (AGENTS.md): `pnpm exec next typegen && pnpm exec tsc --noEmit`, `pnpm exec oxlint <changed files>`, `pnpm exec oxfmt --check <changed files>`, `pnpm test`. A task that touches the data layer (`db/`, `lib/data/`, the documents) also runs `pnpm test:db`. A task that names e2e specs runs them.
 - One `next dev` per checkout (Next 16): stop `pnpm dev` before `pnpm test:e2e`. `pnpm test:db` and `pnpm test:e2e` share the e2e PostgreSQL on 127.0.0.1:5433 and never run at the same time. This machine has about 5 GB of RAM: one heavy process at a time.
 - The owner's running local stack (`ai-app-hub-local`, `docker-compose.local.yml`, port 5300, PostgreSQL on 127.0.0.1:5432) is never touched by a task, except Task 15's Docker gate, which stops for the owner's word first (Task 15, Step 7) and always backs the database up before the migration (Step 9), with a written way back (Step 15).
-- AGENTS.md: migrations through `pnpm db:generate` only (with `--name`, `--custom` and `--hints` as Task 11 gives them), never `drizzle-kit push`; the generated SQL is read before it is committed. `.cii-assessment.md` is re-checked before the last commit and committed on its own (Task 14).
+- AGENTS.md: migrations through `pnpm db:generate` only (with `--name`, `--custom` and `--hints` as Task 11 gives them), never `drizzle-kit push`; the generated SQL is read before it is committed.
 - The `apps` table (spec §2.1): `provider` `text` NOT NULL with `CHECK (provider IN ('dify'))` named `apps_provider_check`; `name` 1–255 characters; `description` NOT NULL DEFAULT `''`, at most 2,000 characters; `tags` `jsonb` NOT NULL DEFAULT `'[]'`, at most 10 tags, each 1–32 characters, trimmed, duplicates removed; `settings` and `secrets` `jsonb` NOT NULL; `icon_image` and `icon_mime` both NULL or both set. Limits live in zod (ADR-0025); the jsonb columns stay `unknown` in Drizzle (DV 8a).
 - Dify's documents (spec §2.2): `settings` `{ apiBase, appType, answerForm: { enabled, feedbackText }, enableUpdateAfterConversationStarts, openingStatementDisplayMode }` — `apiBase` an http(s) URL of at most 500 characters, `appType` one of the six `APP_MODES`, `feedbackText` at most 255 characters, `openingStatementDisplayMode` `'default' | 'always'`; `secrets` `{ apiKey }`, 1–255 characters.
 - Secrets are write-only: no DTO, action result or log line carries one; a blank secret field keeps the stored value (spec §2.3; DV 10, OWASP ASVS 5.0 14.2.6).
@@ -30,7 +30,6 @@
 - New UI components and variants are the owner's picks E1–E11 only (`ui-picks-part1.md`); nothing outside them.
 - Unit tests run in Vitest's node environment (no DOM); browser behaviour is proven by the e2e suite on `desktop-light`, `desktop-dark` and `mobile-light`.
 - Never read or print `.env` or `.env*.local`; never send an email address to any service.
-- Scratch files go to the repo's git-ignored `tmp/`, never `/tmp`; nothing under `tmp/` ends in `.ts` (`tsconfig.json` excludes `tmp`, but the scratch habit stays).
 - Line numbers are those of `dfeff12e` (still true for every file a task touches) unless a step says "as of Task N"; earlier tasks shift some of them, so the quoted text decides. `oxfmt` strips the leading tabs of a fragment quoted from inside a function: find each "replace" fragment by its text and keep the indentation of the lines it replaces. A step that says "replace the whole of" a file gives the file's complete new content.
 
 **User decisions (already made):**
@@ -117,7 +116,7 @@ Measured while planning, against a throwaway `postgres:18` (the e2e service, 127
 | 11 Table, DAL, actions | three migrations, `__tests__/{apps-schema,db-apps-migrations,data-apps-reads}.test.ts`, `__tests__/db/{apps-migration,apps}.db.test.ts` | `db/schema/apps.ts`, `lib/data/apps.ts`, `app/(admin)/app-management/{actions,schemas}.ts`, `components/admin/apps/*`, `api-base-rule.ts` → `components/provider-ui/dify/`, locales (the sync keys), e2e seeds | `__tests__/data-apps-sync.test.ts` |
 | 12 Drawer, layout B | `components/admin/apps/{required-mark,icon-field,connection-test}.tsx`, `connection-outcome.ts`, `components/provider-ui/{provider-form-section.tsx,dify/form-section.tsx}` | `app-form-drawer.tsx`, `app-common-fields.tsx` (renamed), `app-management.tsx` (`tagOptions`), `components/provider-ui/registry.tsx` (`typeName`), locales, stub, `e2e/admin-apps.spec.ts`; test `__tests__/connection-outcome.test.ts` | `app-settings-fields.tsx` (renamed) |
 | 13 Table | `__tests__/provider-boundary.test.ts` | `components/provider-ui/registry.tsx`, `app-management.tsx`, locales, `e2e/admin-apps.spec.ts` | — |
-| 14 Records | ADR-0032 | ADR index, ADR-0023/0026/0027/0030, `docs/{frontend-conventions,auth-gate}.md`, `.cii-assessment.md` | — |
+| 14 Records | ADR-0032 | ADR index, ADR-0023/0026/0027/0030, `docs/{frontend-conventions,auth-gate}.md` | — |
 | 15 Gates | — | — (Step 16 accepts ADR-0032 on the owner's word; outside the repo, Step 9's backup and the `part0` image tag) | — |
 
 ---
@@ -1149,7 +1148,7 @@ Spec §3 and §7: the Dify client, types, request schemas, the remote-file guard
 
 - [ ] `git mv lib/dify lib/providers/dify` shows the eight `types/` files and the six modules as renamed (`R  lib/dify/… -> lib/providers/dify/…`).
 - [ ] Before the rewrite, `pnpm exec next typegen && pnpm exec tsc --noEmit 2>&1 | grep -c "Cannot find module '@/lib/dify/"` prints a positive count.
-- [ ] `git grep -n "lib/dify/" -- ':!docs'` returns only `.cii-assessment.md` lines 59 and 60.
+- [ ] `git grep -n "lib/dify/" -- ':!docs'` prints nothing.
 - [ ] `pnpm exec next typegen && pnpm exec tsc --noEmit` prints nothing.
 - [ ] `pnpm exec oxlint` and `pnpm exec oxfmt --check` on the changed .ts/.tsx files report no findings.
 - [ ] `pnpm test` passes with the same count as after Task 2.
@@ -1173,7 +1172,7 @@ Run: `pnpm exec next typegen && pnpm exec tsc --noEmit 2>&1 | grep -c "Cannot fi
 
 Run: `git grep -lz "lib/dify/" -- app components hooks lib __tests__ e2e db | xargs -0 sed -i 's#lib/dify/#lib/providers/dify/#g'` Expected: no output. The substitution is idempotent (`lib/providers/dify/` does not contain `lib/dify/`), and it also updates the comments that name a file (`db/schema/apps.ts:18`, `e2e/malformed-ids.spec.ts:32`, the chat's "(lib/dify/browser.ts)" remarks).
 
-Run: `git grep -n "lib/dify/" -- ':!docs'` Expected: only `.cii-assessment.md` lines 59 and 60; Task 14 rewrites them.
+Run: `git grep -n "lib/dify/" -- ':!docs'` Expected: no output.
 
 - [ ] **Step 4: Format and run the gates**
 
@@ -9442,9 +9441,9 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 ### Task 14: Records
 
-**Goal:** Write ADR-0032 (proposed) and bring the ADR index, four earlier ADRs, the frontend-conventions and auth-gate docs, and the CII assessment in line with the provider-core code.
+**Goal:** Write ADR-0032 (proposed) and bring the ADR index, four earlier ADRs, and the frontend-conventions and auth-gate docs in line with the provider-core code.
 
-Spec §10: ADR-0032 "Organise apps by provider: a shared core with provider modules" (status `proposed` until the owner's check, spec §11), dated notes on ADR-0023 (the record, the guard, the removed routes), ADR-0026 (every provider's end user) and ADR-0027 (grants on `apps`), plus one on ADR-0030 (its pipeline now serves app icons, under new names); `docs/frontend-conventions.md` (the form conventions) and `docs/auth-gate.md` follow the code, and three GitHub issues take the backlog updates (Step 5; since PR #56 `CLAUDE.md` holds no file map, decision lines or follow-ups, so this task leaves it alone). `AGENTS.md` asks for the `.cii-assessment.md` re-check before a commit; it goes in its own commit. The running record's entry for Part 1 is written after the merge, as Part 0's decision 36 was (PR #40; Plan decision w).
+Spec §10: ADR-0032 "Organise apps by provider: a shared core with provider modules" (status `proposed` until the owner's check, spec §11), dated notes on ADR-0023 (the record, the guard, the removed routes), ADR-0026 (every provider's end user) and ADR-0027 (grants on `apps`), plus one on ADR-0030 (its pipeline now serves app icons, under new names); `docs/frontend-conventions.md` (the form conventions) and `docs/auth-gate.md` follow the code, and three GitHub issues take the backlog updates (Step 5; `AGENTS.md` and `CLAUDE.md` hold no file map, decision lines or follow-ups, so this task leaves them alone). The running record's entry for Part 1 is written after the merge, as Part 0's decision 36 was (PR #40; Plan decision w).
 
 **Files:**
 
@@ -9452,19 +9451,17 @@ Spec §10: ADR-0032 "Organise apps by provider: a shared core with provider modu
 - Modify: `docs/decisions/README.md` (a row after 0031), `docs/decisions/0023-build-the-dify-layer-as-one-route-per-operation.md`, `docs/decisions/0026-use-the-accounts-permanent-id-as-the-dify-end-user.md`, `docs/decisions/0027-gate-apps-by-groups-and-grants-and-deactivate-accounts-with-two-markers.md`, `docs/decisions/0030-set-each-settings-area-from-the-environment-or-the-admin-page.md` (a dated note at the end of each)
 - Modify: `docs/frontend-conventions.md` (line 7; the §4.4 table's `MessageFooter` row; §4.5; a status entry before the `- Next:` line)
 - Modify: `docs/auth-gate.md` (lines 17, 28, 33, 34 and 43)
-- Modify: `.cii-assessment.md` (rows #19, #20, #25, #26, #32, the last-updated date and the change log; its own commit)
 
 **Acceptance Criteria:**
 
 - [ ] `docs/decisions/0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md` exists with `status: proposed` and is committed in the docs commit; `docs/decisions/README.md` has its row after 0031.
 - [ ] Dated notes are added at the end of ADR-0023, ADR-0026, ADR-0027 and ADR-0030; `git diff --stat` before the commit shows the seven files of Steps 3, 4 and 6 and no other.
-- [ ] `CLAUDE.md` is unchanged; the three backlog updates for issues #44, #45 and #49 are written down for the PR description (Step 5); the frontend-conventions and auth-gate script prints `docs/frontend-conventions.md: 4 edits` and `docs/auth-gate.md: 5 edits`.
+- [ ] `AGENTS.md` and `CLAUDE.md` are unchanged; the three backlog updates for issues #44, #45 and #49 are written down for the PR description (Step 5); the frontend-conventions and auth-gate script prints `docs/frontend-conventions.md: 4 edits` and `docs/auth-gate.md: 5 edits`.
 - [ ] The Step 8 path check prints no `missing:` line, and `find app/api/dify -name route.ts | wc -l` prints `23`.
 - [ ] Step 9's `git grep` over `docs/auth-gate.md docs/frontend-conventions.md` prints only the deliberate mentions the step lists.
 - [ ] `pnpm exec oxfmt --check` on the two docs, the ADR index and the five ADRs is clean, and the docs commit 'docs: record apps organised by provider (ADR-0032)' exists.
-- [ ] The `.cii-assessment.md` script prints `11 edits`, `git grep -c "lib/dify/" -- .cii-assessment.md` prints nothing, the summary stays 24/35, and it is committed alone as 'docs: update CII assessment'.
 
-**Verify:** `find app/api/dify -name route.ts | wc -l && git grep -c "lib/dify/" -- .cii-assessment.md; pnpm exec oxfmt --check docs/auth-gate.md docs/frontend-conventions.md docs/decisions/README.md docs/decisions/0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md .cii-assessment.md` → `23`, no grep output, oxfmt clean
+**Verify:** `find app/api/dify -name route.ts | wc -l && pnpm exec oxfmt --check docs/auth-gate.md docs/frontend-conventions.md docs/decisions/README.md docs/decisions/0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md` → `23`, oxfmt clean
 
 **Interfaces:**
 
@@ -9474,10 +9471,10 @@ Spec §10: ADR-0032 "Organise apps by provider: a shared core with provider modu
 - [ ] **Step 1: List the records that still name the old paths and features**
 
 ```bash
-git grep -n -o -E "lib/dify\b|dify_apps|[Aa]nnotation[a-z]*|Dify user ID|two \`@ant-design/icons\` majors|encrypting the Dify API keys" -- docs/auth-gate.md docs/frontend-conventions.md .cii-assessment.md
+git grep -n -o -E "lib/dify\b|dify_apps|[Aa]nnotation[a-z]*|Dify user ID|two \`@ant-design/icons\` majors|encrypting the Dify API keys" -- docs/auth-gate.md docs/frontend-conventions.md
 ```
 
-Expected now (the earlier tasks touch none of these files): `.cii-assessment.md` lines 59 and 60; `docs/auth-gate.md` lines 17 (three times), 28, 33, 34 (twice: `lib/dify/` and upstream's old `lib/dify-client.ts`) and 43; `docs/frontend-conventions.md` lines 7, 93 (three times) and 97 (three times). Step 9 runs it again.
+Expected now (the earlier tasks touch none of these files): `docs/auth-gate.md` lines 17 (three times), 28, 33, 34 (twice: `lib/dify/` and upstream's old `lib/dify-client.ts`) and 43; `docs/frontend-conventions.md` lines 7, 93 (three times) and 97 (three times). Step 9 runs it again.
 
 - [ ] **Step 2: Write ADR-0032**
 
@@ -9737,7 +9734,7 @@ MD
 
 - [ ] **Step 5: The backlog updates (GitHub issues)**
 
-Since PR #56, `CLAUDE.md` holds no file map, no decision lines and no follow-ups, so nothing in it changes. The follow-ups live in GitHub issues labelled `fork/overhaul`; Part 1 changes three of them. Posting to GitHub waits for the owner's word, like the PR: write the three updates into the PR description (Task 15 opens the PR on the owner's word), and post them as issue comments after the merge.
+`AGENTS.md` and `CLAUDE.md` hold no file map, no decision lines and no follow-ups, so nothing in them changes. The follow-ups live in GitHub issues labelled `fork/overhaul`; Part 1 changes three of them. Posting to GitHub waits for the owner's word, like the PR: write the three updates into the PR description (Task 15 opens the PR on the owner's word), and post them as issue comments after the merge.
 
 - #44 (i18n): add Part 1's new and reworded keys to the owner's review list: `provider.dify`, `form.optional`, `connection_test.*`, the drawer's new and reworded `app_setting.*` keys, `admin_apps.provider_unreachable`, `admin_apps.column_provider`, `admin_apps.status_invalid`, `admin_apps.field_invalid`, `admin_users.user_id`, and the reworded `admin_apps.subtitle`, `app.no_config_default_text` and `admin_users.delete_directory_confirm_description`.
 - #45 (frontend): the item "two `@ant-design/icons` majors in the tree" is done (Task 1 leaves one).
@@ -9838,7 +9835,7 @@ Expected: no `missing:` line, then `23`.
 git grep -n -o -E "lib/dify\b|dify_apps|[Aa]nnotation[a-z]*|Dify user ID|two \`@ant-design/icons\` majors|encrypting the Dify API keys" -- docs/auth-gate.md docs/frontend-conventions.md
 ```
 
-Expected, and nothing else (each a deliberate mention: history, or the removal itself): `docs/auth-gate.md` line 17 (`annotation`, "since the annotation routes went") and line 34 (`lib/dify`, upstream's old `lib/dify-client.ts`); `docs/frontend-conventions.md` line 7 (`lib/dify`, "since B1"), line 95 (three times) and line 99 (three times), the sub-project 3 and B1 status entries, and line 101 (`annotations`, Part 1's own entry). `.cii-assessment.md` is Step 11's.
+Expected, and nothing else (each a deliberate mention: history, or the removal itself): `docs/auth-gate.md` line 17 (`annotation`, "since the annotation routes went") and line 34 (`lib/dify`, upstream's old `lib/dify-client.ts`); `docs/frontend-conventions.md` line 7 (`lib/dify`, "since B1"), line 95 (three times) and line 99 (three times), the sub-project 3 and B1 status entries, and line 101 (`annotations`, Part 1's own entry).
 
 - [ ] **Step 10: Format check and commit**
 
@@ -9857,80 +9854,6 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 ```
 
-- [ ] **Step 11: Re-check `.cii-assessment.md` (AGENTS.md) and commit it on its own**
-
-Read the 35 rows against the branch. Part 1 changes no row's status; it changes the evidence of #19, #20, #25, #26 and #32. Read the counts first (`pnpm test:db` and `pnpm test:e2e` never run at once; this step runs neither suite's e2e):
-
-```bash
-pnpm test 2>&1 | tail -6
-pnpm test:db 2>&1 | tail -6
-ls e2e/*.spec.ts | wc -l
-```
-
-From the summaries, take the unit tests and test files ("Tests" and "Test Files" of `pnpm test`), the database tests and files (the same two lines of `pnpm test:db`) and the spec count, and pass them to the script (the numbers below are examples; use the printed ones):
-
-```bash
-UNIT_TESTS=1850 UNIT_FILES=150 DB_TESTS=45 DB_FILES=7 SPECS=38 TODAY=$(date +%F) node --input-type=module <<'JS'
-import { readFileSync, writeFileSync } from 'node:fs'
-
-const env = name => {
-	const value = process.env[name]
-	if (!value || !/^[\d-]+$/.test(value)) throw new Error(`set ${name}`)
-	return value
-}
-const [unitTests, unitFiles, dbTests, dbFiles, specs, today] = ['UNIT_TESTS', 'UNIT_FILES', 'DB_TESTS', 'DB_FILES', 'SPECS', 'TODAY'].map(env)
-const file = '.cii-assessment.md'
-let text = readFileSync(file, 'utf8')
-const EDITS = [
-	['**最后更新**: 2026-10-12', `**最后更新**: ${today}`],
-	// #19
-	['vitest 单元测试（1808 个，146 个测试文件', `vitest 单元测试（${unitTests} 个，${unitFiles} 个测试文件`],
-	['（`pnpm test:db`，5 个测试文件、27 个测试', `（\`pnpm test:db\`，${dbFiles} 个测试文件、${dbTests} 个测试`],
-	['含应用增删改 `admin-apps.spec.ts`', '含应用增删改、提供方筛选、测试连接与图标上传 `admin-apps.spec.ts`'],
-	['用户增删改、角色等级与 Dify 用户 ID `admin-users.spec.ts`', '用户增删改、角色等级与用户 ID `admin-users.spec.ts`'],
-	// #20
-	['1808 个单元测试分布在 146 个测试文件，另有 38 个 Playwright 端到端测试文件', `${unitTests} 个单元测试分布在 ${unitFiles} 个测试文件，另有 ${specs} 个 Playwright 端到端测试文件`],
-	// #25
-	[
-		'Dify 只由服务端客户端 `lib/dify/client.ts` 调用，数据访问层 `lib/data/apps.ts` 返回的 DTO 不含密钥（ADR-0023）；',
-		'Dify 只由服务端客户端 `lib/providers/dify/client.ts` 调用，数据访问层 `lib/data/apps.ts` 返回的 DTO 不含密钥（ADR-0023）；各提供方的密钥单独存放在 `secrets` 文档中、只写不读：任何 DTO 与日志都不含密钥，管理员只看到每个密钥是否已设置，留空即保留原值（ADR-0032）；',
-	],
-	// #26
-	[
-		'图片格式按解码结果而非浏览器声明的类型判断（ADR-0030）',
-		'图片格式按解码结果而非浏览器声明的类型判断（ADR-0030），应用图标同样经该流程处理；应用的提供方设置与密钥文档在每次写入和读取时都经该提供方的 zod 模式校验，无法解析的记录不会以半解析的形式返回（ADR-0032）',
-	],
-	['（`lib/dify/schemas.ts` 按操作白名单', '（`lib/providers/dify/schemas.ts` 按操作白名单'],
-	// #32
-	['API key 与 Dify 主机都不进入浏览器（DTO 不含密钥；', 'API key 与 Dify 主机都不进入浏览器（DTO 不含密钥，管理员只看到密钥是否已设置，ADR-0032；'],
-	// The change log, first row under the header.
-	[
-		'| 日期 | 版本 | 通过项 | 变更说明 |\n| --- | --- | --- | --- |\n',
-		'| 日期 | 版本 | 通过项 | 变更说明 |\n| --- | --- | --- | --- |\n' +
-			`| ${today} | v0.8.1 | 24/35 | 应用按提供方组织（ADR-0032）：#19、#20 证据更新（vitest 1808 → ${unitTests} 个，146 → ${unitFiles} 个测试文件；数据库测试 27 → ${dbTests} 个，5 → ${dbFiles} 个测试文件；端到端测试文件 38 → ${specs}；#20 仍为 ❌）；#25 证据更新（提供方密钥只写不读，DTO 只给出是否已设置）；#26 证据更新（提供方设置与密钥文档按提供方的 zod 模式在读写时校验，应用图标经图片处理流程）；#32 证据更新（管理员只看到密钥是否已设置）；条目状态均未改变 |\n`,
-	],
-]
-for (const [from, to] of EDITS) {
-	const count = text.split(from).length - 1
-	if (count !== 1) throw new Error(`${count} matches for: ${from.slice(0, 60)}`)
-	text = text.replace(from, () => to)
-}
-writeFileSync(file, text)
-console.log(`${EDITS.length} edits`)
-JS
-```
-
-Expected: `11 edits`. Then `git grep -c "lib/dify/" -- .cii-assessment.md` prints nothing (no line names the old path), and `git diff -- .cii-assessment.md` shows the eleven replacements only; the summary stays 24/35.
-
-```bash
-pnpm exec oxfmt --check .cii-assessment.md
-git add .cii-assessment.md
-git commit -m "docs: update CII assessment
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
-```
-
 ---
 
 ### Task 15: Final verification and the Docker gate
@@ -9939,7 +9862,7 @@ Claude-Session: https://claude.ai/code/session_01QyGbDaaWiu7VcFVMdNUtUn"
 
 > **USER-ORDERED GATE — NON-SKIPPABLE.** This task was requested by the user in the current conversation. It MUST NOT be closed by walking around it, by declaring it "verified inline", or by substituting a cheaper check. Close only after every item in `acceptanceCriteria` has been re-validated independently, with output captured.
 
-Spec §9 and §11. Every gate in `CLAUDE.md` on the whole branch, then the Docker gate on the owner's running stack (`ai-app-hub-local`, `docker-compose.local.yml`, port 5300, PostgreSQL on 127.0.0.1:5432). No earlier task touches that stack, and this one does so only after the owner's word (Step 7): the app is taken down so nothing writes, the old image is kept under a second tag and the database is dumped (always), the dump is restored into a copy and the three migrations are rehearsed on it (spec §2.4: "tested on a copy of the local database before it runs on the real one"), then the rebuild, whose entrypoint migrates the real one. Step 15 is the written way back (restore the dump, start the old image), run only on the owner's word.
+Spec §9 and §11. Every gate in `AGENTS.md` on the whole branch, then the Docker gate on the owner's running stack (`ai-app-hub-local`, `docker-compose.local.yml`, port 5300, PostgreSQL on 127.0.0.1:5432). No earlier task touches that stack, and this one does so only after the owner's word (Step 7): the app is taken down so nothing writes, the old image is kept under a second tag and the database is dumped (always), the dump is restored into a copy and the three migrations are rehearsed on it (spec §2.4: "tested on a copy of the local database before it runs on the real one"), then the rebuild, whose entrypoint migrates the real one. Step 15 is the written way back (restore the dump, start the old image), run only on the owner's word.
 
 **Files:** none changed in the repository, except Step 16 (the acceptance), which runs only on the owner's word after their check. Outside it: the backup `~/ai-app-hub-backups/local-before-part1.sql` (Step 9) and the image tag `ai-app-hub-local-app:part0` (Step 8), kept until the owner lets them go.
 
@@ -9979,7 +9902,7 @@ Run: `git grep -nE "lib/dify['/]|\bdifyApps\b|annotationEnabled|syncApp|difyErro
 
 - [ ] **Step 3: The unit suite**
 
-Run: `pnpm test` Expected: PASS (the run decides the count; Task 14 recorded it in `.cii-assessment.md`).
+Run: `pnpm test` Expected: PASS (the run decides the count).
 
 - [ ] **Step 4: The live database suite**
 
@@ -10099,7 +10022,7 @@ Expected: no output.
 
 If any command of this step failed: drop the copy (the command above, with `--if-exists`), bring the old app back unchanged (`docker compose -f docker-compose.local.yml up -d --no-build app`; Compose `up --no-build`: "Don't build an image", so it starts `ai-app-hub-local-app:latest`, still the old image), check `curl -s -o /dev/null -w '%{http_code}\n' localhost:5300/api/health` → `200`, and report the error to the owner. The real database is untouched.
 
-- [ ] **Step 11: Rebuild the app container (CLAUDE.md "Docker stack")**
+- [ ] **Step 11: Rebuild the app container (AGENTS.md "Docker stack")**
 
 Never build this folder's image while the `fork/main` folder builds its own. The app container is already down (Step 8):
 
@@ -10107,7 +10030,7 @@ Never build this folder's image while the `fork/main` folder builds its own. The
 docker compose -f docker-compose.local.yml up -d --build app
 ```
 
-Expected: about two minutes (80 s of it `next build`). PostgreSQL and its volume stay up. If the build is killed for memory, do not restart it unprompted (CLAUDE.md); bring the old app back as Step 10's failure path does and report it.
+Expected: about two minutes (80 s of it `next build`). PostgreSQL and its volume stay up. If the build is killed for memory, do not restart it unprompted (AGENTS.md); bring the old app back as Step 10's failure path does and report it.
 
 - [ ] **Step 12: The migration on the real database**
 
@@ -10130,7 +10053,7 @@ SQL
 
 Expected: the same four numbers as the rehearsal's (Step 10). Nothing wrote between Step 8 and the rebuild, so they also equal Step 8's.
 
-- [ ] **Step 14: The signed-out checks (CLAUDE.md's list), then the report**
+- [ ] **Step 14: The signed-out checks (AGENTS.md's list), then the report**
 
 Run each with `curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' <url>` unless a body is named; `<app id>` is any id the copy listed in Step 10:
 
