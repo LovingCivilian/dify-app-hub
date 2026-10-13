@@ -6,11 +6,11 @@ import { useTranslation } from 'react-i18next'
 import { accountOptionLabel } from '@/components/admin/account-option'
 import { drawerPopupContainer } from '@/components/admin/drawer-popup-container'
 import { APP_MODE_OPTION_KEYS, APP_MODE_OPTIONS } from '@/components/provider-ui/dify/app-types'
+import { validateApiBase } from '@/components/provider-ui/dify/api-base-rule'
 import type { GroupOption } from '@/lib/data/groups'
 import type { UserOption } from '@/lib/data/users'
 
 import type { AdminAppRow } from './admin-app-row'
-import { validateApiBase } from './api-base-rule'
 
 /**
  * The settings form's fields; `record` shows the app's Dify info above them when editing. The access pickers show
@@ -67,7 +67,7 @@ export default function AppSettingsFields({
 			<Divider titlePlacement="start">{t('app_setting.section_request')}</Divider>
 			<Form.Item
 				label="API Base"
-				name="apiBase"
+				name={['settings', 'apiBase']}
 				tooltip={t('app_setting.api_base_tooltip')}
 				rules={[
 					{ required: true, message: t('app_setting.api_base_required') },
@@ -78,7 +78,7 @@ export default function AppSettingsFields({
 			</Form.Item>
 			<Form.Item
 				label="API Secret"
-				name="apiKey"
+				name={['secrets', 'apiKey']}
 				tooltip={t('app_setting.api_secret_tooltip')}
 				// The stored key is never sent back to the browser: on edit a blank field keeps it (charter §4.4).
 				extra={record ? t('app_setting.api_secret_keep') : undefined}
@@ -93,7 +93,7 @@ export default function AppSettingsFields({
 			<Divider titlePlacement="start">{t('app_setting.section_basic')}</Divider>
 			<Form.Item
 				label={t('app_setting.type')}
-				name="mode"
+				name={['settings', 'appType']}
 				tooltip={t('app_setting.type_tooltip')}
 				rules={[{ required: true, message: t('app_setting.type_required') }]}
 			>

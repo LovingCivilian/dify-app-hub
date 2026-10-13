@@ -7,7 +7,13 @@ import {
 	type TestInfo,
 } from '@playwright/test'
 
-import { deleteApp, deleteGroupsLike, seedApp as seedAccessApp, seedGroup } from './fixtures/access'
+import {
+	deleteApp,
+	deleteGroupsLike,
+	seedApp as seedAccessApp,
+	seedGroup,
+	stubDocuments,
+} from './fixtures/access'
 import { APP_ID, APP_IDS, CREATED_APP } from './fixtures/constants'
 import { withDb } from './fixtures/db'
 import { drawerOpened } from './fixtures/drawer'
@@ -15,17 +21,19 @@ import { stubApiBase } from './fixtures/env'
 import { deleteUsersLike, seedUser, signInAs } from './fixtures/users'
 
 const PROJECTS = ['desktop-light', 'desktop-dark', 'mobile-light']
-/** A dify_apps id (36 characters) of the spec's own, distinct per project: the three projects run one after another. */
+/** An apps id (a UUID) of the spec's own, distinct per project: the three projects run one after another. */
 const ownId = (base: number, testInfo: TestInfo) =>
 	`e2e00000-0000-4000-8000-${String(base + PROJECTS.indexOf(testInfo.project.name) + 1).padStart(12, '0')}`
-const seedApp = (id: string, name: string, apiBase: string) =>
-	withDb(db =>
+const seedApp = (id: string, name: string, prefix = '') => {
+	const { settings, secrets } = stubDocuments(prefix)
+	return withDb(db =>
 		db.query(
-			'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, api_base = EXCLUDED.api_base',
-			[id, name, 'chat', 'e2e', apiBase, 'app-e2e'],
+			"INSERT INTO apps (id, provider, name, description, settings, secrets) VALUES ($1, 'dify', $2, 'e2e', $3::jsonb, $4::jsonb) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, settings = EXCLUDED.settings",
+			[id, name, settings, secrets],
 		),
 	)
-const dropApp = (id: string) => withDb(db => db.query('DELETE FROM dify_apps WHERE id = $1', [id]))
+}
+const dropApp = (id: string) => withDb(db => db.query('DELETE FROM apps WHERE id = $1', [id]))
 // antd's Table sets data-row-key from rowKey on each body row.
 const rowById = (page: Page, id: string) => page.locator(`tr[data-row-key="${id}"]`)
 const moreActions = (page: Page, id: string) =>
@@ -64,23 +72,9 @@ test('user view is a link that opens the chat in a new tab', async ({ page }) =>
 	await expect(link).toHaveAttribute('target', '_blank')
 })
 
-test('sync info refreshes the app from Dify', async ({ page }, testInfo) => {
-	const id = ownId(200, testInfo)
-	await seedApp(id, `Sync me ${testInfo.project.name}`, `${stubApiBase}${CREATED_APP.prefix}`)
-	try {
-		await page.goto('/app-management')
-		await moreActions(page, id).click()
-		await page.getByRole('menuitem', { name: 'Sync app info' }).click()
-		// The stub's /info for this prefix answers the created app's name; the action's refresh() shows it.
-		await expect(rowById(page, id)).toContainText(CREATED_APP.name)
-	} finally {
-		await dropApp(id)
-	}
-})
-
 test('delete asks for confirmation and removes the app', async ({ page }, testInfo) => {
 	const id = ownId(100, testInfo)
-	await seedApp(id, `Delete me ${testInfo.project.name}`, stubApiBase)
+	await seedApp(id, `Delete me ${testInfo.project.name}`)
 	try {
 		await page.goto('/app-management')
 		await moreActions(page, id).click()
@@ -109,66 +103,13 @@ test('on a phone the table scrolls inside its container and More stays reachable
 	await more.scrollIntoViewIfNeeded()
 	await expect(more).toBeInViewport()
 	await more.click()
-	await expect(page.getByRole('menuitem', { name: 'Sync app info' })).toBeVisible()
+	await expect(page.getByRole('menuitem', { name: 'Delete' })).toBeVisible()
 })
 
 test.describe('create and edit', () => {
 	// One project runs at a time, so the created app is removed by name after each test.
 	test.afterEach(async () => {
-		await withDb(db => db.query('DELETE FROM dify_apps WHERE name = $1', [CREATED_APP.name]))
-	})
-
-	test('an admin creates an app from its Dify API base and key, then disables it', async ({
-		page,
-	}) => {
-		await page.goto('/app-management')
-		await page.getByRole('button', { name: 'New' }).click()
-		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
-		await create.getByLabel('API Base').fill(`${stubApiBase}${CREATED_APP.prefix}`)
-		await create.getByLabel('API Secret').fill('app-e2e')
-		await create.getByRole('button', { name: 'OK' }).click()
-
-		const row = page.getByRole('row', { name: new RegExp(CREATED_APP.name) })
-		await expect(row).toBeVisible()
-		// The created app's stub site names an image icon; the DAL stored its bytes at create time and the icon route
-		// serves them (charter §4.4).
-		await expect(row.locator('img')).toHaveAttribute('src', /\/api\/apps\/[^/]+\/icon$/)
-		await expect
-			.poll(() => row.locator('img').evaluate(img => (img as HTMLImageElement).naturalWidth))
-			.toBeGreaterThan(0)
-
-		await row.getByRole('button', { name: 'Edit' }).click()
-		const edit = page
-			.getByRole('dialog')
-			.filter({ hasText: `Edit app configuration - ${CREATED_APP.name}` })
-		await edit.getByRole('switch', { name: 'App status' }).click()
-		await edit.getByRole('button', { name: 'Update' }).click()
-		await expect(row.getByText('Disabled')).toBeVisible()
-
-		await row.getByRole('button', { name: 'Edit' }).click()
-		await expect(
-			page
-				.getByRole('dialog')
-				.filter({ hasText: `Edit app configuration - ${CREATED_APP.name}` })
-				.getByRole('switch', { name: 'App status' }),
-		).not.toBeChecked()
-	})
-
-	test('a Dify error body instead of app info keeps the drawer open with a translated error', async ({
-		page,
-	}) => {
-		await page.goto('/app-management')
-		await page.getByRole('button', { name: 'New' }).click()
-		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
-		// An unknown stub path answers Dify's 404 JSON body: the server client throws, the action answers provider_unreachable.
-		await create.getByLabel('API Base').fill(`${stubApiBase}/nope`)
-		await create.getByLabel('API Secret').fill('app-e2e')
-		await create.getByRole('button', { name: 'OK' }).click()
-		await expect(
-			page.getByText("Could not reach the app's provider. Check the connection settings."),
-		).toBeVisible()
-		await expect(create).toBeVisible()
-		await expect(page.getByRole('row', { name: /nope/ })).toHaveCount(0)
+		await withDb(db => db.query('DELETE FROM apps WHERE name = $1', [CREATED_APP.name]))
 	})
 
 	test('each opening of the drawer starts from its own app, and New starts empty', async ({
@@ -251,7 +192,7 @@ const storedAccess = (appId: string) =>
 		const {
 			rows: [app],
 		} = await db.query<{ name: string; access_mode: string }>(
-			'SELECT name, access_mode FROM dify_apps WHERE id = $1',
+			'SELECT name, access_mode FROM apps WHERE id = $1',
 			[appId],
 		)
 		// count(*) is a bigint, which node-postgres returns as a string (it parses no int8 into a number), hence Number().
@@ -304,7 +245,7 @@ test.describe('app access in the drawer (B3 spec §4.4)', () => {
 		appId = await seedAccessApp({ name: seededName(), accessMode: 'restricted' })
 	})
 	test.afterEach(async () => {
-		// By id: an Update renames the app from the stub's /info ("Stub app"). Its grants go with it (ON DELETE CASCADE).
+		// By id; its grants go with it (ON DELETE CASCADE).
 		if (appId) await deleteApp(appId)
 		await deleteGroupsLike(`%${tag()}`)
 		await deleteUsersLike(`${tag()}%`)
@@ -334,7 +275,7 @@ test.describe('app access in the drawer (B3 spec §4.4)', () => {
 		await expectGalleryShows(browser, memberEmail(), id)
 		await expectGalleryShows(browser, personEmail(), id)
 
-		// The Update renamed the app, so this drawer is found by its title's fixed part.
+		// The drawer is found by its title's fixed part.
 		await row.getByRole('button', { name: 'Edit' }).click()
 		const again = page.getByRole('dialog').filter({ hasText: 'Edit app configuration' })
 		// antd draws a button-style radio's <input> at 0×0, so the visible label is clicked.
@@ -377,7 +318,7 @@ test.describe('app access in the drawer (B3 spec §4.4)', () => {
 		// The server cannot tell which picker held the id, so both carry the error.
 		await expect(error).toHaveCount(2)
 		await expect(error.first()).toBeVisible()
-		// One transaction: the Dify info the update read was not stored either, and no grant was.
+		// One transaction: no grant was stored either.
 		expect(await storedAccess(id)).toEqual({
 			name: seededName(),
 			mode: 'restricted',

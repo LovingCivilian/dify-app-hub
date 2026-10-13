@@ -1,5 +1,5 @@
 export { appGroupGrants, appUserGrants } from './app-grants'
-export { difyApps } from './apps'
+export { apps } from './apps'
 export { directorySyncRuns, userGroupDirectoryLinks } from './directory'
 export {
 	accessMode,

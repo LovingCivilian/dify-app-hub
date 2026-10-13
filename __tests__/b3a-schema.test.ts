@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
 	appGroupGrants,
 	appUserGrants,
-	difyApps,
+	apps,
 	userGroupMembers,
 	userGroups,
 	users,
@@ -20,10 +20,10 @@ describe('the B3a schema (B3 spec §3.1)', () => {
 	})
 
 	it('closes a new app by default (spec §2 #9)', () => {
-		expect(difyApps.accessMode.enumValues).toEqual(['everyone', 'restricted'])
-		expect(difyApps.accessMode.getSQLType()).toBe('access_mode')
-		expect(difyApps.accessMode.notNull).toBe(true)
-		expect(difyApps.accessMode.default).toBe('restricted')
+		expect(apps.accessMode.enumValues).toEqual(['everyone', 'restricted'])
+		expect(apps.accessMode.getSQLType()).toBe('access_mode')
+		expect(apps.accessMode.notNull).toBe(true)
+		expect(apps.accessMode.default).toBe('restricted')
 	})
 
 	it('names groups uniquely and records the source of each membership', () => {
@@ -39,8 +39,8 @@ describe('the B3a schema (B3 spec §3.1)', () => {
 
 	it.each([
 		['user_group_members', userGroupMembers, ['user_groups', 'users']],
-		['app_group_grants', appGroupGrants, ['dify_apps', 'user_groups']],
-		['app_user_grants', appUserGrants, ['dify_apps', 'users']],
+		['app_group_grants', appGroupGrants, ['apps', 'user_groups']],
+		['app_user_grants', appUserGrants, ['apps', 'users']],
 	] as const)('%s cascades every foreign key on delete', (_name, table, parents) => {
 		const keys = getTableConfig(table).foreignKeys
 		expect(keys.map(key => key.onDelete)).toEqual(parents.map(() => 'cascade'))

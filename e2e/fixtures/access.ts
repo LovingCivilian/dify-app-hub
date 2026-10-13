@@ -9,6 +9,18 @@ const PIXEL_PNG = Buffer.from(
 	'base64',
 )
 
+/** A Dify app's documents on one of the stub's apps (its prefix), as the e2e seeds store them. */
+export const stubDocuments = (prefix = '', appType = 'chat') => ({
+	settings: JSON.stringify({
+		apiBase: `${stubApiBase}${prefix}`,
+		appType,
+		answerForm: { enabled: false, feedbackText: '' },
+		enableUpdateAfterConversationStarts: false,
+		openingStatementDisplayMode: 'default',
+	}),
+	secrets: JSON.stringify({ apiKey: 'app-e2e' }),
+})
+
 /**
  * An app row of the spec's own on the stub's chat app (prefix ''), with a stored image icon; its name must carry the
  * project name, and the spec deletes it in `afterEach` (its grants go with it, ON DELETE CASCADE).
@@ -21,23 +33,24 @@ export const seedApp = async ({
 	accessMode: 'everyone' | 'restricted'
 }): Promise<string> => {
 	const id = randomUUID()
+	const { settings, secrets } = stubDocuments()
 	await withDb(db =>
 		db.query(
-			"INSERT INTO dify_apps (id, name, mode, description, api_base, api_key, access_mode, icon_type, icon, icon_image, icon_mime) VALUES ($1, $2, 'chat', 'Seeded for an access spec', $3, 'app-e2e', $4, 'image', 'file-1', $5, 'image/png')",
-			[id, name, stubApiBase, accessMode, PIXEL_PNG],
+			"INSERT INTO apps (id, provider, name, description, access_mode, settings, secrets, icon_image, icon_mime) VALUES ($1, 'dify', $2, 'Seeded for an access spec', $3, $4::jsonb, $5::jsonb, $6, 'image/png')",
+			[id, name, accessMode, settings, secrets, PIXEL_PNG],
 		),
 	)
 	return id
 }
 
 export const deleteApp = (id: string) =>
-	withDb(db => db.query('DELETE FROM dify_apps WHERE id = $1', [id]))
+	withDb(db => db.query('DELETE FROM apps WHERE id = $1', [id]))
 
 /** The ids of every app open to everyone, so a case that closes them can reopen exactly these. */
 export const appsOpenToEveryone = () =>
 	withDb(async db => {
 		const { rows } = await db.query<{ id: string }>(
-			"SELECT id FROM dify_apps WHERE access_mode = 'everyone'",
+			"SELECT id FROM apps WHERE access_mode = 'everyone'",
 		)
 		return rows.map(row => row.id)
 	})
@@ -45,12 +58,12 @@ export const appsOpenToEveryone = () =>
 export const setAccessMode = (ids: string[], accessMode: 'everyone' | 'restricted') =>
 	withDb(async db => {
 		for (const id of ids)
-			await db.query('UPDATE dify_apps SET access_mode = $1 WHERE id = $2', [accessMode, id])
+			await db.query('UPDATE apps SET access_mode = $1 WHERE id = $2', [accessMode, id])
 	})
 
 /** Deletes the apps whose name matches a pattern (a run killed before its clean-up), without case as MySQL compared. */
 export const deleteAppsLike = (pattern: string) =>
-	withDb(db => db.query('DELETE FROM dify_apps WHERE name ILIKE $1', [pattern]))
+	withDb(db => db.query('DELETE FROM apps WHERE name ILIKE $1', [pattern]))
 
 /** A group with manual members; its name must carry the project name. */
 export const seedGroup = async ({

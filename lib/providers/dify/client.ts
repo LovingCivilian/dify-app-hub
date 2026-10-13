@@ -300,12 +300,6 @@ export const difyClient = (credentials: DifyCredentials) => {
 			const underApi = url.pathname.startsWith(`${api.pathname.replace(/\/+$/, '')}/files/`)
 			return request(url.toString(), { redirect: 'error' }, underApi)
 		},
-		/**
-		 * A signed link from Dify's own answer (`/site`'s `icon_url`), for the icon sync: no bearer (the signature
-		 * authenticates it) and no origin check (Dify builds it from FILES_URL, which may be another origin than the
-		 * API's); a redirect is refused.
-		 */
-		fetchSignedFile: (url: URL) => request(url.toString(), { redirect: 'error' }, false),
 		audioToText: (file: File, user: string) =>
 			send('/audio-to-text', multipart(file, user)).then(json<{ text: string }>),
 		textToAudio: (body: TextToAudioRequest, user: string) =>

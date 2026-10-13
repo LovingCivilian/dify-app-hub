@@ -9,6 +9,8 @@ export type ActionErrorCode =
 	| 'cannot_deactivate_self'
 	| 'not_found'
 	| 'provider_unreachable'
+	| 'provider_key_refused'
+	| 'provider_error'
 	| 'sync_running'
 	| 'settings_not_editable'
 	| 'invalid_image'

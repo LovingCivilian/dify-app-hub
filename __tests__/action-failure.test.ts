@@ -46,9 +46,9 @@ describe('toActionFailure', () => {
 		})
 	})
 	it('logs the context with the status, code and message of a DifyError before mapping it', () => {
-		toActionFailure(new DifyError(502, 'upstream_error', 'Dify answered 502'), 'syncApp')
+		toActionFailure(new DifyError(502, 'upstream_error', 'Dify answered 502'), 'updateAppAction')
 		expect(errorSpy).toHaveBeenCalledTimes(1)
-		expect(errorSpy).toHaveBeenCalledWith('syncApp:', {
+		expect(errorSpy).toHaveBeenCalledWith('updateAppAction:', {
 			status: 502,
 			code: 'upstream_error',
 			message: 'Dify answered 502',

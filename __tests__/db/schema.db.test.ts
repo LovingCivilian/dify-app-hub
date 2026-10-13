@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { difyApps, userGroupMembers, userGroups, users } from '@/db/schema'
+import { apps, userGroupMembers, userGroups, users } from '@/db/schema'
 
 import { pool, resetTables, testDb } from './database'
 
@@ -10,18 +10,17 @@ afterAll(() => pool.end())
 
 /**
  * A query's refusal as the driver reported it: Drizzle rejects with a DrizzleQueryError whose `cause` is node-postgres's
- * DatabaseError, which carries the SQLSTATE and, for a constraint, its name (DV 5a, 5b).
+ * DatabaseError, and `pool.query` with the DatabaseError itself; either carries the SQLSTATE and, for a constraint, its
+ * name (DV 5a, 5b).
  */
 const refusal = async (query: PromiseLike<unknown>) => {
 	const error: unknown = await query.then(
 		() => null,
 		(caught: unknown) => caught,
 	)
-	const cause =
-		error instanceof Error
-			? (error.cause as { code?: string; constraint?: string } | undefined)
-			: undefined
-	return { code: cause?.code, constraint: cause?.constraint }
+	const fields = (value: unknown) => value as { code?: string; constraint?: string } | undefined
+	const driver = error instanceof Error && error.cause ? fields(error.cause) : fields(error)
+	return { code: driver?.code, constraint: driver?.constraint }
 }
 
 const account = (email: string, role: 'owner' | 'admin' | 'user' = 'user') => ({
@@ -32,12 +31,16 @@ const account = (email: string, role: 'owner' | 'admin' | 'user' = 'user') => ({
 })
 
 describe('the baseline on a live PostgreSQL (Part 0 spec §3)', () => {
-	it('was applied once, through the log the runtime migrator shares with drizzle-kit (DV 1c)', async () => {
+	it('was applied with Part 1’s three migrations, through the log the runtime migrator shares with drizzle-kit (DV 1c)', async () => {
 		const { rows } = await pool.query<{ name: string }>(
-			'SELECT name FROM drizzle.__drizzle_migrations',
+			'SELECT name FROM drizzle.__drizzle_migrations ORDER BY id',
 		)
-		expect(rows).toHaveLength(1)
-		expect(rows[0]!.name).toMatch(/^\d{14}_baseline$/)
+		expect(rows.map(row => row.name.replace(/^\d{14}_/, ''))).toEqual([
+			'baseline',
+			'apps_expand',
+			'apps_data',
+			'apps_contract',
+		])
 	})
 
 	it('refuses a second account whose email differs only in case', async () => {
@@ -138,20 +141,42 @@ describe('the baseline on a live PostgreSQL (Part 0 spec §3)', () => {
 		expect(rows[0]!.data_type).toBe('timestamp with time zone')
 	})
 
+	const app = (over: Record<string, unknown> = {}) => ({
+		id: crypto.randomUUID(),
+		provider: 'dify' as const,
+		name: 'Tea',
+		settings: { apiBase: 'http://dify.test/v1' },
+		secrets: { apiKey: 'app-key' },
+		...over,
+	})
+
 	it('reads the tags back as the jsonb array they were written as', async () => {
-		const id = crypto.randomUUID()
-		await testDb.insert(difyApps).values({
-			id,
-			name: 'Tea',
-			apiBase: 'http://dify.test/v1',
-			apiKey: 'app-key',
-			tags: ['a', 'b'],
-		})
-		const [row] = await testDb
-			.select({ tags: difyApps.tags })
-			.from(difyApps)
-			.where(eq(difyApps.id, id))
-		expect(row!.tags).toEqual(['a', 'b'])
+		const row = app({ tags: ['a', 'b'] })
+		await testDb.insert(apps).values(row)
+		const [stored] = await testDb.select({ tags: apps.tags }).from(apps).where(eq(apps.id, row.id))
+		expect(stored!.tags).toEqual(['a', 'b'])
+	})
+
+	// Decision 24 (PostgreSQL 18 "Check Constraints"; 23514 is check_violation, Appendix A).
+	it('refuses a provider the CHECK does not list', async () => {
+		expect(
+			await refusal(
+				pool.query(
+					"INSERT INTO apps (id, provider, name, settings, secrets) VALUES ($1, 'agui', 'x', '{}', '{}')",
+					[crypto.randomUUID()],
+				),
+			),
+		).toEqual({ code: '23514', constraint: 'apps_provider_check' })
+	})
+
+	// Spec §4.4: the icon's bytes and type are stored together or not at all.
+	it('refuses an icon image without its type', async () => {
+		expect(await refusal(testDb.insert(apps).values(app({ iconImage: Buffer.from([1]) })))).toEqual(
+			{
+				code: '23514',
+				constraint: 'apps_icon_check',
+			},
+		)
 	})
 
 	// DV 5c: "the number of rows updated, including matched rows whose values did not change" (PostgreSQL 18 "UPDATE",

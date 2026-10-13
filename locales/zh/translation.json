@@ -438,9 +438,6 @@
 		"access_restricted": "群组：{{groups}} · 人员：{{people}}",
 		"user_view": "用户端",
 		"not_found": "应用不存在",
-		"sync_info": "同步应用信息",
-		"sync_success": "同步应用成功",
-		"sync_failed": "同步应用失败",
 		"delete_confirm_title": "确定删除该应用吗？",
 		"delete_confirm_description": "删除后将无法恢复",
 		"delete_success": "删除应用成功",
@@ -450,7 +447,6 @@
 		"edit_success": "编辑应用配置成功",
 		"save_failed": "保存应用配置失败",
 		"invalid_input": "部分取值无效，请检查表单后重试。",
-		"icon_not_stored": "已保存，但无法保存应用图标图片",
 		"provider_unreachable": "无法连接到应用的提供方，请检查连接设置。"
 	},
 	"app_setting": {

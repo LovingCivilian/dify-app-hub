@@ -103,3 +103,15 @@ export const mergeSecrets = (
 	...(isRecord(stored) ? stored : {}),
 	...Object.fromEntries(Object.entries(update).filter(([, value]) => value !== undefined)),
 })
+
+/**
+ * A document's zod refusal as an action's field errors (charter §4.5: keyed by field path), under the document's name:
+ * `secrets.apiKey: ['too_small']`. The codes are zod's issue codes; the form maps a field with an error to its own text.
+ */
+export const documentFieldErrors = (
+	document: 'settings' | 'secrets',
+	error: z.ZodError,
+): Record<string, string[]> =>
+	Object.fromEntries(
+		error.issues.map(issue => [[document, ...issue.path.map(String)].join('.'), [issue.code]]),
+	)

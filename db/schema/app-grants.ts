@@ -1,6 +1,6 @@
 import { index, pgTable, primaryKey, uuid } from 'drizzle-orm/pg-core'
 
-import { difyApps } from './apps'
+import { apps } from './apps'
 import { userGroups } from './groups'
 import { users } from './users'
 
@@ -18,7 +18,7 @@ export const appGroupGrants = pgTable(
 	{
 		appId: uuid('app_id')
 			.notNull()
-			.references(() => difyApps.id, { onDelete: 'cascade' }),
+			.references(() => apps.id, { onDelete: 'cascade' }),
 		groupId: uuid('group_id')
 			.notNull()
 			.references(() => userGroups.id, { onDelete: 'cascade' }),
@@ -34,7 +34,7 @@ export const appUserGrants = pgTable(
 	{
 		appId: uuid('app_id')
 			.notNull()
-			.references(() => difyApps.id, { onDelete: 'cascade' }),
+			.references(() => apps.id, { onDelete: 'cascade' }),
 		userId: uuid('user_id')
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),

@@ -438,9 +438,6 @@
 		"access_restricted": "Groups: {{groups}} · People: {{people}}",
 		"user_view": "User view",
 		"not_found": "App not found",
-		"sync_info": "Sync app info",
-		"sync_success": "App synced",
-		"sync_failed": "Failed to sync app",
 		"delete_confirm_title": "Delete this app?",
 		"delete_confirm_description": "This cannot be undone.",
 		"delete_success": "App deleted",
@@ -450,7 +447,6 @@
 		"edit_success": "App configuration updated",
 		"save_failed": "Failed to save app configuration",
 		"invalid_input": "Some values are not valid. Check the form and try again.",
-		"icon_not_stored": "Saved, but the app's icon image could not be stored",
 		"provider_unreachable": "Could not reach the app's provider. Check the connection settings."
 	},
 	"app_setting": {

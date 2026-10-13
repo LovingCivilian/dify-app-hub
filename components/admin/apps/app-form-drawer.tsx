@@ -11,7 +11,13 @@ import type { UserOption } from '@/lib/data/users'
 
 import type { AdminAppRow } from './admin-app-row'
 import { appErrorKey } from './app-errors'
-import { type AppFormValues, DEFAULT_APP_FORM_VALUES, toAppFormValues } from './app-form-values'
+import {
+	type AppFormValues,
+	DEFAULT_APP_FORM_VALUES,
+	providerDefaults,
+	toAppFormData,
+	toAppFormValues,
+} from './app-form-values'
 import AppSettingsFields from './app-settings-fields'
 
 const APP_FORM_ID = 'app-settings-form'
@@ -48,7 +54,11 @@ function AppForm({
 			id={APP_FORM_ID}
 			layout="vertical"
 			autoComplete="off"
-			initialValues={record ? toAppFormValues(record) : DEFAULT_APP_FORM_VALUES}
+			initialValues={
+				record
+					? toAppFormValues(record)
+					: { ...DEFAULT_APP_FORM_VALUES, provider: 'dify', ...providerDefaults('dify') }
+			}
 			onFinish={values => onSave(values, form)}
 			// A field without `rules` is never re-validated, so the server's error on the pickers is cleared by hand
 			// when either pick changes (@rc-component/form Field: validation runs only for fields with rules).
@@ -98,9 +108,11 @@ export default function AppFormDrawer({
 
 	const save = (values: AppFormValues, form: FormInstance<AppFormValues>) =>
 		void run(async () => {
-			const result = record
-				? await updateAppAction(record.id, values)
-				: await createAppAction(values)
+			// The whole store (antd Form: "use `getFieldsValue(true)` to get all values"): onFinish's values hold only the
+			// mounted fields, so a field shown behind a switch (the form reply's text) would be missing from them, and the
+			// server parses whole documents (spec §4.3).
+			const data = toAppFormData(form.getFieldsValue(true), { intent: 'keep' })
+			const result = record ? await updateAppAction(record.id, data) : await createAppAction(data)
 			if (!result.ok) {
 				// A stale pick (a group or account deleted meanwhile) is the pickers' own error (deviation 3).
 				if (result.code === 'invalid_input' && result.fieldErrors?.access) {
@@ -112,7 +124,6 @@ export default function AppFormDrawer({
 				return
 			}
 			message.success(t(record ? 'admin_apps.edit_success' : 'admin_apps.create_success'))
-			if (result.data.partial) message.warning(t('admin_apps.icon_not_stored'))
 			onClose()
 		})
 

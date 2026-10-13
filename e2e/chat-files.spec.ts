@@ -1,5 +1,6 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 
+import { stubDocuments } from './fixtures/access'
 import { APP_ID, APP_IDS } from './fixtures/constants'
 import { withDb } from './fixtures/db'
 import { stubApiBase } from './fixtures/env'
@@ -239,8 +240,8 @@ test('attachments and speech input are offered only when the app enables them', 
 })
 
 /**
- * A chat app row of its own with a stored Dify icon (what a sync keeps, charter §4.4), removed afterwards: the
- * seeded apps carry none. Its Dify side is the stub's plain chat app.
+ * A chat app of its own, seeded in the `apps` table with the given icon columns (a stored image, or none) and removed
+ * afterwards: the seeded apps carry no icon. Its documents point at the stub's plain chat app.
  */
 const withIconApp = async (
 	testInfo: TestInfo,
@@ -248,18 +249,27 @@ const withIconApp = async (
 	run: (app: { id: string; name: string }) => Promise<void>,
 ) => {
 	const app = { id: crypto.randomUUID(), name: `Icon app ${runOf(testInfo)}` }
-	const columns = ['id', 'name', 'mode', 'description', 'api_base', 'api_key', ...Object.keys(icon)]
-	const values = [app.id, app.name, 'chat', 'icon', stubApiBase, 'app-e2e', ...Object.values(icon)]
+	const { settings, secrets } = stubDocuments()
+	const columns = [
+		'id',
+		'provider',
+		'name',
+		'description',
+		'settings',
+		'secrets',
+		...Object.keys(icon),
+	]
+	const values = [app.id, 'dify', app.name, 'icon', settings, secrets, ...Object.values(icon)]
 	await withDb(db =>
 		db.query(
-			`INSERT INTO dify_apps (${columns.join(', ')}) VALUES (${columns.map((_, index) => `$${index + 1}`).join(', ')})`,
+			`INSERT INTO apps (${columns.join(', ')}) VALUES (${columns.map((_, index) => `$${index + 1}`).join(', ')})`,
 			values,
 		),
 	)
 	try {
 		await run(app)
 	} finally {
-		await withDb(db => db.query('DELETE FROM dify_apps WHERE id = $1', [app.id]))
+		await withDb(db => db.query('DELETE FROM apps WHERE id = $1', [app.id]))
 	}
 }
 
@@ -268,48 +278,39 @@ test('an app without a stored image shows its first letter, not an emoji', async
 	page,
 	isMobile,
 }, testInfo) => {
-	await withIconApp(
-		testInfo,
-		{ icon_type: 'emoji', icon: '🦊', icon_background: '#FFEAD5' },
-		async app => {
-			await page.goto(`/chat/${app.id}?isNewCvst=1`)
-			// The welcome panel's avatar and, on a desktop, the sider's (hidden below md). The stub's /site names the app
-			// "Stub app", which the avatar shows first.
-			await expect(page.locator('.ant-avatar', { hasText: /^S$/ }).visible()).toHaveCount(
-				isMobile ? 1 : 2,
-			)
-			await expect(page.getByText('🦊')).toHaveCount(0)
-		},
-	)
+	await withIconApp(testInfo, {}, async app => {
+		await page.goto(`/chat/${app.id}?isNewCvst=1`)
+		// The welcome panel's avatar and, on a desktop, the sider's (hidden below md). The stub's /site names the app
+		// "Stub app", which the avatar shows first.
+		await expect(page.locator('.ant-avatar', { hasText: /^S$/ }).visible()).toHaveCount(
+			isMobile ? 1 : 2,
+		)
+	})
 })
 
 test('the app icon image loads through the icon route, never from the Dify host', async ({
 	page,
 	isMobile,
 }, testInfo) => {
-	await withIconApp(
-		testInfo,
-		{ icon_type: 'image', icon: 'stub-icon-file', icon_image: STUB_PNG, icon_mime: 'image/png' },
-		async app => {
-			const difyOrigin = new URL(stubApiBase).origin
-			const fromDify: string[] = []
-			page.on('request', request => {
-				if (new URL(request.url()).origin === difyOrigin) fromDify.push(request.url())
-			})
-			await page.goto(`/chat/${app.id}?isNewCvst=1`)
-			const icons = page.locator(`img[src="/api/apps/${app.id}/icon"]`).visible()
-			// The welcome panel's, and on a desktop the sider's (hidden below md).
-			await expect(icons).toHaveCount(isMobile ? 1 : 2)
-			// Each image is named after the app, the sider's too (its alt defaults to the name the welcome panel shows).
-			const name = await icons.first().getAttribute('alt')
-			expect(name).toBeTruthy()
-			for (const icon of await icons.all()) {
-				await expect(icon).toHaveAttribute('alt', name ?? '')
-				await expect
-					.poll(() => icon.evaluate(element => (element as HTMLImageElement).naturalWidth))
-					.toBeGreaterThan(0)
-			}
-			expect(fromDify).toEqual([])
-		},
-	)
+	await withIconApp(testInfo, { icon_image: STUB_PNG, icon_mime: 'image/png' }, async app => {
+		const difyOrigin = new URL(stubApiBase).origin
+		const fromDify: string[] = []
+		page.on('request', request => {
+			if (new URL(request.url()).origin === difyOrigin) fromDify.push(request.url())
+		})
+		await page.goto(`/chat/${app.id}?isNewCvst=1`)
+		const icons = page.locator(`img[src="/api/apps/${app.id}/icon"]`).visible()
+		// The welcome panel's, and on a desktop the sider's (hidden below md).
+		await expect(icons).toHaveCount(isMobile ? 1 : 2)
+		// Each image is named after the app, the sider's too (its alt defaults to the name the welcome panel shows).
+		const name = await icons.first().getAttribute('alt')
+		expect(name).toBeTruthy()
+		for (const icon of await icons.all()) {
+			await expect(icon).toHaveAttribute('alt', name ?? '')
+			await expect
+				.poll(() => icon.evaluate(element => (element as HTMLImageElement).naturalWidth))
+				.toBeGreaterThan(0)
+		}
+		expect(fromDify).toEqual([])
+	})
 })

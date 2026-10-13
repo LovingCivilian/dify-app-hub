@@ -14,11 +14,11 @@ export interface StubApp {
 	name: string
 	mode: StubMode
 	prefix: StubPrefix
-	/** Seeded into `dify_apps.opening_statement_display_mode`: 'always' keeps the welcome panel after the first reply. */
+	/** Seeded into the app's settings (`openingStatementDisplayMode`): 'always' keeps the welcome panel after the first reply. */
 	openingStatementDisplayMode: 'default' | 'always'
 	/** GET /site: an emoji icon (default), an image icon, or Dify's 403 for an app without a site. */
 	site?: 'emoji' | 'image' | 'none'
-	/** Seeded into dify_apps.is_enabled; true when absent. */
+	/** Seeded into apps.is_enabled; true when absent. */
 	enabled?: false
 }
 
@@ -69,7 +69,7 @@ export const APP_IDS = Object.fromEntries(STUB_APPS.map(app => [app.mode, app.id
 /**
  * Sub-project 3 fixtures, kept out of STUB_APPS so APP_IDS keeps one id per mode for the chat specs.
  * The disabled and no-site apps are seeded by e2e/auth.setup.ts; the created app is not — the admin
- * spec creates it through the form, and its /info answers a name of its own and its /site an image icon.
+ * spec creates it through the form, and its /info answers its own name and mode.
  */
 export const DISABLED_APP: StubApp = {
 	id: 'e2e00000-0000-4000-8000-000000000006',

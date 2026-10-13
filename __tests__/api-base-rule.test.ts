@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { validateApiBase } from '@/components/admin/apps/api-base-rule'
+import { validateApiBase } from '@/components/provider-ui/dify/api-base-rule'
 
 const MESSAGE = 'Enter a URL that starts with http:// or https://'
 const validate = (value: unknown) => validateApiBase(MESSAGE)({}, value)

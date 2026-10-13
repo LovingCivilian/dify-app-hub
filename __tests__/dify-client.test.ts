@@ -402,19 +402,6 @@ describe('difyClient: errors', () => {
 		})
 		expect(fetchMock).not.toHaveBeenCalled()
 	})
-	// /site's icon_url is a signed link Dify built from FILES_URL, which may be another origin than the API's.
-	it('fetches a signed file on any origin, without the bearer and with redirects refused', async () => {
-		reply(image)
-		const response = await difyClient(credentials).fetchSignedFile(
-			new URL('https://upload.dify.example/files/f1/file-preview?timestamp=1&nonce=n&sign=s'),
-		)
-		expect(lastCall().url).toBe(
-			'https://upload.dify.example/files/f1/file-preview?timestamp=1&nonce=n&sign=s',
-		)
-		expect(lastCall().headers.has('authorization')).toBe(false)
-		expect(lastCall().init.redirect).toBe('error')
-		expect(response.headers.get('content-type')).toBe('image/png')
-	})
 	// A redirect from a /files/ answer must never make the route serve (or send the key to) another origin.
 	it('fetches a remote file with redirects refused', async () => {
 		reply(() => new Response(new Uint8Array([1]), { status: 200 }))
@@ -640,15 +627,6 @@ const operations: OperationCase[] = [
 		url: `${V1}/files/f1/preview`,
 		user: 'none',
 		result: 'binary',
-	},
-	{
-		name: 'fetchSignedFile',
-		call: c => c.fetchSignedFile(new URL('http://dify.local/files/f1/file-preview?sign=1')),
-		method: 'GET',
-		url: 'http://dify.local/files/f1/file-preview?sign=1',
-		user: 'none',
-		result: 'binary',
-		bearer: false,
 	},
 	{
 		name: 'audioToText',

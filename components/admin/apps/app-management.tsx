@@ -67,8 +67,9 @@ export default function AppManagement({
 			title: t('admin_apps.column_type'),
 			key: 'mode',
 			filters: APP_MODE_OPTIONS.map(mode => ({ text: t(APP_MODE_NAME_KEYS[mode]), value: mode })),
-			onFilter: (value, app) => app.mode === value,
-			render: (_, app) => (app.mode ? t(APP_MODE_NAME_KEYS[app.mode]) : t('common.none')),
+			onFilter: (value, app) => !app.invalid && app.settings.appType === value,
+			render: (_, app) =>
+				app.invalid ? t('common.none') : t(APP_MODE_NAME_KEYS[app.settings.appType]),
 		},
 		{
 			title: t('admin_apps.column_description'),

@@ -19,6 +19,6 @@ export const testDb = drizzle({ client: pool })
  */
 export const resetTables = async (): Promise<void> => {
 	await pool.query(
-		'TRUNCATE users, user_groups, dify_apps, directory_sync_runs, instance_settings, password_reset_tokens CASCADE',
+		'TRUNCATE users, user_groups, apps, directory_sync_runs, instance_settings, password_reset_tokens CASCADE',
 	)
 }
