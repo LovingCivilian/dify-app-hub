@@ -1,8 +1,9 @@
 'use client'
 
-import { theme } from 'antd'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import styles from './required-mark.module.css'
 
 /**
  * E3 (owner's pick): an asterisk on required fields and "(optional)" on the others. antd's built-in `requiredMark`
@@ -14,13 +15,12 @@ import { useTranslation } from 'react-i18next'
  */
 export const useRequiredMark = () => {
 	const { t } = useTranslation()
-	const { token } = theme.useToken()
 	return (label: ReactNode, { required }: { required: boolean }): ReactNode =>
 		required ? (
 			<>
 				<span
 					aria-hidden="true"
-					style={{ color: token.colorError, marginInlineEnd: token.marginXXS }}
+					className={styles.required}
 				>
 					*
 				</span>
@@ -29,9 +29,7 @@ export const useRequiredMark = () => {
 		) : (
 			<>
 				{label}
-				<span style={{ color: token.colorTextDescription, marginInlineStart: token.marginXXS }}>
-					{t('form.optional')}
-				</span>
+				<span className={styles.optional}>{t('form.optional')}</span>
 			</>
 		)
 }

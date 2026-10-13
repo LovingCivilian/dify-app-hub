@@ -60,6 +60,7 @@ export default function AppManagement({
 						appId={app.id}
 						provider={app.provider}
 						hasIcon={app.hasIcon}
+						version={app.updatedAt}
 						size="small"
 					/>
 					<span>{app.name || t('common.none')}</span>

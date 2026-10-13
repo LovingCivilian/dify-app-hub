@@ -113,7 +113,7 @@ export default function AppCommonFields({
 					</Form.Item>
 					<IconField
 						provider={provider}
-						savedSrc={record?.hasIcon ? appIconUrl(record.id) : null}
+						savedSrc={record?.hasIcon ? appIconUrl(record.id, record.updatedAt) : null}
 						draft={icon}
 						onChange={onIconChange}
 						error={iconError}

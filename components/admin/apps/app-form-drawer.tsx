@@ -79,7 +79,13 @@ function AppForm({
 			initialValues={record ? toAppFormValues(record) : DEFAULT_APP_FORM_VALUES}
 			onFinish={() => onSave({ form, icon, setIconError })}
 			onValuesChange={(changed: { provider?: ProviderId; access?: Partial<AppAccessSettings> }) => {
-				if (changed.provider) form.setFieldsValue(providerDefaults(changed.provider))
+				if (changed.provider) {
+					// Replace the two documents: setFieldsValue deep-merges into the store (@rc-component/form `merge`), while
+					// setFieldValue sets the named field's value (spec §4.1: the provider's fields reset to its defaults).
+					const defaults = providerDefaults(changed.provider)
+					form.setFieldValue('settings', defaults.settings)
+					form.setFieldValue('secrets', defaults.secrets)
+				}
 				// A field without `rules` is never re-validated, so the server's error on the pickers is cleared by hand
 				// when either pick changes (@rc-component/form Field: validation runs only for fields with rules).
 				if (changed.access && ('groupIds' in changed.access || 'userIds' in changed.access))

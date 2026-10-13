@@ -63,6 +63,8 @@ export const adminAppType = (app: AdminAppDto): string | undefined => {
 		case 'dify':
 			return app.settings.appType
 		default:
+			// TypeScript handbook, Narrowing > "Exhaustiveness checking": `app.provider` is `never` here (with one provider only
+			// the provider narrows, not the app object); `satisfies` is the TS 4.9 operator.
 			return app.provider satisfies never
 	}
 }

@@ -14,7 +14,8 @@ export default function ProviderChat({ app }: { app: ChatAppDto }) {
 		case 'dify':
 			return <ChatWorkspace app={app} />
 		default:
-			// Narrows the provider id itself: with one provider the DTO is a single object type, which a switch does not narrow.
+			// Narrows the provider id itself: with one provider the DTO is a single object type, which a switch does not narrow
+			// (TypeScript handbook, Narrowing > "Exhaustiveness checking"; `satisfies` is the TS 4.9 operator).
 			return app.provider satisfies never
 	}
 }

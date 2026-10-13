@@ -27,6 +27,7 @@ export default function ProviderFormSection({
 				/>
 			)
 		default:
+			// TypeScript handbook, Narrowing > "Exhaustiveness checking": `provider` is `never` here; `satisfies` is the TS 4.9 operator.
 			return provider satisfies never
 	}
 }
