@@ -229,3 +229,7 @@ Sources: OWASP Cheat Sheet Series: Authorization ("Deny by Default", "Validate t
 ### Note, 2026-10-12 ([ADR-0031](0031-move-the-database-to-postgresql-18.md))
 
 On PostgreSQL, group names are unique through the index `user_groups_name_key` on `lower(name)`: still without case ("Finance" and "finance" are one name), but no longer without accents, so "Cafe" and "Café" are now two. The refusals are `23505` and `23503` (`isUniqueViolation`, `isForeignKeyViolation` in `lib/data/db-errors.ts`) where this record says 1062 and 1452, and `access_mode` is a `pgEnum`; ADR-0031 has the move.
+
+### Note, 2026-10-13 ([ADR-0032](0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md))
+
+The grants are on `apps`, Part 0's `dify_apps` renamed for every provider: `app_group_grants` and `app_user_grants` keep their foreign keys to `apps.id` with `ON DELETE CASCADE`, and their constraint names (`app_group_grants_app_id_dify_apps_id_fkey`, `app_user_grants_app_id_dify_apps_id_fkey`), which PostgreSQL keeps on a rename. `access_mode` and `visibleTo` are unchanged and apply to an app of any provider; a row whose documents do not read is left out of every user's list and answers 404, like an app the user may not see.
