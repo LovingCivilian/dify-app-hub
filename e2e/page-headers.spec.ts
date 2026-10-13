@@ -6,7 +6,7 @@ const PAGES = [
 	{
 		path: '/app-management',
 		title: 'App configuration',
-		subtitle: 'Manage the Dify apps published in the hub',
+		subtitle: 'Manage the AI apps published in the hub',
 	},
 	{ path: '/user-management', title: 'User management', subtitle: 'Manage user accounts' },
 	{

@@ -37,7 +37,7 @@ describe('the provider ids (spec §3; decision 24)', () => {
 
 describe("Dify's settings (spec §2.2)", () => {
 	it('reads a valid document and drops keys it does not know', () => {
-		expect(difySettingsSchema.parse({ ...settings, annotationEnabled: true })).toEqual(settings)
+		expect(difySettingsSchema.parse({ ...settings, unknownKey: true })).toEqual(settings)
 	})
 	it('takes a Docker service name as the API base', () => {
 		expect(
