@@ -428,7 +428,7 @@
 		"title": "应用配置",
 		"more_actions": "更多操作",
 		"column_name": "名称",
-		"column_type": "类型",
+		"column_provider": "提供方",
 		"column_description": "描述",
 		"column_tags": "标签",
 		"column_access": "访问权限",
@@ -449,7 +449,8 @@
 		"save_failed": "保存应用配置失败",
 		"invalid_input": "部分取值无效，请检查表单后重试。",
 		"provider_unreachable": "无法连接到应用的提供方，请检查连接设置。",
-		"field_invalid": "请检查此值"
+		"field_invalid": "请检查此值",
+		"status_invalid": "设置无效"
 	},
 	"app_setting": {
 		"api_base_required": "请输入 API 地址",

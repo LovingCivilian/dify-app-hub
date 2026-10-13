@@ -4,9 +4,10 @@ import { ApartmentOutlined, AppstoreOutlined } from '@ant-design/icons'
 import type { TFunction } from 'i18next'
 import type { ComponentType } from 'react'
 
+import type { AdminAppDto } from '@/lib/data/apps'
 import { isProviderId, type ProviderId } from '@/lib/providers/ids'
 
-import { APP_MODE_NAME_KEYS } from './dify/app-types'
+import { APP_MODE_NAME_KEYS, APP_MODE_OPTIONS } from './dify/app-types'
 
 /*
  * The client half of the provider registry (Part 1 spec §3): what the gallery and the admin table show of a provider,
@@ -17,10 +18,21 @@ import { APP_MODE_NAME_KEYS } from './dify/app-types'
  * `as const` keeps each key a literal, which the typed `t()` requires (types/i18next.d.ts).
  */
 export const PROVIDER_UI = {
-	dify: { labelKey: 'provider.dify', Icon: ApartmentOutlined, typeLabelKeys: APP_MODE_NAME_KEYS },
+	dify: {
+		labelKey: 'provider.dify',
+		Icon: ApartmentOutlined,
+		typeLabelKeys: APP_MODE_NAME_KEYS,
+		/** The order the table's filter lists the types in: Dify's console order (the admin form's choices). */
+		types: APP_MODE_OPTIONS,
+	},
 } as const satisfies Record<
 	ProviderId,
-	{ labelKey: string; Icon: ComponentType; typeLabelKeys: Readonly<Record<string, string>> }
+	{
+		labelKey: string
+		Icon: ComponentType
+		typeLabelKeys: Readonly<Record<string, string>>
+		types: readonly string[]
+	}
 >
 
 /** E11: the icon of an app whose provider the browser does not know. */
@@ -42,4 +54,15 @@ export const providerLine = (t: TFunction, provider: ProviderId, appType?: strin
 export const typeName = (t: TFunction, provider: ProviderId, type: string): string => {
 	const keys = PROVIDER_UI[provider].typeLabelKeys
 	return Object.hasOwn(keys, type) ? t(keys[type as keyof typeof keys]) : type
+}
+
+/** The app's type as its provider's settings hold it, for the table (E9); none for an app whose documents failed. */
+export const adminAppType = (app: AdminAppDto): string | undefined => {
+	if (app.invalid) return undefined
+	switch (app.provider) {
+		case 'dify':
+			return app.settings.appType
+		default:
+			return app.provider satisfies never
+	}
 }

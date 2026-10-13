@@ -48,15 +48,20 @@ const pickProvider = async (page: Page, drawer: Locator, name: string) => {
 const testResult = (drawer: Locator, title: string) =>
 	drawer.getByRole('alert').filter({ hasText: title })
 
-test('the table shows every app with its status, and the type filter narrows it', async ({
+// E9: the Provider column reads "Dify · <type>", and its filter nests the Dify types under "Dify".
+test('the table shows every app with its provider and status, and the provider filter narrows it by type', async ({
 	page,
 }) => {
 	await page.goto('/app-management')
 	await expect(
 		page.getByRole('row', { name: /Stub disabled/ }).getByText('Disabled', { exact: true }),
 	).toBeVisible()
-	await page.getByRole('columnheader', { name: 'Type' }).getByRole('button').click()
-	// The filter dropdown lists the modes as checkable menu items (antd Table filters).
+	await expect(
+		rowById(page, APP_IDS.workflow).getByText('Dify · Workflow', { exact: true }),
+	).toBeVisible()
+	await page.getByRole('columnheader', { name: 'Provider' }).getByRole('button').click()
+	// antd's filter menu shows a provider with types as a submenu, opened on hover (Menu `triggerSubMenuAction`).
+	await page.getByRole('menuitem', { name: 'Dify' }).hover()
 	await page.getByRole('menuitem', { name: 'Workflow', exact: true }).click()
 	await page.getByRole('button', { name: 'OK' }).click()
 	await expect(page.getByRole('row', { name: /Stub workflow/ })).toBeVisible()
@@ -282,6 +287,40 @@ test.describe('create and edit', () => {
 			await page.getByPlaceholder('Type a message').fill('still here')
 			await page.keyboard.press('Enter')
 			await expect(page.getByText('Echo: still here', { exact: true })).toBeVisible()
+		} finally {
+			await dropApp(id)
+		}
+	})
+
+	// Spec §2.3: a row whose stored settings fail is marked, hidden from the gallery, and repaired from its Edit.
+	test('an app with invalid settings is marked, hidden from the gallery, and repaired from its Edit', async ({
+		page,
+	}, testInfo) => {
+		const id = ownId(400, testInfo)
+		const name = `Broken ${testInfo.project.name}`
+		await seedApp(id, name)
+		await withDb(db =>
+			db.query(
+				`UPDATE apps SET settings = jsonb_set(settings, '{appType}', 'null') WHERE id = $1`,
+				[id],
+			),
+		)
+		try {
+			await page.goto('/apps')
+			// The gallery has drawn its cards (the seeded stub app's), so the next count is not of an empty page.
+			await expect(page.locator(`a[href="/chat/${APP_ID}"]`)).toBeVisible()
+			await expect(page.getByRole('link', { name: new RegExp(name) })).toHaveCount(0)
+			await page.goto('/app-management')
+			const row = rowById(page, id)
+			await expect(row.getByText('Invalid settings', { exact: true })).toBeVisible()
+			const edit = page.getByRole('dialog').filter({ hasText: `Edit app configuration - ${name}` })
+			await openDrawer(row.getByRole('button', { name: 'Edit' }), edit)
+			// The form opens on Dify's defaults; the admin fills the connection again (the key stays blank: kept).
+			await expect(edit.getByLabel('API base')).toHaveValue('')
+			await edit.getByLabel('API base').fill(stubApiBase)
+			await edit.getByRole('button', { name: 'Update' }).click()
+			await expect(row.getByText('Enabled', { exact: true })).toBeVisible()
+			await expect(row.getByText('Dify · Chatbot', { exact: true })).toBeVisible()
 		} finally {
 			await dropApp(id)
 		}

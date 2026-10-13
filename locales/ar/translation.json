@@ -428,7 +428,7 @@
 		"title": "إعدادات التطبيقات",
 		"more_actions": "إجراءات أخرى",
 		"column_name": "الاسم",
-		"column_type": "النوع",
+		"column_provider": "المزوّد",
 		"column_description": "الوصف",
 		"column_tags": "الوسوم",
 		"column_access": "الوصول",
@@ -449,7 +449,8 @@
 		"save_failed": "فشل حفظ إعدادات التطبيق",
 		"invalid_input": "بعض القيم غير صالحة. تحقّق من النموذج وحاول مرة أخرى.",
 		"provider_unreachable": "تعذّر الوصول إلى مزوّد التطبيق. تحقّق من إعدادات الاتصال.",
-		"field_invalid": "تحقّق من هذه القيمة"
+		"field_invalid": "تحقّق من هذه القيمة",
+		"status_invalid": "إعدادات غير صالحة"
 	},
 	"app_setting": {
 		"api_base_required": "أدخل عنوان API",

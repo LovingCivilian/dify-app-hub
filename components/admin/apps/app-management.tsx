@@ -8,11 +8,12 @@ import { useTranslation } from 'react-i18next'
 import { tablePagination } from '@/components/admin/table-pagination'
 import PageHeader from '@/components/shell/page-header'
 import AppIcon from '@/components/apps/app-icon'
-import { APP_MODE_NAME_KEYS, APP_MODE_OPTIONS } from '@/components/provider-ui/dify/app-types'
+import { adminAppType, PROVIDER_UI, providerLine } from '@/components/provider-ui/registry'
 import SearchInput from '@/components/shell/search-input'
 import type { GroupOption } from '@/lib/data/groups'
 import type { UserOption } from '@/lib/data/users'
 import { matchesQuery } from '@/lib/match-query'
+import { PROVIDER_IDS } from '@/lib/providers/ids'
 
 import { accessSummary, type AdminAppRow } from './admin-app-row'
 import AppActions from './app-actions'
@@ -20,7 +21,7 @@ import AppFormDrawer from './app-form-drawer'
 import styles from './app-management.module.css'
 
 /**
- * The app table (spec §5.2): search above, documented column filters for type and status, horizontal scroll
+ * The app table (spec §5.2; Part 1 E9): search above, documented column filters for provider and status, horizontal scroll
  * inside the table on narrow screens and no fixed or `responsive` columns (responsive columns are added only
  * after hydration, es/table/InternalTable.js).
  */
@@ -66,12 +67,26 @@ export default function AppManagement({
 			),
 		},
 		{
-			title: t('admin_apps.column_type'),
-			key: 'mode',
-			filters: APP_MODE_OPTIONS.map(mode => ({ text: t(APP_MODE_NAME_KEYS[mode]), value: mode })),
-			onFilter: (value, app) => !app.invalid && app.settings.appType === value,
-			render: (_, app) =>
-				app.invalid ? t('common.none') : t(APP_MODE_NAME_KEYS[app.settings.appType]),
+			// E9: plain text, "Dify · Chatflow"; the built-in filters list the providers with their types nested
+			// (antd Table column `filters` with `children`; the default filterMode "menu" shows them as a submenu).
+			title: t('admin_apps.column_provider'),
+			key: 'provider',
+			filters: PROVIDER_IDS.map(id => {
+				const ui = PROVIDER_UI[id]
+				return ui.types.length
+					? {
+							text: t(ui.labelKey),
+							value: id,
+							children: ui.types.map(type => ({
+								text: t(ui.typeLabelKeys[type]),
+								value: `${id}:${type}`,
+							})),
+						}
+					: { text: t(ui.labelKey), value: id }
+			}),
+			onFilter: (value, app) =>
+				value === app.provider || value === `${app.provider}:${adminAppType(app)}`,
+			render: (_, app) => providerLine(t, app.provider, adminAppType(app)),
 		},
 		{
 			title: t('admin_apps.column_description'),
@@ -109,8 +124,11 @@ export default function AppManagement({
 				{ text: t('admin_apps.status_disabled'), value: false },
 			],
 			onFilter: (value, app) => app.enabled === value,
+			// Spec §2.3: a row whose documents fail cannot be used; it says so, and Edit opens on the provider's defaults.
 			render: (_, app) =>
-				app.enabled ? (
+				app.invalid ? (
+					<Tag color="error">{t('admin_apps.status_invalid')}</Tag>
+				) : app.enabled ? (
 					<Tag color="success">{t('admin_apps.status_enabled')}</Tag>
 				) : (
 					<Tag>{t('admin_apps.status_disabled')}</Tag>

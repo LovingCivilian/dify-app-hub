@@ -428,7 +428,7 @@
 		"title": "App configuration",
 		"more_actions": "More actions",
 		"column_name": "Name",
-		"column_type": "Type",
+		"column_provider": "Provider",
 		"column_description": "Description",
 		"column_tags": "Tags",
 		"column_access": "Access",
@@ -449,7 +449,8 @@
 		"save_failed": "Failed to save app configuration",
 		"invalid_input": "Some values are not valid. Check the form and try again.",
 		"provider_unreachable": "Could not reach the app's provider. Check the connection settings.",
-		"field_invalid": "Check this value"
+		"field_invalid": "Check this value",
+		"status_invalid": "Invalid settings"
 	},
 	"app_setting": {
 		"api_base_required": "Enter the API base",
