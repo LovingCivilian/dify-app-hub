@@ -16,7 +16,25 @@ const ALLOWED = [
 	/^app\/api\/dify\//,
 ]
 const SOURCE = /\.(ts|tsx)$/
-const DIFY_IMPORT = /from '(@\/lib\/providers\/dify[^']*|(\.\.?\/)+(providers\/)?dify\/[^']*)'/
+// Every module specifier in the forms TypeScript accepts: `from '…'` (import and re-export), the side-effect `import '…'`,
+// the dynamic `import('…')` and `require('…')`, in single or double quotes (MDN "import", "Dynamic import").
+const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)(['"])([^'"\n]+)\1/g
+const DIFY_MODULE = /^(@\/lib\/providers\/dify|(\.\.?\/)+(lib\/)?(providers\/)?dify)(\/|$)/
+// docs/frontend-conventions.md: neutral components never import `components/provider-ui/<id>/` (the Dify section, ...).
+const PROVIDER_UI_DIRS = readdirSync('components/provider-ui', { withFileTypes: true })
+	.filter(entry => entry.isDirectory())
+	.map(entry => entry.name)
+const PROVIDER_UI_MODULE = new RegExp(
+	`^(@\\/components\\/|(\\.\\.?\\/)+(components\\/)?)provider-ui\\/(${PROVIDER_UI_DIRS.join('|')})(\\/|$)`,
+)
+
+const specifiers = (source: string) => [...source.matchAll(SPECIFIER)].map(match => match[2]!)
+const breaksBoundary = (file: string, source: string) =>
+	specifiers(source).some(
+		specifier =>
+			(!ALLOWED.some(allowed => allowed.test(file)) && DIFY_MODULE.test(specifier)) ||
+			(!file.startsWith('components/provider-ui/') && PROVIDER_UI_MODULE.test(specifier)),
+	)
 
 const sources = (dir: string): string[] =>
 	readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
@@ -29,11 +47,7 @@ describe('the provider boundary', () => {
 	it('keeps every import of the Dify module inside the provider code', () => {
 		const files = ['app', 'components', 'hooks', 'lib', 'db'].flatMap(sources)
 		expect(files.length).toBeGreaterThan(100)
-		const offenders = files.filter(
-			file =>
-				!ALLOWED.some(allowed => allowed.test(file)) &&
-				DIFY_IMPORT.test(readFileSync(file, 'utf8')),
-		)
+		const offenders = files.filter(file => breaksBoundary(file, readFileSync(file, 'utf8')))
 		expect(offenders).toEqual([])
 	})
 })

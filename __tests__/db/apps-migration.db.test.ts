@@ -15,6 +15,8 @@ const [baseline, ...part1] = readMigrationFiles({ migrationsFolder: 'db/migratio
 const EMOJI_APP = 'a0000000-0000-4000-8000-000000000001'
 const IMAGE_APP = 'a0000000-0000-4000-8000-000000000002'
 const NO_MODE_APP = 'a0000000-0000-4000-8000-000000000003'
+const HALF_ICON_APP = 'a0000000-0000-4000-8000-000000000004'
+const OBJECT_TAGS_APP = 'a0000000-0000-4000-8000-000000000005'
 const USER = '11111111-1111-4111-8111-111111111111'
 const GROUP = '22222222-2222-4222-8222-222222222222'
 const PNG = Buffer.from('89504e470d0a1a0a', 'hex')
@@ -59,6 +61,15 @@ beforeAll(async () => {
 	await db.query(
 		"INSERT INTO dify_apps (id, name, mode, api_base, api_key) VALUES ($1, 'No mode', NULL, 'https://x.example/v1', 'app-key-3')",
 		[NO_MODE_APP],
+	)
+	// A half-set icon pair (bytes without a type) and tags that are not an array: both are repaired, not carried over.
+	await db.query(
+		"INSERT INTO dify_apps (id, name, mode, api_base, api_key, icon_image, icon_mime) VALUES ($1, 'Half icon', 'chat', 'https://h.example/v1', 'app-key-4', $2, NULL)",
+		[HALF_ICON_APP, PNG],
+	)
+	await db.query(
+		`INSERT INTO dify_apps (id, name, mode, api_base, api_key, tags, opening_statement_display_mode) VALUES ($1, 'Object tags', 'chat', 'https://t.example/v1', 'app-key-5', '{"a":1}', 'sideways')`,
+		[OBJECT_TAGS_APP],
 	)
 	await db.query('INSERT INTO app_user_grants (app_id, user_id) VALUES ($1, $2)', [EMOJI_APP, USER])
 	await db.query('INSERT INTO app_group_grants (app_id, group_id) VALUES ($1, $2)', [
@@ -113,6 +124,31 @@ describe("Part 1's migration on Part 0's rows (spec §2.4)", () => {
 	})
 	it('gives a missing description and missing tags their defaults', async () => {
 		expect(await appRow(IMAGE_APP)).toMatchObject({ description: '', tags: [] })
+	})
+	it("maps an image app's settings, with the form's defaults for what Part 0 left null", async () => {
+		expect((await appRow(IMAGE_APP))?.settings).toEqual({
+			apiBase: 'http://api:5001/v1',
+			appType: 'workflow',
+			answerForm: { enabled: false, feedbackText: '' },
+			enableUpdateAfterConversationStarts: false,
+			openingStatementDisplayMode: 'default',
+		})
+	})
+	it('reads a null feedback text as empty and a null or unknown display mode as default', async () => {
+		expect((await appRow(NO_MODE_APP))?.settings).toMatchObject({
+			answerForm: { feedbackText: '' },
+			openingStatementDisplayMode: 'default',
+		})
+		// An unknown stored value (seeded on the object-tags row) is 'default' too.
+		expect((await appRow(OBJECT_TAGS_APP))?.settings).toMatchObject({
+			openingStatementDisplayMode: 'default',
+		})
+	})
+	it('drops a half-set icon pair to no icon', async () => {
+		expect(await appRow(HALF_ICON_APP)).toMatchObject({ icon_image: null, icon_mime: null })
+	})
+	it('reads tags that are not an array as an empty list', async () => {
+		expect(await appRow(OBJECT_TAGS_APP)).toMatchObject({ tags: [] })
 	})
 	it('makes an emoji icon no icon and keeps an image with its bytes', async () => {
 		expect(await appRow(EMOJI_APP)).toMatchObject({ icon_image: null, icon_mime: null })

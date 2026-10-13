@@ -134,7 +134,7 @@ describe('toActionFailure', () => {
 		// the action by its code only (the message quotes the id).
 		it('answers not_found for a malformed id (22P02), logged by its code', () => {
 			const malformed = new DrizzleQueryError(
-				'delete from "dify_apps" where "dify_apps"."id" = $1',
+				'delete from "apps" where "apps"."id" = $1',
 				['abc'],
 				Object.assign(new DatabaseError('invalid input syntax for type uuid: "abc"', 0, 'error'), {
 					code: '22P02',

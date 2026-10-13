@@ -140,6 +140,9 @@ test.describe('create and edit', () => {
 		await expect(first.getByRole('combobox', { name: /^Provider/ })).toBeDisabled()
 		await drawerOpened(first)
 		await first.getByRole('button', { name: 'Cancel' }).click()
+		// The drawer keeps its title and form while it slides out (cleared in afterOpenChange).
+		await expect(first).toContainText('Edit app configuration - Stub app')
+		await expect(first.getByLabel('API base')).toHaveValue(`${stubApiBase}`)
 		await expect(first).toBeHidden()
 
 		await rowById(page, APP_IDS.workflow).getByRole('button', { name: 'Edit' }).click()
@@ -209,7 +212,7 @@ test.describe('create and edit', () => {
 		await expect(row).toBeVisible()
 		await expect(row.getByText('Made by the e2e suite')).toBeVisible()
 		// The icon was stored as a PNG and the icon route serves it (spec §4.4).
-		await expect(row.locator('img')).toHaveAttribute('src', /\/api\/apps\/[^/]+\/icon$/)
+		await expect(row.locator('img')).toHaveAttribute('src', /\/api\/apps\/[^/]+\/icon(\?v=.+)?$/)
 		await expect
 			.poll(() => row.locator('img').evaluate(img => (img as HTMLImageElement).naturalWidth))
 			.toBeGreaterThan(0)
@@ -265,7 +268,7 @@ test.describe('create and edit', () => {
 				buffer: await pngOf(64, 64),
 			})
 			await edit.getByRole('button', { name: 'Update' }).click()
-			await expect(row.locator('img')).toHaveAttribute('src', /\/api\/apps\/[^/]+\/icon$/)
+			await expect(row.locator('img')).toHaveAttribute('src', /\/api\/apps\/[^/]+\/icon(\?v=.+)?$/)
 			const stored = await withDb(async db => {
 				const { rows } = await db.query<{ secrets: { apiKey: string } }>(
 					'SELECT secrets FROM apps WHERE id = $1',
@@ -287,6 +290,39 @@ test.describe('create and edit', () => {
 			await page.getByPlaceholder('Type a message').fill('still here')
 			await page.keyboard.press('Enter')
 			await expect(page.getByText('Echo: still here', { exact: true })).toBeVisible()
+		} finally {
+			await dropApp(id)
+		}
+	})
+
+	// ADR-0023 "Icon staleness": the admin views carry `?v=<updatedAt>`, so a replaced icon shows without a reload.
+	test('replacing an existing icon shows the new image without a reload', async ({
+		page,
+	}, testInfo) => {
+		const id = ownId(350, testInfo)
+		await seedApp(id, `Icon me ${testInfo.project.name}`)
+		try {
+			await page.goto('/app-management')
+			const row = rowById(page, id)
+			const edit = page.getByRole('dialog').filter({ hasText: 'Edit app configuration' })
+			const replaceWith = async (size: number) => {
+				await openDrawer(row.getByRole('button', { name: 'Edit' }), edit)
+				await chooseFile(page, 'Choose image', {
+					name: 'icon.png',
+					mimeType: 'image/png',
+					buffer: await pngOf(size, size),
+				})
+				await edit.getByRole('button', { name: 'Update' }).click()
+				await expect(edit).toBeHidden()
+			}
+			// The pipeline never enlarges (spec §4.4), so the stored width is the uploaded one.
+			await replaceWith(64)
+			const img = row.locator('img')
+			await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(64)
+			const before = await img.getAttribute('src')
+			await replaceWith(32)
+			await expect(img).not.toHaveAttribute('src', before ?? '')
+			await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(32)
 		} finally {
 			await dropApp(id)
 		}

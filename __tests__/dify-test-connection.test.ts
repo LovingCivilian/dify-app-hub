@@ -54,6 +54,26 @@ describe('testDifyConnection', () => {
 			warning: { code: 'type_mismatch', reported: 'workflow' },
 		})
 	})
+	it.each([
+		['longer than 64 characters', 'x'.repeat(65)],
+		['empty', ''],
+	])(
+		'answers upstream_error, passing no text on, when the reported mode is %s',
+		async (_name, mode) => {
+			fetchMock.mockResolvedValue(info(mode))
+			expect(await testDifyConnection(settings, secrets)).toEqual({
+				ok: false,
+				code: 'upstream_error',
+			})
+		},
+	)
+	it('still warns for a new but short mode', async () => {
+		fetchMock.mockResolvedValue(info('x'.repeat(64)))
+		expect(await testDifyConnection(settings, secrets)).toEqual({
+			ok: true,
+			warning: { code: 'type_mismatch', reported: 'x'.repeat(64) },
+		})
+	})
 	it("answers key_refused on Dify's 401", async () => {
 		fetchMock.mockResolvedValue(
 			json(401, { code: 'unauthorized', message: 'Access token is invalid', status: 401 }),
