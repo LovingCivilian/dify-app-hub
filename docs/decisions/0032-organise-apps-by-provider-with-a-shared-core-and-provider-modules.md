@@ -82,7 +82,7 @@ Neutral code imports `lib/providers/dify` only through the registry, the guard a
 ### The data layer (`lib/data/apps.ts`)
 
 - The documents are parsed on every write and on every read. A row that fails is logged as `{ appId, code }` and never returned half-typed: a user gets 404 and the gallery leaves it out; the admin DTO carries `invalid: true` and no settings, the table shows `Tag color="error"` "Invalid settings", and Edit opens on the provider's defaults.
-- The reads that build a user's DTO never select `secrets`; only the guard's `getAppAccess`, Test connection's `getStoredSecrets` (for a secret field left blank) and the admin writes read them.
+- The reads that build a user's DTO never select `secrets`; only the guard's `getAppAccess`, Test connection's `getStoredSecrets` (for a secret field left blank), the admin writes and the admin list (`listAdminApps`, for `secretsSet`) read them.
 - The provider is fixed: `updateApp` takes none, and the update's WHERE carries the stored provider.
 - Secrets are write-only (DV 10): no DTO carries them, the admin DTO says only `secretsSet: { apiKey: boolean }`, and a blank field keeps the stored value. A blank field over stored secrets that do not read is refused on that field: there is nothing valid to keep.
 - Saving never calls a provider (decision 18).
