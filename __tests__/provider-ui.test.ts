@@ -2,7 +2,12 @@ import { ApartmentOutlined, AppstoreOutlined } from '@ant-design/icons'
 import type { TFunction } from 'i18next'
 import { describe, expect, it } from 'vitest'
 
-import { PROVIDER_UI, providerIcon, providerLine } from '@/components/provider-ui/registry'
+import {
+	PROVIDER_UI,
+	providerIcon,
+	providerLine,
+	typeName,
+} from '@/components/provider-ui/registry'
 import { PROVIDER_IDS } from '@/lib/providers/ids'
 
 const t = ((key: string) => key) as unknown as TFunction
@@ -23,5 +28,9 @@ describe('the client registry (spec §3)', () => {
 		expect(providerLine(t, 'dify')).toBe('provider.dify')
 		expect(providerLine(t, 'dify', 'rag-pipeline')).toBe('provider.dify')
 		expect(providerLine(t, 'dify', 'toString')).toBe('provider.dify')
+	})
+	it('names a type, or gives a type it does not know back as written', () => {
+		expect(typeName(t, 'dify', 'advanced-chat')).toBe('app_mode.name.chatflow')
+		expect(typeName(t, 'dify', 'rag-pipeline')).toBe('rag-pipeline')
 	})
 })

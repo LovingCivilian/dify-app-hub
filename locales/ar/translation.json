@@ -36,7 +36,8 @@
 		"input_placeholder": "يرجى الإدخال",
 		"upload_placeholder": "انقر للرفع",
 		"field_required": "{{label}} مطلوب",
-		"decompress_failed": "فشل فك ضغط المعامل {{name}}: {{error}}"
+		"decompress_failed": "فشل فك ضغط المعامل {{name}}: {{error}}",
+		"optional": "(اختياري)"
 	},
 	"app": {
 		"list": "التطبيقات",
@@ -447,23 +448,19 @@
 		"edit_success": "تم تحديث إعدادات التطبيق",
 		"save_failed": "فشل حفظ إعدادات التطبيق",
 		"invalid_input": "بعض القيم غير صالحة. تحقّق من النموذج وحاول مرة أخرى.",
-		"provider_unreachable": "تعذّر الوصول إلى مزوّد التطبيق. تحقّق من إعدادات الاتصال."
+		"provider_unreachable": "تعذّر الوصول إلى مزوّد التطبيق. تحقّق من إعدادات الاتصال.",
+		"field_invalid": "تحقّق من هذه القيمة"
 	},
 	"app_setting": {
-		"section_request": "إعدادات الطلب",
-		"api_base_required": "عنوان API الأساسي مطلوب",
+		"api_base_required": "أدخل عنوان API",
 		"api_base_invalid": "أدخل عنوانًا يبدأ بـ http:// أو https://، مثال: https://api.dify.ai/v1",
 		"api_base_tooltip": "النطاق مع بادئة الإصدار لواجهة Dify API، مثال: https://api.dify.ai/v1",
-		"api_base_placeholder": "أدخل عنوان API الأساسي",
-		"api_secret_tooltip": "مفتاح API السري لتطبيق Dify (يبدأ بـ app-)",
-		"api_secret_required": "مفتاح API السري مطلوب",
-		"api_secret_placeholder": "أدخل مفتاح API السري",
-		"api_secret_keep": "اتركه فارغًا للإبقاء على مفتاح API الحالي",
+		"api_base_placeholder": "أدخل عنوان API",
 		"section_basic": "المعلومات الأساسية",
 		"name": "اسم التطبيق",
 		"name_placeholder": "أدخل اسم التطبيق",
 		"type": "نوع التطبيق",
-		"type_tooltip": "الإصدار 1.3.1 من Dify API وما قبله لا يُرجع نوع التطبيق، لذا اختره يدويًا",
+		"type_tooltip": "نوع التطبيق في Dify. يقارن اختبار الاتصال بينه وبين النوع الذي يُبلغ عنه Dify.",
 		"type_required": "نوع التطبيق مطلوب",
 		"type_placeholder": "اختر نوع التطبيق",
 		"description": "وصف التطبيق",
@@ -496,7 +493,30 @@
 		"form_reply_tooltip": "يُنصح به عندما يرد سير العمل بنموذج ليملأه المستخدم",
 		"submit_text": "نص رسالة الإرسال",
 		"submit_text_tooltip": "عند تفعيل الردود بنموذج، يُرسل النموذج المُقدَّم افتراضيًا كرسالة مستخدم تحتوي على بيانات النموذج. إذا حُدِّد هذا الحقل، تُعرض قيمته كرسالة بدلًا من ذلك.",
-		"submit_text_placeholder": "أدخل نص رسالة الإرسال"
+		"submit_text_placeholder": "أدخل نص رسالة الإرسال",
+		"provider": "المزوّد",
+		"provider_placeholder": "اختر المزوّد",
+		"provider_required": "اختر المزوّد",
+		"provider_tooltip": "المنصة التي يعمل عليها التطبيق. لا يمكن تغييرها بعد حفظ التطبيق.",
+		"name_required": "أدخل اسم التطبيق",
+		"name_tooltip": "يظهر على بطاقة التطبيق وفي محادثته",
+		"description_tooltip": "يظهر على بطاقة التطبيق",
+		"tags_placeholder": "اكتب وسمًا ثم اضغط Enter أو فاصلة",
+		"tags_help": "حتى 10 وسوم، لا يتجاوز كلٌّ منها 32 حرفًا",
+		"icon": "أيقونة التطبيق",
+		"icon_help": "PNG أو JPEG أو WebP، بحد أقصى 512 KB. يُحفظ بصيغة PNG لا تتجاوز 256 × 256 بكسل.",
+		"icon_choose": "اختيار صورة",
+		"icon_remove": "إزالة",
+		"icon_too_large": "حجم الصورة أكبر من 512 KB.",
+		"icon_not_allowed": "استخدم صورة PNG أو JPEG أو WebP تُفتح بشكل سليم.",
+		"section_connection": "الاتصال",
+		"api_base": "عنوان API",
+		"api_key": "مفتاح API",
+		"api_key_tooltip": "مفتاح API لتطبيق Dify (يبدأ بـ app-)",
+		"api_key_required": "أدخل مفتاح API",
+		"api_key_placeholder": "أدخل مفتاح API",
+		"secret_keep_placeholder": "اتركه فارغًا للإبقاء على القيمة الحالية",
+		"test_connection": "اختبار الاتصال"
 	},
 	"workflow": {
 		"title": "سير العمل",
@@ -556,5 +576,18 @@
 	},
 	"provider": {
 		"dify": "Dify"
+	},
+	"connection_test": {
+		"reachable_title": "تم الاتصال",
+		"reachable_description": "استجاب المزوّد بهذه الإعدادات.",
+		"type_mismatch_title": "تم الاتصال، لكن النوع مختلف",
+		"type_mismatch_description": "يُبلغ المزوّد أن هذا التطبيق من نوع {{reported}} وليس {{chosen}}. تحقّق من نوع التطبيق قبل الحفظ.",
+		"key_refused_title": "رُفض المفتاح",
+		"key_refused_description": "لم يقبل المزوّد هذا المفتاح. تحقّق منه ثم أعد الاختبار.",
+		"unreachable_title": "تعذّر الوصول إلى المزوّد",
+		"unreachable_description": "تحقّق من عنوان API، ومن أن المزوّد يعمل ويمكن للمنصة الوصول إليه.",
+		"upstream_error_title": "أجاب المزوّد بخطأ",
+		"upstream_error_description": "تحقّق من عنوان API: يجب أن يكون عنوان واجهة API لدى المزوّد.",
+		"failed_title": "لم يُنفَّذ الاختبار"
 	}
 }

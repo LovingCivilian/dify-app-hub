@@ -36,7 +36,8 @@
 		"input_placeholder": "请输入",
 		"upload_placeholder": "点击上传",
 		"field_required": "{{label}}不能为空",
-		"decompress_failed": "解压缩参数 {{name}} 失败: {{error}}"
+		"decompress_failed": "解压缩参数 {{name}} 失败: {{error}}",
+		"optional": "（可选）"
 	},
 	"app": {
 		"list": "应用列表",
@@ -447,23 +448,19 @@
 		"edit_success": "编辑应用配置成功",
 		"save_failed": "保存应用配置失败",
 		"invalid_input": "部分取值无效，请检查表单后重试。",
-		"provider_unreachable": "无法连接到应用的提供方，请检查连接设置。"
+		"provider_unreachable": "无法连接到应用的提供方，请检查连接设置。",
+		"field_invalid": "请检查此值"
 	},
 	"app_setting": {
-		"section_request": "请求配置",
-		"api_base_required": "API Base 不能为空",
+		"api_base_required": "请输入 API 地址",
 		"api_base_invalid": "请输入以 http:// 或 https:// 开头的地址，如 https://api.dify.ai/v1",
 		"api_base_tooltip": "Dify API 的域名+版本号前缀，如 https://api.dify.ai/v1",
-		"api_base_placeholder": "请输入 API BASE",
-		"api_secret_tooltip": "Dify App 的 API Secret (以 app- 开头)",
-		"api_secret_required": "API Secret 不能为空",
-		"api_secret_placeholder": "请输入 API Secret",
-		"api_secret_keep": "留空则保留当前的 API Secret",
+		"api_base_placeholder": "请输入 API 地址",
 		"section_basic": "基本信息",
 		"name": "应用名称",
 		"name_placeholder": "请输入应用名称",
 		"type": "应用类型",
-		"type_tooltip": "小于或等于 v1.3.1 的 Dify API 不会返回应用类型字段，需要用户自行选择",
+		"type_tooltip": "应用在 Dify 中的类型。测试连接会将其与 Dify 报告的类型比较。",
 		"type_required": "应用类型不能为空",
 		"type_placeholder": "请选择应用类型",
 		"description": "应用描述",
@@ -496,7 +493,30 @@
 		"form_reply_tooltip": "当工作流需要回复表单给用户填写时，建议开启此功能",
 		"submit_text": "提交消息文本",
 		"submit_text_tooltip": "当启用表单回复时，用户填写表单并提交后，默认会以用户角色将填写的表单数据作为消息文本发送，如果配置了此字段，将会固定展示配置的字段值",
-		"submit_text_placeholder": "请输入提交消息文本"
+		"submit_text_placeholder": "请输入提交消息文本",
+		"provider": "提供方",
+		"provider_placeholder": "请选择提供方",
+		"provider_required": "请选择提供方",
+		"provider_tooltip": "应用运行的平台。应用保存后无法更改。",
+		"name_required": "请输入应用名称",
+		"name_tooltip": "显示在应用卡片和对话中",
+		"description_tooltip": "显示在应用卡片上",
+		"tags_placeholder": "输入标签后按回车或逗号",
+		"tags_help": "最多 10 个标签，每个不超过 32 个字符",
+		"icon": "应用图标",
+		"icon_help": "PNG、JPEG 或 WebP，最大 512 KB。保存为不超过 256 × 256 像素的 PNG。",
+		"icon_choose": "选择图片",
+		"icon_remove": "移除",
+		"icon_too_large": "图片超过 512 KB。",
+		"icon_not_allowed": "请使用能正常打开的 PNG、JPEG 或 WebP 图片。",
+		"section_connection": "连接",
+		"api_base": "API 地址",
+		"api_key": "API 密钥",
+		"api_key_tooltip": "Dify 应用的 API 密钥（以 app- 开头）",
+		"api_key_required": "请输入 API 密钥",
+		"api_key_placeholder": "请输入 API 密钥",
+		"secret_keep_placeholder": "留空则保留原值",
+		"test_connection": "测试连接"
 	},
 	"workflow": {
 		"title": "工作流",
@@ -556,5 +576,18 @@
 	},
 	"provider": {
 		"dify": "Dify"
+	},
+	"connection_test": {
+		"reachable_title": "连接成功",
+		"reachable_description": "提供方已按这些设置作出响应。",
+		"type_mismatch_title": "已连接，但类型不同",
+		"type_mismatch_description": "提供方报告此应用为 {{reported}}，而不是 {{chosen}}。保存前请检查应用类型。",
+		"key_refused_title": "密钥被拒绝",
+		"key_refused_description": "提供方不接受此密钥。请检查后重新测试。",
+		"unreachable_title": "无法连接到提供方",
+		"unreachable_description": "请检查 API 地址，并确认提供方正在运行且应用中心可以访问。",
+		"upstream_error_title": "提供方返回了错误",
+		"upstream_error_description": "请检查 API 地址：它应为提供方的 API 地址。",
+		"failed_title": "测试未运行"
 	}
 }

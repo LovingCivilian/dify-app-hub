@@ -36,7 +36,8 @@
 		"input_placeholder": "Please enter",
 		"upload_placeholder": "Click to upload",
 		"field_required": "{{label}} is required",
-		"decompress_failed": "Failed to decompress parameter {{name}}: {{error}}"
+		"decompress_failed": "Failed to decompress parameter {{name}}: {{error}}",
+		"optional": "(optional)"
 	},
 	"app": {
 		"list": "Apps",
@@ -447,23 +448,19 @@
 		"edit_success": "App configuration updated",
 		"save_failed": "Failed to save app configuration",
 		"invalid_input": "Some values are not valid. Check the form and try again.",
-		"provider_unreachable": "Could not reach the app's provider. Check the connection settings."
+		"provider_unreachable": "Could not reach the app's provider. Check the connection settings.",
+		"field_invalid": "Check this value"
 	},
 	"app_setting": {
-		"section_request": "Request settings",
-		"api_base_required": "API Base is required",
+		"api_base_required": "Enter the API base",
 		"api_base_invalid": "Enter a URL that starts with http:// or https://, e.g. https://api.dify.ai/v1",
 		"api_base_tooltip": "Domain plus version prefix of the Dify API, e.g. https://api.dify.ai/v1",
-		"api_base_placeholder": "Enter the API Base",
-		"api_secret_tooltip": "API Secret of the Dify app (starts with app-)",
-		"api_secret_required": "API Secret is required",
-		"api_secret_placeholder": "Enter the API Secret",
-		"api_secret_keep": "Leave blank to keep the current API Secret",
+		"api_base_placeholder": "Enter the API base",
 		"section_basic": "Basic information",
 		"name": "App name",
 		"name_placeholder": "Enter the app name",
 		"type": "App type",
-		"type_tooltip": "Dify API v1.3.1 and earlier does not return the app type, so select it manually",
+		"type_tooltip": "The app’s type in Dify. Test connection compares it with the type Dify reports.",
 		"type_required": "App type is required",
 		"type_placeholder": "Select the app type",
 		"description": "App description",
@@ -496,7 +493,30 @@
 		"form_reply_tooltip": "Recommended when a workflow replies with a form for the user to fill in",
 		"submit_text": "Submission message text",
 		"submit_text_tooltip": "With form replies enabled, a submitted form is sent as a user message containing the form data by default. If this field is set, its value is shown as the message instead.",
-		"submit_text_placeholder": "Enter the submission message text"
+		"submit_text_placeholder": "Enter the submission message text",
+		"provider": "Provider",
+		"provider_placeholder": "Choose a provider",
+		"provider_required": "Choose a provider",
+		"provider_tooltip": "Where the app runs. It cannot be changed once the app is saved.",
+		"name_required": "Enter the app name",
+		"name_tooltip": "Shown on the app’s card and in its chat",
+		"description_tooltip": "Shown on the app’s card",
+		"tags_placeholder": "Type a tag, then Enter or a comma",
+		"tags_help": "Up to 10 tags of up to 32 characters",
+		"icon": "App icon",
+		"icon_help": "PNG, JPEG or WebP, up to 512 KB. Saved as a PNG of at most 256 × 256 pixels.",
+		"icon_choose": "Choose image",
+		"icon_remove": "Remove",
+		"icon_too_large": "The image is larger than 512 KB.",
+		"icon_not_allowed": "Use a PNG, JPEG or WebP image that opens correctly.",
+		"section_connection": "Connection",
+		"api_base": "API base",
+		"api_key": "API key",
+		"api_key_tooltip": "The Dify app’s API key (starts with app-)",
+		"api_key_required": "Enter the API key",
+		"api_key_placeholder": "Enter the API key",
+		"secret_keep_placeholder": "Leave blank to keep",
+		"test_connection": "Test connection"
 	},
 	"workflow": {
 		"title": "Workflow",
@@ -556,5 +576,18 @@
 	},
 	"provider": {
 		"dify": "Dify"
+	},
+	"connection_test": {
+		"reachable_title": "Connected",
+		"reachable_description": "The provider answered with these settings.",
+		"type_mismatch_title": "Connected, but the type differs",
+		"type_mismatch_description": "The provider reports this app as {{reported}}, not {{chosen}}. Check the app type before you save.",
+		"key_refused_title": "The key was refused",
+		"key_refused_description": "The provider did not accept this key. Check it and test again.",
+		"unreachable_title": "The provider could not be reached",
+		"unreachable_description": "Check the API base, and that the provider is running and reachable from the hub.",
+		"upstream_error_title": "The provider answered with an error",
+		"upstream_error_description": "Check the API base: it should be the provider’s API address.",
+		"failed_title": "The test did not run"
 	}
 }

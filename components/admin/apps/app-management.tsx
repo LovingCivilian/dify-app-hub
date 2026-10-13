@@ -42,6 +42,8 @@ export default function AppManagement({
 	const openCreate = () => setEditor({ open: true })
 	const openEdit = (app: AdminAppRow) => setEditor({ open: true, record: app })
 	const shown = apps.filter(app => matchesQuery([app.name, app.description, ...app.tags], query))
+	// E5: every tag the apps use, once, as the tag field's suggestions.
+	const tagOptions = [...new Set(apps.flatMap(app => app.tags))].sort()
 
 	const columns: TableProps<AdminAppRow>['columns'] = [
 		{
@@ -197,6 +199,7 @@ export default function AppManagement({
 				record={editor.record}
 				groups={groups}
 				users={users}
+				tagOptions={tagOptions}
 				onClose={() => setEditor(current => ({ ...current, open: false }))}
 				onClosed={() => setEditor({ open: false })}
 			/>

@@ -254,6 +254,15 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 		res.writeHead(200)
 		return res.end()
 	}
+	// Test connection (Part 1 spec §9): a key Dify does not know is its 401 envelope (endpoint map, Conventions:
+	// "401 unauthorized (missing/invalid bearer token)"), whatever the path.
+	if (req.headers.authorization === 'Bearer app-refused')
+		return difyError(res, 401, 'unauthorized', 'Access token is invalid')
+	// A host that is not there: the stub ends the socket without an answer, so the hub's fetch fails as it would.
+	if (url.pathname === '/v1/unreachable' || url.pathname.startsWith('/v1/unreachable/')) {
+		req.socket.destroy()
+		return
+	}
 
 	if (method === 'GET' && url.pathname === '/files/stub-image.png') {
 		res.writeHead(200, { 'content-type': 'image/png' })

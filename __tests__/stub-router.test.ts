@@ -595,6 +595,22 @@ describe('stub router', () => {
 		expect(empty.status).toBe(400)
 		expect(await empty.json()).toMatchObject({ code: 'no_file_uploaded', status: 400 })
 	})
+
+	// Part 1 spec §9: Test connection's refused and unreachable scenarios.
+	it("answers Dify's 401 for the refused key, on any path", async () => {
+		const refused = await fetch(`${base}/v1/info`, {
+			headers: { authorization: 'Bearer app-refused' },
+		})
+		expect(refused.status).toBe(401)
+		expect(await refused.json()).toEqual({
+			code: 'unauthorized',
+			message: 'Access token is invalid',
+			status: 401,
+		})
+	})
+	it('drops the connection for a path under /v1/unreachable', async () => {
+		await expect(fetch(`${base}/v1/unreachable/info`)).rejects.toThrow()
+	})
 })
 
 describe('stub router for the admin pages (sub-project 3)', () => {

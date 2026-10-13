@@ -172,7 +172,7 @@ for (const [name, { path, ready }] of Object.entries(signedInPages)) {
 test('screenshot app-drawer', async ({ page }, testInfo) => {
 	await page.goto('/app-management')
 	await page.locator(`tr[data-row-key="${APP_ID}"]`).getByRole('button', { name: 'Edit' }).click()
-	await expect(page.getByRole('dialog').getByLabel('API Base')).toHaveValue(/5399/)
+	await expect(page.getByRole('dialog').getByLabel('API base')).toHaveValue(/5399/)
 	await capture(page, 'app-drawer', testInfo)
 })
 
