@@ -9,11 +9,11 @@ Part 2 runs over several sessions (decision 55). **This section is the source of
 | Slice | Branch | Plan | Build | PR | Merged |
 | --- | --- | --- | --- | --- | --- |
 | Spec | `docs/part-2-spec` | — | spec, spike and research notes written; approved 2026-10-14 | #63 | 2026-10-14 |
-| 2a the core | `feat/agui-core` | not written | — | — | — |
+| 2a the core | `feat/agui-core` | `docs/superpowers/plans/2026-10-14-part-2a-agui-core.md` (19 tasks; `docs/part-2a-plan`) | — | — | — |
 | 2b human in the loop | `feat/agui-hitl` | not written | — | — | — |
 | 2c attachments and Logs | `feat/agui-files-logs` | not written | — | — | — |
 
-**Next:** 2a's plan (`superpowers-extended-cc:writing-plans`), recommended in a new session, written against `fork/overhaul` as it stands after the spec merged (decision 33), on a `docs/` branch with its own PR; then 2a's build on `feat/agui-core`.
+**Next:** the owner reviews 2a's plan (its plan calls P1–P14 first) on its docs PR; once it merges, 2a's build on `feat/agui-core`, branched from `fork/overhaul` after that merge, run by `superpowers-extended-cc:subagent-driven-development` or `executing-plans` from the plan and its `.tasks.json`.
 
 **Phases.**
 
