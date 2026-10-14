@@ -206,6 +206,55 @@ describe('runTurn: a run that opens', () => {
 		expect(dal.startRun).not.toHaveBeenCalled()
 	})
 
+	// The run is held before the database calls it active, so a concurrent reconcile never truncates a live run.
+	it('holds the run in activeRuns from before startRun until the stream ends', async () => {
+		opens({ ok: true })
+		let heldAtStart: boolean | undefined
+		let heldAtThread: boolean | undefined
+		dal.startRun.mockImplementation(
+			async (_actor: unknown, input: { conversation: { id: string }; runId: string }) => {
+				heldAtStart = activeRuns.has(input.runId)
+				return { ok: true, key: { conversationId: input.conversation.id, runId: input.runId } }
+			},
+		)
+		dal.loadThread.mockImplementation(async () => {
+			heldAtThread = activeRuns.has(started().runId)
+			return []
+		})
+		await run({ message: { text: 'hi' } })
+		expect(heldAtStart).toBe(true)
+		expect(heldAtThread).toBe(true)
+		await vi.waitFor(() => expect(activeRuns.has(started().runId)).toBe(false))
+	})
+
+	it('leaves nothing registered when startRun refuses or throws', async () => {
+		let runId = ''
+		dal.startRun.mockImplementation(async (_actor: unknown, input: { runId: string }) => {
+			runId = input.runId
+			return { ok: false, code: 'run_in_progress' }
+		})
+		await run({ message: { text: 'hi' } })
+		expect(runId).not.toBe('')
+		expect(activeRuns.has(runId)).toBe(false)
+		dal.startRun.mockImplementation(async (_actor: unknown, input: { runId: string }) => {
+			runId = input.runId
+			throw new Error('db down')
+		})
+		await expect(run({ message: { text: 'hi' } })).rejects.toThrow('db down')
+		expect(activeRuns.has(runId)).toBe(false)
+	})
+
+	it('aborts the upstream request when the adapter throws after starting it', async () => {
+		chat.runTurn.mockImplementation(() => {
+			throw new Error('adapter broke')
+		})
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+		await expect(run({ message: { text: 'hi' } })).rejects.toThrow('adapter broke')
+		errorSpy.mockRestore()
+		expect(adapterInput().abortController.signal.aborted).toBe(true)
+		expect(activeRuns.has(started().runId)).toBe(false)
+	})
+
 	// Spec §3.2 step 5: a run stored as running that no process holds is truncated when the next request finds it.
 	it('truncates a run this process does not hold, but not one it holds', async () => {
 		opens({ ok: true })

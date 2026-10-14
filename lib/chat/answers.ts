@@ -21,6 +21,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  */
 export const openItemsOf = (run: StoredRun | null): OpenItems => {
 	if (!run || run.status !== 'interrupted' || !isRecord(run.outcome)) return { interrupts: [] }
+	// If every stored interrupt fails the schema, nothing is open: a message is accepted and answers get answers_invalid (safe: Task 10 stores the outcome as received).
 	const listed = Array.isArray(run.outcome.interrupts) ? run.outcome.interrupts : []
 	return {
 		interrupts: listed.flatMap(entry => {

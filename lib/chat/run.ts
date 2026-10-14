@@ -125,26 +125,41 @@ export const runTurn = async ({
 		text === undefined ? [] : [{ id: crypto.randomUUID(), role: 'user', content: text }]
 	const title = conversation ? conversation.title : titleFrom(text ?? '')
 
+	// The run is held by this process before the database says it is active: a request that finds an activeRunId that
+	// activeRuns does not hold truncates it as a crash's leftover (spec §3.2 step 5), so registering after startRun would
+	// leave a window in which a live run is truncated. The ids are known beforehand (a new conversation's is made here).
 	const runId = crypto.randomUUID()
-	const started = await startRun(actor, {
-		appId: app.id,
-		conversation: conversation
-			? { id: conversation.id }
-			: { id: crypto.randomUUID(), title, isNew: true },
-		runId,
-		messages: [...notAvailable, ...answers, ...userMessage],
-		resume,
-	})
-	if (!started.ok)
+	const conversationId = conversation ? conversation.id : crypto.randomUUID()
+	const controller = new AbortController()
+	activeRuns.register(runId, { conversationId, controller })
+	let started: Awaited<ReturnType<typeof startRun>>
+	try {
+		started = await startRun(actor, {
+			appId: app.id,
+			conversation: conversation
+				? { id: conversationId }
+				: { id: conversationId, title, isNew: true },
+			runId,
+			messages: [...notAvailable, ...answers, ...userMessage],
+			resume,
+		})
+	} catch (error) {
+		activeRuns.release(runId)
+		throw error
+	}
+	if (!started.ok) {
+		activeRuns.release(runId)
 		return started.code === 'run_in_progress'
 			? errorResponse('run_in_progress', RUN_IN_PROGRESS, 409)
 			: conversationNotFound()
+	}
 	return streamRun({
 		request,
 		actor,
 		app,
 		chat,
 		key: started.key,
+		controller,
 		title,
 		state: conversation?.state ?? {},
 		resume,
@@ -163,17 +178,22 @@ const streamRun = async ({
 	app,
 	chat,
 	key,
+	controller,
 	title,
 	state,
 	resume,
 }: Omit<RunTurnArgs, 'body'> & {
 	key: RunKey
+	controller: AbortController
 	title: string
 	state: unknown
 	resume: ResumeEntry[] | undefined
 }): Promise<Response> => {
 	const out = createEventStream()
-	const controller = new AbortController()
+	let onDisconnect: (() => void) | undefined
+	const detach = () => {
+		if (onDisconnect) request.signal.removeEventListener('abort', onDisconnect)
+	}
 	let session: RunSession
 	let handle: ChatTurnHandle
 	let opened: ChatTurnOpened
@@ -181,11 +201,10 @@ const streamRun = async ({
 		const messages = threadForAgent(await loadThread(key.conversationId))
 		// The session seeds its write memory with the thread the agent is given, so no history row is written again (Task 10).
 		session = new RunSession({ key, appId: app.id, title, out, history: messages })
-		activeRuns.register(key.runId, { conversationId: key.conversationId, controller })
 		// Spec §4.5: the browser that goes away aborts the upstream request (the run is stored truncated). Next aborts
 		// `request.signal` when the client disconnects: the docs are silent for Node Route Handlers; the source is
 		// NextRequestAdapter (part2-proxy-stop-identity.md §6). A signal already aborted fires no event, so it is read first.
-		const onDisconnect = () => activeRuns.stop(key.runId, key.conversationId, 'disconnect')
+		onDisconnect = () => void activeRuns.stop(key.runId, key.conversationId, 'disconnect')
 		if (request.signal.aborted) onDisconnect()
 		else request.signal.addEventListener('abort', onDisconnect, { once: true })
 		session.start()
@@ -205,6 +224,9 @@ const streamRun = async ({
 		)
 		opened = await handle.opened
 	} catch (error) {
+		// An upstream request the adapter already started must not outlive the failure.
+		controller.abort()
+		detach()
 		endStream(out, key.runId)
 		await finishRun(key, {
 			status: 'failed',
@@ -215,6 +237,7 @@ const streamRun = async ({
 	}
 	if (!opened.ok && activeRuns.reasonOf(key.runId) === undefined) {
 		logRun(app.id, key.runId, opened.code)
+		detach()
 		endStream(out, key.runId)
 		await finishRun(key, {
 			status: 'failed',
@@ -223,7 +246,7 @@ const streamRun = async ({
 		})
 		return errorResponse(opened.code, UPSTREAM_MESSAGES[opened.code], UPSTREAM_STATUS[opened.code])
 	}
-	void settle(handle, session, key, app.id, out)
+	void settle(handle, session, key, app.id, out, detach)
 	return new Response(out.stream, { headers: SSE_HEADERS })
 }
 
@@ -248,6 +271,7 @@ const settle = async (
 	key: RunKey,
 	appId: string,
 	out: { close(): void },
+	detach: () => void,
 ): Promise<void> => {
 	try {
 		const { failed } = await handle.finished
@@ -256,6 +280,7 @@ const settle = async (
 		logRun(appId, key.runId, 'finish_failed')
 		logActionError(error, 'runTurn')
 	} finally {
+		detach()
 		endStream(out, key.runId)
 	}
 }
