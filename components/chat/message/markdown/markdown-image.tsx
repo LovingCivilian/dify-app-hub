@@ -3,23 +3,23 @@
 import { Image } from 'antd'
 import { useTranslation } from 'react-i18next'
 
-import { useAppContext } from '../../app-context'
-import { answerLink } from '../file-link'
 import type { MarkdownBlockProps } from './dom-node'
+import { useMarkdownLink } from './link-context'
 import styles from './markdown.module.css'
 
 /**
- * Markdown images and allowed <img> tags: antd Image with its click-to-preview. A file Dify wrote into the answer loads
- * through the app's remote-file route (`answerLink`), never from the Dify host.
+ * Markdown images and allowed <img> tags: antd Image with its click-to-preview. The chat's link rewrite decides where
+ * the image loads from (MarkdownLinkContext): in the Dify chat, a file Dify wrote into the answer loads through the
+ * app's remote-file route, never from the Dify host.
  */
 export default function MarkdownImage({ domNode }: MarkdownBlockProps) {
 	const { t } = useTranslation()
-	const { difyApi } = useAppContext()
+	const rewriteLink = useMarkdownLink()
 	const { src = '', alt } = domNode.attribs ?? {}
 	if (!src) return null
 	return (
 		<Image
-			src={answerLink(src, difyApi)}
+			src={rewriteLink(src)}
 			alt={alt || t('message.image_alt')}
 			classNames={{ root: styles.imageRoot, image: styles.media }}
 		/>

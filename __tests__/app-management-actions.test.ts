@@ -15,6 +15,10 @@ vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 vi.mock('@/lib/data/apps', () => ({ createApp, updateApp, deleteApp, getStoredSecrets }))
 vi.mock('next/cache', () => ({ refresh }))
+// Part 2 spec §2.3: the AG-UI test signs with AGENT_JWT_ISSUER (lib/env.ts), here its default.
+vi.mock('@/lib/env', () => ({ env: () => ({ agentJwtIssuer: 'nextjs-bff' }) }))
+
+import { decodeJwt } from 'jose'
 
 import {
 	createAppAction,
@@ -23,7 +27,7 @@ import {
 	updateAppAction,
 } from '@/app/(admin)/app-management/actions'
 
-const actor = { id: 'u1', email: 'jane@example.com', name: null, role: 'admin' }
+const actor = { id: 'u1', email: 'jane@example.com', name: null, role: 'admin', source: 'local' }
 const UUID = '3b241101-e2bb-4255-8caf-4136c566a962'
 const ACCOUNT_ID = '3d1a6f4b-8e5a-4192-ad0e-4f5a6b7c8d93'
 const settings = {
@@ -315,6 +319,79 @@ describe('testAppConnectionAction', () => {
 		})
 		expect(JSON.stringify(result)).not.toContain('app-typed-secret')
 		expect(getStoredSecrets).not.toHaveBeenCalled()
+		expect(fetchMock).not.toHaveBeenCalled()
+	})
+})
+
+// Part 2 spec §2.4 and plan call P2: an AG-UI app's test reaches its agent as the admin running it.
+describe('testAppConnectionAction for an AG-UI app', () => {
+	const agui = { agentUrl: 'http://agents:8000/agents/assistant', audience: 'assistant' }
+	const jwtSecret = 'an-app-secret-of-at-least-32-chars!'
+	const bearer = () =>
+		new Headers((fetchMock.mock.calls[0] as [string, RequestInit])[1].headers)
+			.get('authorization')!
+			.replace(/^Bearer /, '')
+
+	it('tests with the typed secret and a token for the admin, and answers reachable on 422', async () => {
+		fetchMock.mockResolvedValue(new Response('{}', { status: 422 }))
+		expect(
+			await testAppConnectionAction({ provider: 'agui', settings: agui, secrets: { jwtSecret } }),
+		).toEqual({ ok: true, data: { outcome: 'reachable' } })
+		expect(fetchMock.mock.calls[0]![0]).toBe(agui.agentUrl)
+		expect(decodeJwt(bearer())).toMatchObject({
+			sub: actor.id,
+			auth_source: 'local',
+			roles: ['admin'],
+			aud: 'assistant',
+			iss: 'nextjs-bff',
+		})
+		expect(getStoredSecrets).not.toHaveBeenCalled()
+	})
+	it('reads the stored secret on the server when the field is blank and the app exists', async () => {
+		getStoredSecrets.mockResolvedValue({ secrets: { jwtSecret } })
+		fetchMock.mockResolvedValue(new Response(null, { status: 422 }))
+		expect(
+			await testAppConnectionAction({
+				appId: UUID,
+				provider: 'agui',
+				settings: agui,
+				secrets: { jwtSecret: '' },
+			}),
+		).toEqual({ ok: true, data: { outcome: 'reachable' } })
+		expect(getStoredSecrets).toHaveBeenCalledWith(actor, UUID, 'agui')
+	})
+	it.each([
+		[404, { ok: false, code: 'provider_agent_not_found' }],
+		[401, { ok: false, code: 'provider_key_refused' }],
+	])('answers %i with its own code', async (status, result) => {
+		fetchMock.mockResolvedValue(new Response(null, { status }))
+		expect(
+			await testAppConnectionAction({ provider: 'agui', settings: agui, secrets: { jwtSecret } }),
+		).toEqual(result)
+	})
+	it('answers an agent that ran on the test request as reachable with a warning', async () => {
+		fetchMock.mockResolvedValue(
+			new Response('data: {}\n\n', {
+				status: 200,
+				headers: { 'content-type': 'text/event-stream' },
+			}),
+		)
+		expect(
+			await testAppConnectionAction({ provider: 'agui', settings: agui, secrets: { jwtSecret } }),
+		).toEqual({ ok: true, data: { outcome: 'ran_on_invalid_input' } })
+	})
+	it('answers invalid_input on the secret when a new app’s secret is short, and calls nothing', async () => {
+		expect(
+			await testAppConnectionAction({
+				provider: 'agui',
+				settings: agui,
+				secrets: { jwtSecret: 'short' },
+			}),
+		).toEqual({
+			ok: false,
+			code: 'invalid_input',
+			fieldErrors: { 'secrets.jwtSecret': ['too_small'] },
+		})
 		expect(fetchMock).not.toHaveBeenCalled()
 	})
 })

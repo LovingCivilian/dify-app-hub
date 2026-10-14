@@ -47,6 +47,12 @@ export const createValuesSchema = z.discriminatedUnion('provider', [
 		settings: PROVIDER_SCHEMAS.dify.settingsSchema,
 		secrets: PROVIDER_SCHEMAS.dify.secretsSchema,
 	}),
+	z.object({
+		...commonFields,
+		provider: z.literal('agui'),
+		settings: PROVIDER_SCHEMAS.agui.settingsSchema,
+		secrets: PROVIDER_SCHEMAS.agui.secretsSchema,
+	}),
 ])
 
 export const updateValuesSchema = z.discriminatedUnion('provider', [
@@ -55,6 +61,12 @@ export const updateValuesSchema = z.discriminatedUnion('provider', [
 		provider: z.literal('dify'),
 		settings: PROVIDER_SCHEMAS.dify.settingsSchema,
 		secrets: PROVIDER_SCHEMAS.dify.secretsUpdateSchema,
+	}),
+	z.object({
+		...commonFields,
+		provider: z.literal('agui'),
+		settings: PROVIDER_SCHEMAS.agui.settingsSchema,
+		secrets: PROVIDER_SCHEMAS.agui.secretsUpdateSchema,
 	}),
 ])
 
@@ -168,5 +180,11 @@ export const connectionTestSchema = z.discriminatedUnion('provider', [
 		provider: z.literal('dify'),
 		settings: PROVIDER_SCHEMAS.dify.settingsSchema,
 		secrets: PROVIDER_SCHEMAS.dify.secretsUpdateSchema,
+	}),
+	z.object({
+		appId: idSchema.optional(),
+		provider: z.literal('agui'),
+		settings: PROVIDER_SCHEMAS.agui.settingsSchema,
+		secrets: PROVIDER_SCHEMAS.agui.secretsUpdateSchema,
 	}),
 ])

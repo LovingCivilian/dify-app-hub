@@ -4,23 +4,37 @@ import { describe, expect, it } from 'vitest'
 
 // Charter §5, B2 "done when": no Route Handler remains under app/api except auth, health, dify and the icon route;
 // B3b adds the directory group search, a read the groups page makes (ADR-0029, decision al); the settings spec adds the
-// two public brand image routes. The forgot and reset
-// password handlers stay as inherited (plan deviation 6, ADR-0024); they are named here so a new handler under auth/
-// still fails the test.
+// two public brand image routes; Part 2 spec §4.2 adds the shared chat's four routes under apps/[appId]/ (a run, the
+// conversation list, one conversation, a run's stop). The forgot and reset password handlers stay as inherited (plan
+// deviation 6, ADR-0024); they are named here so a new handler under auth/ still fails the test.
+const routes = (readdirSync('app/api', { recursive: true }) as string[])
+	.map(file => file.replaceAll('\\', '/'))
+	.filter(file => /(^|\/)route\.ts$/.test(file))
+
 describe('app/api', () => {
-	it('holds only the auth, health, Dify, icon, directory group search and brand image Route Handlers', () => {
-		const routes = (readdirSync('app/api', { recursive: true }) as string[])
-			.map(file => file.replaceAll('\\', '/'))
-			.filter(file => /(^|\/)route\.ts$/.test(file))
+	it('holds only the auth, health, Dify, app, directory group search and brand image Route Handlers', () => {
 		expect(routes.length).toBeGreaterThan(0)
 		const stray = routes.filter(
 			file =>
-				!/^(auth\/(\[\.\.\.nextauth\]|forgot-password|reset-password)|health|dify\/\[appId\]\/.+|apps\/\[appId\]\/icon|directory\/groups|branding\/(logo|favicon))\/route\.ts$/.test(
+				!/^(auth\/(\[\.\.\.nextauth\]|forgot-password|reset-password)|health|dify\/\[appId\]\/.+|apps\/\[appId\]\/(icon|runs|conversations(\/\[conversationId\](\/runs\/\[runId\]\/stop)?)?)|directory\/groups|branding\/(logo|favicon))\/route\.ts$/.test(
 					file,
 				),
 		)
 		expect(stray).toEqual([])
 		// Part 1 spec §6 (decision 21): the two annotation routes are gone with the feature.
 		expect(routes.filter(file => file.includes('annotations'))).toEqual([])
+	})
+
+	it('holds exactly the shared chat routes of spec §4.2 under apps/[appId]/', () => {
+		expect(
+			routes
+				.filter(file => file.startsWith('apps/[appId]/') && file !== 'apps/[appId]/icon/route.ts')
+				.sort(),
+		).toEqual([
+			'apps/[appId]/conversations/[conversationId]/route.ts',
+			'apps/[appId]/conversations/[conversationId]/runs/[runId]/stop/route.ts',
+			'apps/[appId]/conversations/route.ts',
+			'apps/[appId]/runs/route.ts',
+		])
 	})
 })

@@ -34,6 +34,17 @@ describe('connectionOutcome', () => {
 			})}`,
 		})
 	})
+	// Part 2 spec §2.4: an AG-UI agent that ran on the test's invalid input is reachable, with a warning.
+	it('is a warning when the agent ran on the test request', () => {
+		expect(
+			connectionOutcome(t, 'dify', { ok: true, data: { outcome: 'ran_on_invalid_input' } }),
+		).toEqual({
+			type: 'warning',
+			title: 'connection_test.ran_on_invalid_input_title',
+			description: 'connection_test.ran_on_invalid_input_description',
+		})
+	})
+
 	it('names a type the client does not know as the provider wrote it', () => {
 		const outcome = connectionOutcome(
 			t,
@@ -47,6 +58,7 @@ describe('connectionOutcome', () => {
 		['provider_key_refused', 'key_refused'],
 		['provider_unreachable', 'unreachable'],
 		['provider_error', 'upstream_error'],
+		['provider_agent_not_found', 'agent_not_found'],
 	] as const)('is an error with its own words for %s', (code, words) => {
 		expect(connectionOutcome(t, 'dify', { ok: false, code })).toEqual({
 			type: 'error',
@@ -59,6 +71,18 @@ describe('connectionOutcome', () => {
 			type: 'error',
 			title: 'connection_test.failed_title',
 			description: 'admin_apps.invalid_input',
+		})
+	})
+	// Review I-1: an agent has no API base, so its three failures carry words of their own.
+	it.each([
+		['provider_key_refused', 'key_refused'],
+		['provider_unreachable', 'unreachable'],
+		['provider_error', 'upstream_error'],
+	] as const)('uses the agent’s description for %s', (code, words) => {
+		expect(connectionOutcome(t, 'agui', { ok: false, code })).toEqual({
+			type: 'error',
+			title: `connection_test.${words}_title`,
+			description: `connection_test.agui_${words}_description`,
 		})
 	})
 })

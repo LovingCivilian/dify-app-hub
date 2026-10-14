@@ -11,7 +11,7 @@ vi.mock('@/lib/data/users', () => ({ changeOwnPassword }))
 
 import { changePasswordAction } from '@/app/actions'
 
-const member = { id: 'u2', email: 'joe@example.com', name: null, role: 'user' }
+const member = { id: 'u2', email: 'joe@example.com', name: null, role: 'user', source: 'local' }
 const input = { currentPassword: 'old-password-1', newPassword: 'new-password-1' }
 
 beforeEach(() => {

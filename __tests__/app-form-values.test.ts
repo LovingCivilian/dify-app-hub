@@ -67,6 +67,13 @@ describe('the drawer’s values (spec §4.1)', () => {
 			PROVIDER_SCHEMAS.dify.defaultSettings,
 		)
 	})
+	// Part 2 spec §2.5 (issue #62's M5): an invalid app whose settings still read opens on them, the secret blank.
+	it('open an invalid app on its stored settings when they still read', () => {
+		expect(toAppFormValues({ ...common, invalid: true, settings })).toMatchObject({
+			settings,
+			secrets: { apiKey: '' },
+		})
+	})
 	it('travel to the action as JSON with the icon intent, and the file only when it is replaced', () => {
 		const keep = toAppFormData(toAppFormValues(app), { intent: 'keep' })
 		expect(JSON.parse(String(keep.get('values')))).toMatchObject({

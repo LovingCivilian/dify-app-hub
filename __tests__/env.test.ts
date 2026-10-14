@@ -26,6 +26,7 @@ describe('parseEnv', () => {
 			smtp: null,
 			ldap: null,
 			branding: { mode: 'disabled', values: null },
+			agentJwtIssuer: 'nextjs-bff',
 		})
 	})
 
@@ -412,5 +413,18 @@ describe('BRANDING_MODE (settings spec §3.1)', () => {
 				BRANDING_LOGO_FILE: '/branding/logo.png',
 			}).branding.values?.showName,
 		).toBe(false)
+	})
+})
+
+describe('AGENT_JWT_ISSUER (Part 2 spec §2.3)', () => {
+	it('defaults to the agent contract’s issuer when unset or blank', () => {
+		expect(parseEnv(base).agentJwtIssuer).toBe('nextjs-bff')
+		expect(parseEnv({ ...base, AGENT_JWT_ISSUER: '  ' }).agentJwtIssuer).toBe('nextjs-bff')
+	})
+	it('takes another issuer, trimmed', () => {
+		expect(parseEnv({ ...base, AGENT_JWT_ISSUER: ' hub-prod ' }).agentJwtIssuer).toBe('hub-prod')
+	})
+	it('refuses an issuer over 255 characters, naming the variable', () => {
+		expect(failedKeys({ AGENT_JWT_ISSUER: 'a'.repeat(256) })).toEqual(['AGENT_JWT_ISSUER'])
 	})
 })

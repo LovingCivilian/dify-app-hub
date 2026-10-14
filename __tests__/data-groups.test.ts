@@ -26,7 +26,13 @@ import {
 	updateGroup,
 } from '@/lib/data/groups'
 
-const member = { id: 'u2', email: 'joe@example.com', name: null, role: 'user' as const }
+const member = {
+	id: 'u2',
+	email: 'joe@example.com',
+	name: null,
+	role: 'user' as const,
+	source: 'local' as const,
+}
 
 describe('manualMemberChanges (spec §2 #8: an admin changes manual rows only)', () => {
 	it('adds the new ids and removes the dropped ones, each once', () => {

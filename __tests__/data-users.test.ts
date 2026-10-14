@@ -39,7 +39,13 @@ import {
 } from '@/lib/data/users'
 import { passwordResetTokens, users } from '@/db/schema'
 
-const member = { id: 'u2', email: 'joe@example.com', name: null, role: 'user' as const }
+const member = {
+	id: 'u2',
+	email: 'joe@example.com',
+	name: null,
+	role: 'user' as const,
+	source: 'local' as const,
+}
 const owner = { id: 'o1', role: 'owner' as const }
 const admin = { id: 'a1', role: 'admin' as const }
 const otherAdmin = { id: 'a2', role: 'admin' as const }
@@ -265,7 +271,13 @@ describe('deactivateRefusal', () => {
 })
 
 describe('updateUser and the email index (a 23505 that names users_email_key)', () => {
-	const ownerSession = { id: 'o1', email: 'owner@example.com', name: null, role: 'owner' as const }
+	const ownerSession = {
+		id: 'o1',
+		email: 'owner@example.com',
+		name: null,
+		role: 'owner' as const,
+		source: 'local' as const,
+	}
 	const input = { name: 'N', email: 'n@e.com', role: 'user' as const }
 
 	/** A transaction that finds a local user under the lock and the email free, and whose update is refused. */
@@ -368,7 +380,13 @@ describe('setUserActive and pending reset links (controller ruling on C2)', () =
 		database.value = { transaction: (work: (t: typeof tx) => unknown) => work(tx) }
 		return writes
 	}
-	const ownerSession = { id: 'o1', email: 'owner@example.com', name: null, role: 'owner' as const }
+	const ownerSession = {
+		id: 'o1',
+		email: 'owner@example.com',
+		name: null,
+		role: 'owner' as const,
+		source: 'local' as const,
+	}
 
 	afterEach(() => {
 		database.value = undefined
@@ -502,34 +520,54 @@ describe('directory accounts (spec §6.3, decision an)', () => {
 	it('refuses the full edit of a directory account, before any hash work or write', async () => {
 		const updates = withTarget({ id: 'd1', role: 'user', adminDeactivatedAt: null, source: 'ldap' })
 		expect(
-			await updateUser({ id: 'o1', email: 'o@e.com', name: null, role: 'owner' }, 'd1', {
-				name: 'N',
-				email: 'n@e.com',
-				role: 'user',
-				password: 'password-1',
-			}),
+			await updateUser(
+				{ id: 'o1', email: 'o@e.com', name: null, role: 'owner', source: 'local' },
+				'd1',
+				{
+					name: 'N',
+					email: 'n@e.com',
+					role: 'user',
+					password: 'password-1',
+				},
+			),
 		).toEqual({ ok: false, code: 'forbidden' })
 		expect(hashPassword).not.toHaveBeenCalled()
 		expect(updates).toEqual([])
 		// Without a password, the locked row refuses it as well.
 		expect(
-			await updateUser({ id: 'o1', email: 'o@e.com', name: null, role: 'owner' }, 'd1', {
-				name: 'N',
-				email: 'n@e.com',
-				role: 'user',
-			}),
+			await updateUser(
+				{ id: 'o1', email: 'o@e.com', name: null, role: 'owner', source: 'local' },
+				'd1',
+				{
+					name: 'N',
+					email: 'n@e.com',
+					role: 'user',
+				},
+			),
 		).toEqual({ ok: false, code: 'forbidden' })
 		expect(updates).toEqual([])
 	})
 
 	it('changes only the role, under the rank map', async () => {
-		const owner = { id: 'o1', email: 'o@e.com', name: null, role: 'owner' as const }
+		const owner = {
+			id: 'o1',
+			email: 'o@e.com',
+			name: null,
+			role: 'owner' as const,
+			source: 'local' as const,
+		}
 		let updates = withTarget({ id: 'd1', role: 'user', adminDeactivatedAt: null, source: 'ldap' })
 		expect(await updateUserRole(owner, 'd1', 'admin')).toEqual({ ok: true, data: undefined })
 		expect(updates.map(update => update.values)).toEqual([{ role: 'admin' }])
 
 		// An admin cannot promote (ADR-0024's rank map) and cannot change its own role.
-		const anAdmin = { id: 'a1', email: 'a@e.com', name: null, role: 'admin' as const }
+		const anAdmin = {
+			id: 'a1',
+			email: 'a@e.com',
+			name: null,
+			role: 'admin' as const,
+			source: 'local' as const,
+		}
 		updates = withTarget({ id: 'd1', role: 'user', adminDeactivatedAt: null, source: 'ldap' })
 		expect(await updateUserRole(anAdmin, 'd1', 'admin')).toEqual({ ok: false, code: 'forbidden' })
 		expect(updates).toEqual([])
@@ -539,8 +577,20 @@ describe('directory accounts (spec §6.3, decision an)', () => {
 	})
 
 	it('refuses your own row outright, even with the role it has (ADR-0024 decision c)', async () => {
-		const owner = { id: 'o1', email: 'o@e.com', name: null, role: 'owner' as const }
-		const anAdmin = { id: 'a1', email: 'a@e.com', name: null, role: 'admin' as const }
+		const owner = {
+			id: 'o1',
+			email: 'o@e.com',
+			name: null,
+			role: 'owner' as const,
+			source: 'local' as const,
+		}
+		const anAdmin = {
+			id: 'a1',
+			email: 'a@e.com',
+			name: null,
+			role: 'admin' as const,
+			source: 'local' as const,
+		}
 		// Same-role inputs, which updateRefusal lets through for updateUser's own-name edit: here nothing is written.
 		let updates = withTarget({ id: 'a1', role: 'admin', adminDeactivatedAt: null, source: 'ldap' })
 		expect(await updateUserRole(anAdmin, 'a1', 'admin')).toEqual({ ok: false, code: 'forbidden' })
@@ -557,12 +607,16 @@ describe('directory accounts (spec §6.3, decision an)', () => {
 			transaction: () => Promise.reject(new Error('no transaction for an unknown id')),
 		}
 		expect(
-			await updateUser({ id: 'o1', email: 'o@e.com', name: null, role: 'owner' }, 'gone', {
-				name: 'N',
-				email: 'n@e.com',
-				role: 'user',
-				password: 'password-1',
-			}),
+			await updateUser(
+				{ id: 'o1', email: 'o@e.com', name: null, role: 'owner', source: 'local' },
+				'gone',
+				{
+					name: 'N',
+					email: 'n@e.com',
+					role: 'user',
+					password: 'password-1',
+				},
+			),
 		).toEqual({ ok: false, code: 'not_found' })
 		expect(hashPassword).not.toHaveBeenCalled()
 	})

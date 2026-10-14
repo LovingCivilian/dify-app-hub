@@ -42,7 +42,13 @@ import {
 	updateUserRoleAction,
 } from '@/app/(admin)/user-management/actions'
 
-const admin = { id: 'a1', email: 'admin@example.com', name: 'Admin', role: 'admin' }
+const admin = {
+	id: 'a1',
+	email: 'admin@example.com',
+	name: 'Admin',
+	role: 'admin',
+	source: 'local',
+}
 /** The target account's id: a UUID, as every account id is (ADR-0031; lib/ids.ts). */
 const TARGET_ID = '3d1a6f4b-8e5a-4192-ad0e-4f5a6b7c8d93'
 const input = { name: 'Jane', email: 'jane@example.com', role: 'user', password: 'password-1' }

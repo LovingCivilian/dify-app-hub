@@ -28,6 +28,7 @@ const owner = {
 	email: 'owner@example.com',
 	name: null,
 	role: 'owner' as const,
+	source: 'local' as const,
 }
 
 /** A local account with a real bcrypt hash, as createUser leaves one. */

@@ -5,8 +5,8 @@ import { Avatar, Flex, Typography, type AvatarProps } from 'antd'
 import { memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useAppContext } from '../app-context'
-import type { ConversationGroup, ConversationItem } from '../provider/conversations'
+import type { ConversationGroup } from '../provider/conversations'
+import { useChatAppInfo } from './app-info-context'
 import styles from './chat-view.module.css'
 
 export interface ListCreation {
@@ -15,8 +15,18 @@ export interface ListCreation {
 	disabled: boolean
 }
 
+/**
+ * What a row of the list shows (Part 2 spec §5.1: the Dify chat and the shared chat share the list): its key, its
+ * label and its date group. Each chat's own item type carries more and satisfies this one.
+ */
+export interface ConversationListRow {
+	key: string
+	label: string
+	group: ConversationGroup
+}
+
 export interface ConversationListProps {
-	items: ConversationItem[]
+	items: ConversationListRow[]
 	activeKey: string
 	onActiveChange: (key: string) => void
 	/** The list's new-chat button; without it the list has none (the collapsed sider has its own). */
@@ -41,25 +51,22 @@ export interface ConversationSidebarProps extends Omit<ConversationListProps, 'c
  * decision 19).
  */
 export function AppAvatar({ size, alt }: Pick<AvatarProps, 'size' | 'alt'>) {
-	const { app, site } = useAppContext()
-	const name = site.title || app.name
+	const { id, name, hasIcon } = useChatAppInfo()
 	return (
 		<Avatar
 			size={size}
 			alt={alt ?? name}
 			shape="square"
-			src={app.hasIcon ? `/api/apps/${encodeURIComponent(app.id)}/icon` : undefined}
+			src={hasIcon ? `/api/apps/${encodeURIComponent(id)}/icon` : undefined}
 		>
 			{name.slice(0, 1)}
 		</Avatar>
 	)
 }
 
-/** The app's icon, name and description (site settings first, the app record second). */
+/** The app's icon, name and description, as the chat names them (ChatAppInfoContext; the Dify chat: site settings first). */
 export function AppInfoBlock() {
-	const { app, site } = useAppContext()
-	const name = site.title || app.name
-	const description = site.description || app.description
+	const { name, description } = useChatAppInfo()
 	// The padding sits on a wrapper: antd's Flex resets its own padding (flex style: `padding: 0`).
 	return (
 		<div className={styles.appInfo}>

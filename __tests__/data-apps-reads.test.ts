@@ -21,8 +21,20 @@ vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 
 import { deleteApp, getChatApp, listApps } from '@/lib/data/apps'
 
-const owner = { id: 'o1', email: 'o@example.com', name: null, role: 'owner' as const }
-const member = { id: 'u1', email: 'u@example.com', name: null, role: 'user' as const }
+const owner = {
+	id: 'o1',
+	email: 'o@example.com',
+	name: null,
+	role: 'owner' as const,
+	source: 'local' as const,
+}
+const member = {
+	id: 'u1',
+	email: 'u@example.com',
+	name: null,
+	role: 'user' as const,
+	source: 'local' as const,
+}
 const row = {
 	id: 'a1',
 	name: 'Tea',

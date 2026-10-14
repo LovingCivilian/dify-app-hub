@@ -55,8 +55,14 @@ import {
 } from '@/app/(admin)/group-management/actions'
 import { createGroup, deleteGroup, updateGroup } from '@/lib/data/groups'
 
-const owner = { id: 'o1', email: 'owner@example.com', name: 'Owner', role: 'owner' }
-const user = { id: 'u1', email: 'user@example.com', name: 'User', role: 'user' }
+const owner = {
+	id: 'o1',
+	email: 'owner@example.com',
+	name: 'Owner',
+	role: 'owner',
+	source: 'local',
+}
+const user = { id: 'u1', email: 'user@example.com', name: 'User', role: 'user', source: 'local' }
 const groupId = '6f1c2a9e-1b2c-4d3e-8f40-5a6b7c8d9e0f'
 /** Member ids are account UUIDs (ADR-0031; lib/ids.ts). */
 const MEMBER_ID = '4e2b7a5c-9f6b-42a3-be1f-5a6b7c8d9ea4'

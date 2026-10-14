@@ -20,7 +20,13 @@ vi.mock('@/lib/directory/connection', () => ({ withDirectory: mocks.withDirector
 
 import { getDirectoryStatus, searchDirectoryGroups, syncDirectoryNow } from '@/lib/directory/admin'
 
-const admin = { id: 'a1', email: 'a@x', name: null, role: 'admin' as const }
+const admin = {
+	id: 'a1',
+	email: 'a@x',
+	name: null,
+	role: 'admin' as const,
+	source: 'local' as const,
+}
 const user = { ...admin, role: 'user' as const }
 
 beforeEach(() => {

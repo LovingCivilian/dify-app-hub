@@ -32,12 +32,14 @@ const owner = {
 	email: 'owner@example.com',
 	name: null,
 	role: 'owner' as const,
+	source: 'local' as const,
 }
 const member = {
 	id: crypto.randomUUID(),
 	email: 'member@example.com',
 	name: null,
 	role: 'user' as const,
+	source: 'local' as const,
 }
 const settings = {
 	apiBase: 'https://dify.example/v1',
@@ -179,10 +181,10 @@ describe('updateApp (spec §2.3)', () => {
 	it('answers not_found for an app that is gone', async () => {
 		expect(await update(crypto.randomUUID())).toEqual({ ok: false, code: 'not_found' })
 	})
-	// Spec §2.3: the provider is fixed; an input that names another is never read (the CHECK would refuse 'agui').
+	// Spec §2.3: the provider is fixed; an input that names another is never read (the CHECK would refuse 'openai').
 	it('keeps the stored provider whatever the input says', async () => {
 		const id = await createdId()
-		expect(await update(id, { provider: 'agui' })).toEqual({ ok: true, data: undefined })
+		expect(await update(id, { provider: 'openai' })).toEqual({ ok: true, data: undefined })
 		expect((await stored(id))?.provider).toBe('dify')
 	})
 	// Decision 18: saving never calls a provider, so a create and an update reach no fetch at all.
@@ -232,6 +234,19 @@ describe('the reads (spec §2.3)', () => {
 			appId: id,
 			code: 'invalid_settings',
 		})
+	})
+	// Part 2 spec §2.5 (issue #62's M5): settings that still read go back to the admin beside secrets that do not.
+	it('keep the stored settings of a row whose secrets fail, for the admin’s repair', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {})
+		const id = await createdId()
+		await testDb
+			.update(apps)
+			.set({ secrets: { apiKey: '' } })
+			.where(eq(apps.id, id))
+		const [dto] = await listAdminApps(owner)
+		expect(dto).toMatchObject({ id, invalid: true, settings })
+		expect(dto).not.toHaveProperty('secretsSet')
+		expect(await getAppAccess(member, id)).toBeNull()
 	})
 	it('give users their DTOs without the secrets or the API base', async () => {
 		const id = await createdId()

@@ -4,7 +4,7 @@
 
 ### 4.1 Project structure (Next)
 
-- `app/` is routing only. Shared code lives in root folders: `components/<feature>/`, `hooks/`, `lib/` (`libs/` merged into it; the backend's `lib/auth/`, `lib/data/` and `lib/dify/` since B1, ADR-0023; `lib/providers/` with `lib/providers/dify/`, and `lib/http/`, since Part 1, ADR-0032; the provider UI in `components/provider-ui/`), `types/`, `locales/`.
+- `app/` is routing only. Shared code lives in root folders: `components/<feature>/`, `hooks/`, `lib/` (`libs/` merged into it; the backend's `lib/auth/`, `lib/data/` and `lib/dify/` since B1, ADR-0023; `lib/providers/` with `lib/providers/dify/`, and `lib/http/`, since Part 1, ADR-0032; the provider UI in `components/provider-ui/`; the shared chat in `components/shared-chat/` and its server side in `lib/chat/` since Part 2a, ADR-0033), `types/`, `locales/`.
 - Route groups own their layouts: `app/(auth)/` (login, forgot-password, reset-password), `app/(admin)/` (app-management, user-management, group-management, settings), `app/(user)/` (apps, chat/[appId]); `app/init/` and `app/page.tsx` stay top-level. Layout selection by URL-sniffing (`PageLayoutWrapper`) is removed.
 - Root `app/layout.tsx` (server component): `<html lang>` → `<body>` → `AntdRegistry` → client providers (session, theme mode, i18n, `XProvider`, `App`, and inside `App` the brand's `BrandingProvider` from `components/providers/branding-context.tsx`, ADR-0030) → children. Providers are one client component, `components/providers/app-providers.tsx`.
 - Server components by default; `'use client'` only on interactive leaves and providers. Route-level `loading.tsx` where a page fetches before rendering.

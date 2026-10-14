@@ -7,8 +7,6 @@ import { App, Button, Form, Input } from 'antd'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { failureText } from '../hooks/dify-errors'
-
 /** `Conversations` `menu` as a function of the item (the prop also takes one fixed menu for all items). */
 type ConversationMenu = Extract<
 	ConversationsProps['menu'],
@@ -16,24 +14,33 @@ type ConversationMenu = Extract<
 >
 
 export interface ConversationMenuOptions {
-	/** Rename on Dify, then locally; rejects with `{ status, code?, message }` (useConversations). */
+	/** Renames the conversation where it is stored, then in the list; rejects with the failure (describeFailure words it). */
 	rename: (key: string, name: string) => Promise<void>
-	/** Delete on Dify, then locally, activating the next conversation; rejects like `rename`. */
+	/** Deletes the conversation, then removes it from the list and activates the next one; rejects like `rename`. */
 	remove: (key: string) => Promise<void>
-	/** The Dify conversation id, undefined until a new chat's first reply named it (spec §4.4). */
-	getDifyId: (key: string) => string | undefined
+	/**
+	 * Whether the conversation can be renamed yet (the Dify chat: once Dify has named it, spec §4.4; the shared chat:
+	 * once the hub stores it). Keep it stable (useCallback): the menu, and so the memoised sidebar, follows it.
+	 */
+	canRename: (key: string) => boolean
+	/**
+	 * A failed rename or delete in words, for the toast (each chat words its own failures: the Dify chat with
+	 * failureText, the shared chat with its own codes). Keep it stable (useCallback), as `canRename`.
+	 */
+	describeFailure: (error: unknown) => string
 }
 
 /**
  * The per-item menu of X `Conversations` (spec §5.2: `menu` as a function of the item, antd Menu items
  * and `onClick`). Rename and delete ask through `App.useApp().modal.confirm` (never the static `Modal`,
- * which has no App context), rename with an antd Form in the modal's content. A chat Dify has not named
- * yet can only be deleted: its name is Dify's to give once the first reply starts it.
+ * which has no App context), rename with an antd Form in the modal's content. A conversation that cannot be
+ * renamed yet (`canRename`) can only be deleted.
  */
 export const useConversationMenu = ({
 	rename,
 	remove,
-	getDifyId,
+	canRename,
+	describeFailure,
 }: ConversationMenuOptions): ConversationMenu => {
 	const { t } = useTranslation()
 	const { modal, message } = App.useApp()
@@ -42,12 +49,12 @@ export const useConversationMenu = ({
 	// a form warning when used in Modal?").
 	const [form] = Form.useForm<{ name: string }>()
 
-	/** The failure's text (failureText), else the generic one; the modal stays open for another try. */
+	/** The failure's text (the chat's describeFailure); the modal stays open for another try. */
 	const reportFailure = useCallback(
 		(error: unknown) => {
-			message.error(failureText(error, t, t('common.request_failed_retry')))
+			message.error(describeFailure(error))
 		},
-		[message, t],
+		[describeFailure, message],
 	)
 
 	/**
@@ -64,7 +71,7 @@ export const useConversationMenu = ({
 	return useCallback<ConversationMenu>(
 		conversation => {
 			const items: MenuProps['items'] = [
-				...(getDifyId(conversation.key)
+				...(canRename(conversation.key)
 					? [{ key: 'rename', label: t('chat.rename'), icon: <EditOutlined /> }]
 					: []),
 				{ key: 'delete', label: t('chat.delete'), icon: <DeleteOutlined />, danger: true },
@@ -155,6 +162,6 @@ export const useConversationMenu = ({
 				},
 			}
 		},
-		[ask, form, getDifyId, message, remove, rename, reportFailure, t],
+		[ask, canRename, form, message, remove, rename, reportFailure, t],
 	)
 }

@@ -517,7 +517,22 @@
 		"api_key_required": "أدخل مفتاح API",
 		"api_key_placeholder": "أدخل مفتاح API",
 		"secret_keep_placeholder": "اتركه فارغًا للإبقاء على القيمة الحالية",
-		"test_connection": "اختبار الاتصال"
+		"test_connection": "اختبار الاتصال",
+		"agent_url": "عنوان الوكيل",
+		"agent_url_tooltip": "العنوان الكامل الذي ترسل إليه المنصة كل تشغيل، مثال: http://agents:8000/agents/assistant",
+		"agent_url_placeholder": "أدخل عنوان الوكيل",
+		"agent_url_required": "أدخل عنوان الوكيل",
+		"agent_url_invalid": "أدخل عنوانًا يبدأ بـ http:// أو https:// ولا يتجاوز 500 حرف",
+		"audience": "الجمهور",
+		"audience_tooltip": "جمهور JWT (aud) الذي يتوقعه الوكيل، أي قيمة AGENT_JWT_AUDIENCE لديه، مثال: assistant",
+		"audience_placeholder": "أدخل الجمهور",
+		"audience_required": "أدخل الجمهور",
+		"audience_invalid": "لا يتجاوز 255 حرفًا",
+		"jwt_secret": "سر JWT",
+		"jwt_secret_tooltip": "المفتاح الذي توقّع به المنصة رمز كل طلب، ويحمل الوكيل القيمة نفسها. 32 حرفًا عشوائيًا على الأقل، مثلًا من openssl rand -base64 48",
+		"jwt_secret_placeholder": "أدخل سر JWT",
+		"jwt_secret_required": "أدخل سر JWT",
+		"jwt_secret_invalid": "أدخل من 32 إلى 512 حرفًا"
 	},
 	"workflow": {
 		"title": "سير العمل",
@@ -576,7 +591,8 @@
 		"not_waiting": "لم يعد هذا النموذج بانتظار إجابة. أعد فتح المحادثة لعرض النتيجة."
 	},
 	"provider": {
-		"dify": "Dify"
+		"dify": "Dify",
+		"agui": "وكيل AG-UI"
 	},
 	"connection_test": {
 		"reachable_title": "تم الاتصال",
@@ -589,6 +605,37 @@
 		"unreachable_description": "تحقّق من عنوان API، ومن أن المزوّد يعمل ويمكن للمنصة الوصول إليه.",
 		"upstream_error_title": "أجاب المزوّد بخطأ",
 		"upstream_error_description": "تحقّق من عنوان API: يجب أن يكون عنوان واجهة API لدى المزوّد.",
-		"failed_title": "لم يُنفَّذ الاختبار"
+		"agui_key_refused_description": "رفض الوكيل رمز المنصة. تحقّق من سرّ JWT ومن الجمهور المستهدف، ومن أن الوكيل يتوقع مُصدِر المنصة (AGENT_JWT_ISSUER).",
+		"agui_unreachable_description": "تحقّق من عنوان URL للوكيل، ومن أن الوكيل يعمل ويمكن للمنصة الوصول إليه.",
+		"agui_upstream_error_description": "أجاب الوكيل بخطأ. تحقّق من عنوان URL للوكيل.",
+		"failed_title": "لم يُنفَّذ الاختبار",
+		"agent_not_found_title": "لم يُعثر على الوكيل",
+		"agent_not_found_description": "استجابت الخدمة، لكن لا يوجد وكيل على هذا العنوان. تحقّق من المسار، مثل /agents/<name>.",
+		"ran_on_invalid_input_title": "تم الاتصال، لكن الوكيل بدأ تشغيلًا لطلب الاختبار",
+		"ran_on_invalid_input_description": "بدأ الوكيل تشغيلًا لطلب كان ينبغي أن يرفضه. يمكن استخدامه، لكن أبلغ مطوّره: يرفض وكيل AG-UI المدخلات غير الصالحة برمز خطأ HTTP."
+	},
+	"shared_chat": {
+		"stopped_time_limit": "توقّف: انتهت المهلة الزمنية",
+		"answer_pending_hint": "تنتظر هذه المحادثة إجابةً لا يمكن لهذه الدردشة عرضها بعد. ابدأ محادثة جديدة للمتابعة.",
+		"tool_arguments": "المُدخلات",
+		"tool_result": "النتيجة",
+		"error": {
+			"usage_limit": "تم بلوغ حدّ الاستخدام",
+			"rate_limited": "طلبات كثيرة جدًا، حاول مرة أخرى بعد قليل",
+			"busy": "الوكيل مشغول، حاول مرة أخرى بعد قليل",
+			"model_unavailable": "النموذج غير متاح",
+			"agent_error": "واجه الوكيل خطأً",
+			"generic": "تعذّر على الوكيل الإجابة",
+			"agent_auth_failed": "رفض الوكيل بيانات اعتماد المنصة",
+			"agent_not_found": "لم يُعثر على الوكيل",
+			"agent_rejected_input": "رفض الوكيل الطلب",
+			"invalid_param": "تعذّر إرسال الرسالة. قد تكون طويلة جدًا.",
+			"provider_unreachable": "يُعاد تشغيل الوكيل، حاول مرة أخرى",
+			"upstream_error": "تعذّرت قراءة إجابة الوكيل",
+			"conversation_not_found": "لم تعد هذه المحادثة موجودة",
+			"run_in_progress": "لا تزال إجابة قيد التنفيذ في هذه المحادثة",
+			"answer_pending": "تنتظر هذه المحادثة إجابةً أولًا",
+			"answers_invalid": "لا تطابق الإجابات الأسئلة المفتوحة"
+		}
 	}
 }

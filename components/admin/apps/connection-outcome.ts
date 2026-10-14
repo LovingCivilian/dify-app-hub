@@ -32,6 +32,12 @@ export const connectionOutcome = (
 				title: t('connection_test.reachable_title'),
 				description: t('connection_test.reachable_description'),
 			}
+		if (result.data.outcome === 'ran_on_invalid_input')
+			return {
+				type: 'warning',
+				title: t('connection_test.ran_on_invalid_input_title'),
+				description: t('connection_test.ran_on_invalid_input_description'),
+			}
 		return {
 			type: 'warning',
 			title: t('connection_test.type_mismatch_title'),
@@ -46,19 +52,37 @@ export const connectionOutcome = (
 			return {
 				type: 'error',
 				title: t('connection_test.key_refused_title'),
-				description: t('connection_test.key_refused_description'),
+				description: t(
+					provider === 'agui'
+						? 'connection_test.agui_key_refused_description'
+						: 'connection_test.key_refused_description',
+				),
 			}
 		case 'provider_unreachable':
 			return {
 				type: 'error',
 				title: t('connection_test.unreachable_title'),
-				description: t('connection_test.unreachable_description'),
+				description: t(
+					provider === 'agui'
+						? 'connection_test.agui_unreachable_description'
+						: 'connection_test.unreachable_description',
+				),
 			}
 		case 'provider_error':
 			return {
 				type: 'error',
 				title: t('connection_test.upstream_error_title'),
-				description: t('connection_test.upstream_error_description'),
+				description: t(
+					provider === 'agui'
+						? 'connection_test.agui_upstream_error_description'
+						: 'connection_test.upstream_error_description',
+				),
+			}
+		case 'provider_agent_not_found':
+			return {
+				type: 'error',
+				title: t('connection_test.agent_not_found_title'),
+				description: t('connection_test.agent_not_found_description'),
 			}
 		default:
 			return {

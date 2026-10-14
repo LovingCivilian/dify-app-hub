@@ -12,6 +12,6 @@ createServer((req, res) => {
 	})
 }).listen(port, '127.0.0.1', () =>
 	console.log(
-		`dify stub listening on http://127.0.0.1:${port}/v1 (+ /agent, /chatflow, /workflow, /completion)`,
+		`dify stub listening on http://127.0.0.1:${port}/v1 (+ /agent, /chatflow, /workflow, /completion); AG-UI agents on /agui/agents/<name>`,
 	),
 )

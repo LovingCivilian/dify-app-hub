@@ -517,7 +517,22 @@
 		"api_key_required": "请输入 API 密钥",
 		"api_key_placeholder": "请输入 API 密钥",
 		"secret_keep_placeholder": "留空则保留原值",
-		"test_connection": "测试连接"
+		"test_connection": "测试连接",
+		"agent_url": "智能体地址",
+		"agent_url_tooltip": "应用中心发送每次运行的完整地址，如 http://agents:8000/agents/assistant",
+		"agent_url_placeholder": "请输入智能体地址",
+		"agent_url_required": "请输入智能体地址",
+		"agent_url_invalid": "请输入以 http:// 或 https:// 开头、不超过 500 个字符的地址",
+		"audience": "受众",
+		"audience_tooltip": "智能体期望的 JWT 受众（aud），即其 AGENT_JWT_AUDIENCE，如 assistant",
+		"audience_placeholder": "请输入受众",
+		"audience_required": "请输入受众",
+		"audience_invalid": "不超过 255 个字符",
+		"jwt_secret": "JWT 密钥",
+		"jwt_secret_tooltip": "应用中心用来签署每次请求令牌的密钥，智能体持有相同的值。至少 32 个随机字符，例如由 openssl rand -base64 48 生成",
+		"jwt_secret_placeholder": "请输入 JWT 密钥",
+		"jwt_secret_required": "请输入 JWT 密钥",
+		"jwt_secret_invalid": "请输入 32 到 512 个字符"
 	},
 	"workflow": {
 		"title": "工作流",
@@ -576,7 +591,8 @@
 		"not_waiting": "此表单已不再等待回答。请重新打开对话查看结果。"
 	},
 	"provider": {
-		"dify": "Dify"
+		"dify": "Dify",
+		"agui": "AG-UI 智能体"
 	},
 	"connection_test": {
 		"reachable_title": "连接成功",
@@ -589,6 +605,37 @@
 		"unreachable_description": "请检查 API 地址，并确认提供方正在运行且应用中心可以访问。",
 		"upstream_error_title": "提供方返回了错误",
 		"upstream_error_description": "请检查 API 地址：它应为提供方的 API 地址。",
-		"failed_title": "测试未运行"
+		"agui_key_refused_description": "智能体拒绝了应用中心的令牌。请检查 JWT 密钥和受众，并确认智能体所期望的签发者与应用中心一致（AGENT_JWT_ISSUER）。",
+		"agui_unreachable_description": "请检查智能体 URL，并确认智能体正在运行且应用中心可以访问。",
+		"agui_upstream_error_description": "智能体返回了错误。请检查智能体 URL。",
+		"failed_title": "测试未运行",
+		"agent_not_found_title": "未找到智能体",
+		"agent_not_found_description": "服务已响应，但此地址下没有智能体。请检查路径，例如 /agents/<name>。",
+		"ran_on_invalid_input_title": "已连接，但智能体对测试请求启动了运行",
+		"ran_on_invalid_input_description": "智能体对一个本应拒绝的请求启动了运行。它可以使用，但请告知其作者：AG-UI 智能体应以 HTTP 错误拒绝无效输入。"
+	},
+	"shared_chat": {
+		"stopped_time_limit": "已停止：达到时间限制",
+		"answer_pending_hint": "此对话正在等待一个本聊天暂时无法显示的回答。请新建对话继续。",
+		"tool_arguments": "参数",
+		"tool_result": "结果",
+		"error": {
+			"usage_limit": "已达到使用上限",
+			"rate_limited": "请求过于频繁，请稍后再试",
+			"busy": "智能体正忙，请稍后再试",
+			"model_unavailable": "模型不可用",
+			"agent_error": "智能体出错",
+			"generic": "智能体无法回答",
+			"agent_auth_failed": "智能体拒绝了平台的凭据",
+			"agent_not_found": "未找到该智能体",
+			"agent_rejected_input": "智能体拒绝了该请求",
+			"invalid_param": "无法发送该消息，可能太长。",
+			"provider_unreachable": "智能体正在重启，请重试",
+			"upstream_error": "无法读取智能体的回答",
+			"conversation_not_found": "此对话已不存在",
+			"run_in_progress": "此对话中仍有回答正在生成",
+			"answer_pending": "此对话需要先得到回答",
+			"answers_invalid": "回答与待处理的问题不匹配"
+		}
 	}
 }

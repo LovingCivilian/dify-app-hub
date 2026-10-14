@@ -31,7 +31,7 @@ const account = (email: string, role: 'owner' | 'admin' | 'user' = 'user') => ({
 })
 
 describe('the baseline on a live PostgreSQL (Part 0 spec §3)', () => {
-	it('was applied with Part 1’s three migrations, through the log the runtime migrator shares with drizzle-kit (DV 1c)', async () => {
+	it('was applied with every migration in order, through the log the runtime migrator shares with drizzle-kit (DV 1c)', async () => {
 		const { rows } = await pool.query<{ name: string }>(
 			'SELECT name FROM drizzle.__drizzle_migrations ORDER BY id',
 		)
@@ -40,6 +40,8 @@ describe('the baseline on a live PostgreSQL (Part 0 spec §3)', () => {
 			'apps_expand',
 			'apps_data',
 			'apps_contract',
+			'agui_provider',
+			'conversations',
 		])
 	})
 
@@ -162,11 +164,26 @@ describe('the baseline on a live PostgreSQL (Part 0 spec §3)', () => {
 		expect(
 			await refusal(
 				pool.query(
-					"INSERT INTO apps (id, provider, name, settings, secrets) VALUES ($1, 'agui', 'x', '{}', '{}')",
+					"INSERT INTO apps (id, provider, name, settings, secrets) VALUES ($1, 'openai', 'x', '{}', '{}')",
 					[crypto.randomUUID()],
 				),
 			),
 		).toEqual({ code: '23514', constraint: 'apps_provider_check' })
+	})
+
+	// Part 2 spec §2.1: the agui_provider migration lists AG-UI in the CHECK.
+	it('takes an AG-UI app', async () => {
+		const row = app({
+			provider: 'agui',
+			settings: { agentUrl: 'http://agents:8000/agents/a', audience: 'a' },
+			secrets: { jwtSecret: 'k'.repeat(32) },
+		})
+		await testDb.insert(apps).values(row)
+		const [stored] = await testDb
+			.select({ provider: apps.provider })
+			.from(apps)
+			.where(eq(apps.id, row.id))
+		expect(stored!.provider).toBe('agui')
 	})
 
 	// Spec §4.4: the icon's bytes and type are stored together or not at all.

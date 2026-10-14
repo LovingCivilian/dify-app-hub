@@ -89,8 +89,20 @@ import {
 	writeInstanceSetting,
 } from '@/lib/data/settings'
 
-const admin = { id: 'a1', email: 'admin@example.com', name: null, role: 'admin' as const }
-const user = { id: 'u1', email: 'user@example.com', name: null, role: 'user' as const }
+const admin = {
+	id: 'a1',
+	email: 'admin@example.com',
+	name: null,
+	role: 'admin' as const,
+	source: 'local' as const,
+}
+const user = {
+	id: 'u1',
+	email: 'user@example.com',
+	name: null,
+	role: 'user' as const,
+	source: 'local' as const,
+}
 
 beforeEach(() => {
 	calls.length = 0

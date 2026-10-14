@@ -29,7 +29,13 @@ vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 import { users } from '@/db/schema'
 import { createUser } from '@/lib/data/users'
 
-const admin = { id: 'a1', email: 'admin@example.com', name: null, role: 'admin' as const }
+const admin = {
+	id: 'a1',
+	email: 'admin@example.com',
+	name: null,
+	role: 'admin' as const,
+	source: 'local' as const,
+}
 const input = {
 	name: 'Jane',
 	email: 'jane@example.com',
