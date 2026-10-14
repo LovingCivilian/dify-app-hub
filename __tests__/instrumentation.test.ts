@@ -1,24 +1,31 @@
 import { DatabaseError } from 'pg'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { startDirectorySchedule } = vi.hoisted(() => ({ startDirectorySchedule: vi.fn() }))
+const { startDirectorySchedule, startPurgeSchedule } = vi.hoisted(() => ({
+	startDirectorySchedule: vi.fn(),
+	startPurgeSchedule: vi.fn(),
+}))
 vi.mock('@/lib/directory/schedule', () => ({ startDirectorySchedule }))
+vi.mock('@/lib/chat/purge', () => ({ startPurgeSchedule }))
 
 import { register } from '@/instrumentation'
 
 afterEach(() => {
 	vi.unstubAllEnvs()
 	startDirectorySchedule.mockReset()
+	startPurgeSchedule.mockReset()
 })
 
 describe('register (Next instrumentation)', () => {
-	it('starts the directory schedule in the Node runtime only', async () => {
+	it('starts the directory schedule and the conversation purge in the Node runtime only', async () => {
 		vi.stubEnv('NEXT_RUNTIME', 'edge')
 		await register()
 		expect(startDirectorySchedule).not.toHaveBeenCalled()
+		expect(startPurgeSchedule).not.toHaveBeenCalled()
 		vi.stubEnv('NEXT_RUNTIME', 'nodejs')
 		await register()
 		expect(startDirectorySchedule).toHaveBeenCalledTimes(1)
+		expect(startPurgeSchedule).toHaveBeenCalledTimes(1)
 	})
 
 	it('never throws, so a failure cannot stop the server from starting (decision ai)', async () => {
@@ -30,6 +37,35 @@ describe('register (Next instrumentation)', () => {
 			})
 			await expect(register()).resolves.toBeUndefined()
 			expect(error).toHaveBeenCalled()
+		} finally {
+			error.mockRestore()
+		}
+	})
+
+	// Part 2 spec §3.4: the purge is a job of its own; a failing directory schedule does not keep it from starting.
+	it('starts each job on its own and logs a failure under the job’s name', async () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+		try {
+			vi.stubEnv('NEXT_RUNTIME', 'nodejs')
+			const bug = new Error('directory')
+			startDirectorySchedule.mockImplementationOnce(() => {
+				throw bug
+			})
+			await register()
+			expect(startPurgeSchedule).toHaveBeenCalledTimes(1)
+			expect(error).toHaveBeenCalledWith(
+				'instrumentation: the directory schedule did not start:',
+				bug,
+			)
+			const purgeBug = new Error('purge')
+			startPurgeSchedule.mockImplementationOnce(() => {
+				throw purgeBug
+			})
+			await register()
+			expect(error).toHaveBeenLastCalledWith(
+				'instrumentation: the conversation purge did not start:',
+				purgeBug,
+			)
 		} finally {
 			error.mockRestore()
 		}
