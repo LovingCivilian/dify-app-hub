@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Request, type Response } from '@playwright/test'
 
 import { APP_ID } from './fixtures/constants'
+import { newConversationButton } from './fixtures/conversations'
 
 const pathOf = (url: string) => new URL(url).pathname
 /** GET /api/dify/<app>/messages: a conversation's history (Dify's GET /messages, the conversation in the query). */
@@ -88,9 +89,7 @@ test('while a send waits for the history, the conversation cannot be switched an
 	const item = (name: string) => list.getByRole('listitem', { name, exact: true })
 	await expect(list.getByText(hint, { exact: true })).toBeVisible()
 	await expect(item(other)).toHaveClass(/ant-conversations-item-disabled/)
-	await expect(list.getByRole('button', { name: 'New conversation' })).toHaveClass(
-		/ant-conversations-creation-disabled/,
-	)
+	await expect(newConversationButton(list)).toHaveClass(/ant-conversations-creation-disabled/)
 	await item(other).click()
 	// The click changed nothing: the slow conversation stays active, its history and the reply arrive.
 	await expect(page.getByText('Echo: queued while loading', { exact: true })).toBeVisible()
