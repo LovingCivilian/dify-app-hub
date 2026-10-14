@@ -30,7 +30,7 @@ import {
 	type RunError,
 	type RunKey,
 } from '@/lib/data/conversations'
-import { logActionError } from '@/lib/error-log'
+import { describeError, logActionError } from '@/lib/error-log'
 
 import type { ChatTurnSink } from './adapter'
 import type { StopReason } from './active-runs'
@@ -210,6 +210,10 @@ export class RunSession implements ChatTurnSink {
 		if (end.status === 'cancelled' || end.status === 'failed' || end.status === 'truncated')
 			end.close = this.closeLists()
 		await this.queue
+		// A batch that failed above was forgotten: this save writes its rows once more, and nothing else (the rows are
+		// unchanged since the save at the top, so every other row matches what was written).
+		this.save()
+		await this.queue
 		// Spec §4.4: a log line carries the app, the run and a code, never content. The agent's code for its RUN_ERROR;
 		// otherwise whether the stream broke or ended without a terminal event (plan call P6; both stored upstream_error).
 		if (end.status === 'failed') {
@@ -380,20 +384,35 @@ export class RunSession implements ChatTurnSink {
 	private save(): void {
 		this.saveDue = false
 		this.lastSave = this.now()
+		const sent = new Map<string, string>()
 		const rows = this.latest.flatMap(message => {
 			const status = this.statusOf(message)
 			const json = rowJson(message, status)
 			if (this.written.get(message.id) === json) return []
 			this.written.set(message.id, json)
+			sent.set(message.id, json)
 			return [{ message, status }]
 		})
-		if (rows.length) this.enqueue(() => saveMessages(this.key, rows))
+		if (rows.length)
+			this.enqueue(
+				() => saveMessages(this.key, rows),
+				() => {
+					// A batch that did not land is forgotten, so the next save (at worst finish's) writes its rows again: a
+					// tool result stored without its assistant call would make the next run's input invalid.
+					for (const [id, json] of sent) if (this.written.get(id) === json) this.written.delete(id)
+				},
+			)
 	}
 
-	private enqueue(write: () => Promise<void>): void {
+	private enqueue(write: () => Promise<void>, onFail: () => void): void {
 		this.queue = this.queue.then(write).catch(error => {
-			// A failed write leaves the stream going; the run's end is written at finish (or truncated later).
-			logActionError(error, 'RunSession.save')
+			// A failed write leaves the stream going; its rows are retried by the next save, and the run's end is written at finish.
+			onFail()
+			console.error('RunSession.save:', {
+				appId: this.appId,
+				runId: this.key.runId,
+				code: describeError(error),
+			})
 		})
 	}
 }

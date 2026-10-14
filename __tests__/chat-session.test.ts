@@ -209,6 +209,25 @@ describe('RunSession storing the rows (spec §3.2)', () => {
 		expect(order).toEqual(['first', 'second'])
 	})
 
+	it('writes the rows of a failed batch again with the next save', async () => {
+		saveMessages.mockRejectedValueOnce(new Error('connection lost'))
+		const { session } = setup()
+		session.event(ev('TOOL_CALL_RESULT', { messageId: 't-1', toolCallId: 'call-1', content: 'ok' }))
+		session.messages([USER, { id: 't-1', role: 'tool', toolCallId: 'call-1', content: 'ok' }])
+		await session.finish({ failed: false })
+		// The row is complete from its first write, so only a forgotten failure makes the second batch carry it.
+		expect(
+			saveMessages.mock.calls.map(([, rows]) =>
+				(rows as { message: Message }[]).map(row => row.message.id),
+			),
+		).toEqual([['t-1'], ['t-1']])
+		expect(console.error).toHaveBeenCalledWith('RunSession.save:', {
+			appId: 'app-1',
+			runId: KEY.runId,
+			code: expect.any(Error),
+		})
+	})
+
 	// saveMessages upserts unconditionally (Task 6): a row written after finishRun marked it incomplete would reopen it.
 	it('ignores what the adapter reports once the run is finishing, so its end is the last write', async () => {
 		const order: string[] = []
