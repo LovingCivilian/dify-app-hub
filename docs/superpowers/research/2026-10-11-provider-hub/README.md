@@ -390,6 +390,21 @@ Rules that apply throughout:
     - Dropped: the Opus pre-flight, the three-seat final review, the run records archived in a docs PR, this record's "update after every answer" rule, and the owner-picks-every-component rule (brainstorming's 2–3 options with a recommendation instead; the Part 1 picks E1–E11 stay in the plan).
     - Next: Part 1's plan is converted to the plugin's plan format (task fields, per-task metadata with a model tier, the `.tasks.json` file), then run by its skills. From here the specs and plans carry the decisions; this record keeps the history.
 
+39. **Part 1 is built, tested by the owner and merged** (2026-10-14).
+    - It ran subagent-driven on `feat/provider-core`, in `~/repos/dify-app-hub` itself (owner, 2026-10-12: "remove the worktree and use the branch as you did originally"). Each of the 15 tasks got a review. The final whole-branch review found one Important issue: an icon replaced on Edit was not fetched again, so the admin icon URLs now carry `?v=<updatedAt>`. One fix wave took it, with the must-fix items the task reviews had deferred. The run's ledger was a local file, deleted at the finish (decision 38); what it left open is listed in PR #60's description.
+    - During the run the owner asked for docs checks: "use the context7 mcp to check docs", then "why only context7, why not crawl4ai, or the libs actaly mcps and docs in the repo?". From then on, every implementer and reviewer checked each library API against every source AGENTS.md names. A read-only audit covered Tasks 1–8, and its three findings were fixed.
+    - The Docker gate ran on the owner's go-ahead ("Go ahead", 2026-10-13):
+      - **Backup:** the old image kept as `ai-app-hub-local-app:part0`, and a mode-600 dump.
+      - **Rehearsal:** the three migrations ran on a restored copy with the same counts (2 apps, no grants, none without a mode).
+      - **Rebuild:** one `Database migration complete`, RestartCount 0, four migration rows.
+    - **The e2e flake:** it was `next dev`'s memory-threshold restart. `next dev` sizes its heap at half of the 4.9 GB machine's RAM and restarts at 80% of it, which happened about 80% into each full run. The owner chose a fixed 4 GB heap for the e2e dev server ("a, and then 2", 2026-10-14; ADR-0010 note). The next run, slower in heavy swap, caught two locators that matched two elements; they are exact now, and the last full run had 0 failed.
+    - The owner checked the migrated stack: "everything is working" (2026-10-14). ADR-0032 was accepted, and PR #60 was merged into `fork/overhaul` as `8500cce3`.
+    - On the owner's word:
+      - **crawl4ai:** it moved to the owner's pipx install, and both folders' `.venv` were removed. This line's docs follow (ADR-0002 note); `fork/main`'s guide is left as it is.
+      - **Cleanup:** the backup and the `part0` image were removed.
+      - **Backlog:** comments went to #44, #45 and #49.
+    - Next: Part 2, the shared chat on AG-UI and the AG-UI provider. Its spec comes first, then its plan, written against the merged code (decision 33).
+
 ## Research findings that shape the design (2026-10-11)
 
 Sources are in `agui-and-reference-hubs.md`.
