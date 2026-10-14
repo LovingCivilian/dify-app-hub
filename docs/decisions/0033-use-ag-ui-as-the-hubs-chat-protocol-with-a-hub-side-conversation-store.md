@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-14
 decision-makers: LovingCivilian (fork owner)
 consulted: Claude Code sessions (Part 2 brainstorm, the AG-UI spike `agui-spike.md`, research notes `part2-*.md`, Part 2 spec and 2a plan)
@@ -101,3 +101,7 @@ AG-UI defines no stop request, and a consumer that closes the connection has a t
 - Sources read: `@ag-ui/client` 1.0.2 `src/agent/agent.ts`, `src/agent/http.ts`, `src/apply/default.ts`, `src/transform/http.ts`; CopilotKit runtime `handlers/handle-stop.ts`, `packages/shared/src/finalize-events.ts`; assistant-ui `react-ag-ui` `run-aggregator.ts`.
 - Running record decisions 40–57.
 - Where the build departed from the plan (ruled while it ran): `turnsFromMessages` joins a run that only tool rows carry to its turn by start time; a run's `outcome` is stored as received (`null` when `RUN_FINISHED` carries none, which still means success); `RunSession.finish({ failed })` logs `stream_broken` or `stream_ended` while storing and sending `upstream_error`; once `finish()` starts the session accepts no sink writes; the run is registered in `activeRuns` before `startRun` commits it; a refused connection is rethrown as a plain `Error('agent unreachable')` so `@ag-ui/client` logs no host; `conversation_messages_run_id_idx` was added for the `run_id` key; a message's text must be non-blank and at most 32,000 characters. The plain error covers a refused connection only: a dropped stream or a malformed frame is logged by `@ag-ui/client` itself (`console.error('Agent execution failed:', …)`) with the socket's address or the frame's text. Wrapping the response body would be a custom mechanism around the library's own logging (ADR-0002), so this is a known limit, tracked as a follow-up issue.
+
+### Note, 2026-10-14 (accepted on the owner's word; their check follows)
+
+Part 2a passed every gate on `feat/agui-core` (`413a0fe6`): tsc, oxlint, oxfmt, the antd lint at 0, the i18next checks, `pnpm test` (2,178), `pnpm test:db` (91), `pnpm test:ldap` (51) and the e2e suite on three projects (662 passed, 0 failed). It also passed the Docker gate on the owner's local stack: one `Database migration complete`, RestartCount 0, the six migration rows, and no AG-UI client code in the browser bundle. The owner, working remotely and unable to test in a browser, asked to go on without their check: "let's proceed nonetheless … I will test it in the morning … accept the ADR, push the PR, open the issues" (2026-10-14). The record is accepted on that word. The owner's browser check on the local stack follows before the merge, and a problem it finds becomes a fix on the branch. Follow-ups: #66, #67, #68, #69.

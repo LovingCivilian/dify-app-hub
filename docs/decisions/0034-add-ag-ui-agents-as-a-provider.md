@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-14
 decision-makers: LovingCivilian (fork owner)
 consulted: Claude Code sessions (Part 2 brainstorm, `part2-proxy-stop-identity.md`, Part 2 spec and 2a plan)
@@ -86,3 +86,7 @@ The browser contract is AG-UI; backends plug in through the provider registry an
 - Spec §2; plan `docs/superpowers/plans/2026-10-14-part-2a-agui-core.md` (plan calls P1, P2, P4, P5).
 - jose `SignJWT` and `jwtVerify` (https://github.com/panva/jose); PyJWT `jwt.decode` for the agent side (`docs/agui-agents.md`).
 - Running record decisions 45 and 52; memory `agent-service-contract`.
+
+### Note, 2026-10-14 (accepted on the owner's word; their check follows)
+
+Part 2a passed every gate on `feat/agui-core` (`413a0fe6`): tsc, oxlint, oxfmt, the antd lint at 0, the i18next checks, `pnpm test` (2,178), `pnpm test:db` (91), `pnpm test:ldap` (51) and the e2e suite on three projects (662 passed, 0 failed). It also passed the Docker gate on the owner's local stack: one `Database migration complete`, RestartCount 0, the six migration rows, and no AG-UI client code in the browser bundle. The owner, working remotely and unable to test in a browser, asked to go on without their check: "let's proceed nonetheless … I will test it in the morning … accept the ADR, push the PR, open the issues" (2026-10-14). The record is accepted on that word. The owner's browser check on the local stack follows before the merge, and a problem it finds becomes a fix on the branch. Follow-ups: #66, #67, #68, #69.
