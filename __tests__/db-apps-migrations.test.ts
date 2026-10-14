@@ -13,13 +13,14 @@ const sqlOf = (suffix: string) => {
 // Part 1 spec §2.4 and Plan decision b: expand (generated), data (custom), contract (generated), in that order; Part 2
 // adds the provider migration after them.
 describe("Part 1's migrations", () => {
-	it('follow the baseline as expand, data and contract, then Part 2’s provider migration', () => {
+	it('follow the baseline as expand, data and contract, then Part 2’s provider and conversation migrations', () => {
 		expect(folders.map(name => name.replace(/^\d{14}_/, ''))).toEqual([
 			'baseline',
 			'apps_expand',
 			'apps_data',
 			'apps_contract',
 			'agui_provider',
+			'conversations',
 		])
 	})
 	// A rename keeps the rows and the grants' foreign keys; a drop and create would lose them (Review Focus 2).

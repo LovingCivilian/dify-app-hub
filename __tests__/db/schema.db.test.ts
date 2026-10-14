@@ -31,7 +31,7 @@ const account = (email: string, role: 'owner' | 'admin' | 'user' = 'user') => ({
 })
 
 describe('the baseline on a live PostgreSQL (Part 0 spec §3)', () => {
-	it('was applied with Part 1’s three migrations and Part 2’s provider migration, through the log the runtime migrator shares with drizzle-kit (DV 1c)', async () => {
+	it('was applied with every migration in order, through the log the runtime migrator shares with drizzle-kit (DV 1c)', async () => {
 		const { rows } = await pool.query<{ name: string }>(
 			'SELECT name FROM drizzle.__drizzle_migrations ORDER BY id',
 		)
@@ -41,6 +41,7 @@ describe('the baseline on a live PostgreSQL (Part 0 spec §3)', () => {
 			'apps_data',
 			'apps_contract',
 			'agui_provider',
+			'conversations',
 		])
 	})
 

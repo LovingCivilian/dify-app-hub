@@ -1,5 +1,6 @@
 export { appGroupGrants, appUserGrants } from './app-grants'
 export { apps } from './apps'
+export { conversationMessages, conversationRuns, conversations } from './conversations'
 export { directorySyncRuns, userGroupDirectoryLinks } from './directory'
 export {
 	accessMode,
