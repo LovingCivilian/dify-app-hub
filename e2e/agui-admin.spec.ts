@@ -33,6 +33,7 @@ const openDrawer = async (control: Locator, drawer: Locator) => {
 }
 // antd's Table sets data-row-key from rowKey on each body row.
 const rowById = (page: Page, id: string) => page.locator(`tr[data-row-key="${id}"]`)
+const stopButton = (page: Page) => page.getByRole('button', { name: 'Stop loading' })
 const senderBox = (page: Page) => page.getByPlaceholder('Type a message')
 
 const seedAguiApp = (id: string, name: string) =>
@@ -142,6 +143,8 @@ test.describe('AG-UI apps in the admin', () => {
 			await expect(
 				page.locator('.ant-bubble-start').last().locator('strong', { hasText: 'stub agent' }),
 			).toBeVisible()
+			// The run settles before the app goes, or its last write meets the deleted app (an FK violation in the server log).
+			await expect(stopButton(page)).toHaveCount(0)
 		} finally {
 			await dropApp(id)
 		}
@@ -188,6 +191,7 @@ test.describe('AG-UI apps in the admin', () => {
 			await senderBox(page).fill('question')
 			await page.keyboard.press('Enter')
 			await expect(page.getByText('Question 1 of 2')).toBeVisible()
+			await expect(stopButton(page)).toHaveCount(0)
 		} finally {
 			await dropApp(id)
 		}

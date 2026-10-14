@@ -135,7 +135,7 @@ The hub never sends `editedArgs`: the arguments are not editable. An approval wh
 
 **Expiry:** an interrupt whose `expiresAt` (ISO 8601) has passed shows as expired with only **Dismiss**, which sends `cancelled`; the hub refuses any other answer to it.
 
-**One resume:** every interrupt of your run is answered in one `resume` list, never a partial one (AG-UI: "The resume list MUST cover every interrupt"). If your agent refuses that run before its stream (401, 404, 422, or unreachable), the interrupts stay open and the user can answer again.
+**One resume:** every interrupt of your run is answered in one `resume` list, never a partial one (AG-UI: "The resume list MUST cover every interrupt"). If your agent refuses that run before its stream (any error status before the stream, a 5xx included, no connection, or the hub failing before it sends), the interrupts stay open and the user can answer again.
 
 **LangGraph:** the hub reads only the 1.0 interrupt outcome of `RUN_FINISHED`. `ag-ui-langgraph` sends it only with `emit_interrupt_outcome=True` (`emitInterruptOutcome` in TypeScript; off by default); without it, interrupts arrive as the legacy `CUSTOM on_interrupt` event, which the hub does not read, and the run looks finished.
 

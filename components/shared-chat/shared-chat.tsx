@@ -165,7 +165,7 @@ export default function SharedChat({ app }: { app: AguiChatApp }) {
 	// The ask_user questions without a decision yet (plan call P13): a drafted call leaves the card while other items
 	// wait, and a "Change" (retract) brings it back.
 	const questions = useMemo(
-		() => open.questions.filter(part => !draft.tools[part.toolCallId]),
+		() => open.questions.filter(part => !Object.hasOwn(draft.tools, part.toolCallId)),
 		[open.questions, draft.tools],
 	)
 	const answerQuestions = useCallback(
