@@ -6,6 +6,8 @@ import type { ProviderCaller } from '@/lib/providers/caller'
 import type { ProviderId } from '@/lib/providers/ids'
 import type { ProviderSecrets, ProviderSettings } from '@/lib/providers/schemas'
 
+import type { HubToolName } from './hub-tools'
+
 /*
  * The shared chat's seam toward a provider (Part 2 spec §4.1): the run route (lib/chat/run.ts) builds one turn's input
  * from the store, the provider's adapter runs it and reports AG-UI events to a sink, and the run session
@@ -22,8 +24,9 @@ export interface ChatTurnInput {
 	/** The stored thread as threadForAgent() built it (lib/chat/thread.ts): seq order, no activity messages. */
 	messages: Message[]
 	state: unknown
-	/** 2a: always [] (plan call P4). */
+	/** The hub's own tools the app advertises (spec §6.2; plan call P1): hubToolDefinitions(chat.hubTools(settings)). */
 	tools: Tool[]
+	/** The answers to the continued run's interrupts (spec §6.1), in their order; absent when the run answers none. */
 	resume?: ResumeEntry[]
 	caller: ProviderCaller
 	/** Owned by the run session; aborting it closes the upstream request (spec §4.5). */
@@ -66,6 +69,11 @@ export interface ChatTurnHandle {
 }
 
 export interface ChatAdapter<P extends ProviderId> {
+	/**
+	 * The hub's own tools this app advertises (plan call P1; spec §4.1: the adapter is given "the tools"), read from its
+	 * settings as they are now (decision 62): the run advertises their definitions, and its open items read the same names.
+	 */
+	hubTools(settings: ProviderSettings<P>): HubToolName[]
 	runTurn(
 		app: { settings: ProviderSettings<P>; secrets: ProviderSecrets<P> },
 		input: ChatTurnInput,
