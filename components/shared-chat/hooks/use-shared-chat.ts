@@ -10,6 +10,7 @@ import {
 } from 'react'
 
 import { prependOlder } from '@/components/chat/hooks/history-paging'
+import { createQueuedSends, type QueuedSends } from '@/components/chat/hooks/queued-sends'
 import { emptyAssistantTurn, type HubRunValue, type Turn } from '@/lib/chat/turn'
 import type { RequestError } from '@/lib/http/browser'
 
@@ -76,6 +77,8 @@ const pagesInFlight = new Set<string>()
 const conversationIdReaders = new Map<string, () => string | undefined>()
 /** The latest `onRun` given for each key; the key's cached provider calls it from its stream. */
 const runSinks = new Map<string, (key: string, value: HubRunValue) => void>()
+/** The latest hook's queued-send `clear` for each key; the key's cached provider calls it when a reply ends (#68). */
+const queuedClearers = new Map<string, QueuedSends['clear']>()
 
 /** The latest page of a conversation (its first load, or a retry of it); sets the key's cursor and state. */
 const loadLatestPage = async (api: SharedChatApi, key: string, conversationId: string) => {
@@ -109,6 +112,14 @@ export const useSharedChat = ({
 						request: XRequest<SharedChatInput, SSEOutput, Turn>(runsUrl(appId), {
 							manual: true,
 							fetch: createHubFetch(appId),
+							// The end of every request, whatever ended it (x-chat-provider skill, "callbacks": onError
+							// includes AbortError): the key's queued send no longer waits, whichever conversation is on
+							// screen (#68; x-sdk 2.9.0 AbstractChatProvider.injectRequest calls these after useXChat's own
+							// handlers, for every key).
+							callbacks: {
+								onSuccess: () => queuedClearers.get(conversationKey)?.(conversationKey),
+								onError: () => queuedClearers.get(conversationKey)?.(conversationKey),
+							},
 						}),
 						getConversationId: () => conversationIdReaders.get(conversationKey)?.(),
 						onRun: value => runSinks.get(conversationKey)?.(conversationKey, value),
@@ -138,6 +149,11 @@ export const useSharedChat = ({
 			fallbackTurn(error, messageInfo?.message ?? params.continues),
 	})
 
+	// Keys with a send waiting in the SDK's queue, per hook instance like that queue (useDifyChat's rule, the same
+	// queued-sends.ts): `has` answers `send` at once, the state renders the view's guard.
+	const [queuedKeys, setQueuedKeys] = useState<ReadonlySet<string>>(() => new Set())
+	const [queued] = useState(() => createQueuedSends(setQueuedKeys))
+
 	// The callbacks below stay stable and read the committed render's values here (React: refs are written in effects,
 	// not during rendering).
 	const latest = useRef({ chat, provider, conversationKey, api })
@@ -146,36 +162,35 @@ export const useSharedChat = ({
 		if (!conversationKey) return
 		conversationIdReaders.set(conversationKey, getConversationId)
 		if (onRun) runSinks.set(conversationKey, onRun)
+		queuedClearers.set(conversationKey, queued.clear)
 	})
 
-	// Keys with a send waiting in the SDK's queue, per hook instance like that queue (useDifyChat's rule): the ref
-	// answers `send` at once, the state renders the view's guard.
-	const queuedRef = useRef(new Set<string>())
-	const [queuedKeys, setQueuedKeys] = useState<ReadonlySet<string>>(() => new Set())
+	// The queued send has left once its key requests (useDifyChat's rule); a reply that ends while another conversation
+	// is on screen clears its key from the provider's callbacks (#68).
 	useEffect(() => {
-		if (!chat.isRequesting || !queuedRef.current.has(conversationKey)) return
-		queuedRef.current.delete(conversationKey)
-		setQueuedKeys(new Set(queuedRef.current))
-	}, [chat.isRequesting, conversationKey])
+		if (chat.isRequesting) queued.clear(conversationKey)
+	}, [chat.isRequesting, conversationKey, queued])
 
 	/** Sends, or queues while the history loads (sendDecision); false when the send was ignored. */
-	const send = useCallback((text: string) => {
-		const { chat, conversationKey: key } = latest.current
-		if (!key) return false
-		const decision = sendDecision({
-			isRequesting: chat.isRequesting,
-			isDefaultMessagesRequesting: chat.isDefaultMessagesRequesting,
-			queued: queuedRef.current.has(key),
-		})
-		if (decision === 'ignore') return false
-		const request: Partial<SharedChatInput> = { message: { text } }
-		if (decision === 'queue') {
-			queuedRef.current.add(key)
-			setQueuedKeys(new Set(queuedRef.current))
-			chat.queueRequest(key, request)
-		} else chat.onRequest(request)
-		return true
-	}, [])
+	const send = useCallback(
+		(text: string) => {
+			const { chat, conversationKey: key } = latest.current
+			if (!key) return false
+			const decision = sendDecision({
+				isRequesting: chat.isRequesting,
+				isDefaultMessagesRequesting: chat.isDefaultMessagesRequesting,
+				queued: queued.has(key),
+			})
+			if (decision === 'ignore') return false
+			const request: Partial<SharedChatInput> = { message: { text } }
+			if (decision === 'queue') {
+				queued.add(key)
+				chat.queueRequest(key, request)
+			} else chat.onRequest(request)
+			return true
+		},
+		[queued],
+	)
 
 	/**
 	 * Spec §4.5 and §5.2: the hub's stop route aborts the agent and ends the stream with `RUN_FINISHED` cancelled, so the

@@ -34,6 +34,7 @@ import {
 import { getProvider } from '../provider/provider-cache'
 import { ContinuationLostError, failureText, FormNotWaitingError, toDifyError } from './dify-errors'
 import { nextPaging, prependLatestPage, prependOlder, type HistoryPaging } from './history-paging'
+import { createQueuedSends, type QueuedSends } from './queued-sends'
 
 export const HISTORY_PAGE = 20
 
@@ -85,6 +86,8 @@ const pagesInFlight = new Set<string>()
 const difyIdReaders = new Map<string, () => string | undefined>()
 /** The latest `onConversationId` given for each key; the key's cached provider calls it from its stream. */
 const conversationIdSinks = new Map<string, (key: string, difyId: string) => void>()
+/** The latest hook's queued-send `clear` for each key; the key's cached provider calls it when a reply ends (#68). */
+const queuedClearers = new Map<string, QueuedSends['clear']>()
 
 /** One page of GET /messages; the browser client rejects with RequestError on an HTTP error. */
 const fetchPage = (difyApi: DifyApi, difyId: string, firstId?: string) =>
@@ -282,10 +285,18 @@ export const useDifyChat = ({
 							fetch: createDifyFetch(appId),
 							params: { response_mode: 'streaming' },
 							// The end of every request, whatever ended it (x-chat-provider skill, "callbacks": onError
-							// includes AbortError); a resume stream's wait for its pause ends with it.
+							// includes AbortError); a resume stream's wait for its pause ends with it, and so does the key's
+							// queued send, whichever conversation is on screen (#68; x-sdk 2.9.0
+							// AbstractChatProvider.injectRequest calls these after useXChat's own handlers, for every key).
 							callbacks: {
-								onSuccess: () => created.endResume(),
-								onError: error => created.endResume(error),
+								onSuccess: () => {
+									created.endResume()
+									queuedClearers.get(conversationKey)?.(conversationKey)
+								},
+								onError: error => {
+									created.endResume(error)
+									queuedClearers.get(conversationKey)?.(conversationKey)
+								},
 							},
 						},
 					),
@@ -348,6 +359,11 @@ export const useDifyChat = ({
 			),
 	})
 
+	// Keys with a send waiting in the SDK's queue (queued-sends.ts): per hook instance, like that queue. `has`
+	// answers `send` at once (two quick sends see the first); the state renders the view's guard (ADR-0017 note).
+	const [queuedKeys, setQueuedKeys] = useState<ReadonlySet<string>>(() => new Set())
+	const [queued] = useState(() => createQueuedSends(setQueuedKeys))
+
 	// The callbacks below stay stable and read the committed render's values here (React: refs are
 	// written in effects, not during rendering).
 	const latest = useRef({ chat, provider, conversationKey, difyApi, appId })
@@ -356,43 +372,40 @@ export const useDifyChat = ({
 		if (!conversationKey) return
 		difyIdReaders.set(conversationKey, getDifyConversationId)
 		if (onConversationId) conversationIdSinks.set(conversationKey, onConversationId)
+		queuedClearers.set(conversationKey, queued.clear)
 	})
 
-	// Keys with a send waiting in the SDK's queue. Per hook instance, like that queue (use-x-chat keeps it in
-	// a ref of the hook, `messageQueueRef`), so a flag never outlives the queue it stands for. The ref answers
-	// `send` at once (two quick sends see the first); the state renders the view's guard (ADR-0017 note).
-	const queuedRef = useRef(new Set<string>())
-	const [queuedKeys, setQueuedKeys] = useState<ReadonlySet<string>>(() => new Set())
 	// The queued send has left once its key requests. The SDK flushes the queue in a `setTimeout` after the
-	// history lands, so clearing the flag when the history ends would let a second send through before it.
+	// history lands, so clearing the flag when the history ends would let a second send through before it. A
+	// reply that ends while another conversation is on screen clears its key from the provider's callbacks (#68).
 	useEffect(() => {
-		if (!chat.isRequesting || !queuedRef.current.has(conversationKey)) return
-		queuedRef.current.delete(conversationKey)
-		setQueuedKeys(new Set(queuedRef.current))
-	}, [chat.isRequesting, conversationKey])
+		if (chat.isRequesting) queued.clear(conversationKey)
+	}, [chat.isRequesting, conversationKey, queued])
 
 	/** Sends, or queues while the history loads (sendDecision); false when the send was ignored. */
-	const send = useCallback((params: SendParams) => {
-		const { chat, conversationKey: key } = latest.current
-		if (!key) return false
-		const decision = sendDecision({
-			isRequesting: chat.isRequesting,
-			isDefaultMessagesRequesting: chat.isDefaultMessagesRequesting,
-			queued: queuedRef.current.has(key),
-		})
-		if (decision === 'ignore') return false
-		const request: Partial<DifyChatInput> = {
-			query: params.query,
-			inputs: params.inputs,
-			files: params.files,
-		}
-		if (decision === 'queue') {
-			queuedRef.current.add(key)
-			setQueuedKeys(new Set(queuedRef.current))
-			chat.queueRequest(key, request)
-		} else chat.onRequest(request)
-		return true
-	}, [])
+	const send = useCallback(
+		(params: SendParams) => {
+			const { chat, conversationKey: key } = latest.current
+			if (!key) return false
+			const decision = sendDecision({
+				isRequesting: chat.isRequesting,
+				isDefaultMessagesRequesting: chat.isDefaultMessagesRequesting,
+				queued: queued.has(key),
+			})
+			if (decision === 'ignore') return false
+			const request: Partial<DifyChatInput> = {
+				query: params.query,
+				inputs: params.inputs,
+				files: params.files,
+			}
+			if (decision === 'queue') {
+				queued.add(key)
+				chat.queueRequest(key, request)
+			} else chat.onRequest(request)
+			return true
+		},
+		[queued],
+	)
 
 	// XRequest's abort() reads an AbortController that exists only once a request has run.
 	const abort = useCallback(() => {
