@@ -4,15 +4,20 @@ import { getServerSession } from 'next-auth/next'
 import { redirect } from 'next/navigation'
 import { cache } from 'react'
 
+import { isAccountSource, type AccountSource } from './account-source'
 import { authOptions } from './options'
 import { hasAdminRights, isRole, type Role } from './roles'
 
-/** The signed-in account as the server code sees it; `id` is the Dify end-user id (ADR-0026). */
+/**
+ * The signed-in account as the server code sees it: `id` is the account's permanent id, the Dify end user and the AG-UI
+ * token's `sub` (ADR-0026); `source` is where its identity lives (ADR-0029), the AG-UI token's `auth_source`.
+ */
 export interface SessionUser {
 	id: string
 	email: string
 	name: string | null
 	role: Role
+	source: AccountSource
 }
 
 export type AuthErrorCode = 'unauthorized' | 'forbidden'
@@ -33,13 +38,19 @@ export const getCachedServerSession = cache(() => getServerSession(authOptions))
 
 /**
  * The signed-in account, or null: no session, or a revoked JWT, which decodes but carries no user.id
- * (lib/auth/options.ts jwt callback; ADR-0018), or a session without a known role (lib/auth/roles.ts isRole).
+ * (lib/auth/options.ts jwt callback; ADR-0018), or a session without a known role (lib/auth/roles.ts isRole) or source (lib/auth/account-source.ts isAccountSource).
  */
 export async function verifySession(): Promise<SessionUser | null> {
 	const session = await getCachedServerSession()
 	const user = session?.user
-	if (!user?.id || !user.email || !isRole(user.role)) return null
-	return { id: user.id, email: user.email, name: user.name ?? null, role: user.role }
+	if (!user?.id || !user.email || !isRole(user.role) || !isAccountSource(user.source)) return null
+	return {
+		id: user.id,
+		email: user.email,
+		name: user.name ?? null,
+		role: user.role,
+		source: user.source,
+	}
 }
 
 /**

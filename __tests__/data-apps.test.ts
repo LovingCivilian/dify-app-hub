@@ -251,7 +251,13 @@ describe('appOfProvider', () => {
 	})
 })
 
-const member = { id: 'u2', email: 'joe@example.com', name: null, role: 'user' as const }
+const member = {
+	id: 'u2',
+	email: 'joe@example.com',
+	name: null,
+	role: 'user' as const,
+	source: 'local' as const,
+}
 
 // The role check comes before the database (the @/db mock throws on any query).
 describe('the apps DAL refuses a non-admin actor before anything else', () => {

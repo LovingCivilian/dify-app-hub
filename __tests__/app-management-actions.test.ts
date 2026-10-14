@@ -23,7 +23,7 @@ import {
 	updateAppAction,
 } from '@/app/(admin)/app-management/actions'
 
-const actor = { id: 'u1', email: 'jane@example.com', name: null, role: 'admin' }
+const actor = { id: 'u1', email: 'jane@example.com', name: null, role: 'admin', source: 'local' }
 const UUID = '3b241101-e2bb-4255-8caf-4136c566a962'
 const ACCOUNT_ID = '3d1a6f4b-8e5a-4192-ad0e-4f5a6b7c8d93'
 const settings = {

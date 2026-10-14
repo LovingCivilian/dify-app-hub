@@ -32,12 +32,14 @@ const owner = {
 	email: 'owner@example.com',
 	name: null,
 	role: 'owner' as const,
+	source: 'local' as const,
 }
 const member = {
 	id: crypto.randomUUID(),
 	email: 'member@example.com',
 	name: null,
 	role: 'user' as const,
+	source: 'local' as const,
 }
 const settings = {
 	apiBase: 'https://dify.example/v1',

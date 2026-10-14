@@ -58,7 +58,13 @@ vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 import { users } from '@/db/schema'
 import { changeOwnPassword } from '@/lib/data/users'
 
-const actor = { id: 'u1', email: 'jane@example.com', name: null, role: 'user' as const }
+const actor = {
+	id: 'u1',
+	email: 'jane@example.com',
+	name: null,
+	role: 'user' as const,
+	source: 'local' as const,
+}
 const input = { currentPassword: 'old-password-1', newPassword: 'new-password-1' }
 const wrongCurrent = {
 	ok: false,

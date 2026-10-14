@@ -6,3 +6,6 @@
 export const ACCOUNT_SOURCES = ['local', 'ldap'] as const
 
 export type AccountSource = (typeof ACCOUNT_SOURCES)[number]
+
+export const isAccountSource = (value: unknown): value is AccountSource =>
+	typeof value === 'string' && (ACCOUNT_SOURCES as readonly string[]).includes(value)

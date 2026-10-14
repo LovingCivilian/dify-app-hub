@@ -19,9 +19,21 @@ import {
 	DirectoryUnavailableError,
 } from '@/lib/directory/errors'
 
-const owner = { id: 'o1', email: 'owner@example.com', name: 'Owner', role: 'owner' }
-const admin = { id: 'a1', email: 'admin@example.com', name: 'Admin', role: 'admin' }
-const user = { id: 'u1', email: 'user@example.com', name: 'User', role: 'user' }
+const owner = {
+	id: 'o1',
+	email: 'owner@example.com',
+	name: 'Owner',
+	role: 'owner',
+	source: 'local',
+}
+const admin = {
+	id: 'a1',
+	email: 'admin@example.com',
+	name: 'Admin',
+	role: 'admin',
+	source: 'local',
+}
+const user = { id: 'u1', email: 'user@example.com', name: 'User', role: 'user', source: 'local' }
 const get = (query: string) => GET(new NextRequest(`http://app/api/directory/groups${query}`))
 
 beforeEach(() => {
@@ -77,7 +89,7 @@ describe('GET /api/directory/groups (spec §6.5, decision al)', () => {
 		expect(response.headers.get('cache-control')).toBe('private, no-store')
 		await expect(response.json()).resolves.toEqual([{ key: 'k1', name: 'Engineering' }])
 		expect(searchDirectoryGroups).toHaveBeenCalledWith(
-			{ id: 'a1', email: 'admin@example.com', name: 'Admin', role: 'admin' },
+			{ id: 'a1', email: 'admin@example.com', name: 'Admin', role: 'admin', source: 'local' },
 			'eng',
 		)
 	})

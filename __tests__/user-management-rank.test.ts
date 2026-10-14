@@ -68,8 +68,20 @@ const ADMIN_ID = '1b9e4d2f-6c3e-4f70-8b8c-2d3e4f5a6b71'
 const OTHER_ADMIN_ID = '2c0f5e3a-7d4f-4081-9c9d-3e4f5a6b7c82'
 const USER_ID = '3d1a6f4b-8e5a-4192-ad0e-4f5a6b7c8d93'
 
-const owner = { id: OWNER_ID, email: 'owner@example.com', name: 'Owner', role: 'owner' }
-const admin = { id: ADMIN_ID, email: 'admin@example.com', name: 'Admin', role: 'admin' }
+const owner = {
+	id: OWNER_ID,
+	email: 'owner@example.com',
+	name: 'Owner',
+	role: 'owner',
+	source: 'local',
+}
+const admin = {
+	id: ADMIN_ID,
+	email: 'admin@example.com',
+	name: 'Admin',
+	role: 'admin',
+	source: 'local',
+}
 const fields = (role: string) => ({ name: 'N', email: 'n@example.com', role, password: '' })
 const forbidden = { ok: false, code: 'forbidden' }
 const anyWrite = () =>

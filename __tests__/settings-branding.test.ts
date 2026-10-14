@@ -48,7 +48,13 @@ const tempDir = async () => {
 }
 
 const builtInImage = { src: '/_next/static/media/logo.abc.png', width: 81, height: 83 }
-const admin = { id: 'a1', email: 'admin@example.com', name: null, role: 'admin' as const }
+const admin = {
+	id: 'a1',
+	email: 'admin@example.com',
+	name: null,
+	role: 'admin' as const,
+	source: 'local' as const,
+}
 const sha = (char: string) => char.repeat(64)
 const sha256 = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
 const png = (width: number, height: number) =>

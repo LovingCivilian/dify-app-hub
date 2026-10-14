@@ -45,6 +45,14 @@ const blankAsAbsent = <T extends z.ZodType>(inner: T) =>
 		inner,
 	)
 
+/**
+ * The AG-UI provider's JWT issuer (Part 2 spec §2.3): the `iss` of every token the hub signs for an agent, which must match
+ * the agent service's AGENT_JWT_ISSUER. Blank counts as absent, so the agent contract's default applies.
+ */
+const agentSchema = z.object({
+	AGENT_JWT_ISSUER: blankAsAbsent(z.string().trim().min(1).max(255).default('nextjs-bff')),
+})
+
 /** Read leniently like `flag` above (blanks and case do not matter); unset or blank is `disabled`. */
 const brandingModeSchema = z.preprocess(
 	blankOrLowerCased,
@@ -254,6 +262,8 @@ export interface ServerEnv {
 	smtp: SmtpConfig | null
 	ldap: LdapConfig | null
 	branding: BrandingEnv
+	/** AGENT_JWT_ISSUER: the `iss` of the AG-UI provider's tokens (Part 2 spec §2.3). */
+	agentJwtIssuer: string
 }
 
 export class EnvError extends Error {
@@ -325,6 +335,8 @@ export const parseEnv = (source: Record<string, string | undefined>): ServerEnv 
 			},
 		}
 	} else branding = { mode: brandingMode.data, values: null }
+	const agent = agentSchema.safeParse(source)
+	if (!agent.success) throw new EnvError(keysOf(agent.error))
 	return {
 		nodeEnv: base.data.NODE_ENV,
 		databaseUrl: base.data.DATABASE_URL,
@@ -332,6 +344,7 @@ export const parseEnv = (source: Record<string, string | undefined>): ServerEnv 
 		smtp,
 		ldap,
 		branding,
+		agentJwtIssuer: agent.data.AGENT_JWT_ISSUER,
 	}
 }
 

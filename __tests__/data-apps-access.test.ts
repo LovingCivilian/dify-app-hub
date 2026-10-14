@@ -25,9 +25,27 @@ vi.mock('@/db', () => {
 import { apps } from '@/db/schema'
 import { getAppAccess, getAppIcon, getChatApp, listApps, visibleTo } from '@/lib/data/apps'
 
-const user = { id: 'u1', email: 'u@example.com', name: null, role: 'user' as const }
-const admin = { id: 'a1', email: 'a@example.com', name: null, role: 'admin' as const }
-const owner = { id: 'o1', email: 'o@example.com', name: null, role: 'owner' as const }
+const user = {
+	id: 'u1',
+	email: 'u@example.com',
+	name: null,
+	role: 'user' as const,
+	source: 'local' as const,
+}
+const admin = {
+	id: 'a1',
+	email: 'a@example.com',
+	name: null,
+	role: 'admin' as const,
+	source: 'local' as const,
+}
+const owner = {
+	id: 'o1',
+	email: 'o@example.com',
+	name: null,
+	role: 'owner' as const,
+	source: 'local' as const,
+}
 
 /** A condition rendered on a select from apps (no connection). */
 const render = (condition: unknown) =>

@@ -32,7 +32,7 @@ describe.each(layouts)('%s layout', (_path, Layout) => {
 
 	it('sends a signed-in visitor to /apps', async () => {
 		getServerSession.mockResolvedValue({
-			user: { id: 'u1', email: 'jane@example.com', role: 'admin' },
+			user: { id: 'u1', email: 'jane@example.com', role: 'admin', source: 'local' },
 		})
 		await Layout({ children })
 		expect(redirect).toHaveBeenCalledWith('/apps')

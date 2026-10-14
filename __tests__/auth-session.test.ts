@@ -23,9 +23,15 @@ import {
 	verifySession,
 } from '@/lib/auth/session'
 
-const live = { user: { id: 'u1', email: 'jane@example.com', name: 'Jane', role: 'admin' } }
-const member = { user: { id: 'u2', email: 'joe@example.com', name: null, role: 'user' } }
-const owner = { user: { id: 'u0', email: 'owner@example.com', name: 'Owner', role: 'owner' } }
+const live = {
+	user: { id: 'u1', email: 'jane@example.com', name: 'Jane', role: 'admin', source: 'local' },
+}
+const member = {
+	user: { id: 'u2', email: 'joe@example.com', name: null, role: 'user', source: 'ldap' },
+}
+const owner = {
+	user: { id: 'u0', email: 'owner@example.com', name: 'Owner', role: 'owner', source: 'local' },
+}
 // A revoked JWT (sessionVersion mismatch) still yields a session, but the session callback leaves user.id out.
 const revoked = { user: { email: 'jane@example.com' } }
 
@@ -42,18 +48,20 @@ describe('verifySession', () => {
 			email: 'jane@example.com',
 			name: 'Jane',
 			role: 'admin',
+			source: 'local',
 		})
 		expect(getServerSession).toHaveBeenCalledWith({ marker: true })
 	})
 	it('gives null for a name-less account a null name', async () => {
 		getServerSession.mockResolvedValue({
-			user: { id: 'u1', email: 'jane@example.com', role: 'admin' },
+			user: { id: 'u1', email: 'jane@example.com', role: 'admin', source: 'local' },
 		})
 		await expect(verifySession()).resolves.toEqual({
 			id: 'u1',
 			email: 'jane@example.com',
 			name: null,
 			role: 'admin',
+			source: 'local',
 		})
 	})
 	it('returns null for a revoked session, no session, or a session without an email', async () => {
@@ -71,7 +79,21 @@ describe('verifySession and the role', () => {
 		getServerSession.mockResolvedValue({ user: { id: 'u1', email: 'jane@example.com' } })
 		await expect(verifySession()).resolves.toBeNull()
 		getServerSession.mockResolvedValue({
-			user: { id: 'u1', email: 'jane@example.com', role: 'superuser' },
+			user: { id: 'u1', email: 'jane@example.com', role: 'superuser', source: 'local' },
+		})
+		await expect(verifySession()).resolves.toBeNull()
+	})
+	// Part 2 plan call P1: the source reaches the session through the session callback (lib/auth/options.ts), as the
+	// role does; a session without a known one is no session.
+	it('returns the account’s source, and treats a session without a known source as no session', async () => {
+		getServerSession.mockResolvedValue(member)
+		await expect(verifySession()).resolves.toMatchObject({ id: 'u2', source: 'ldap' })
+		getServerSession.mockResolvedValue({
+			user: { id: 'u1', email: 'jane@example.com', role: 'admin' },
+		})
+		await expect(verifySession()).resolves.toBeNull()
+		getServerSession.mockResolvedValue({
+			user: { id: 'u1', email: 'jane@example.com', role: 'admin', source: 'saml' },
 		})
 		await expect(verifySession()).resolves.toBeNull()
 	})
@@ -100,17 +122,35 @@ describe('assertAdmin and requireAdmin', () => {
 		getServerSession.mockResolvedValue(owner)
 		await expect(requireAdmin()).resolves.toMatchObject({ role: 'owner' })
 		expect(() =>
-			assertAdmin({ id: 'u0', email: 'owner@example.com', name: null, role: 'owner' }),
+			assertAdmin({
+				id: 'u0',
+				email: 'owner@example.com',
+				name: null,
+				role: 'owner',
+				source: 'local',
+			}),
 		).not.toThrow()
 		expect(() =>
-			assertAdmin({ id: 'u1', email: 'jane@example.com', name: null, role: 'admin' }),
+			assertAdmin({
+				id: 'u1',
+				email: 'jane@example.com',
+				name: null,
+				role: 'admin',
+				source: 'local',
+			}),
 		).not.toThrow()
 	})
 	it('throws AuthError(forbidden) for a user-role account and AuthError(unauthorized) without a session', async () => {
 		getServerSession.mockResolvedValue(member)
 		await expect(requireAdmin()).rejects.toMatchObject({ name: 'AuthError', code: 'forbidden' })
 		expect(() =>
-			assertAdmin({ id: 'u2', email: 'joe@example.com', name: null, role: 'user' }),
+			assertAdmin({
+				id: 'u2',
+				email: 'joe@example.com',
+				name: null,
+				role: 'user',
+				source: 'local',
+			}),
 		).toThrow(AuthError)
 		getServerSession.mockResolvedValue(revoked)
 		await expect(requireAdmin()).rejects.toMatchObject({ code: 'unauthorized' })

@@ -14,7 +14,13 @@ vi.mock('@/lib/settings/branding', () => ({ saveBranding, isBrandingEditable }))
 
 import { saveBrandingAction } from '@/app/(admin)/settings/branding/actions'
 
-const admin = { id: 'a1', email: 'admin@example.com', name: 'Admin', role: 'admin' }
+const admin = {
+	id: 'a1',
+	email: 'admin@example.com',
+	name: 'Admin',
+	role: 'admin',
+	source: 'local',
+}
 const form = (entries: Record<string, string | File>) => {
 	const data = new FormData()
 	for (const [key, value] of Object.entries(entries)) data.set(key, value)
