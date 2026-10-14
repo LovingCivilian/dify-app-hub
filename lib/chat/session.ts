@@ -404,10 +404,10 @@ export class RunSession implements ChatTurnSink {
 			)
 	}
 
-	private enqueue(write: () => Promise<void>, onFail: () => void): void {
+	private enqueue(write: () => Promise<void>, onFail?: () => void): void {
 		this.queue = this.queue.then(write).catch(error => {
 			// A failed write leaves the stream going; its rows are retried by the next save, and the run's end is written at finish.
-			onFail()
+			onFail?.()
 			console.error('RunSession.save:', {
 				appId: this.appId,
 				runId: this.key.runId,
