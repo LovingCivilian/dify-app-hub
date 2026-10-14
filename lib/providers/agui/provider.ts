@@ -17,7 +17,7 @@ export type AguiSummaryFields = Record<never, never>
 /**
  * AG-UI agents as the server registry holds them (Part 2 spec §2.1, ADR-0032's checklist): their schemas, their
  * connection test (spec §2.4), what each DTO carries, which secret is set (never its value), and that the hub keeps their
- * conversations (spec §4.1). and how it runs a chat turn (spec §4.3).
+ * conversations (spec §4.1), and how it runs a chat turn (spec §4.3).
  */
 export const aguiProvider = {
 	id: 'agui',

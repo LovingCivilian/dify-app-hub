@@ -1,6 +1,7 @@
 import type { BaseEvent, Message } from '@ag-ui/core'
 import { EventEncoder } from '@ag-ui/encoder'
 import { jwtVerify } from 'jose'
+import util from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/env', () => ({ env: () => ({ agentJwtIssuer: 'nextjs-bff' }) }))
@@ -210,6 +211,25 @@ describe('aguiChat.runTurn', () => {
 		const handle = aguiChat.runTurn(app, input(), recordingSink().sink)
 		await expect(handle.opened).resolves.toEqual({ ok: false, code: 'provider_unreachable' })
 		await expect(handle.finished).resolves.toEqual({ failed: true })
+	})
+
+	// Spec §2.4: the agent's address reaches no log line, and the client logs what its fetch throws.
+	it('logs nothing that names the agent host or port when the connection is refused', async () => {
+		const cause = Object.assign(new Error('connect ECONNREFUSED 10.1.2.3:8000'), {
+			code: 'ECONNREFUSED',
+			address: '10.1.2.3',
+			port: 8000,
+			hostname: 'agents.test',
+		})
+		fetchMock.mockRejectedValue(new TypeError('fetch failed', { cause }))
+		const logged = vi.mocked(console.error)
+		const handle = aguiChat.runTurn(app, input(), recordingSink().sink)
+		await handle.finished
+		const text = logged.mock.calls
+			.map(args => args.map(a => util.inspect(a, { depth: 10 })).join(' '))
+			.join('\n')
+		expect(text).toContain('Agent execution failed')
+		for (const secret of ['agents.test', '8000', '10.1.2.3']) expect(text).not.toContain(secret)
 	})
 
 	// Spec §4.5: the hub's abort mid-stream; the client's own RUN_ERROR reaches the sink, which drops it (Task 10).

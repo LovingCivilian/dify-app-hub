@@ -36,7 +36,8 @@ export const upstreamCodeFor = (status: number): UpstreamErrorCode => {
  * code and hands the client an empty body of the same status, so the agent's error text is never read, logged or passed
  * on (spec §2.4: "none is echoed"); the client then fails the run with "HTTP <status>: " (src/run/http-request.ts), which
  * `runAgent` rejects with and the adapter takes as `failed`. A fetch that rejects is an agent that did not answer
- * (`provider_unreachable`), unless the hub aborted it itself: a Stop or the browser leaving before the agent answered
+ * (`provider_unreachable`); the client logs what it catches, so the adapter rethrows a plain "agent unreachable" without
+ * the original error and its `cause`, which name the agent's host and port (the agent URL reaches no log line); unless the hub aborted it itself: a Stop or the browser leaving before the agent answered
  * opens the run as `{ ok: true }` with nothing streamed, and the session closes it as cancelled or truncated (spec §4.5).
  *
  * The subscriber's hooks are the documented `AgentSubscriber` ones (docs.ag-ui.com "AbstractAgent", subscribers;
@@ -57,8 +58,14 @@ export const aguiChat: ChatAdapter<'agui'> = {
 			try {
 				response = await fetch(url, init)
 			} catch (error) {
-				open(signal.aborted ? { ok: true } : { ok: false, code: 'provider_unreachable' })
-				throw error
+				if (signal.aborted) {
+					open({ ok: true })
+					throw error
+				}
+				open({ ok: false, code: 'provider_unreachable' })
+				// Node's `TypeError: fetch failed` carries a `cause` (ECONNREFUSED, ENOTFOUND) naming the agent's host and port,
+				// and the client logs what it catches ("Agent execution failed:"): a sanitised error has no cause and no URL.
+				throw new Error('agent unreachable')
 			}
 			if (response.ok) {
 				open({ ok: true })
@@ -111,7 +118,8 @@ export const aguiChat: ChatAdapter<'agui'> = {
 				// A refusal, a refused connection, a stream that broke or failed verification; an abort is the hub's own.
 				return { failed: !signal.aborted }
 			} finally {
-				// A run that ended before any request (the outgoing input refused by the client's enforcement) never opened.
+				// A run that ended before any request never opened: the token could not be minted (for example an empty secret) or the
+				// outgoing input was refused by the client's enforcement; both are `upstream_error` with nothing sent.
 				open({ ok: false, code: 'upstream_error' })
 			}
 		})()
