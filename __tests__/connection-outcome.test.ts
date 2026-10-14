@@ -73,4 +73,16 @@ describe('connectionOutcome', () => {
 			description: 'admin_apps.invalid_input',
 		})
 	})
+	// Review I-1: an agent has no API base, so its three failures carry words of their own.
+	it.each([
+		['provider_key_refused', 'key_refused'],
+		['provider_unreachable', 'unreachable'],
+		['provider_error', 'upstream_error'],
+	] as const)('uses the agent’s description for %s', (code, words) => {
+		expect(connectionOutcome(t, 'agui', { ok: false, code })).toEqual({
+			type: 'error',
+			title: `connection_test.${words}_title`,
+			description: `connection_test.agui_${words}_description`,
+		})
+	})
 })

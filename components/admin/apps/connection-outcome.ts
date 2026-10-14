@@ -52,19 +52,31 @@ export const connectionOutcome = (
 			return {
 				type: 'error',
 				title: t('connection_test.key_refused_title'),
-				description: t('connection_test.key_refused_description'),
+				description: t(
+					provider === 'agui'
+						? 'connection_test.agui_key_refused_description'
+						: 'connection_test.key_refused_description',
+				),
 			}
 		case 'provider_unreachable':
 			return {
 				type: 'error',
 				title: t('connection_test.unreachable_title'),
-				description: t('connection_test.unreachable_description'),
+				description: t(
+					provider === 'agui'
+						? 'connection_test.agui_unreachable_description'
+						: 'connection_test.unreachable_description',
+				),
 			}
 		case 'provider_error':
 			return {
 				type: 'error',
 				title: t('connection_test.upstream_error_title'),
-				description: t('connection_test.upstream_error_description'),
+				description: t(
+					provider === 'agui'
+						? 'connection_test.agui_upstream_error_description'
+						: 'connection_test.upstream_error_description',
+				),
 			}
 		case 'provider_agent_not_found':
 			return {
