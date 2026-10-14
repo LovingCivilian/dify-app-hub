@@ -1,69 +1,51 @@
 'use client'
 
-import {
-	ApartmentOutlined,
-	AppstoreOutlined,
-	DeploymentUnitOutlined,
-	FileTextOutlined,
-	MessageOutlined,
-	RobotOutlined,
-} from '@ant-design/icons'
 import { Avatar } from 'antd'
 
-import type { AppIcon as AppIconData } from '@/lib/data/apps'
-import type { AppMode } from '@/lib/dify/types'
+import { providerIcon } from '@/components/provider-ui/registry'
 
-const MODE_ICONS: Record<AppMode, React.ReactNode> = {
-	chat: <MessageOutlined />,
-	'agent-chat': <RobotOutlined />,
-	'advanced-chat': <ApartmentOutlined />,
-	workflow: <DeploymentUnitOutlined />,
-	completion: <FileTextOutlined />,
-	agent: <RobotOutlined />,
-}
+/**
+ * The stored icon image's URL (charter §4.4). The admin views pass the DTO's `updatedAt` as `version`: the URL then
+ * changes after a replace, so the <img> reloads after `router.refresh()` (ADR-0023, "Icon staleness"). The route
+ * ignores the query string.
+ */
+export const appIconUrl = (appId: string, version?: string) =>
+	`/api/apps/${encodeURIComponent(appId)}/icon${version ? `?v=${encodeURIComponent(version)}` : ''}`
 
-/** The stored icon image's URL (charter §4.4). */
-export const appIconUrl = (appId: string) => `/api/apps/${encodeURIComponent(appId)}/icon`
-
-/** The app's stored Dify icon (an emoji, or the image through the icon route), or its mode icon when it has none. */
+/**
+ * An app's icon (Part 1 spec §5, E11): the stored image through the icon route, or its provider's fallback icon on the
+ * square Avatar's default grey, at today's sizes. Emoji icons are gone (decision 19).
+ */
 export default function AppIcon({
 	appId,
-	icon,
-	mode,
+	provider,
+	hasIcon,
+	version,
 	size = 'large',
 }: {
 	appId: string
-	icon: AppIconData
-	mode: AppMode | null
+	provider: string
+	hasIcon: boolean
+	/** The DTO's `updatedAt`, where the DTO in hand carries one (the admin views). */
+	version?: string
 	size?: 'large' | 'small'
 }) {
-	if (icon?.kind === 'emoji') {
-		// icon_background is Dify data (the colour the admin picked), passed through style, not a literal here.
+	if (hasIcon) {
 		return (
 			<Avatar
 				shape="square"
 				size={size}
-				style={icon.background ? { backgroundColor: icon.background } : undefined}
-			>
-				{icon.emoji}
-			</Avatar>
-		)
-	}
-	if (icon?.kind === 'image') {
-		return (
-			<Avatar
-				shape="square"
-				size={size}
-				src={appIconUrl(appId)}
+				src={appIconUrl(appId, version)}
 				alt=""
 			/>
 		)
 	}
+	const Icon = providerIcon(provider)
 	return (
 		<Avatar
 			shape="square"
 			size={size}
-			icon={mode ? MODE_ICONS[mode] : <AppstoreOutlined />}
+			icon={<Icon />}
 		/>
 	)
 }

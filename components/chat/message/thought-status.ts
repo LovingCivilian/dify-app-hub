@@ -1,6 +1,6 @@
 import type { ThoughtChainItemType } from '@ant-design/x'
 
-import type { AgentThought } from '@/lib/dify/types'
+import type { AgentThought } from '@/lib/providers/dify/types'
 
 export interface ThoughtStatusContext {
 	/** The step is the reply's latest one: only that one can still be running. */

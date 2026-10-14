@@ -19,7 +19,6 @@ import {
 	streamDelay,
 } from './scenarios'
 import {
-	annotationsFor,
 	forUser,
 	now,
 	type PendingForm,
@@ -255,6 +254,15 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 		res.writeHead(200)
 		return res.end()
 	}
+	// Test connection (Part 1 spec §9): a key Dify does not know is its 401 envelope (endpoint map, Conventions:
+	// "401 unauthorized (missing/invalid bearer token)"), whatever the path.
+	if (req.headers.authorization === 'Bearer app-refused')
+		return difyError(res, 401, 'unauthorized', 'Access token is invalid')
+	// A host that is not there: the stub ends the socket without an answer, so the hub's fetch fails as it would.
+	if (url.pathname === '/v1/unreachable' || url.pathname.startsWith('/v1/unreachable/')) {
+		req.socket.destroy()
+		return
+	}
 
 	if (method === 'GET' && url.pathname === '/files/stub-image.png') {
 		res.writeHead(200, { 'content-type': 'image/png' })
@@ -447,60 +455,6 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 		await readBody(req)
 		return json(res, 200, { text: 'transcribed from the stub' })
 	}
-	if (path === '/apps/annotations' || path.startsWith('/apps/annotations/')) {
-		const annotations = annotationsFor(matched.id)
-		const invalid = () => difyError(res, 400, 'invalid_param', 'question and answer are required.')
-		if (method === 'GET' && path === '/apps/annotations') {
-			// Newest first; `keyword` filters question or answer; `limit` ≤ 100 (OpenAPI GET /apps/annotations).
-			const keyword = (url.searchParams.get('keyword') ?? '').trim().toLowerCase()
-			const page = Math.max(1, Number(url.searchParams.get('page')) || 1)
-			const limit = limitOf(url)
-			const found = keyword
-				? annotations.filter(
-						a =>
-							a.question.toLowerCase().includes(keyword) ||
-							a.answer.toLowerCase().includes(keyword),
-					)
-				: annotations
-			return json(res, 200, {
-				data: found.slice((page - 1) * limit, page * limit),
-				has_more: page * limit < found.length,
-				limit,
-				total: found.length,
-				page,
-			})
-		}
-		if (method === 'POST' && path === '/apps/annotations') {
-			const body = await parseJson(req, res)
-			if (!body) return
-			if (typeof body.question !== 'string' || typeof body.answer !== 'string') return invalid()
-			const item = {
-				id: randomUUID(),
-				question: body.question,
-				answer: body.answer,
-				hit_count: 0,
-				created_at: now(),
-			}
-			annotations.unshift(item)
-			return json(res, 201, item)
-		}
-		const index = annotations.findIndex(a => a.id === idAt(path, 3))
-		if (method === 'PUT') {
-			const body = await parseJson(req, res)
-			if (!body) return
-			if (typeof body.question !== 'string' || typeof body.answer !== 'string') return invalid()
-			if (index < 0) return difyError(res, 404, 'not_found', 'Annotation not found.')
-			annotations[index] = { ...annotations[index], question: body.question, answer: body.answer }
-			return json(res, 200, annotations[index])
-		}
-		if (method === 'DELETE') {
-			if (index < 0) return difyError(res, 404, 'not_found', 'Annotation not found.')
-			annotations.splice(index, 1)
-			res.writeHead(204)
-			return res.end()
-		}
-	}
-
 	if (method === 'GET' && /^\/form\/human_input\/[^/]+$/.test(path)) {
 		const form = pendingForms.get(idAt(path, 3))
 		if (!form) return difyError(res, 404, 'not_found', 'Form not found')

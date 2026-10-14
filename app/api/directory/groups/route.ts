@@ -4,9 +4,9 @@ import * as z from 'zod'
 import { directoryGroupSearchSchema } from '@/app/(admin)/group-management/schemas'
 import { hasAdminRights } from '@/lib/auth/roles'
 import { verifySession } from '@/lib/auth/session'
-import { difyErrorResponse, forbiddenResponse } from '@/lib/dify/errors'
-import { difyJson } from '@/lib/dify/response'
-import { parseQuery } from '@/lib/dify/schemas'
+import { errorResponse, forbiddenResponse } from '@/lib/http/errors'
+import { jsonNoStore } from '@/lib/http/response'
+import { parseQuery } from '@/lib/http/parse'
 import { searchDirectoryGroups } from '@/lib/directory/admin'
 import { DirectoryRefusedError, DirectoryUnavailableError } from '@/lib/directory/errors'
 import { logActionError } from '@/lib/error-log'
@@ -27,20 +27,20 @@ const searchQuery = z.object({ q: directoryGroupSearchSchema })
 export async function GET(request: NextRequest) {
 	try {
 		const actor = await verifySession()
-		if (!actor) return difyErrorResponse('unauthorized', 'Sign in required.', 401)
+		if (!actor) return errorResponse('unauthorized', 'Sign in required.', 401)
 		if (!hasAdminRights(actor)) return forbiddenResponse()
 		const query = parseQuery(request.nextUrl.searchParams, searchQuery)
 		if (!query.ok) return query.response
 		const groups = await searchDirectoryGroups(actor, query.data.q)
 		if (groups === null)
-			return difyErrorResponse('directory_off', 'The directory is not configured.', 409)
-		return difyJson(groups.map(({ key, name }) => ({ key, name })))
+			return errorResponse('directory_off', 'The directory is not configured.', 409)
+		return jsonNoStore(groups.map(({ key, name }) => ({ key, name })))
 	} catch (error) {
 		// Logged by name and LDAP result code, never the directory's own text (lib/error-log.ts; spec §7.3).
 		logActionError(error, CONTEXT)
 		// Decision u: a directory that does not answer, or refuses the connection, is unreachable.
 		if (error instanceof DirectoryUnavailableError || error instanceof DirectoryRefusedError)
-			return difyErrorResponse('directory_unavailable', 'The directory is unreachable.', 503)
-		return difyErrorResponse('internal_error', 'Internal Server Error', 500)
+			return errorResponse('directory_unavailable', 'The directory is unreachable.', 503)
+		return errorResponse('internal_error', 'Internal Server Error', 500)
 	}
 }

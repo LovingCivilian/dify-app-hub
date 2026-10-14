@@ -11,9 +11,12 @@ vi.mock('@/lib/auth/session', () => ({
 	AuthError: class AuthError extends Error {},
 }))
 vi.mock('@/lib/data/apps', () => ({ getAppAccess }))
-vi.mock('@/lib/dify/client', () => ({ difyClient: () => client, passthrough: (r: Response) => r }))
+vi.mock('@/lib/providers/dify/client', () => ({
+	difyClient: () => client,
+	passthrough: (r: Response) => r,
+}))
 
-import { DifyError } from '@/lib/dify/errors'
+import { DifyError } from '@/lib/providers/dify/errors'
 import { GET as info } from '@/app/api/dify/[appId]/info/route'
 import { GET as meta } from '@/app/api/dify/[appId]/meta/route'
 import { GET as parameters } from '@/app/api/dify/[appId]/parameters/route'
@@ -23,7 +26,9 @@ const actor = { id: 'u1', email: 'jane@example.com', name: null }
 const access = {
 	id: '3b241101-e2bb-4255-8caf-4136c566a962',
 	enabled: true,
-	credentials: { apiBase: 'http://d/v1', apiKey: 'k' },
+	provider: 'dify',
+	settings: { apiBase: 'http://d/v1' },
+	secrets: { apiKey: 'k' },
 }
 const ctx = { params: Promise.resolve({ appId: '3b241101-e2bb-4255-8caf-4136c566a962' }) }
 const get = (path: string) =>

@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { gzipSync } from 'node:zlib'
 
 import { APP_ID, APP_IDS, DISABLED_APP } from './fixtures/constants'
+import { newConversationButton } from './fixtures/conversations'
 import { baseURL } from './fixtures/env'
 
 /** The Sender's box by its placeholder: an app's parameter fields above it are textboxes too. */
@@ -49,11 +50,7 @@ test.describe('chat', () => {
 		await senderBox(page).fill('first turn')
 		await page.keyboard.press('Enter')
 		await expect(page.getByText('Echo: first turn')).toBeVisible()
-		await (
-			await conversationList(page, isMobile)
-		)
-			.getByRole('button', { name: 'New conversation' })
-			.click()
+		await newConversationButton(await conversationList(page, isMobile)).click()
 		await expect(page.getByText('Echo: first turn')).toHaveCount(0)
 		const first = (await conversationList(page, isMobile))
 			.locator('.ant-conversations-item')
@@ -78,11 +75,7 @@ test.describe('chat', () => {
 		await senderBox(page).fill(first)
 		await page.keyboard.press('Enter')
 		await expect(page.getByText(`Echo: ${first}`)).toBeVisible()
-		await (
-			await conversationList(page, isMobile)
-		)
-			.getByRole('button', { name: 'New conversation' })
-			.click()
+		await newConversationButton(await conversationList(page, isMobile)).click()
 		await senderBox(page).fill(second)
 		await page.keyboard.press('Enter')
 		await expect(stop).toBeVisible()
@@ -188,11 +181,7 @@ test.describe('chat', () => {
 		await expect(topic).toHaveValue(`tea ${run}`)
 		await expect(topic).toBeDisabled()
 		// A new conversation asks again (an empty form), and switching back shows the kept value.
-		await (
-			await conversationList(page, isMobile)
-		)
-			.getByRole('button', { name: 'New conversation' })
-			.click()
+		await newConversationButton(await conversationList(page, isMobile)).click()
 		await expect(topic).toHaveValue('')
 		await expect(topic).toBeEnabled()
 		await expect(waitingBox).toBeDisabled()

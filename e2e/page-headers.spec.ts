@@ -6,7 +6,7 @@ const PAGES = [
 	{
 		path: '/app-management',
 		title: 'App configuration',
-		subtitle: 'Manage the Dify apps published in the hub',
+		subtitle: 'Manage the AI apps published in the hub',
 	},
 	{ path: '/user-management', title: 'User management', subtitle: 'Manage user accounts' },
 	{
@@ -24,7 +24,10 @@ test('the apps, app management, user management and group management pages share
 		await page.goto(path)
 		const heading = page.getByRole('heading', { name: title, level: 4, exact: true })
 		await expect(heading).toBeVisible()
-		const text = page.getByText(subtitle, { exact: true })
+		// In the content region: React streams a page's content into a hidden `<div hidden id="S:…">` and then moves it
+		// into place, and the text engine (unlike getByRole) also matches hidden elements, so the whole page can briefly
+		// hold two copies.
+		const text = page.getByRole('main').getByText(subtitle, { exact: true })
 		await expect(text).toBeVisible()
 		const [headingBox, subtitleBox, regionBox] = await Promise.all([
 			heading.boundingBox(),

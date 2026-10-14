@@ -24,9 +24,6 @@ e2e/
 playwright.config.ts
 test-results/
 
-# Python venv for the crawl4ai helper (per machine, not part of the image)
-.venv
-
 # 测试和覆盖率
 .nyc_output
 coverage

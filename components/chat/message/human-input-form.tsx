@@ -16,10 +16,10 @@ import type { FormRule } from 'antd'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { HumanInputForm as HumanInputFormDefinition } from '@/lib/dify/types'
+import type { HumanInputForm as HumanInputFormDefinition } from '@/lib/providers/dify/types'
 
 import FileUpload from '../chat-view/file-upload'
-import { DifyRequestError } from '../provider/dify-fetch'
+import { RequestError } from '../provider/dify-fetch'
 import type { HumanInputField, HumanInputState } from '../provider/message'
 import { applyFormDefinition } from './human-input-definition'
 import styles from './human-input-form.module.css'
@@ -92,11 +92,11 @@ export default function HumanInputForm({
 			},
 			(error: unknown) => {
 				if (ignore) return
-				if (error instanceof DifyRequestError && error.code === 'human_input_form_submitted') {
+				if (error instanceof RequestError && error.code === 'human_input_form_submitted') {
 					setDefinition({ status: 'submitted' })
 					return
 				}
-				if (error instanceof DifyRequestError && error.code === 'human_input_form_expired')
+				if (error instanceof RequestError && error.code === 'human_input_form_expired')
 					setExpiredNow(true)
 				setDefinition({ status: 'ready' })
 			},

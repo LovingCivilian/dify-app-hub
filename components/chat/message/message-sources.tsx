@@ -6,7 +6,7 @@ import { Card, Flex, Tag, Typography } from 'antd'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { RetrieverResource } from '@/lib/dify/types'
+import type { RetrieverResource } from '@/lib/providers/dify/types'
 
 import { citationKey, citationTitle } from './citations'
 import { formatCount, formatDecimal } from './workflow-summary'

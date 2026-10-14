@@ -1,6 +1,6 @@
 import type { MessageInfo } from '@ant-design/x-sdk'
 
-import type { FileType } from '@/lib/dify/types'
+import type { FileType } from '@/lib/providers/dify/types'
 
 import type { DifyChatFile, DifyChatMessage } from '../provider/message'
 
@@ -8,7 +8,6 @@ import type { DifyChatFile, DifyChatMessage } from '../provider/message'
 export interface FooterActions {
 	regenerate: boolean
 	copy: boolean
-	annotate: boolean
 	feedback: boolean
 	tts: boolean
 	time: boolean
@@ -16,8 +15,6 @@ export interface FooterActions {
 
 /** What the footer depends on beyond the message: the app's switches and the answer's place in the list. */
 export interface FooterContext {
-	/** The app's `settings.annotationEnabled` */
-	annotation: boolean
 	/** `parameters.text_to_speech.enabled` */
 	tts: boolean
 	/** A user turn precedes the answer (see `unansweredKeys`). */
@@ -27,7 +24,7 @@ export interface FooterContext {
 /**
  * The footer of an assistant bubble (spec §5.2, §4.7, §10): none while the reply is a placeholder or still
  * streams. Feedback needs Dify's message id and is never offered on an answer that failed (PRs #7/#8);
- * copy, annotation and text-to-speech need text, and the last two the app's switch. Regenerate asks the
+ * copy and text-to-speech need text, and text-to-speech the app's switch. Regenerate asks the
  * question again, so it needs a user turn before the answer, and it stays on a failed answer.
  */
 export const footerActions = (
@@ -40,7 +37,6 @@ export const footerActions = (
 	return {
 		regenerate: context.hasQuestion,
 		copy: hasText,
-		annotate: context.annotation && hasText,
 		feedback: Boolean(message.ids.messageId) && !message.error,
 		tts: context.tts && hasText,
 		time: message.createdAt !== undefined,

@@ -7,7 +7,7 @@ import { deleteUsersLike, openUsers, seedUser, signInAs } from './fixtures/users
 
 const row = (page: Page, email: string) => page.getByRole('row', { name: new RegExp(email) })
 
-/** The owner's account id, the Dify user ID (ADR-0026), read from the database: exactly one row. */
+/** The owner's account id, the end user every provider sees (ADR-0026), read from the database: exactly one row. */
 const ownerId = async () => {
 	const { rows } = await withDb(db =>
 		db.query<{ id: string }>('SELECT id FROM users WHERE email = $1', [e2eEnv.E2E_ADMIN_EMAIL]),
@@ -100,11 +100,12 @@ test.describe('user CRUD', () => {
 		await expect(own.getByRole('button', { name: 'Delete' })).toHaveCount(0)
 	})
 
-	test("the owner's row shows its Dify user ID, the account id, with a copy button (ADR-0026)", async ({
+	test("the owner's row shows its User ID, the account id, with a copy button (ADR-0026)", async ({
 		page,
 	}) => {
 		const id = await ownerId()
 		await openUsers(page)
+		await expect(page.getByRole('columnheader', { name: 'User ID', exact: true })).toBeVisible()
 		const own = row(page, e2eEnv.E2E_ADMIN_EMAIL)
 		// A narrow column with antd's ellipsis: the cell shows the id's start, its ellipsis tooltip the whole id.
 		const idText = own.getByText(id.slice(0, 8))
@@ -115,7 +116,7 @@ test.describe('user CRUD', () => {
 		await expect(own.getByRole('button', { name: 'Copy' })).toBeVisible()
 	})
 
-	test('searching for a Dify user ID finds its account (ADR-0026)', async ({ page }) => {
+	test('searching for a User ID finds its account (ADR-0026)', async ({ page }) => {
 		// An id copied from Dify's logs or Langfuse: the table search matches it, whatever the cell's ellipsis shows.
 		const id = await ownerId()
 		await openUsers(page)

@@ -20,8 +20,8 @@ vi.mock('@/lib/auth/session', () => ({
 	AuthError: class AuthError extends Error {},
 }))
 vi.mock('@/lib/data/apps', () => ({ getAppAccess }))
-vi.mock('@/lib/dify/client', async importOriginal => ({
-	...(await importOriginal<typeof import('@/lib/dify/client')>()),
+vi.mock('@/lib/providers/dify/client', async importOriginal => ({
+	...(await importOriginal<typeof import('@/lib/providers/dify/client')>()),
 	difyClient: () => client,
 }))
 
@@ -33,7 +33,7 @@ import { GET as listConversations } from '@/app/api/dify/[appId]/conversations/r
 import { POST as feedback } from '@/app/api/dify/[appId]/messages/[messageId]/feedbacks/route'
 import { GET as suggested } from '@/app/api/dify/[appId]/messages/[messageId]/suggested/route'
 import { GET as listMessages } from '@/app/api/dify/[appId]/messages/route'
-import { DifyError } from '@/lib/dify/errors'
+import { DifyError } from '@/lib/providers/dify/errors'
 
 /** The Dify end user: the account's id, never its email (ADR-0026). */
 const USER = 'u1'
@@ -42,7 +42,9 @@ const actor = { id: USER, email: 'jane@example.com', name: null }
 const access = {
 	id: '0b1c2d3e-4f50-4a61-8b72-9c8dae0f1a2b',
 	enabled: true,
-	credentials: { apiBase: 'http://d/v1', apiKey: 'k' },
+	provider: 'dify',
+	settings: { apiBase: 'http://d/v1' },
+	secrets: { apiKey: 'k' },
 }
 const base = 'http://app/api/dify/0b1c2d3e-4f50-4a61-8b72-9c8dae0f1a2b'
 const json = (path: string, method: string, body: unknown) =>

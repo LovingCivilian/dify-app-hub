@@ -36,24 +36,21 @@ export interface ConversationSidebarProps extends Omit<ConversationListProps, 'c
 }
 
 /**
- * The app's icon: the stored Dify icon (an emoji, or the image through the icon route, so the Dify host never
- * reaches the browser; charter §4.1, §4.4), else the first letter of its name (also while the image loads or fails).
+ * The app's icon: the stored image through the icon route, so the provider's host never reaches the browser (charter
+ * §4.1, §4.4), else the first letter of its name (also while the image loads or fails). Emoji icons are gone (Part 1
+ * decision 19).
  */
 export function AppAvatar({ size, alt }: Pick<AvatarProps, 'size' | 'alt'>) {
 	const { app, site } = useAppContext()
 	const name = site.title || app.name
-	const icon = app.icon
 	return (
 		<Avatar
 			size={size}
 			alt={alt ?? name}
 			shape="square"
-			src={icon?.kind === 'image' ? `/api/apps/${encodeURIComponent(app.id)}/icon` : undefined}
-			style={
-				icon?.kind === 'emoji' && icon.background ? { backgroundColor: icon.background } : undefined
-			}
+			src={app.hasIcon ? `/api/apps/${encodeURIComponent(app.id)}/icon` : undefined}
 		>
-			{icon?.kind === 'emoji' ? icon.emoji : name.slice(0, 1)}
+			{name.slice(0, 1)}
 		</Avatar>
 	)
 }

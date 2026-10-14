@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createDifyApi, DifyRequestError } from '@/lib/dify/browser'
+import { createDifyApi } from '@/lib/providers/dify/browser'
+import { RequestError } from '@/lib/http/browser'
 
 const jsonResponse = (status: number, body: unknown, type = 'application/json') =>
 	new Response(JSON.stringify(body), { status, headers: { 'content-type': type } })
@@ -29,8 +30,6 @@ describe('createDifyApi: paths on the app route tree, Dify’s verbs', () => {
 		expect(lastCall().url).toBe(
 			'/api/dify/app%201/messages?conversation_id=c1&first_id=m0&limit=20',
 		)
-		await api.listAnnotations({ page: 1, limit: 10, keyword: '' })
-		expect(lastCall().url).toBe('/api/dify/app%201/apps/annotations?page=1&limit=10&keyword=')
 	})
 	it('POSTs JSON bodies, never a user', async () => {
 		fetchMock.mockResolvedValue(jsonResponse(200, { id: 'c1', name: 'Tea' }))
@@ -58,8 +57,6 @@ describe('createDifyApi: paths on the app route tree, Dify’s verbs', () => {
 		fetchMock.mockResolvedValue(new Response(null, { status: 204 }))
 		await expect(api.deleteConversation('c1')).resolves.toBeUndefined()
 		expect(lastCall().init.method).toBe('DELETE')
-		await expect(api.deleteAnnotation('a1')).resolves.toBeUndefined()
-		expect(lastCall().url).toBe('/api/dify/app%201/apps/annotations/a1')
 	})
 	it('uploads and transcribes with one file part', async () => {
 		fetchMock.mockResolvedValue(jsonResponse(201, { id: 'f1' }))
@@ -96,15 +93,25 @@ describe('createDifyApi: paths on the app route tree, Dify’s verbs', () => {
 			'/api/dify/app%201/workflow/run%2F1/events?include_state_snapshot=true&continue_on_pause=true',
 		)
 	})
+	// Part 1 spec §6: the annotation methods went with the routes.
+	it('has no annotation method', () => {
+		for (const name of [
+			'listAnnotations',
+			'createAnnotation',
+			'updateAnnotation',
+			'deleteAnnotation',
+		])
+			expect(api).not.toHaveProperty(name)
+	})
 })
 
 describe('createDifyApi: errors', () => {
-	it("rejects with DifyRequestError carrying Dify's code and message", async () => {
+	it("rejects with RequestError carrying Dify's code and message", async () => {
 		fetchMock.mockResolvedValue(
 			jsonResponse(412, { code: 'human_input_form_expired', message: 'Expired.', status: 412 }),
 		)
 		const error = await api.submitHumanInput('tok', { inputs: {}, action: 'a' }).catch(e => e)
-		expect(error).toBeInstanceOf(DifyRequestError)
+		expect(error).toBeInstanceOf(RequestError)
 		expect(error).toMatchObject({
 			status: 412,
 			code: 'human_input_form_expired',
@@ -139,7 +146,7 @@ describe('createDifyApi: errors', () => {
 			status: 403,
 			code: 'app_disabled',
 		})
-		await expect(api.filePreview('f1')).rejects.toBeInstanceOf(DifyRequestError)
-		await expect(api.deleteConversation('c1')).rejects.toBeInstanceOf(DifyRequestError)
+		await expect(api.filePreview('f1')).rejects.toBeInstanceOf(RequestError)
+		await expect(api.deleteConversation('c1')).rejects.toBeInstanceOf(RequestError)
 	})
 })

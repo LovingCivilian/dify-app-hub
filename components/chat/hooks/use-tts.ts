@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { DifyApi } from '@/lib/dify/browser'
+import type { DifyApi } from '@/lib/providers/dify/browser'
 
-import type { DifyRequestError } from '../provider/dify-fetch'
+import type { RequestError } from '../provider/dify-fetch'
 import { toDifyError } from './dify-errors'
 
 /** X's Actions.Audio statuses (x-components API: `status`). */
@@ -25,7 +25,7 @@ let playing: HTMLAudioElement | null = null
  * ''). A click while loading or playing stops it; the object URL is revoked whenever a clip stops, ends,
  * fails or its bubble unmounts (a conversation switch remounts the list).
  */
-export const useTts = (difyApi: DifyApi, onError?: (error: DifyRequestError) => void) => {
+export const useTts = (difyApi: DifyApi, onError?: (error: RequestError) => void) => {
 	const [status, setStatus] = useState<TtsStatus>('default')
 	const clip = useRef<Clip | null>(null)
 	/** True from a start until the clip stops, ends or fails. */
@@ -63,7 +63,7 @@ export const useTts = (difyApi: DifyApi, onError?: (error: DifyRequestError) => 
 			setStatus('loading')
 			let audio: HTMLAudioElement | undefined
 			try {
-				// The browser client rejects with DifyRequestError on a non-OK answer.
+				// The browser client rejects with RequestError on a non-OK answer.
 				const response = await difyApi.textToAudio({ text })
 				const blob = await response.blob()
 				if (id !== generation.current) return

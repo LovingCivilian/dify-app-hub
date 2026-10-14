@@ -1,4 +1,4 @@
-import type { HumanInputForm } from '@/lib/dify/types'
+import type { HumanInputForm } from '@/lib/providers/dify/types'
 
 import type { HumanInputState } from '../provider/message'
 

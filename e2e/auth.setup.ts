@@ -31,26 +31,25 @@ setup(
 
 		await withDb(async db => {
 			for (const app of [...STUB_APPS, ...SEEDED_EXTRA_APPS]) {
-				// A database that survives between runs keeps its rows: the display mode, the annotation switch, the
-				// status and the icon are refreshed on them. The icon is the emoji the stub's /site answers (the DAL stores
-				// it at create and sync; a seeded row needs it set), none for the app without a site. The stub apps are
-				// open to everyone, as the B3a migration left existing apps (ADR-0027); specs that test access create
-				// their own restricted apps (e2e/fixtures/access.ts). PostgreSQL 18 "INSERT", ON CONFLICT DO UPDATE: the
-				// SET list reads the proposed row through the special table EXCLUDED.
+				// A database that survives between runs keeps its rows: the status and the documents are refreshed on them,
+				// and the icon is cleared (decision 19: no emoji; a stub app shows Dify's fallback icon). The stub apps are
+				// open to everyone, as the B3a migration left existing apps (ADR-0027); specs that test access create their
+				// own restricted apps (e2e/fixtures/access.ts). PostgreSQL 18 "INSERT", ON CONFLICT DO UPDATE: the SET list
+				// reads the proposed row through the special table EXCLUDED. The documents go as JSON text cast to jsonb.
 				await db.query(
-					'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key, opening_statement_display_mode, enable_annotation, is_enabled, icon_type, icon, icon_background, access_mode) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (id) DO UPDATE SET opening_statement_display_mode = EXCLUDED.opening_statement_display_mode, enable_annotation = EXCLUDED.enable_annotation, is_enabled = EXCLUDED.is_enabled, icon_type = EXCLUDED.icon_type, icon = EXCLUDED.icon, icon_background = EXCLUDED.icon_background, access_mode = EXCLUDED.access_mode',
+					"INSERT INTO apps (id, provider, name, description, is_enabled, access_mode, settings, secrets) VALUES ($1, 'dify', $2, 'Seeded for the e2e suite', $3, 'everyone', $4::jsonb, $5::jsonb) ON CONFLICT (id) DO UPDATE SET is_enabled = EXCLUDED.is_enabled, access_mode = EXCLUDED.access_mode, settings = EXCLUDED.settings, secrets = EXCLUDED.secrets, icon_image = NULL, icon_mime = NULL",
 					[
 						app.id,
 						app.name,
-						app.mode,
-						'Seeded for the e2e suite',
-						`${stubApiBase}${app.prefix}`,
-						'app-e2e',
-						app.openingStatementDisplayMode,
-						app.enableAnnotation,
 						app.enabled !== false,
-						...(app.site === 'none' ? [null, null, null] : ['emoji', '🤖', '#FFEAD5']),
-						'everyone',
+						JSON.stringify({
+							apiBase: `${stubApiBase}${app.prefix}`,
+							appType: app.mode,
+							answerForm: { enabled: false, feedbackText: '' },
+							enableUpdateAfterConversationStarts: false,
+							openingStatementDisplayMode: app.openingStatementDisplayMode,
+						}),
+						JSON.stringify({ apiKey: 'app-e2e' }),
 					],
 				)
 			}

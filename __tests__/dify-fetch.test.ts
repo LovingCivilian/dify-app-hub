@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createDifyFetch, DifyRequestError } from '@/components/chat/provider/dify-fetch'
+import { createDifyFetch, RequestError } from '@/components/chat/provider/dify-fetch'
 
 const APP = 'app-1'
 const jsonResponse = (status: number, body: unknown, type = 'application/json') =>
@@ -41,7 +41,7 @@ describe('createDifyFetch', () => {
 		expect(fetchMock.mock.calls[0][1]).not.toHaveProperty('body')
 	})
 
-	it('throws a DifyRequestError carrying Dify code, message and status on a non-OK response', async () => {
+	it('throws a RequestError carrying Dify code, message and status on a non-OK response', async () => {
 		vi.stubGlobal(
 			'fetch',
 			vi
@@ -51,9 +51,9 @@ describe('createDifyFetch', () => {
 				),
 		)
 		const error = await createDifyFetch(APP)('ignored', { body: '{}' } as never).catch(e => e)
-		expect(error).toBeInstanceOf(DifyRequestError)
+		expect(error).toBeInstanceOf(RequestError)
 		expect(error).toMatchObject({
-			name: 'DifyRequestError',
+			name: 'RequestError',
 			status: 400,
 			code: 'invalid_param',
 			message: 'query is required',

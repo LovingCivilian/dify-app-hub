@@ -35,7 +35,7 @@ test.describe('directory accounts on the users page (ADR-0029)', () => {
 		await expect(row.getByText('Admin', { exact: true })).toBeVisible()
 
 		await row.getByRole('button', { name: 'Delete' }).click()
-		await expect(page.getByText(/gets a new account with a new Dify history/)).toBeVisible()
+		await expect(page.getByText(/gets a new account and starts every app afresh/)).toBeVisible()
 		await page.getByRole('button', { name: 'Cancel' }).last().click()
 	})
 

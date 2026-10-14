@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { citationKey, citationTitle } from '@/components/chat/message/citations'
-import type { RetrieverResource } from '@/lib/dify/types'
+import type { RetrieverResource } from '@/lib/providers/dify/types'
 
 /** As streamed in message_end (OpenAPI example): no `id`, and `segment_position` may be missing too. */
 const streamed = (fields: Partial<RetrieverResource>) =>

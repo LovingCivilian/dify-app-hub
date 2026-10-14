@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 
-import { difyJson, errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { parseFilePart } from '@/lib/dify/schemas'
+import { jsonNoStore, errorResponseFrom, resolveDifyRoute } from '@/lib/providers/dify/route'
+import { parseFilePart } from '@/lib/http/parse'
 
 /**
  * POST /audio-to-text: the recording goes to Dify under its real type and name (charter §4.1 "Audio": no
@@ -16,7 +16,7 @@ export async function POST(
 	const part = await parseFilePart(request)
 	if (!part.ok) return part.response
 	try {
-		return difyJson(await resolved.ctx.dify.audioToText(part.data, resolved.ctx.user))
+		return jsonNoStore(await resolved.ctx.dify.audioToText(part.data, resolved.ctx.user))
 	} catch (error) {
 		return errorResponseFrom(error, 'POST /api/dify/[appId]/audio-to-text')
 	}

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { APP_ID } from './fixtures/constants'
+import { newConversationButton } from './fixtures/conversations'
 
 /** The Sender's box by its placeholder: an app's parameter fields above it are textboxes too. */
 const senderBox = (page: Page) => page.getByPlaceholder('Type a message')
@@ -28,7 +29,7 @@ test.describe('mobile chat', () => {
 		await menuButton(page).click()
 		const drawer = page.getByRole('dialog', { name: 'Conversations menu' })
 		await expect(drawer).toBeVisible()
-		await drawer.getByRole('button', { name: 'New conversation' }).click()
+		await newConversationButton(drawer).click()
 		await expect(drawer).toBeHidden()
 		await expect(page.getByText(`Echo: ${text}`)).toHaveCount(0)
 		await menuButton(page).click()
@@ -72,7 +73,7 @@ test.describe('mobile chat', () => {
 		await page.keyboard.press('Enter')
 		await expect(page.getByText(`Echo: ${first}`)).toBeVisible()
 		await menuButton(page).click()
-		await drawer.getByRole('button', { name: 'New conversation' }).click()
+		await newConversationButton(drawer).click()
 		await senderBox(page).fill(second)
 		await page.keyboard.press('Enter')
 		await expect(stop).toBeVisible()

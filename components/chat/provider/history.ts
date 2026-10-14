@@ -7,7 +7,7 @@ import type {
 	HumanInputFormSubmission,
 	MessageFileItem,
 	MessageListItem,
-} from '@/lib/dify/types'
+} from '@/lib/providers/dify/types'
 
 import { humanInputPhase } from '../message/human-input-phase'
 import type { DifyChatMessage, HumanInputState, MessageFile, WorkflowState } from './message'

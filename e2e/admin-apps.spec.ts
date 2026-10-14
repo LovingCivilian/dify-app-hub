@@ -7,7 +7,14 @@ import {
 	type TestInfo,
 } from '@playwright/test'
 
-import { deleteApp, deleteGroupsLike, seedApp as seedAccessApp, seedGroup } from './fixtures/access'
+import {
+	deleteApp,
+	deleteGroupsLike,
+	seedApp as seedAccessApp,
+	seedGroup,
+	stubDocuments,
+} from './fixtures/access'
+import { chooseFile, pngOf } from './fixtures/branding'
 import { APP_ID, APP_IDS, CREATED_APP } from './fixtures/constants'
 import { withDb } from './fixtures/db'
 import { drawerOpened } from './fixtures/drawer'
@@ -15,31 +22,46 @@ import { stubApiBase } from './fixtures/env'
 import { deleteUsersLike, seedUser, signInAs } from './fixtures/users'
 
 const PROJECTS = ['desktop-light', 'desktop-dark', 'mobile-light']
-/** A dify_apps id (36 characters) of the spec's own, distinct per project: the three projects run one after another. */
+/** An apps id (a UUID) of the spec's own, distinct per project: the three projects run one after another. */
 const ownId = (base: number, testInfo: TestInfo) =>
 	`e2e00000-0000-4000-8000-${String(base + PROJECTS.indexOf(testInfo.project.name) + 1).padStart(12, '0')}`
-const seedApp = (id: string, name: string, apiBase: string) =>
-	withDb(db =>
+const seedApp = (id: string, name: string, prefix = '') => {
+	const { settings, secrets } = stubDocuments(prefix)
+	return withDb(db =>
 		db.query(
-			'INSERT INTO dify_apps (id, name, mode, description, api_base, api_key) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, api_base = EXCLUDED.api_base',
-			[id, name, 'chat', 'e2e', apiBase, 'app-e2e'],
+			"INSERT INTO apps (id, provider, name, description, settings, secrets) VALUES ($1, 'dify', $2, 'e2e', $3::jsonb, $4::jsonb) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, settings = EXCLUDED.settings",
+			[id, name, settings, secrets],
 		),
 	)
-const dropApp = (id: string) => withDb(db => db.query('DELETE FROM dify_apps WHERE id = $1', [id]))
+}
+const dropApp = (id: string) => withDb(db => db.query('DELETE FROM apps WHERE id = $1', [id]))
 // antd's Table sets data-row-key from rowKey on each body row.
 const rowById = (page: Page, id: string) => page.locator(`tr[data-row-key="${id}"]`)
 const moreActions = (page: Page, id: string) =>
 	rowById(page, id).getByRole('button', { name: 'More actions' })
+/** The drawer's provider Select (E1): an antd Select's search box is its combobox, named by the field's label. */
+const pickProvider = async (page: Page, drawer: Locator, name: string) => {
+	await drawer.getByRole('combobox', { name: /^Provider/ }).click()
+	await page.getByTitle(name, { exact: true }).click()
+}
+/** The Alert under Test connection (E7), found by its title. */
+const testResult = (drawer: Locator, title: string) =>
+	drawer.getByRole('alert').filter({ hasText: title })
 
-test('the table shows every app with its status, and the type filter narrows it', async ({
+// E9: the Provider column reads "Dify · <type>", and its filter nests the Dify types under "Dify".
+test('the table shows every app with its provider and status, and the provider filter narrows it by type', async ({
 	page,
 }) => {
 	await page.goto('/app-management')
 	await expect(
 		page.getByRole('row', { name: /Stub disabled/ }).getByText('Disabled', { exact: true }),
 	).toBeVisible()
-	await page.getByRole('columnheader', { name: 'Type' }).getByRole('button').click()
-	// The filter dropdown lists the modes as checkable menu items (antd Table filters).
+	await expect(
+		rowById(page, APP_IDS.workflow).getByText('Dify · Workflow', { exact: true }),
+	).toBeVisible()
+	await page.getByRole('columnheader', { name: 'Provider' }).getByRole('button').click()
+	// antd's filter menu shows a provider with types as a submenu, opened on hover (Menu `triggerSubMenuAction`).
+	await page.getByRole('menuitem', { name: 'Dify' }).hover()
 	await page.getByRole('menuitem', { name: 'Workflow', exact: true }).click()
 	await page.getByRole('button', { name: 'OK' }).click()
 	await expect(page.getByRole('row', { name: /Stub workflow/ })).toBeVisible()
@@ -64,23 +86,9 @@ test('user view is a link that opens the chat in a new tab', async ({ page }) =>
 	await expect(link).toHaveAttribute('target', '_blank')
 })
 
-test('sync info refreshes the app from Dify', async ({ page }, testInfo) => {
-	const id = ownId(200, testInfo)
-	await seedApp(id, `Sync me ${testInfo.project.name}`, `${stubApiBase}${CREATED_APP.prefix}`)
-	try {
-		await page.goto('/app-management')
-		await moreActions(page, id).click()
-		await page.getByRole('menuitem', { name: 'Sync app info' }).click()
-		// The stub's /info for this prefix answers the created app's name; the action's refresh() shows it.
-		await expect(rowById(page, id)).toContainText(CREATED_APP.name)
-	} finally {
-		await dropApp(id)
-	}
-})
-
 test('delete asks for confirmation and removes the app', async ({ page }, testInfo) => {
 	const id = ownId(100, testInfo)
-	await seedApp(id, `Delete me ${testInfo.project.name}`, stubApiBase)
+	await seedApp(id, `Delete me ${testInfo.project.name}`)
 	try {
 		await page.goto('/app-management')
 		await moreActions(page, id).click()
@@ -109,191 +117,249 @@ test('on a phone the table scrolls inside its container and More stays reachable
 	await more.scrollIntoViewIfNeeded()
 	await expect(more).toBeInViewport()
 	await more.click()
-	await expect(page.getByRole('menuitem', { name: 'Sync app info' })).toBeVisible()
+	await expect(page.getByRole('menuitem', { name: 'Delete' })).toBeVisible()
 })
 
 test.describe('create and edit', () => {
 	// One project runs at a time, so the created app is removed by name after each test.
 	test.afterEach(async () => {
-		await withDb(db => db.query('DELETE FROM dify_apps WHERE name = $1', [CREATED_APP.name]))
+		await withDb(db => db.query('DELETE FROM apps WHERE name = $1', [CREATED_APP.name]))
 	})
 
-	test('an admin creates an app from its Dify API base and key, then disables it', async ({
+	test('each opening of the drawer starts from its own app, and New starts with the provider alone', async ({
 		page,
 	}) => {
 		await page.goto('/app-management')
-		await page.getByRole('button', { name: 'New' }).click()
-		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
-		await create.getByLabel('API Base').fill(`${stubApiBase}${CREATED_APP.prefix}`)
-		await create.getByLabel('API Secret').fill('app-e2e')
-		await create.getByRole('button', { name: 'OK' }).click()
-
-		const row = page.getByRole('row', { name: new RegExp(CREATED_APP.name) })
-		await expect(row).toBeVisible()
-		// The created app's stub site names an image icon; the DAL stored its bytes at create time and the icon route
-		// serves them (charter §4.4).
-		await expect(row.locator('img')).toHaveAttribute('src', /\/api\/apps\/[^/]+\/icon$/)
-		await expect
-			.poll(() => row.locator('img').evaluate(img => (img as HTMLImageElement).naturalWidth))
-			.toBeGreaterThan(0)
-
-		await row.getByRole('button', { name: 'Edit' }).click()
-		const edit = page
-			.getByRole('dialog')
-			.filter({ hasText: `Edit app configuration - ${CREATED_APP.name}` })
-		await edit.getByRole('switch', { name: 'App status' }).click()
-		await edit.getByRole('button', { name: 'Update' }).click()
-		await expect(row.getByText('Disabled')).toBeVisible()
-
-		await row.getByRole('button', { name: 'Edit' }).click()
-		await expect(
-			page
-				.getByRole('dialog')
-				.filter({ hasText: `Edit app configuration - ${CREATED_APP.name}` })
-				.getByRole('switch', { name: 'App status' }),
-		).not.toBeChecked()
-	})
-
-	test('a Dify error body instead of app info keeps the drawer open with a translated error', async ({
-		page,
-	}) => {
-		await page.goto('/app-management')
-		await page.getByRole('button', { name: 'New' }).click()
-		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
-		// An unknown stub path answers Dify's 404 JSON body: the server client throws, the action answers dify_unreachable.
-		await create.getByLabel('API Base').fill(`${stubApiBase}/nope`)
-		await create.getByLabel('API Secret').fill('app-e2e')
-		await create.getByRole('button', { name: 'OK' }).click()
-		await expect(
-			page.getByText('Could not reach the Dify app. Check the API Base and API Secret.'),
-		).toBeVisible()
-		await expect(create).toBeVisible()
-		await expect(page.getByRole('row', { name: /nope/ })).toHaveCount(0)
-	})
-
-	test('each opening of the drawer starts from its own app, and New starts empty', async ({
-		page,
-	}) => {
-		await page.goto('/app-management')
-		await rowById(page, APP_ID).getByRole('button', { name: 'Edit' }).click()
 		const first = page.getByRole('dialog').filter({ hasText: 'Edit app configuration - Stub app' })
-		await expect(first.getByLabel('API Base')).toHaveValue(`${stubApiBase}`)
-		// The stored key never comes back to the browser: a blank field keeps it.
-		await expect(first.getByLabel('API Secret')).toHaveValue('')
-		await expect(first.getByText('Leave blank to keep the current API Secret')).toBeVisible()
+		await openDrawer(rowById(page, APP_ID).getByRole('button', { name: 'Edit' }), first)
+		await expect(first.getByLabel('API base')).toHaveValue(`${stubApiBase}`)
+		// The stored key never comes back to the browser: a blank field keeps it (spec §2.3).
+		await expect(first.getByLabel('API key')).toHaveValue('')
+		await expect(first.getByLabel('API key')).toHaveAttribute('placeholder', 'Leave blank to keep')
+		// E8: the provider shows, disabled.
+		await expect(first.getByRole('combobox', { name: /^Provider/ })).toBeDisabled()
 		await drawerOpened(first)
 		await first.getByRole('button', { name: 'Cancel' }).click()
 		// The drawer keeps its title and form while it slides out (cleared in afterOpenChange).
 		await expect(first).toContainText('Edit app configuration - Stub app')
-		await expect(first.getByLabel('API Base')).toHaveValue(`${stubApiBase}`)
+		await expect(first.getByLabel('API base')).toHaveValue(`${stubApiBase}`)
 		await expect(first).toBeHidden()
 
 		await rowById(page, APP_IDS.workflow).getByRole('button', { name: 'Edit' }).click()
 		const second = page
 			.getByRole('dialog')
 			.filter({ hasText: 'Edit app configuration - Stub workflow' })
-		await expect(second.getByLabel('API Base')).toHaveValue(`${stubApiBase}/workflow`)
+		await expect(second.getByLabel('API base')).toHaveValue(`${stubApiBase}/workflow`)
 		await second.getByRole('button', { name: 'Cancel' }).click()
 		await expect(second).toBeHidden()
 
-		await page.getByRole('button', { name: 'New' }).click()
+		// Layout B (decision 29): until a provider is picked, the provider is the only row.
 		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
-		await expect(create.getByLabel('API Base')).toHaveValue('')
-		await expect(create.getByLabel('API Secret')).toHaveValue('')
+		await openDrawer(page.getByRole('button', { name: 'New' }), create)
+		await expect(create.getByRole('combobox', { name: /^Provider/ })).toBeEnabled()
+		await expect(create.getByLabel('App name')).toHaveCount(0)
+		await expect(create.getByLabel('API base')).toHaveCount(0)
+		await pickProvider(page, create, 'Dify')
+		await expect(create.getByLabel('App name')).toHaveValue('')
+		await expect(create.getByLabel('API base')).toHaveValue('')
 		await create.getByRole('button', { name: 'Cancel' }).click()
 	})
-})
 
-test.describe('annotations', () => {
-	const chatflow = APP_IDS['advanced-chat']
-
-	test('the menu offers annotations for chat apps only', async ({ page }) => {
+	test('an admin adds a Dify app: the provider, its fields, a passing test, and the save', async ({
+		page,
+		isMobile,
+	}) => {
 		await page.goto('/app-management')
-		await moreActions(page, APP_IDS.workflow).click()
-		await expect(page.getByRole('menuitem', { name: 'Sync app info' })).toBeVisible()
-		await expect(page.getByRole('menuitem', { name: 'Annotations' })).toHaveCount(0)
-		await page.keyboard.press('Escape')
-		await moreActions(page, chatflow).click()
-		await expect(page.getByRole('menuitem', { name: 'Annotations' })).toBeVisible()
+		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
+		await openDrawer(page.getByRole('button', { name: 'New' }), create)
+		await pickProvider(page, create, 'Dify')
+		// E3: the required fields carry the asterisk, the others "(optional)".
+		await expect(create.getByText('(optional)').first()).toBeVisible()
+		await create.getByLabel('App name').fill(CREATED_APP.name)
+		await create.getByLabel('App description').fill('Made by the e2e suite')
+		// E5: Enter and a comma both make a tag.
+		const tags = create.getByRole('combobox', { name: /^App tags/ })
+		await tags.fill('alpha')
+		await tags.press('Enter')
+		await tags.fill('beta,')
+		await expect(create.locator('.ant-select-selection-item', { hasText: 'alpha' })).toBeVisible()
+		await expect(create.locator('.ant-select-selection-item', { hasText: 'beta' })).toBeVisible()
+		// A comma closes the tag list (rc-select closes it after a token split), so no Escape: with the list closed,
+		// Escape would reach the Drawer and close it (antd Drawer `keyboard`, on by default).
+		await expect(page.locator('.ant-select-dropdown:visible')).toHaveCount(0)
+		// E4: the image through the Upload button; the preview shows it before the save.
+		await chooseFile(page, 'Choose image', {
+			name: 'icon.png',
+			mimeType: 'image/png',
+			buffer: await pngOf(512, 512),
+		})
+		await expect(create.getByRole('img', { name: 'App icon' })).toBeVisible()
+		await create.getByLabel('API base').fill(stubApiBase)
+		await create.getByLabel('API key').fill('app-e2e')
+		// The app type stays Chatbot; the stub's chat app reports `chat`.
+		await create.getByRole('button', { name: 'Test connection' }).click()
+		await expect(testResult(create, 'Connected')).toBeVisible()
+		if (isMobile) {
+			// Spec §4.1: on a phone the labels sit above their fields (responsive spans, xs: 24).
+			const label = await create.locator('label', { hasText: 'App name' }).boundingBox()
+			const input = await create.getByLabel('App name').boundingBox()
+			expect(label!.y + label!.height).toBeLessThanOrEqual(input!.y + 1)
+		}
+		await create.getByRole('button', { name: 'OK' }).click()
+		await expect(page.getByText('App configuration added')).toBeVisible()
+
+		const row = page.getByRole('row', { name: new RegExp(CREATED_APP.name) })
+		await expect(row).toBeVisible()
+		await expect(row.getByText('Made by the e2e suite')).toBeVisible()
+		// The icon was stored as a PNG and the icon route serves it (spec §4.4).
+		await expect(row.locator('img')).toHaveAttribute('src', /\/api\/apps\/[^/]+\/icon(\?v=.+)?$/)
+		await expect
+			.poll(() => row.locator('img').evaluate(img => (img as HTMLImageElement).naturalWidth))
+			.toBeGreaterThan(0)
 	})
 
-	test('an admin adds, finds, edits and deletes an annotation', async ({ page }, testInfo) => {
-		const question = `How do I reset? ${testInfo.project.name}`
+	// Spec §9: the test's mismatch, refused and unreachable scenarios against the stub; a connection change clears it.
+	test('Test connection warns of another type, and reports a refused key and an unreachable base', async ({
+		page,
+	}) => {
 		await page.goto('/app-management')
-		await moreActions(page, chatflow).click()
-		await page.getByRole('menuitem', { name: 'Annotations' }).click()
-		// Dialogs by accessible name: a `hasText` filter would also match the drawer (its toolbar says "New
-		// annotation"), and the drawer's cells carry their text as aria-label (other specs' answers, too).
-		const drawer = page.getByRole('dialog', { name: 'Annotations' })
-		await expect(drawer.getByRole('table')).toBeVisible()
+		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
+		await openDrawer(page.getByRole('button', { name: 'New' }), create)
+		await pickProvider(page, create, 'Dify')
+		const test = create.getByRole('button', { name: 'Test connection' })
 
-		await drawer.getByRole('button', { name: 'New annotation' }).click()
-		const modal = page.getByRole('dialog', { name: 'New annotation' })
-		await modal.getByLabel('Question').fill(question)
-		await modal.getByLabel('Answer').fill('Open the account menu.')
-		await modal.getByRole('button', { name: 'OK' }).click()
-		// By this test's own question: chat-feedback.spec.ts leaves an annotation per project in the same app.
-		const row = drawer.getByRole('row', { name: question })
-		await expect(row).toBeVisible()
+		await create.getByLabel('API base').fill(stubApiBase)
+		await create.getByLabel('API key').fill('app-e2e')
+		await create.getByRole('combobox', { name: /^App type/ }).click()
+		await page.getByTitle('Workflow', { exact: true }).click()
+		await test.click()
+		await expect(testResult(create, 'Connected, but the type differs')).toContainText(
+			'The provider reports this app as Chatbot, not Workflow.',
+		)
 
-		// Keyword search goes to Dify (the stub filters question or answer).
-		await drawer.getByRole('searchbox', { name: 'Search annotations' }).fill('no such text')
-		await page.keyboard.press('Enter')
-		await expect(row).toHaveCount(0)
-		await drawer.getByRole('searchbox', { name: 'Search annotations' }).fill(testInfo.project.name)
-		await page.keyboard.press('Enter')
-		await expect(row).toBeVisible()
+		await create.getByLabel('API key').fill('app-refused')
+		// A connection field changed: the old result is gone (E7).
+		await expect(testResult(create, 'Connected, but the type differs')).toHaveCount(0)
+		await test.click()
+		await expect(testResult(create, 'The key was refused')).toBeVisible()
 
-		await row.getByRole('button', { name: 'Edit' }).click()
-		const edit = page.getByRole('dialog', { name: 'Edit annotation' })
-		await edit.getByLabel('Answer').fill('Open the account menu, then Reset.')
-		await edit.getByRole('button', { name: 'OK' }).click()
-		await expect(row).toContainText('then Reset')
-
-		// A new annotation starts from empty fields after an edit.
-		await drawer.getByRole('button', { name: 'New annotation' }).click()
-		const fresh = page.getByRole('dialog', { name: 'New annotation' })
-		await expect(fresh.getByLabel('Question')).toHaveValue('')
-		await expect(fresh.getByLabel('Answer')).toHaveValue('')
-		await fresh.getByRole('button', { name: 'Cancel' }).click()
-		await expect(fresh).toBeHidden()
-
-		await row.getByRole('button', { name: 'Delete' }).click()
-		await page.getByRole('button', { name: 'Delete' }).last().click()
-		await expect(row).toHaveCount(0)
+		await create.getByLabel('API key').fill('app-e2e')
+		await create.getByLabel('API base').fill(`${stubApiBase}/unreachable`)
+		await test.click()
+		await expect(testResult(create, 'The provider could not be reached')).toBeVisible()
+		await create.getByRole('button', { name: 'Cancel' }).click()
 	})
 
-	test('closing the drawer resets its search and page', async ({ page }, testInfo) => {
-		const question = `Reset me ${testInfo.project.name}`
-		await page.goto('/app-management')
-		await moreActions(page, chatflow).click()
-		await page.getByRole('menuitem', { name: 'Annotations' }).click()
-		const drawer = page.getByRole('dialog', { name: 'Annotations' })
-		await drawer.getByRole('button', { name: 'New annotation' }).click()
-		const modal = page.getByRole('dialog', { name: 'New annotation' })
-		await modal.getByLabel('Question').fill(question)
-		await modal.getByLabel('Answer').fill('Reopen and see me.')
-		await modal.getByRole('button', { name: 'OK' }).click()
-		const row = drawer.getByRole('row', { name: question })
-		await expect(row).toBeVisible()
-		await drawer.getByRole('searchbox', { name: 'Search annotations' }).fill('no such text')
-		await page.keyboard.press('Enter')
-		await expect(row).toHaveCount(0)
+	// Spec §2.3 and §9: the provider stays, a blank key keeps the stored one (the chat still works), the icon is replaced
+	// and removed.
+	test('an edit keeps the provider and a blank key, and replaces then removes the icon', async ({
+		page,
+	}, testInfo) => {
+		const id = ownId(300, testInfo)
+		await seedApp(id, `Edit me ${testInfo.project.name}`)
+		try {
+			await page.goto('/app-management')
+			const row = rowById(page, id)
+			const edit = page.getByRole('dialog').filter({ hasText: 'Edit app configuration' })
+			await openDrawer(row.getByRole('button', { name: 'Edit' }), edit)
+			await chooseFile(page, 'Choose image', {
+				name: 'icon.png',
+				mimeType: 'image/png',
+				buffer: await pngOf(64, 64),
+			})
+			await edit.getByRole('button', { name: 'Update' }).click()
+			await expect(row.locator('img')).toHaveAttribute('src', /\/api\/apps\/[^/]+\/icon(\?v=.+)?$/)
+			const stored = await withDb(async db => {
+				const { rows } = await db.query<{ secrets: { apiKey: string } }>(
+					'SELECT secrets FROM apps WHERE id = $1',
+					[id],
+				)
+				return rows[0]?.secrets
+			})
+			expect(stored).toEqual({ apiKey: 'app-e2e' })
+			// The saved drawer slides out first: while it is still visible, openDrawer would take it for the new one.
+			await expect(edit).toBeHidden()
 
-		await drawerOpened(drawer)
-		await drawer.getByRole('button', { name: 'Close', exact: true }).click()
-		// The panel stays while the drawer slides out (the record is cleared in afterOpenChange).
-		await expect(drawer.getByRole('table')).toBeVisible()
-		await expect(drawer).toBeHidden()
-		await moreActions(page, chatflow).click()
-		await page.getByRole('menuitem', { name: 'Annotations' }).click()
-		const reopened = page.getByRole('dialog', { name: 'Annotations' })
-		await expect(reopened.getByRole('searchbox', { name: 'Search annotations' })).toHaveValue('')
-		const rowAgain = reopened.getByRole('row', { name: question })
-		await expect(rowAgain).toBeVisible()
-		await rowAgain.getByRole('button', { name: 'Delete' }).click()
-		await page.getByRole('button', { name: 'Delete' }).last().click()
-		await expect(rowAgain).toHaveCount(0)
+			await openDrawer(row.getByRole('button', { name: 'Edit' }), edit)
+			await edit.getByRole('button', { name: 'Remove' }).click()
+			await edit.getByRole('button', { name: 'Update' }).click()
+			// E11: no image, so Dify's fallback icon (antd icons are role="img", named after the icon).
+			await expect(row.getByRole('img', { name: 'apartment' })).toBeVisible()
+
+			await page.goto(`/chat/${id}?isNewCvst=1`)
+			await page.getByPlaceholder('Type a message').fill('still here')
+			await page.keyboard.press('Enter')
+			await expect(page.getByText('Echo: still here', { exact: true })).toBeVisible()
+		} finally {
+			await dropApp(id)
+		}
+	})
+
+	// ADR-0023 "Icon staleness": the admin views carry `?v=<updatedAt>`, so a replaced icon shows without a reload.
+	test('replacing an existing icon shows the new image without a reload', async ({
+		page,
+	}, testInfo) => {
+		const id = ownId(350, testInfo)
+		await seedApp(id, `Icon me ${testInfo.project.name}`)
+		try {
+			await page.goto('/app-management')
+			const row = rowById(page, id)
+			const edit = page.getByRole('dialog').filter({ hasText: 'Edit app configuration' })
+			const replaceWith = async (size: number) => {
+				await openDrawer(row.getByRole('button', { name: 'Edit' }), edit)
+				await chooseFile(page, 'Choose image', {
+					name: 'icon.png',
+					mimeType: 'image/png',
+					buffer: await pngOf(size, size),
+				})
+				await edit.getByRole('button', { name: 'Update' }).click()
+				await expect(edit).toBeHidden()
+			}
+			// The pipeline never enlarges (spec §4.4), so the stored width is the uploaded one.
+			await replaceWith(64)
+			const img = row.locator('img')
+			await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(64)
+			const before = await img.getAttribute('src')
+			await replaceWith(32)
+			await expect(img).not.toHaveAttribute('src', before ?? '')
+			await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(32)
+		} finally {
+			await dropApp(id)
+		}
+	})
+
+	// Spec §2.3: a row whose stored settings fail is marked, hidden from the gallery, and repaired from its Edit.
+	test('an app with invalid settings is marked, hidden from the gallery, and repaired from its Edit', async ({
+		page,
+	}, testInfo) => {
+		const id = ownId(400, testInfo)
+		const name = `Broken ${testInfo.project.name}`
+		await seedApp(id, name)
+		await withDb(db =>
+			db.query(
+				`UPDATE apps SET settings = jsonb_set(settings, '{appType}', 'null') WHERE id = $1`,
+				[id],
+			),
+		)
+		try {
+			await page.goto('/apps')
+			// The gallery has drawn its cards (the seeded stub app's), so the next count is not of an empty page.
+			await expect(page.locator(`a[href="/chat/${APP_ID}"]`)).toBeVisible()
+			await expect(page.getByRole('link', { name: new RegExp(name) })).toHaveCount(0)
+			await page.goto('/app-management')
+			const row = rowById(page, id)
+			await expect(row.getByText('Invalid settings', { exact: true })).toBeVisible()
+			const edit = page.getByRole('dialog').filter({ hasText: `Edit app configuration - ${name}` })
+			await openDrawer(row.getByRole('button', { name: 'Edit' }), edit)
+			// The form opens on Dify's defaults; the admin fills the connection again (the key stays blank: kept).
+			await expect(edit.getByLabel('API base')).toHaveValue('')
+			await edit.getByLabel('API base').fill(stubApiBase)
+			await edit.getByRole('button', { name: 'Update' }).click()
+			await expect(row.getByText('Enabled', { exact: true })).toBeVisible()
+			await expect(row.getByText('Dify · Chatbot', { exact: true })).toBeVisible()
+		} finally {
+			await dropApp(id)
+		}
 	})
 })
 
@@ -323,8 +389,9 @@ const openDrawer = async (control: Locator, drawer: Locator) => {
 }
 
 /**
- * Narrows an access picker found by its exact label (the radio "Selected groups and people" also contains "groups"
- * and "people") and picks the option by its title (antd Select options carry a title; e2e/admin-groups.spec.ts).
+ * Narrows an access picker found by the start of its name (the label ends with "(optional)", E3; the radio "Selected
+ * groups and people" contains "groups" and "people" further in) and picks the option by its title (antd Select options
+ * carry a title; e2e/admin-groups.spec.ts).
  */
 const pick = async (
 	page: Page,
@@ -333,7 +400,7 @@ const pick = async (
 	label: string,
 	filter: string,
 ) => {
-	await drawer.getByLabel(picker, { exact: true }).fill(filter)
+	await drawer.getByRole('combobox', { name: new RegExp(`^${picker}`) }).fill(filter)
 	await page.getByTitle(label, { exact: true }).click()
 	await expect(drawer.locator('.ant-select-selection-item', { hasText: label })).toBeVisible()
 }
@@ -344,7 +411,7 @@ const storedAccess = (appId: string) =>
 		const {
 			rows: [app],
 		} = await db.query<{ name: string; access_mode: string }>(
-			'SELECT name, access_mode FROM dify_apps WHERE id = $1',
+			'SELECT name, access_mode FROM apps WHERE id = $1',
 			[appId],
 		)
 		// count(*) is a bigint, which node-postgres returns as a string (it parses no int8 into a number), hence Number().
@@ -397,7 +464,7 @@ test.describe('app access in the drawer (B3 spec §4.4)', () => {
 		appId = await seedAccessApp({ name: seededName(), accessMode: 'restricted' })
 	})
 	test.afterEach(async () => {
-		// By id: an Update renames the app from the stub's /info ("Stub app"). Its grants go with it (ON DELETE CASCADE).
+		// By id; its grants go with it (ON DELETE CASCADE).
 		if (appId) await deleteApp(appId)
 		await deleteGroupsLike(`%${tag()}`)
 		await deleteUsersLike(`${tag()}%`)
@@ -427,7 +494,7 @@ test.describe('app access in the drawer (B3 spec §4.4)', () => {
 		await expectGalleryShows(browser, memberEmail(), id)
 		await expectGalleryShows(browser, personEmail(), id)
 
-		// The Update renamed the app, so this drawer is found by its title's fixed part.
+		// The drawer is found by its title's fixed part.
 		await row.getByRole('button', { name: 'Edit' }).click()
 		const again = page.getByRole('dialog').filter({ hasText: 'Edit app configuration' })
 		// antd draws a button-style radio's <input> at 0×0, so the visible label is clicked.
@@ -443,8 +510,9 @@ test.describe('app access in the drawer (B3 spec §4.4)', () => {
 		await page.goto('/app-management')
 		const create = page.getByRole('dialog').filter({ hasText: 'New app configuration' })
 		await openDrawer(page.getByRole('button', { name: 'New' }), create)
+		await pickProvider(page, create, 'Dify')
 		await expect(create.getByRole('radio', { name: 'Selected groups and people' })).toBeChecked()
-		await expect(create.getByLabel('Groups', { exact: true })).toBeVisible()
+		await expect(create.getByRole('combobox', { name: /^Groups/ })).toBeVisible()
 		await create.getByRole('button', { name: 'Cancel' }).click()
 	})
 
@@ -470,7 +538,7 @@ test.describe('app access in the drawer (B3 spec §4.4)', () => {
 		// The server cannot tell which picker held the id, so both carry the error.
 		await expect(error).toHaveCount(2)
 		await expect(error.first()).toBeVisible()
-		// One transaction: the Dify info the update read was not stored either, and no grant was.
+		// One transaction: no grant was stored either.
 		expect(await storedAccess(id)).toEqual({
 			name: seededName(),
 			mode: 'restricted',

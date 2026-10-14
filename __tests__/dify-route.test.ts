@@ -10,12 +10,13 @@ vi.mock('@/lib/auth/session', () => ({
 	AuthError: class AuthError extends Error {},
 }))
 vi.mock('@/lib/data/apps', () => ({ getAppAccess }))
-vi.mock('@/lib/dify/client', () => ({ difyClient }))
+vi.mock('@/lib/providers/dify/client', () => ({ difyClient }))
 
-import { resolveDifyRoute } from '@/lib/dify/route'
+import { resolveDifyRoute } from '@/lib/providers/dify/route'
 
+const APP_ID = '3b241101-e2bb-4255-8caf-4136c566a962'
 const actor = { id: 'u1', email: 'jane@example.com', name: null }
-const params = Promise.resolve({ appId: '3b241101-e2bb-4255-8caf-4136c566a962' })
+const params = Promise.resolve({ appId: APP_ID })
 
 beforeEach(() => {
 	verifySession.mockReset()
@@ -23,108 +24,37 @@ beforeEach(() => {
 	difyClient.mockClear()
 })
 
+// The shared guard's own cases are in __tests__/provider-route.test.ts; these are the Dify half (Part 1 spec §3).
 describe('resolveDifyRoute', () => {
-	it('answers 401 in the envelope before looking at the app', async () => {
-		verifySession.mockResolvedValue(null)
-		const resolved = await resolveDifyRoute(params)
-		expect(resolved.ok).toBe(false)
-		if (resolved.ok) return
-		expect(resolved.response.status).toBe(401)
-		await expect(resolved.response.json()).resolves.toEqual({
-			code: 'unauthorized',
-			message: 'Sign in required.',
-			status: 401,
-		})
-		expect(getAppAccess).not.toHaveBeenCalled()
-	})
-	it('answers 404 app_not_found and 403 app_disabled', async () => {
+	it("answers the guard's refusal as it is and builds no Dify client", async () => {
 		verifySession.mockResolvedValue(actor)
 		getAppAccess.mockResolvedValue(null)
-		const missing = await resolveDifyRoute(params)
-		expect(missing.ok ? null : missing.response.status).toBe(404)
-		if (!missing.ok)
-			await expect(missing.response.json()).resolves.toEqual({
-				code: 'app_not_found',
-				message: 'No such app.',
-				status: 404,
-			})
-		// A missing app and one the actor may not use (getAppAccess answers null for both, B3 spec §4.2) reach no
-		// Dify client, so no request goes to Dify (Review Focus 1).
-		expect(difyClient).not.toHaveBeenCalled()
-		getAppAccess.mockResolvedValue({
-			id: '3b241101-e2bb-4255-8caf-4136c566a962',
-			enabled: false,
-			credentials: { apiBase: 'http://d/v1', apiKey: 'k' },
-		})
-		const disabled = await resolveDifyRoute(params)
-		expect(disabled.ok ? null : disabled.response.status).toBe(403)
-		if (!disabled.ok)
-			await expect(disabled.response.json()).resolves.toMatchObject({ code: 'app_disabled' })
-	})
-	// Spec §3.2: PostgreSQL refuses a malformed uuid (22P02), so the guard answers it as an unknown app before any query.
-	it('answers 404 app_not_found for a malformed id without reading the app', async () => {
-		verifySession.mockResolvedValue(actor)
-		const resolved = await resolveDifyRoute(Promise.resolve({ appId: 'not-a-uuid' }))
-		expect(resolved.ok).toBe(false)
-		if (resolved.ok) return
-		expect(resolved.response.status).toBe(404)
-		await expect(resolved.response.json()).resolves.toEqual({
-			code: 'app_not_found',
-			message: 'No such app.',
-			status: 404,
-		})
-		expect(getAppAccess).not.toHaveBeenCalled()
-		expect(difyClient).not.toHaveBeenCalled()
-	})
-	it('answers 401 for a malformed id when signed out: the session comes first', async () => {
-		verifySession.mockResolvedValue(null)
-		const resolved = await resolveDifyRoute(Promise.resolve({ appId: 'not-a-uuid' }))
-		expect(resolved.ok ? null : resolved.response.status).toBe(401)
-		expect(getAppAccess).not.toHaveBeenCalled()
-	})
-	// A database or environment failure (EnvError, a lost database connection) answers the envelope, not Next's empty 500.
-	it.each([
-		['the session read', () => verifySession.mockRejectedValue(new Error('db down'))],
-		[
-			'the app read',
-			() => {
-				verifySession.mockResolvedValue(actor)
-				getAppAccess.mockRejectedValue(new Error('db down'))
-			},
-		],
-	])('answers a logged 500 envelope when %s throws', async (_case, arrange) => {
-		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-		arrange()
 		const resolved = await resolveDifyRoute(params)
-		expect(resolved.ok).toBe(false)
-		if (resolved.ok) return
-		expect(resolved.response.status).toBe(500)
-		await expect(resolved.response.json()).resolves.toEqual({
-			code: 'internal_error',
-			message: 'Internal Server Error',
-			status: 500,
-		})
-		expect(errorSpy).toHaveBeenCalledWith('resolveDifyRoute:', expect.any(Error))
+		expect(resolved.ok ? null : resolved.response.status).toBe(404)
+		// A missing app and one the actor may not use reach no Dify client, so no request goes to Dify.
 		expect(difyClient).not.toHaveBeenCalled()
-		errorSpy.mockRestore()
 	})
-	it('builds the context with the account id as the Dify user, never the email, and a client for the app', async () => {
+	it('builds the context with the account id as the Dify user, never the email, and a client from the documents', async () => {
 		verifySession.mockResolvedValue(actor)
 		getAppAccess.mockResolvedValue({
-			id: '3b241101-e2bb-4255-8caf-4136c566a962',
+			id: APP_ID,
 			enabled: true,
-			credentials: { apiBase: 'http://d/v1', apiKey: 'k' },
+			provider: 'dify',
+			settings: { apiBase: 'http://d/v1' },
+			secrets: { apiKey: 'k' },
 		})
 		const resolved = await resolveDifyRoute(params)
 		expect(resolved.ok).toBe(true)
 		if (!resolved.ok) return
-		expect(resolved.ctx).toMatchObject({
+		expect(resolved.ctx).toEqual({
 			user: 'u1',
-			appId: '3b241101-e2bb-4255-8caf-4136c566a962',
+			actor,
+			appId: APP_ID,
 			apiBase: 'http://d/v1',
 			dify: { marker: 'client' },
 		})
-		expect(getAppAccess).toHaveBeenCalledWith(actor, '3b241101-e2bb-4255-8caf-4136c566a962')
+		// The context's `actor` keeps the email for the routes' own checks; the Dify end user is the id (ADR-0026).
+		expect(resolved.ctx.user).not.toContain('@')
 		expect(difyClient).toHaveBeenCalledWith({ apiBase: 'http://d/v1', apiKey: 'k' })
 	})
 })

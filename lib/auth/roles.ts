@@ -10,7 +10,7 @@ export type Role = (typeof ROLES)[number]
 export const isRole = (value: unknown): value is Role =>
 	typeof value === 'string' && (ROLES as readonly string[]).includes(value)
 
-/** The admin surface (apps, annotations, the users table): the owner and an admin. */
+/** The admin surface (apps, the users table): the owner and an admin. */
 export const hasAdminRights = (who: { role: Role }): boolean =>
 	who.role === 'owner' || who.role === 'admin'
 

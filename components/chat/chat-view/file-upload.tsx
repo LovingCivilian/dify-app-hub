@@ -5,7 +5,7 @@ import { Alert, Button, Upload, type UploadFile, type UploadProps } from 'antd'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { FileType } from '@/lib/dify/types'
+import type { FileType } from '@/lib/providers/dify/types'
 
 import { useAppContext } from '../app-context'
 import { useDifyUpload } from '../hooks/use-dify-upload'

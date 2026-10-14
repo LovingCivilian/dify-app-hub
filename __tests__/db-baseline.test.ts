@@ -3,13 +3,14 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-const folders = readdirSync('db/migrations')
-const sql = () => readFileSync(path.join('db/migrations', folders[0]!, 'migration.sql'), 'utf8')
+const folders = readdirSync('db/migrations').sort()
+const baseline = folders.find(name => /^\d{14}_baseline$/.test(name))
+const sql = () => readFileSync(path.join('db/migrations', baseline!, 'migration.sql'), 'utf8')
 
 describe('the PostgreSQL baseline (Part 0 spec §3.3)', () => {
-	it('is the only migration: the MySQL history is gone (a fresh start, decision 14)', () => {
-		expect(folders).toHaveLength(1)
-		expect(folders[0]).toMatch(/^\d{14}_baseline$/)
+	// Part 1's three apps migrations follow it (__tests__/db-apps-migrations.test.ts).
+	it('is the first migration: the MySQL history is gone (a fresh start, decision 14)', () => {
+		expect(folders[0]).toBe(baseline)
 	})
 
 	it('creates the six enum types for the static sets', () => {

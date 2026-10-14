@@ -17,14 +17,19 @@ test('the app list shows enabled apps as links to their chat and hides disabled 
 	expect(box!.x).toBeGreaterThanOrEqual(16)
 })
 
-test('a card shows the Dify emoji icon, or the mode icon when the app has no site', async ({
+// E10 and E11: the card names the provider and the type; without a stored image it shows the provider's icon.
+test('a card names its provider and type, and shows the provider icon when no image is stored', async ({
 	page,
 }) => {
 	await page.goto('/apps')
-	await expect(page.getByRole('link', card('Stub app')).getByText('🤖')).toBeVisible()
-	// antd icons render role="img" named after the icon; the no-site app is a workflow app.
+	const stub = page.getByRole('link', card('Stub app'))
+	await expect(stub.getByText('Dify · Chatbot', { exact: true })).toBeVisible()
+	// antd icons render role="img" named after the icon: Dify's fallback is ApartmentOutlined.
+	await expect(stub.getByRole('img', { name: 'apartment' })).toBeVisible()
+	// The seeded row's emoji (Dify's /site icon) is no longer shown (decision 19).
+	await expect(stub.getByText('🤖')).toHaveCount(0)
 	await expect(
-		page.getByRole('link', card(NO_SITE_APP.name)).getByRole('img', { name: 'deployment-unit' }),
+		page.getByRole('link', card(NO_SITE_APP.name)).getByText('Dify · Workflow', { exact: true }),
 	).toBeVisible()
 })
 

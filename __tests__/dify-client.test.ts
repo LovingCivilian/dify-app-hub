@@ -2,9 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 
-import { DifyError } from '@/lib/dify/errors'
-import { difyClient, filePassthrough, passthrough, type DifyClient } from '@/lib/dify/client'
-import type { ChatMessageRequest, MessagesQuery, WorkflowEventsQuery } from '@/lib/dify/types'
+import { DifyError } from '@/lib/providers/dify/errors'
+import {
+	difyClient,
+	filePassthrough,
+	passthrough,
+	type DifyClient,
+} from '@/lib/providers/dify/client'
+import type {
+	ChatMessageRequest,
+	MessagesQuery,
+	WorkflowEventsQuery,
+} from '@/lib/providers/dify/types'
 
 const credentials = { apiBase: 'http://dify.local/v1/', apiKey: 'app-key' }
 const USER = 'jane@example.com'
@@ -164,7 +173,7 @@ describe('difyClient: where `user` goes (endpoint map §1, the `user` column)', 
 		expect(lastCall().url).toBe('http://dify.local/v1/audio-to-text')
 	})
 
-	it('no user: info, parameters, site, meta, human-input form, annotations', async () => {
+	it('no user: info, parameters, site, meta, human-input form', async () => {
 		const client = difyClient(credentials)
 		reply(() => jsonResponse(200, { user_input_form: [] }))
 		await client.getParameters()
@@ -180,17 +189,6 @@ describe('difyClient: where `user` goes (endpoint map §1, the `user` column)', 
 		)
 		await client.getHumanInputForm('tok')
 		expect(lastCall().url).toBe('http://dify.local/v1/form/human_input/tok')
-		reply(() => jsonResponse(200, { data: [], has_more: false, limit: 10, total: 0, page: 1 }))
-		await client.listAnnotations({ page: 2, limit: 10, keyword: 'tea' })
-		expect(lastCall().url).toBe('http://dify.local/v1/apps/annotations?page=2&limit=10&keyword=tea')
-		reply(() => jsonResponse(201, { id: 'a1' }))
-		await client.createAnnotation({ question: 'q', answer: 'a' })
-		expect(lastCall().init.method).toBe('POST')
-		await client.updateAnnotation('a1', { question: 'q', answer: 'b' })
-		expect(lastCall().url).toBe('http://dify.local/v1/apps/annotations/a1')
-		expect(lastCall().init.method).toBe('PUT')
-		reply(() => new Response(null, { status: 204 }))
-		await expect(client.deleteAnnotation('a1')).resolves.toBeUndefined()
 	})
 })
 
@@ -404,19 +402,6 @@ describe('difyClient: errors', () => {
 		})
 		expect(fetchMock).not.toHaveBeenCalled()
 	})
-	// /site's icon_url is a signed link Dify built from FILES_URL, which may be another origin than the API's.
-	it('fetches a signed file on any origin, without the bearer and with redirects refused', async () => {
-		reply(image)
-		const response = await difyClient(credentials).fetchSignedFile(
-			new URL('https://upload.dify.example/files/f1/file-preview?timestamp=1&nonce=n&sign=s'),
-		)
-		expect(lastCall().url).toBe(
-			'https://upload.dify.example/files/f1/file-preview?timestamp=1&nonce=n&sign=s',
-		)
-		expect(lastCall().headers.has('authorization')).toBe(false)
-		expect(lastCall().init.redirect).toBe('error')
-		expect(response.headers.get('content-type')).toBe('image/png')
-	})
 	// A redirect from a /files/ answer must never make the route serve (or send the key to) another origin.
 	it('fetches a remote file with redirects refused', async () => {
 		reply(() => new Response(new Uint8Array([1]), { status: 200 }))
@@ -465,6 +450,15 @@ const operations: OperationCase[] = [
 		url: `${V1}/info`,
 		user: 'none',
 		result: 'json',
+	},
+	{
+		// The connection test reads the body itself (Plan decision f), so the Response comes back untouched.
+		name: 'fetchInfo',
+		call: c => c.fetchInfo(),
+		method: 'GET',
+		url: `${V1}/info`,
+		user: 'none',
+		result: 'binary',
 	},
 	{
 		name: 'getParameters',
@@ -635,15 +629,6 @@ const operations: OperationCase[] = [
 		result: 'binary',
 	},
 	{
-		name: 'fetchSignedFile',
-		call: c => c.fetchSignedFile(new URL('http://dify.local/files/f1/file-preview?sign=1')),
-		method: 'GET',
-		url: 'http://dify.local/files/f1/file-preview?sign=1',
-		user: 'none',
-		result: 'binary',
-		bearer: false,
-	},
-	{
 		name: 'audioToText',
 		call: c => c.audioToText(file(), USER),
 		method: 'POST',
@@ -658,38 +643,6 @@ const operations: OperationCase[] = [
 		url: `${V1}/text-to-audio`,
 		user: 'body',
 		result: 'binary',
-	},
-	{
-		name: 'listAnnotations',
-		call: c => c.listAnnotations({ page: 1 }),
-		method: 'GET',
-		url: `${V1}/apps/annotations?page=1`,
-		user: 'none',
-		result: 'json',
-	},
-	{
-		name: 'createAnnotation',
-		call: c => c.createAnnotation({ question: 'q', answer: 'a' }),
-		method: 'POST',
-		url: `${V1}/apps/annotations`,
-		user: 'none',
-		result: 'json',
-	},
-	{
-		name: 'updateAnnotation',
-		call: c => c.updateAnnotation('a1', { question: 'q', answer: 'b' }),
-		method: 'PUT',
-		url: `${V1}/apps/annotations/a1`,
-		user: 'none',
-		result: 'json',
-	},
-	{
-		name: 'deleteAnnotation',
-		call: c => c.deleteAnnotation('a1'),
-		method: 'DELETE',
-		url: `${V1}/apps/annotations/a1`,
-		user: 'none',
-		result: 'empty',
 	},
 ]
 

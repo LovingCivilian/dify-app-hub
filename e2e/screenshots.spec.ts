@@ -32,7 +32,7 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 			await noSpinner(page)
 			await expect(header(page)).toBeVisible()
 			await expect(stubApp(page)).toBeVisible()
-			await expect(page.getByText('🤖').first()).toBeVisible()
+			await expect(page.getByRole('img', { name: 'apartment' }).first()).toBeVisible()
 		},
 	},
 	admin: {
@@ -41,7 +41,7 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 			await noSpinner(page)
 			await expect(header(page)).toBeVisible()
 			await expect(stubApp(page)).toBeVisible()
-			await expect(page.getByText('🤖').first()).toBeVisible()
+			await expect(page.getByRole('img', { name: 'apartment' }).first()).toBeVisible()
 		},
 	},
 	users: {
@@ -172,20 +172,8 @@ for (const [name, { path, ready }] of Object.entries(signedInPages)) {
 test('screenshot app-drawer', async ({ page }, testInfo) => {
 	await page.goto('/app-management')
 	await page.locator(`tr[data-row-key="${APP_ID}"]`).getByRole('button', { name: 'Edit' }).click()
-	await expect(page.getByRole('dialog').getByLabel('API Base')).toHaveValue(/5399/)
+	await expect(page.getByRole('dialog').getByLabel('API base')).toHaveValue(/5399/)
 	await capture(page, 'app-drawer', testInfo)
-})
-
-test('screenshot annotations-drawer', async ({ page }, testInfo) => {
-	await page.goto('/app-management')
-	await page
-		.locator(`tr[data-row-key="${APP_IDS['advanced-chat']}"]`)
-		.getByRole('button', { name: 'More actions' })
-		.click()
-	await page.getByRole('menuitem', { name: 'Annotations' }).click()
-	await expect(page.getByRole('dialog').getByRole('table')).toBeVisible()
-	await noSpinner(page)
-	await capture(page, 'annotations-drawer', testInfo)
 })
 
 test('screenshot user-drawer', async ({ page }, testInfo) => {
@@ -251,7 +239,7 @@ async function openAppManagement(page: Page) {
 	await shellSettled(page)
 	await noSpinner(page)
 	await expect(stubApp(page)).toBeVisible()
-	await expect(page.getByText('🤖').first()).toBeVisible()
+	await expect(page.getByRole('img', { name: 'apartment' }).first()).toBeVisible()
 }
 
 /**
@@ -317,7 +305,7 @@ test.describe('branding', () => {
 		await noSpinner(page)
 		await expect(page.getByRole('banner').getByRole('link', { name: DEMO_BRAND })).toBeVisible()
 		await expect(stubApp(page)).toBeVisible()
-		await expect(page.getByText('🤖').first()).toBeVisible()
+		await expect(page.getByRole('img', { name: 'apartment' }).first()).toBeVisible()
 		await imagesLoaded(page.getByRole('banner').locator('img'))
 		await capture(page, 'apps-branded', testInfo)
 

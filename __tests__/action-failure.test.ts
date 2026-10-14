@@ -8,7 +8,7 @@ vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 import { fail, ok } from '@/lib/action-result'
 import { invalidInput, toActionFailure } from '@/lib/action-failure'
 import { AuthError } from '@/lib/auth/session'
-import { DifyError } from '@/lib/dify/errors'
+import { DifyError } from '@/lib/providers/dify/errors'
 import { describeError } from '@/lib/error-log'
 
 describe('ActionResult helpers', () => {
@@ -39,16 +39,16 @@ describe('toActionFailure', () => {
 		})
 		expect(errorSpy).not.toHaveBeenCalled()
 	})
-	it('maps any DifyError to dify_unreachable (the admin cannot fix Dify’s wording)', () => {
+	it('maps any DifyError to provider_unreachable (the admin cannot fix Dify’s wording)', () => {
 		expect(toActionFailure(new DifyError(401, 'unauthorized', 'bad key'), 'x')).toEqual({
 			ok: false,
-			code: 'dify_unreachable',
+			code: 'provider_unreachable',
 		})
 	})
 	it('logs the context with the status, code and message of a DifyError before mapping it', () => {
-		toActionFailure(new DifyError(502, 'upstream_error', 'Dify answered 502'), 'syncApp')
+		toActionFailure(new DifyError(502, 'upstream_error', 'Dify answered 502'), 'updateAppAction')
 		expect(errorSpy).toHaveBeenCalledTimes(1)
-		expect(errorSpy).toHaveBeenCalledWith('syncApp:', {
+		expect(errorSpy).toHaveBeenCalledWith('updateAppAction:', {
 			status: 502,
 			code: 'upstream_error',
 			message: 'Dify answered 502',
@@ -134,7 +134,7 @@ describe('toActionFailure', () => {
 		// the action by its code only (the message quotes the id).
 		it('answers not_found for a malformed id (22P02), logged by its code', () => {
 			const malformed = new DrizzleQueryError(
-				'delete from "dify_apps" where "dify_apps"."id" = $1',
+				'delete from "apps" where "apps"."id" = $1',
 				['abc'],
 				Object.assign(new DatabaseError('invalid input syntax for type uuid: "abc"', 0, 'error'), {
 					code: '22P02',

@@ -1,6 +1,6 @@
 import { FormInstance } from 'antd'
 
-import { CHAT_MODES, RUN_MODES, type AppMode } from '@/lib/dify/types'
+import { CHAT_MODES, RUN_MODES, type AppMode } from '@/lib/providers/dify/types'
 
 /**
  * Validates the form; when validation fails, builds the error message

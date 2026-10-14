@@ -4,9 +4,9 @@ import type {
 	HumanInputAction,
 	HumanInputField,
 	RetrieverResource,
-} from '@/lib/dify/types'
+} from '@/lib/providers/dify/types'
 
-export type { HumanInputAction, HumanInputField } from '@/lib/dify/types'
+export type { HumanInputAction, HumanInputField } from '@/lib/providers/dify/types'
 
 export type DifyRole = 'user' | 'assistant'
 

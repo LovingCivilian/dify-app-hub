@@ -1,4 +1,4 @@
-import type { FileInput, FileType } from '@/lib/dify/types'
+import type { FileInput, FileType } from '@/lib/providers/dify/types'
 
 /**
  * The file types Dify supports and the extensions of each

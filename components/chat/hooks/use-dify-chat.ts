@@ -15,12 +15,12 @@ import {
 	useSyncExternalStore,
 } from 'react'
 
-import type { DifyApi } from '@/lib/dify/browser'
-import type { HumanInputSubmission } from '@/lib/dify/types'
+import type { DifyApi } from '@/lib/providers/dify/browser'
+import type { HumanInputSubmission } from '@/lib/providers/dify/types'
 
 import workflowDataStorage, { useWorkflowStore } from '../persistence/workflow-data-storage'
 import { DifyChatProvider } from '../provider/dify-chat-provider'
-import { createDifyFetch, DifyRequestError } from '../provider/dify-fetch'
+import { createDifyFetch, RequestError } from '../provider/dify-fetch'
 import { mapHistoryPage } from '../provider/history'
 import { parseConversationKey } from '../provider/keys'
 import {
@@ -59,7 +59,7 @@ interface Options {
 /** "Load earlier" cursor per key; with `historyErrors`, an external store for useSyncExternalStore (React reference). */
 const paging = new Map<string, HistoryPaging>()
 /** The failed first history load per key: `{ status, code?, message }`, `message` being Dify's text or ''. */
-const historyErrors = new Map<string, DifyRequestError>()
+const historyErrors = new Map<string, RequestError>()
 const listeners = new Set<() => void>()
 const notify = () => {
 	for (const listener of listeners) listener()
@@ -68,7 +68,7 @@ const setPaging = (key: string, value: HistoryPaging) => {
 	paging.set(key, value)
 	notify()
 }
-const setHistoryError = (key: string, error: DifyRequestError | undefined) => {
+const setHistoryError = (key: string, error: RequestError | undefined) => {
 	if (error) historyErrors.set(key, error)
 	else historyErrors.delete(key)
 	notify()
@@ -86,7 +86,7 @@ const difyIdReaders = new Map<string, () => string | undefined>()
 /** The latest `onConversationId` given for each key; the key's cached provider calls it from its stream. */
 const conversationIdSinks = new Map<string, (key: string, difyId: string) => void>()
 
-/** One page of GET /messages; the browser client rejects with DifyRequestError on an HTTP error. */
+/** One page of GET /messages; the browser client rejects with RequestError on an HTTP error. */
 const fetchPage = (difyApi: DifyApi, difyId: string, firstId?: string) =>
 	difyApi.listMessages({ conversation_id: difyId, first_id: firstId, limit: HISTORY_PAGE })
 
@@ -184,7 +184,7 @@ const toMessageInfo = (
 })
 
 const toMessageError = (error: Error, t: TFunction, fallback: string): MessageError =>
-	error instanceof DifyRequestError
+	error instanceof RequestError
 		? { code: error.code, message: failureText(error, t, fallback), status: error.status }
 		: { message: fallback }
 
@@ -450,7 +450,7 @@ export const useDifyChat = ({
 		[],
 	)
 
-	/** Prepends the next older page; rejects with a DifyRequestError (message: Dify's text or ''). */
+	/** Prepends the next older page; rejects with a RequestError (message: Dify's text or ''). */
 	const loadEarlier = useCallback(async () => {
 		const { chat, conversationKey: key, difyApi: api, appId: app } = latest.current
 		const { difyId } = parseConversationKey(key)

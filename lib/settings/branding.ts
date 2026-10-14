@@ -30,7 +30,7 @@ import {
 	type BrandImageSource,
 	type BrandingView,
 } from './branding-rules'
-import { BrandImageError, processBrandImage, type ProcessedImage } from './images'
+import { ImageError, processImage, type ProcessedImage } from './images'
 import type { SettingsMode } from './modes'
 
 /** A processed image as the document records it (spec §4.3): the PNG's hash and size; the bytes are a file row. */
@@ -97,7 +97,7 @@ interface EnvImages {
 
 /** A refusal's own code, or a file error's string code (Node: "error.code is the most stable way to identify an error"). */
 const errorCode = (error: unknown): string => {
-	if (error instanceof BrandImageError) return error.code
+	if (error instanceof ImageError) return error.code
 	if (
 		typeof error === 'object' &&
 		error !== null &&
@@ -127,9 +127,9 @@ const loadEnvImages = async (values: BrandingEnvValues): Promise<EnvImages> => {
 			// A regular file only (Node `stats.isFile()`: "describes a regular file"): a FIFO or a device reports a size of 0
 			// and readFile would read it without end, and a directory is no image. `stat` follows a symbolic link, so a file
 			// mounted behind one still counts.
-			if (!stats.isFile()) throw new BrandImageError('not_allowed')
-			if (stats.size > BRAND_IMAGE_MAX_BYTES[kind]) throw new BrandImageError('too_large')
-			result.images[kind] = await processBrandImage(kind, await readFile(file))
+			if (!stats.isFile()) throw new ImageError('not_allowed')
+			if (stats.size > BRAND_IMAGE_MAX_BYTES[kind]) throw new ImageError('too_large')
+			result.images[kind] = await processImage(kind, await readFile(file))
 		} catch (error) {
 			const code = errorCode(error)
 			result.errors[kind] = code
@@ -240,7 +240,7 @@ export const readBrandImage = async (
 		case 'disabled':
 			return null
 		case 'env': {
-			// processBrandImage hashed these very bytes (lib/settings/images.ts).
+			// processImage hashed these very bytes (lib/settings/images.ts).
 			const image = (await envImages(config.values)).images[kind]
 			return image ? { bytes: image.bytes, sha256: image.sha256 } : null
 		}
@@ -252,7 +252,7 @@ export const readBrandImage = async (
 				logSettingsError(`instance_setting_files.branding.${kind}`, 'missing_file')
 				return null
 			}
-			// Node `crypto.createHash`, as processBrandImage hashes them.
+			// Node `crypto.createHash`, as processImage hashes them.
 			return { bytes: file.bytes, sha256: createHash('sha256').update(file.bytes).digest('hex') }
 		}
 		default:
@@ -340,7 +340,7 @@ export interface BrandingInput {
 export const isBrandingEditable = (): boolean => env().branding.mode === 'database'
 
 /**
- * Spec §5.4 steps 2 and 4–6: the mode, the images through processBrandImage, the name rule, then one write. The role is
+ * Spec §5.4 steps 2 and 4–6: the mode, the images through processImage, the name rule, then one write. The role is
  * checked here and again in the DAL (ADR-0024).
  *
  * The replaced images are decoded and re-encoded first, outside the transaction, so sharp's work never runs while the
@@ -369,12 +369,12 @@ export const saveBranding = async (
 		}
 		try {
 			// Refused unread by its size (spec §4.4 step 1; MDN `Blob.size`), before `arrayBuffer()` copies it.
-			if (change.file.size > BRAND_IMAGE_MAX_BYTES[kind]) throw new BrandImageError('too_large')
-			const image = await processBrandImage(kind, Buffer.from(await change.file.arrayBuffer()))
+			if (change.file.size > BRAND_IMAGE_MAX_BYTES[kind]) throw new ImageError('too_large')
+			const image = await processImage(kind, Buffer.from(await change.file.arrayBuffer()))
 			replaced[kind] = { sha256: image.sha256, width: image.width, height: image.height }
 			files[kind] = { bytes: image.bytes, mime: 'image/png' }
 		} catch (error) {
-			if (!(error instanceof BrandImageError)) throw error
+			if (!(error instanceof ImageError)) throw error
 			fieldErrors[kind] = [error.code]
 		}
 	}

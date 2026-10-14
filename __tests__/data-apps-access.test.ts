@@ -22,19 +22,19 @@ vi.mock('@/db', () => {
 	return { getDb: () => db }
 })
 
-import { difyApps } from '@/db/schema'
+import { apps } from '@/db/schema'
 import { getAppAccess, getAppIcon, getChatApp, listApps, visibleTo } from '@/lib/data/apps'
 
 const user = { id: 'u1', email: 'u@example.com', name: null, role: 'user' as const }
 const admin = { id: 'a1', email: 'a@example.com', name: null, role: 'admin' as const }
 const owner = { id: 'o1', email: 'o@example.com', name: null, role: 'owner' as const }
 
-/** A condition rendered on a select from dify_apps (no connection). */
+/** A condition rendered on a select from apps (no connection). */
 const render = (condition: unknown) =>
 	drizzle
 		.mock()
-		.select({ id: difyApps.id })
-		.from(difyApps)
+		.select({ id: apps.id })
+		.from(apps)
 		.where(condition as SQL | undefined)
 		.toSQL()
 
@@ -51,13 +51,13 @@ describe('visibleTo (spec §4.1)', () => {
 
 	it('lets a user see an app open to everyone, granted to it, or granted to one of its groups', () => {
 		const { sql, params } = render(visibleTo(user))
-		expect(sql).toMatch(/"dify_apps"\."access_mode" = \$1/)
+		expect(sql).toMatch(/"apps"\."access_mode" = \$1/)
 		// Drizzle 1.0.0-rc.4 parenthesises each and()/or() operand.
 		expect(sql).toMatch(
-			/exists \(select 1 from "app_user_grants" where \(\("app_user_grants"\."app_id" = "dify_apps"\."id"\) and \("app_user_grants"\."user_id" = \$2\)\)\)/,
+			/exists \(select 1 from "app_user_grants" where \(\("app_user_grants"\."app_id" = "apps"\."id"\) and \("app_user_grants"\."user_id" = \$2\)\)\)/,
 		)
 		expect(sql).toMatch(
-			/exists \(select 1 from "app_group_grants" inner join "user_group_members" on "user_group_members"\."group_id" = "app_group_grants"\."group_id" where \(\("app_group_grants"\."app_id" = "dify_apps"\."id"\) and \("user_group_members"\."user_id" = \$3\)\)\)/,
+			/exists \(select 1 from "app_group_grants" inner join "user_group_members" on "user_group_members"\."group_id" = "app_group_grants"\."group_id" where \(\("app_group_grants"\."app_id" = "apps"\."id"\) and \("user_group_members"\."user_id" = \$3\)\)\)/,
 		)
 		// Any membership counts, whatever its source (spec §4.1); the actor's id is the only account parameter.
 		expect(sql).not.toMatch(/"source"/)
@@ -75,11 +75,13 @@ describe('visibleTo (spec §4.1)', () => {
 // condition is compared with the whole rule rendered on its own (pinned above), so a read that kept only part of it
 // (one arm of the `or`, one subquery) fails.
 describe('the app reads apply visibleTo', () => {
-	it('listApps: the whole rule for a user, nothing for an admin', async () => {
+	it('listApps: the enabled apps under the whole rule for a user, the enabled apps for an admin', async () => {
 		await listApps(user)
-		expect(render(where.mock.calls[0]![0])).toEqual(render(visibleTo(user)))
+		expect(render(where.mock.calls[0]![0])).toEqual(
+			render(and(eq(apps.isEnabled, true), visibleTo(user))),
+		)
 		await listApps(admin)
-		expect(where.mock.calls[1]![0]).toBeUndefined()
+		expect(render(where.mock.calls[1]![0])).toEqual(render(eq(apps.isEnabled, true)))
 	})
 
 	it.each([
@@ -89,8 +91,8 @@ describe('the app reads apply visibleTo', () => {
 	] as const)('%s: the id and the whole rule for a user', async (_name, read) => {
 		expect(await read()).toBeNull()
 		const rendered = render(where.mock.calls[0]![0])
-		expect(rendered).toEqual(render(and(eq(difyApps.id, 'app-1'), visibleTo(user))))
-		expect(rendered.sql).toMatch(/"dify_apps"\."id" = \$1\) and \(/)
+		expect(rendered).toEqual(render(and(eq(apps.id, 'app-1'), visibleTo(user))))
+		expect(rendered.sql).toMatch(/"apps"\."id" = \$1\) and \(/)
 		expect(rendered.params).toEqual(['app-1', 'everyone', 'u1', 'u1'])
 	})
 
@@ -101,7 +103,7 @@ describe('the app reads apply visibleTo', () => {
 	] as const)('%s: the id alone for an admin', async (_name, read) => {
 		await read()
 		const rendered = render(where.mock.calls[0]![0])
-		expect(rendered).toEqual(render(eq(difyApps.id, 'app-1')))
+		expect(rendered).toEqual(render(eq(apps.id, 'app-1')))
 		expect(rendered.sql).not.toMatch(/exists/)
 		expect(rendered.params).toEqual(['app-1'])
 	})

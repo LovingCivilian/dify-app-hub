@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test'
  * one: the chat page's "missing" Result and the routes' 404 envelope, never a 500. Signed in as the owner (the
  * project's storage state), who may use every app.
  */
-const missing = 'No Dify app configuration found. Contact your administrator.'
+const missing = 'No app configuration found. Contact your administrator.'
 const notFound = { code: 'app_not_found', message: 'No such app.', status: 404 }
 
 const cases = [
@@ -29,7 +29,7 @@ for (const [label, id] of cases) {
 			const parameters = await page.request.get(`/api/dify/${id}/parameters`)
 			expect(parameters.status()).toBe(404)
 			expect(await parameters.json()).toEqual(notFound)
-			// The guard runs before the body is read (session → app → role → input, lib/dify/route.ts).
+			// The guard runs before the body is read (session → app → role → input, lib/providers/dify/route.ts).
 			const send = await page.request.post(`/api/dify/${id}/chat-messages`, {
 				data: { query: 'hello', inputs: {} },
 			})

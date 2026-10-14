@@ -1,8 +1,9 @@
 import type { NextRequest } from 'next/server'
 
-import { passthrough } from '@/lib/dify/client'
-import { errorResponseFrom, resolveDifyRoute } from '@/lib/dify/route'
-import { parsePathParams, parseQuery, workflowEventsQuery } from '@/lib/dify/schemas'
+import { passthrough } from '@/lib/providers/dify/client'
+import { errorResponseFrom, resolveDifyRoute } from '@/lib/providers/dify/route'
+import { workflowEventsQuery } from '@/lib/providers/dify/schemas'
+import { parsePathParams, parseQuery } from '@/lib/http/parse'
 
 /** GET /workflow/{workflow_run_id}/events (Dify's singular path; endpoint map §1.4): the resumed run's stream. */
 export async function GET(

@@ -4,11 +4,8 @@ import { createHash } from 'node:crypto'
 
 import sharp, { type Metadata } from 'sharp'
 
-import {
-	BRAND_IMAGE_MAX_BYTES,
-	type BrandImageErrorCode,
-	type BrandImageKind,
-} from './branding-rules'
+import { BRAND_IMAGE_MAX_BYTES, type BrandImageKind } from './branding-rules'
+import { APP_ICON_MAX_BYTES, APP_ICON_SIZE, type ImageErrorCode } from './image-rules'
 
 /** An image the hub produced (settings spec §4.4): a PNG, its SHA-256 (hex) and its size in pixels. */
 export interface ProcessedImage {
@@ -18,13 +15,16 @@ export interface ProcessedImage {
 	height: number
 }
 
-export class BrandImageError extends Error {
+/** The images the pipeline takes: the two brand images (ADR-0030) and an app's icon (Part 1 spec §4.4). */
+export type ImageKind = BrandImageKind | 'appIcon'
+
+export class ImageError extends Error {
 	constructor(
-		public readonly code: BrandImageErrorCode,
+		public readonly code: ImageErrorCode,
 		options?: ErrorOptions,
 	) {
 		super(code, options)
-		this.name = 'BrandImageError'
+		this.name = 'ImageError'
 	}
 }
 
@@ -41,10 +41,25 @@ export const MAX_INPUT_PIXELS = 4096 * 4096
  */
 const ACCEPTED_FORMATS = new Set(['png', 'jpeg', 'webp'])
 
-/** The logo at three times its largest display height (64 px) and up to 4:1; the favicon twice the 32 px tab size. */
-const BOX: Record<BrandImageKind, { width: number; height: number }> = {
-	logo: { width: 768, height: 192 },
-	favicon: { width: 64, height: 64 },
+const MAX_BYTES: Readonly<Record<ImageKind, number>> = {
+	...BRAND_IMAGE_MAX_BYTES,
+	appIcon: APP_ICON_MAX_BYTES,
+}
+
+/**
+ * The box each kind is fitted into (sharp `resize`). The logo: three times its largest display height (64 px), up to 4:1,
+ * never enlarged. The favicon: twice the 32 px tab size, padded to a square. The app icon: at most 256 px on its longer
+ * side, in proportion, never enlarged (Part 1 spec §4.4).
+ */
+const SHAPE: Readonly<
+	Record<
+		ImageKind,
+		{ width: number; height: number; fit: 'inside' | 'contain'; withoutEnlargement: boolean }
+	>
+> = {
+	logo: { width: 768, height: 192, fit: 'inside', withoutEnlargement: true },
+	favicon: { width: 64, height: 64, fit: 'contain', withoutEnlargement: false },
+	appIcon: { width: APP_ICON_SIZE, height: APP_ICON_SIZE, fit: 'inside', withoutEnlargement: true },
 }
 
 /**
@@ -53,29 +68,20 @@ const BOX: Record<BrandImageKind, { width: number; height: number }> = {
  * decoder warning by default (`failOn`), removes metadata from its output by default ("By default all metadata will be
  * removed"), and `autoOrient` applies the EXIF orientation first, so a phone photo stays upright.
  */
-export async function processBrandImage(
-	kind: BrandImageKind,
-	input: Buffer,
-): Promise<ProcessedImage> {
-	if (input.length > BRAND_IMAGE_MAX_BYTES[kind]) throw new BrandImageError('too_large')
+export async function processImage(kind: ImageKind, input: Buffer): Promise<ProcessedImage> {
+	if (input.length > MAX_BYTES[kind]) throw new ImageError('too_large')
 	const options = { limitInputPixels: MAX_INPUT_PIXELS, autoOrient: true }
 	let meta: Metadata
 	try {
 		meta = await sharp(input, options).metadata()
 	} catch (error) {
-		throw new BrandImageError('not_allowed', { cause: error })
+		throw new ImageError('not_allowed', { cause: error })
 	}
 	if (!meta.format || !ACCEPTED_FORMATS.has(meta.format) || !meta.width || !meta.height)
-		throw new BrandImageError('not_allowed')
-	const box = BOX[kind]
+		throw new ImageError('not_allowed')
 	try {
 		const { data, info } = await sharp(input, options)
-			.resize({
-				...box,
-				fit: kind === 'logo' ? 'inside' : 'contain',
-				withoutEnlargement: kind === 'logo',
-				background: { r: 0, g: 0, b: 0, alpha: 0 },
-			})
+			.resize({ ...SHAPE[kind], background: { r: 0, g: 0, b: 0, alpha: 0 } })
 			.png()
 			.toBuffer({ resolveWithObject: true })
 		return {
@@ -85,6 +91,6 @@ export async function processBrandImage(
 			height: info.height,
 		}
 	} catch (error) {
-		throw new BrandImageError('not_allowed', { cause: error })
+		throw new ImageError('not_allowed', { cause: error })
 	}
 }

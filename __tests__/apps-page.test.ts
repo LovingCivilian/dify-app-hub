@@ -15,25 +15,15 @@ vi.mock('@/components/apps/app-gallery', () => ({ default: AppGallery }))
 import AppListPage from '@/app/(user)/apps/page'
 
 const actor = { id: 'u1', email: 'jane@example.com', name: null }
-const settings = {
-	answerForm: { enabled: false, feedbackText: '' },
-	enableUpdateAfterConversationStarts: false,
-	openingStatementDisplayMode: 'default',
-	annotationEnabled: false,
-}
-const app = (id: string, enabled: boolean) => ({
-	id,
-	name: `App ${id}`,
-	mode: 'chat',
+const summary = {
+	id: 'a1',
+	provider: 'dify',
+	name: 'App a1',
 	description: '',
 	tags: [],
-	enabled,
-	icon: null,
-	settings,
-	apiBase: 'https://dify.example/v1',
-	createdAt: '2026-10-07T00:00:00.000Z',
-	updatedAt: '2026-10-07T00:00:00.000Z',
-})
+	hasIcon: false,
+	appType: 'chat',
+}
 
 describe('/apps page', () => {
 	beforeEach(() => {
@@ -45,17 +35,15 @@ describe('/apps page', () => {
 		await expect(AppListPage()).rejects.toBe(redirectSignal)
 		expect(listApps).not.toHaveBeenCalled()
 	})
-	it('hands the gallery the enabled apps, trimmed', async () => {
+	// The DAL trims and filters (listApps answers AppSummary for the enabled apps the actor may use); the page passes them on.
+	it('hands the gallery the summaries the DAL read', async () => {
 		requireUser.mockResolvedValue(actor)
-		listApps.mockResolvedValue([app('a1', true), app('a2', false)])
+		listApps.mockResolvedValue([summary])
 		const page = await AppListPage()
 		expect(listApps).toHaveBeenCalledWith(actor)
 		expect(page).toMatchObject({
 			type: UserShell,
-			props: {
-				children: { type: AppGallery, props: { apps: [{ id: 'a1', name: 'App a1', icon: null }] } },
-			},
+			props: { children: { type: AppGallery, props: { apps: [summary] } } },
 		})
-		expect(JSON.stringify(page.props.children.props)).not.toContain('dify.example')
 	})
 })

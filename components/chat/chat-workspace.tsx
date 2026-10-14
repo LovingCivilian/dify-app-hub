@@ -5,11 +5,10 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import UserShell from '@/components/shell/user-shell'
-import type { ChatAppDto } from '@/lib/data/apps'
-import { createDifyApi } from '@/lib/dify/browser'
+import { createDifyApi } from '@/lib/providers/dify/browser'
 
 import { DEFAULT_SITE_SETTINGS } from './app-answers'
-import { AppContext, type AppContextValue } from './app-context'
+import { AppContext, type AppContextValue, type DifyChatApp } from './app-context'
 import { failureText } from './hooks/dify-errors'
 import ChatView from './chat-view/chat-view'
 import styles from './chat-view/chat-view.module.css'
@@ -22,7 +21,7 @@ type State =
 	| { status: 'ready'; value: AppContextValue }
 
 /** Loads the app's parameters and site settings, provides AppContext and picks the view by mode. The app itself arrives from the server page. */
-export default function ChatWorkspace({ app }: { app: ChatAppDto }) {
+export default function ChatWorkspace({ app }: { app: DifyChatApp }) {
 	const { t } = useTranslation()
 	const [state, setState] = useState<State>({ status: 'loading' })
 
@@ -81,7 +80,7 @@ export default function ChatWorkspace({ app }: { app: ChatAppDto }) {
 			</UserShell>
 		)
 	}
-	const mode = state.value.app.mode
+	const mode = state.value.app.appType
 	return (
 		<AppContext.Provider value={state.value}>
 			{isChatLikeApp(mode) ? (

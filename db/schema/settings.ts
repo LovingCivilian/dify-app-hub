@@ -21,7 +21,7 @@ export const instanceSettings = pgTable('instance_settings', {
 })
 
 /**
- * An area's files (spec §3.2): branding's processed PNGs, in the database like the app icons (dify_apps.icon_image),
+ * An area's files (spec §3.2): branding's processed PNGs, in the database like the app icons (apps.icon_image),
  * so several hub containers need no shared folder. Deleting the area's row deletes them (PostgreSQL 18 "Foreign Keys",
  * ON DELETE CASCADE); the primary key leads with `area`, which serves the foreign key.
  */

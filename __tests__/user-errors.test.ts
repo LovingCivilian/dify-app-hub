@@ -14,7 +14,7 @@ describe('userErrorKey', () => {
 		['invalid_input', 'admin_users.invalid_input'],
 		['sync_running', 'admin_users.sync_running'],
 		['operation_failed', 'common.operation_failed'],
-		['dify_unreachable', 'common.operation_failed'],
+		['provider_unreachable', 'common.operation_failed'],
 	] as const)('maps %s to %s', (code, key) => {
 		expect(userErrorKey(code)).toBe(key)
 	})

@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { requireUser, getChatApp, ChatWorkspace, AppUnavailable, redirectSignal } = vi.hoisted(
+const { requireUser, getChatApp, ProviderChat, AppUnavailable, redirectSignal } = vi.hoisted(
 	() => ({
 		requireUser: vi.fn(),
 		getChatApp: vi.fn(),
-		ChatWorkspace: () => null,
+		ProviderChat: () => null,
 		AppUnavailable: () => null,
 		redirectSignal: new Error('NEXT_REDIRECT'),
 	}),
 )
 vi.mock('@/lib/auth/session', () => ({ requireUser }))
 vi.mock('@/lib/data/apps', () => ({ getChatApp }))
-vi.mock('@/components/chat/chat-workspace', () => ({ default: ChatWorkspace }))
+vi.mock('@/components/provider-ui/provider-chat', () => ({ default: ProviderChat }))
 vi.mock('@/components/chat/app-unavailable', () => ({ default: AppUnavailable }))
 
 import AppChatPage from '@/app/(user)/chat/[appId]/page'
@@ -19,16 +19,16 @@ import AppChatPage from '@/app/(user)/chat/[appId]/page'
 const actor = { id: 'u1', email: 'jane@example.com', name: null }
 const app = {
 	id: '3b241101-e2bb-4255-8caf-4136c566a962',
+	provider: 'dify',
 	name: 'Tea',
-	mode: 'chat',
 	description: '',
 	enabled: true,
-	icon: null,
+	hasIcon: false,
+	appType: 'chat',
 	settings: {
 		answerForm: { enabled: false, feedbackText: '' },
 		enableUpdateAfterConversationStarts: false,
 		openingStatementDisplayMode: 'default',
-		annotationEnabled: false,
 	},
 }
 const props = {
@@ -47,13 +47,13 @@ describe('/chat/[appId] page', () => {
 		await expect(AppChatPage(props as never)).rejects.toBe(redirectSignal)
 		expect(getChatApp).not.toHaveBeenCalled()
 	})
-	it('hands the workspace the chat DTO, keyed by the app', async () => {
+	it("hands the provider's chat view the chat DTO, keyed by the app", async () => {
 		requireUser.mockResolvedValue(actor)
 		getChatApp.mockResolvedValue(app)
 		const page = await AppChatPage(props as never)
 		expect(getChatApp).toHaveBeenCalledWith(actor, '3b241101-e2bb-4255-8caf-4136c566a962')
 		expect(page).toMatchObject({
-			type: ChatWorkspace,
+			type: ProviderChat,
 			key: '3b241101-e2bb-4255-8caf-4136c566a962',
 			props: { app },
 		})

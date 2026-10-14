@@ -1,0 +1,10 @@
+/* Static styles of the Form's custom required mark (antd CSS variables, ADR-0021). */
+.required {
+	color: var(--ant-color-error);
+	margin-inline-end: var(--ant-margin-xxs);
+}
+
+.optional {
+	color: var(--ant-color-text-description);
+	margin-inline-start: var(--ant-margin-xxs);
+}

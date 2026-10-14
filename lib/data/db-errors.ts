@@ -50,6 +50,6 @@ export const isDeadlock = (error: unknown): boolean => hasCode(error, '40P01')
 /**
  * 22P02 invalid_text_representation: a value its column's type cannot read, such as a malformed id for a `uuid` column
  * (PostgreSQL 18 "UUID Type"). Every id from outside is checked before a query (spec §3.2); this is the safety net that
- * lets a missed spot answer as an unknown id instead of a 500 (lib/action-failure.ts, lib/dify/errors.ts).
+ * lets a missed spot answer as an unknown id instead of a 500 (lib/action-failure.ts, lib/http/errors.ts).
  */
 export const isInvalidTextRepresentation = (error: unknown): boolean => hasCode(error, '22P02')

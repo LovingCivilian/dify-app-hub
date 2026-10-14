@@ -11,7 +11,7 @@ import {
 	type AnswerDeps,
 } from '@/components/chat/hooks/use-dify-chat'
 import type { PauseWait } from '@/components/chat/provider/dify-chat-provider'
-import { DifyRequestError } from '@/components/chat/provider/dify-fetch'
+import { RequestError } from '@/components/chat/provider/dify-fetch'
 import { emptyAssistant, type DifyChatMessage } from '@/components/chat/provider/message'
 
 const t = ((key: string) => `t:${key}`) as unknown as TFunction
@@ -53,7 +53,7 @@ describe('fallbackMessage (useXChat requestFallback)', () => {
 		})
 	})
 	it("shows Dify's error with its code and status", () => {
-		const error = new DifyRequestError(400, 'app_unavailable', 'App unavailable')
+		const error = new RequestError(400, 'app_unavailable', 'App unavailable')
 		expect(fallbackMessage(error, emptyAssistant(), t).error).toEqual({
 			code: 'app_unavailable',
 			message: 'App unavailable',
@@ -61,7 +61,7 @@ describe('fallbackMessage (useXChat requestFallback)', () => {
 		})
 	})
 	it('uses the generic text when Dify sent no message (HTTP/2 has no statusText)', () => {
-		const error = new DifyRequestError(502, undefined, '')
+		const error = new RequestError(502, undefined, '')
 		expect(fallbackMessage(error, emptyAssistant(), t).error).toEqual({
 			code: undefined,
 			message: 't:common.request_failed_retry',
@@ -80,12 +80,12 @@ describe('fallbackMessage (useXChat requestFallback)', () => {
 			message: 't:hitl.resume_failed',
 		})
 		expect(
-			fallbackMessage(new DifyRequestError(502, undefined, ''), streamed, t, resume).error,
+			fallbackMessage(new RequestError(502, undefined, ''), streamed, t, resume).error,
 		).toEqual({ code: undefined, message: 't:hitl.resume_failed', status: 502 })
 		// Dify's own reason still wins, and a stop is still a stop.
 		expect(
 			fallbackMessage(
-				new DifyRequestError(404, 'not_found', 'Workflow run not found'),
+				new RequestError(404, 'not_found', 'Workflow run not found'),
 				streamed,
 				t,
 				resume,

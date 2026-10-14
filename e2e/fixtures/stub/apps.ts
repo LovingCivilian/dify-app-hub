@@ -14,13 +14,11 @@ export interface StubApp {
 	name: string
 	mode: StubMode
 	prefix: StubPrefix
-	/** Seeded into `dify_apps.opening_statement_display_mode`: 'always' keeps the welcome panel after the first reply. */
+	/** Seeded into the app's settings (`openingStatementDisplayMode`): 'always' keeps the welcome panel after the first reply. */
 	openingStatementDisplayMode: 'default' | 'always'
-	/** Seeded into `dify_apps.enable_annotation` (the app's `extConfig.annotation.enabled`): the footer offers "Annotation". */
-	enableAnnotation: boolean
 	/** GET /site: an emoji icon (default), an image icon, or Dify's 403 for an app without a site. */
 	site?: 'emoji' | 'image' | 'none'
-	/** Seeded into dify_apps.is_enabled; true when absent. */
+	/** Seeded into apps.is_enabled; true when absent. */
 	enabled?: false
 }
 
@@ -32,7 +30,6 @@ export const STUB_APPS: StubApp[] = [
 		mode: 'chat',
 		prefix: '',
 		openingStatementDisplayMode: 'default',
-		enableAnnotation: false,
 	},
 	{
 		id: 'e2e00000-0000-4000-8000-000000000002',
@@ -40,7 +37,6 @@ export const STUB_APPS: StubApp[] = [
 		mode: 'agent-chat',
 		prefix: '/agent',
 		openingStatementDisplayMode: 'default',
-		enableAnnotation: false,
 	},
 	{
 		id: 'e2e00000-0000-4000-8000-000000000003',
@@ -48,7 +44,6 @@ export const STUB_APPS: StubApp[] = [
 		mode: 'advanced-chat',
 		prefix: '/chatflow',
 		openingStatementDisplayMode: 'always',
-		enableAnnotation: true,
 	},
 	{
 		id: 'e2e00000-0000-4000-8000-000000000004',
@@ -56,7 +51,6 @@ export const STUB_APPS: StubApp[] = [
 		mode: 'workflow',
 		prefix: '/workflow',
 		openingStatementDisplayMode: 'default',
-		enableAnnotation: false,
 	},
 	{
 		id: 'e2e00000-0000-4000-8000-000000000005',
@@ -64,7 +58,6 @@ export const STUB_APPS: StubApp[] = [
 		mode: 'completion',
 		prefix: '/completion',
 		openingStatementDisplayMode: 'default',
-		enableAnnotation: false,
 	},
 ]
 
@@ -76,7 +69,7 @@ export const APP_IDS = Object.fromEntries(STUB_APPS.map(app => [app.mode, app.id
 /**
  * Sub-project 3 fixtures, kept out of STUB_APPS so APP_IDS keeps one id per mode for the chat specs.
  * The disabled and no-site apps are seeded by e2e/auth.setup.ts; the created app is not — the admin
- * spec creates it through the form, and its /info answers a name of its own and its /site an image icon.
+ * spec creates it through the form, and its /info answers its own name and mode.
  */
 export const DISABLED_APP: StubApp = {
 	id: 'e2e00000-0000-4000-8000-000000000006',
@@ -84,7 +77,6 @@ export const DISABLED_APP: StubApp = {
 	mode: 'chat',
 	prefix: '/disabled',
 	openingStatementDisplayMode: 'default',
-	enableAnnotation: false,
 	enabled: false,
 }
 export const NO_SITE_APP: StubApp = {
@@ -93,7 +85,6 @@ export const NO_SITE_APP: StubApp = {
 	mode: 'workflow',
 	prefix: '/nosite',
 	openingStatementDisplayMode: 'default',
-	enableAnnotation: false,
 	site: 'none',
 }
 export const CREATED_APP: StubApp = {
@@ -102,7 +93,6 @@ export const CREATED_APP: StubApp = {
 	mode: 'chat',
 	prefix: '/created',
 	openingStatementDisplayMode: 'default',
-	enableAnnotation: false,
 	site: 'image',
 }
 export const SEEDED_EXTRA_APPS: StubApp[] = [DISABLED_APP, NO_SITE_APP]
@@ -124,5 +114,5 @@ export const modeFromPath = (pathname: string): { mode: StubMode; path: string }
 	return { mode: app.mode, path }
 }
 
-/** The app a stub path belongs to (its name, site variant and annotation store). */
+/** The app a stub path belongs to (its name and site variant). */
 export const appFromPath = (pathname: string): StubApp => matchPrefix(pathname).app

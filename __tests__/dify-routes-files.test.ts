@@ -10,10 +10,6 @@ const { verifySession, getAppAccess, client } = vi.hoisted(() => ({
 		fetchRemoteFile: vi.fn(),
 		audioToText: vi.fn(),
 		textToAudio: vi.fn(),
-		listAnnotations: vi.fn(),
-		createAnnotation: vi.fn(),
-		updateAnnotation: vi.fn(),
-		deleteAnnotation: vi.fn(),
 	},
 }))
 vi.mock('@/lib/auth/session', () => ({
@@ -21,19 +17,11 @@ vi.mock('@/lib/auth/session', () => ({
 	AuthError: class AuthError extends Error {},
 }))
 vi.mock('@/lib/data/apps', () => ({ getAppAccess }))
-vi.mock('@/lib/dify/client', async importOriginal => ({
-	...(await importOriginal<typeof import('@/lib/dify/client')>()),
+vi.mock('@/lib/providers/dify/client', async importOriginal => ({
+	...(await importOriginal<typeof import('@/lib/providers/dify/client')>()),
 	difyClient: () => client,
 }))
 
-import {
-	DELETE as deleteAnnotation,
-	PUT as updateAnnotation,
-} from '@/app/api/dify/[appId]/apps/annotations/[annotationId]/route'
-import {
-	GET as listAnnotations,
-	POST as createAnnotation,
-} from '@/app/api/dify/[appId]/apps/annotations/route'
 import { POST as audioToText } from '@/app/api/dify/[appId]/audio-to-text/route'
 import { GET as preview } from '@/app/api/dify/[appId]/files/[fileId]/preview/route'
 import { GET as remote } from '@/app/api/dify/[appId]/files/remote/route'
@@ -43,12 +31,12 @@ import { POST as textToAudio } from '@/app/api/dify/[appId]/text-to-audio/route'
 /** The Dify end user: the account's id, never its email (ADR-0026). */
 const USER = 'u1'
 const actor = { id: USER, email: 'jane@example.com', name: null, role: 'admin' }
-const member = { ...actor, role: 'user' }
 const access = {
 	id: '3b241101-e2bb-4255-8caf-4136c566a962',
 	enabled: true,
-	annotationEnabled: false,
-	credentials: { apiBase: 'https://dify.example/v1', apiKey: 'k' },
+	provider: 'dify',
+	settings: { apiBase: 'https://dify.example/v1' },
+	secrets: { apiKey: 'k' },
 }
 const base = 'http://app/api/dify/3b241101-e2bb-4255-8caf-4136c566a962'
 const params = <P extends Record<string, string>>(extra?: P) => ({
@@ -205,119 +193,6 @@ describe('audio', () => {
 	})
 })
 
-describe('annotations', () => {
-	it('lists with the validated query', async () => {
-		client.listAnnotations.mockResolvedValue({
-			data: [],
-			has_more: false,
-			limit: 10,
-			total: 0,
-			page: 1,
-		})
-		await listAnnotations(
-			new NextRequest(`${base}/apps/annotations?page=1&limit=10&keyword=tea`),
-			params(),
-		)
-		expect(client.listAnnotations).toHaveBeenCalledWith({ page: 1, limit: 10, keyword: 'tea' })
-	})
-	it('creates with 201, updates, deletes with 204', async () => {
-		client.createAnnotation.mockResolvedValue({
-			id: 'a1',
-			question: 'q',
-			answer: 'a',
-			hit_count: 0,
-			created_at: 1,
-		})
-		const created = await createAnnotation(
-			json('/apps/annotations', 'POST', { question: 'q', answer: 'a' }),
-			params(),
-		)
-		expect(created.status).toBe(201)
-		client.updateAnnotation.mockResolvedValue({
-			id: 'a1',
-			question: 'q',
-			answer: 'b',
-			hit_count: 0,
-			created_at: 1,
-		})
-		const updated = await updateAnnotation(
-			json('/apps/annotations/a1', 'PUT', { question: 'q', answer: 'b' }),
-			params({ annotationId: 'a1' }),
-		)
-		expect(client.updateAnnotation).toHaveBeenCalledWith('a1', { question: 'q', answer: 'b' })
-		expect(updated.status).toBe(200)
-		client.deleteAnnotation.mockResolvedValue(undefined)
-		const deleted = await deleteAnnotation(
-			new NextRequest(`${base}/apps/annotations/a1`, { method: 'DELETE' }),
-			params({ annotationId: 'a1' }),
-		)
-		expect(deleted.status).toBe(204)
-	})
-	it('refuses a blank question', async () => {
-		expect(
-			(
-				await createAnnotation(
-					json('/apps/annotations', 'POST', { question: '  ', answer: 'a' }),
-					params(),
-				)
-			).status,
-		).toBe(400)
-	})
-})
-
-describe('annotation routes and roles (charter §4.1, §4.2)', () => {
-	const forbidden = { code: 'forbidden', message: 'Not allowed.', status: 403 }
-
-	it('refuses list, update and delete to a user-role account without calling Dify', async () => {
-		verifySession.mockResolvedValue(member)
-		const list = await listAnnotations(new NextRequest(`${base}/apps/annotations`), params())
-		const put = await updateAnnotation(
-			json('/apps/annotations/ann-1', 'PUT', { question: 'q', answer: 'a' }),
-			params({ annotationId: 'ann-1' }),
-		)
-		const del = await deleteAnnotation(
-			new NextRequest(`${base}/apps/annotations/ann-1`, { method: 'DELETE' }),
-			params({ annotationId: 'ann-1' }),
-		)
-		for (const response of [list, put, del]) {
-			expect(response.status).toBe(403)
-			expect(await response.json()).toEqual(forbidden)
-		}
-		expect(client.listAnnotations).not.toHaveBeenCalled()
-		expect(client.updateAnnotation).not.toHaveBeenCalled()
-		expect(client.deleteAnnotation).not.toHaveBeenCalled()
-	})
-
-	it('lets a user-role account create an annotation only where the app enables annotations', async () => {
-		verifySession.mockResolvedValue(member)
-		getAppAccess.mockResolvedValue({ ...access, annotationEnabled: false })
-		const refused = await createAnnotation(
-			json('/apps/annotations', 'POST', { question: 'q', answer: 'a' }),
-			params(),
-		)
-		expect(refused.status).toBe(403)
-		expect(client.createAnnotation).not.toHaveBeenCalled()
-
-		getAppAccess.mockResolvedValue({ ...access, annotationEnabled: true })
-		client.createAnnotation.mockResolvedValue({ id: 'ann-1', question: 'q', answer: 'a' })
-		const created = await createAnnotation(
-			json('/apps/annotations', 'POST', { question: 'q', answer: 'a' }),
-			params(),
-		)
-		expect(created.status).toBe(201)
-	})
-
-	it('lets an admin create an annotation whatever the app setting', async () => {
-		getAppAccess.mockResolvedValue({ ...access, annotationEnabled: false })
-		client.createAnnotation.mockResolvedValue({ id: 'ann-1', question: 'q', answer: 'a' })
-		const created = await createAnnotation(
-			json('/apps/annotations', 'POST', { question: 'q', answer: 'a' }),
-			params(),
-		)
-		expect(created.status).toBe(201)
-	})
-})
-
 describe('path segments', () => {
 	// A bare `.` or `..` collapses in fetch's URL parser, so encoding is not enough: every route with a segment
 	// refuses it before the query or the body is read or Dify is called (Task 8's `parsePathParams`).
@@ -326,22 +201,6 @@ describe('path segments', () => {
 		[
 			'fileId',
 			() => preview(new NextRequest(`${base}/files/../preview`), params({ fileId: dotDot })),
-		],
-		[
-			'annotationId',
-			() =>
-				updateAnnotation(
-					json('/apps/annotations/..', 'PUT', { question: 'q', answer: 'a' }),
-					params({ annotationId: dotDot }),
-				),
-		],
-		[
-			'annotationId',
-			() =>
-				deleteAnnotation(
-					new NextRequest(`${base}/apps/annotations/..`, { method: 'DELETE' }),
-					params({ annotationId: dotDot }),
-				),
 		],
 	] as const
 	it.each(refusals)(
@@ -355,16 +214,11 @@ describe('path segments', () => {
 			for (const fn of Object.values(client)) expect(fn).not.toHaveBeenCalled()
 		},
 	)
-	it('validates the segment before the query or the body is read', async () => {
+	it('validates the segment before the query is read', async () => {
 		const badFlag = await preview(
 			new NextRequest(`${base}/files/../preview?as_attachment=yes`),
 			params({ fileId: dotDot }),
 		)
 		expect((await badFlag.json()).message).toContain('fileId')
-		const badBody = await updateAnnotation(
-			new NextRequest(`${base}/apps/annotations/..`, { method: 'PUT', body: 'not json' }),
-			params({ annotationId: dotDot }),
-		)
-		expect((await badBody.json()).message).toContain('annotationId')
 	})
 })

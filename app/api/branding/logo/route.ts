@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { errorResponseFrom } from '@/lib/dify/errors'
+import { errorResponseFrom } from '@/lib/http/errors'
 import { brandImageResponse } from '@/lib/settings/image-response'
 
 /** The custom logo (settings spec §4.5). Public: the login page shows it before anyone signs in (lib/access.ts). */
