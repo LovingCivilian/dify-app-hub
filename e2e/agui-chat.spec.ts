@@ -128,9 +128,26 @@ test.describe('the AG-UI chat', () => {
 	})
 
 	test('Stop ends the run in place, and the agent stops', async ({ page, request, isMobile }) => {
+		// Spec §4.5, §12: the browser's own abort is only a fallback when the stop route cannot be called. A /runs request
+		// that failed (aborted by the browser) or a missing 204 from the stop route would mean that fallback ran.
+		const failedRuns: string[] = []
+		page.on('requestfailed', failed => {
+			if (
+				failed.method() === 'POST' &&
+				/\/api\/apps\/[^/]+\/runs$/.test(new URL(failed.url()).pathname)
+			)
+				failedRuns.push(failed.url())
+		})
 		await send(page, 'slow')
 		const answer = answers(page).last()
 		await expect(answer).toContainText('word2')
+		const stopResponse = page.waitForResponse(
+			response =>
+				response.request().method() === 'POST' &&
+				/\/api\/apps\/[^/]+\/conversations\/[^/]+\/runs\/[^/]+\/stop$/.test(
+					new URL(response.url()).pathname,
+				),
+		)
 		if (isMobile) {
 			// Next's dev indicator (nextjs-portal, bottom-right, dev only) sits over the Sender's action button at phone
 			// width and intercepts the pointer. ADR-0028's Consequences accept that dev-only overlap, and ADR-0010's
@@ -138,10 +155,12 @@ test.describe('the AG-UI chat', () => {
 			// keyboard, which a real user can do (Locator.press focuses the element, then presses the key).
 			await stopButton(page).press('Enter')
 		} else await stopButton(page).click()
+		expect((await stopResponse).status()).toBe(204)
 		// Spec §4.5: the hub closes the run as cancelled; the turn finishes where it is.
 		await expect(answer.getByText('Stopped', { exact: true })).toBeVisible()
 		await expect(stopButton(page)).toHaveCount(0)
 		await expect(answers(page)).toHaveCount(1)
+		expect(failedRuns).toEqual([])
 		// The agent saw its request closed (the stub's test-only report of the last slow stream).
 		await expect
 			.poll(async () => (await (await request.get(stubUrl('/agui/_slow'))).json()).closedEarly)
