@@ -66,6 +66,8 @@ Before any stream, answer with a plain HTTP status and no event stream:
 | 415 | a body that is not JSON | "The agent refused the request" (`agent_rejected_input`) |
 | 422 | a body that is not a valid `RunAgentInput` | the same |
 
+The hub reads a 403 the same way as a 401 (`agent_auth_failed`); agents should still send 401.
+
 A refused connection reads as "The agent is restarting, try again" (`provider_unreachable`). Any other status before the stream is an upstream error.
 
 In the stream, a failure is `RUN_ERROR` with a `code` and a `message` the user may read. The hub titles these codes: `usage_limit`, `rate_limited`, `busy`, `model_unavailable`, `agent_error`; any other code gets a generic title. A run that hits your time limit sends `CUSTOM { name: 'run_cancelled', value: { reason: 'run_timeout' } }` and then `RUN_FINISHED`; the hub keeps the partial answer and shows "Stopped: time limit".
@@ -76,7 +78,7 @@ The hub shows text, reasoning, tool calls with their results, and run errors. It
 
 The user's Stop closes the hub's request to your agent. On Starlette (FastAPI, Pydantic AI's `AGUIAdapter`) the stream sees `CancelledError` and the model call stops; the hub keeps what arrived and marks the turn "Stopped". Tool calls you started and did not answer come back in the next run's history with a `tool` message whose `error` is `stopped`.
 
-The hub's HTTP client gives up after five minutes without a byte from your agent. If a tool can run longer, send something before that: an SSE comment line (`: keep-alive`), which AG-UI consumers must tolerate, or a progress event.
+The hub's HTTP client (Node's `fetch`, undici 6, whose documented `headersTimeout` and `bodyTimeout` default to 300 s each, Client options) gives up after five minutes without a byte from your agent. If a tool can run longer, send something before that: an SSE comment line (`: keep-alive`), which AG-UI consumers must tolerate, or a progress event.
 
 ## Test connection
 
@@ -90,5 +92,6 @@ The app form's Test connection POSTs `{}` (valid JSON, not a valid `RunAgentInpu
 | 415 or another 4xx | "The provider answered with an error" |
 | no answer, the timeout, or a 5xx | "The provider could not be reached" |
 | a 2xx event stream | "Connected, but the agent ran on a test request": your agent started a run on invalid input (the hub closes it at once; fix the agent) |
+| a 2xx answer that is not an event stream | "The provider answered with an error" |
 
 Check the token before validating the body, so a wrong secret shows as refused rather than "Connected". FastAPI runs auth dependencies before body validation for well-formed JSON, which is why the probe is `{}`.

@@ -54,7 +54,7 @@ Chosen: the per-request JWT, the `{}` probe, and the registry with standard prot
 
 ### Errors before the stream
 
-The agent answers 401 (bad or expired token), 404 (unknown agent), 415 (not JSON) and 422 (invalid body) before any stream; the hub answers them as 502 `agent_auth_failed`, `agent_not_found` and `agent_rejected_input`, any other refusal as 502 `upstream_error`, and a refused connection or no answer as 503 `provider_unreachable`. In-stream `RUN_ERROR` codes (`usage_limit`, `rate_limited`, `busy`, `model_unavailable`, `agent_error`) pass through with their message, which the owner's agent makes safe to show; a time limit is `CUSTOM run_cancelled { reason: 'run_timeout' }` then `RUN_FINISHED`, stored as cancelled.
+The agent answers 401 or 403 (a refused token), 404 (unknown agent), 415 (not JSON) and 422 (invalid body) before any stream; the hub answers them as 502 `agent_auth_failed`, `agent_not_found` and `agent_rejected_input`, any other refusal as 502 `upstream_error`, and a refused connection or no answer as 503 `provider_unreachable`. In-stream `RUN_ERROR` codes (`usage_limit`, `rate_limited`, `busy`, `model_unavailable`, `agent_error`) pass through with their message, which the owner's agent makes safe to show; a time limit is `CUSTOM run_cancelled { reason: 'run_timeout' }` then `RUN_FINISHED`, stored as cancelled.
 
 ### Test connection, the hub's own convention
 
