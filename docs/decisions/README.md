@@ -54,6 +54,8 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0030](0030-set-each-settings-area-from-the-environment-or-the-admin-page.md) | Set each settings area from the environment or the admin page | accepted | 2026-10-11 |
 | [0031](0031-move-the-database-to-postgresql-18.md) | Move the database to PostgreSQL 18 | accepted | 2026-10-11 |
 | [0032](0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md) | Organise apps by provider: a shared core with provider modules | accepted | 2026-10-11 |
+| [0033](0033-use-ag-ui-as-the-hubs-chat-protocol-with-a-hub-side-conversation-store.md) | Use AG-UI as the hub's chat protocol, with a hub-side conversation store | proposed | 2026-10-14 |
+| [0034](0034-add-ag-ui-agents-as-a-provider.md) | Add AG-UI agents as a provider | proposed | 2026-10-14 |
 
 ## Inherited from upstream (not fork decisions)
 
