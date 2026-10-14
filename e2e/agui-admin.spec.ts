@@ -66,27 +66,27 @@ test.describe('AG-UI apps in the admin', () => {
 		await create.getByLabel('Agent URL').fill(AGENT_URL)
 		await create.getByLabel('Audience').fill(STUB_AGUI_AUDIENCE)
 		await create.getByLabel('JWT secret').fill(SECRET)
-		const test = create.getByRole('button', { name: 'Test connection' })
+		const testButton = create.getByRole('button', { name: 'Test connection' })
 
 		// Spec §2.4: the stub refuses `{}` with 422 after the token passed: reachable.
-		await test.click()
+		await testButton.click()
 		await expect(testResult(create, 'Connected')).toBeVisible()
 
 		// Another secret of the allowed length: the stub's 401.
 		await create.getByLabel('JWT secret').fill('a-different-secret-of-forty-characters-00')
 		// A connection field changed: the old result is gone (E7).
 		await expect(testResult(create, 'Connected')).toHaveCount(0)
-		await test.click()
+		await testButton.click()
 		await expect(testResult(create, 'The key was refused')).toBeVisible()
 
 		await create.getByLabel('JWT secret').fill(SECRET)
 		await create.getByLabel('Agent URL').fill(aguiAgentUrl(stubPort, 'missing'))
-		await test.click()
+		await testButton.click()
 		await expect(testResult(create, 'The agent was not found')).toBeVisible()
 
 		// The stub drops the socket on this path (Part 1's unreachable scenario).
 		await create.getByLabel('Agent URL').fill(`http://127.0.0.1:${stubPort}/v1/unreachable`)
-		await test.click()
+		await testButton.click()
 		await expect(testResult(create, 'The provider could not be reached')).toBeVisible()
 
 		await create.getByLabel('Agent URL').fill(AGENT_URL)

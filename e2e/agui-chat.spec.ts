@@ -133,9 +133,10 @@ test.describe('the AG-UI chat', () => {
 		await expect(answer).toContainText('word2')
 		if (isMobile) {
 			// Next's dev indicator (nextjs-portal, bottom-right, dev only) sits over the Sender's action button at phone
-			// width and intercepts the pointer: activate the focused button from the keyboard, as a user could.
-			await stopButton(page).focus()
-			await page.keyboard.press('Enter')
+			// width and intercepts the pointer. ADR-0028's Consequences accept that dev-only overlap, and ADR-0010's
+			// "Patterns to avoid" rule out hiding or moving the indicator for tests, so the button is activated from the
+			// keyboard, which a real user can do (Locator.press focuses the element, then presses the key).
+			await stopButton(page).press('Enter')
 		} else await stopButton(page).click()
 		// Spec §4.5: the hub closes the run as cancelled; the turn finishes where it is.
 		await expect(answer.getByText('Stopped', { exact: true })).toBeVisible()
