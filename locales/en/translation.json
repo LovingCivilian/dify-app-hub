@@ -610,5 +610,28 @@
 		"agent_not_found_description": "The service answered, but no agent lives at this URL. Check the path, e.g. /agents/<name>.",
 		"ran_on_invalid_input_title": "Connected, but the agent ran on a test request",
 		"ran_on_invalid_input_description": "The agent started a run for a request it should have refused. It can be used, but tell its author: an AG-UI agent refuses invalid input with an HTTP error."
+	},
+	"shared_chat": {
+		"stopped_time_limit": "Stopped: time limit",
+		"answer_pending_hint": "This conversation waits for an answer this chat cannot show yet. Start a new conversation to go on.",
+		"tool_arguments": "Arguments",
+		"tool_result": "Result",
+		"error": {
+			"usage_limit": "Usage limit reached",
+			"rate_limited": "Too many requests, try again shortly",
+			"busy": "The agent is busy, try again shortly",
+			"model_unavailable": "The model is unavailable",
+			"agent_error": "The agent ran into an error",
+			"generic": "The agent could not answer",
+			"agent_auth_failed": "The agent refused the hub's credentials",
+			"agent_not_found": "The agent was not found",
+			"agent_rejected_input": "The agent refused the request",
+			"provider_unreachable": "The agent is restarting, try again",
+			"upstream_error": "The agent's answer could not be read",
+			"conversation_not_found": "This conversation no longer exists",
+			"run_in_progress": "An answer is still running in this conversation",
+			"answer_pending": "This conversation waits for an answer first",
+			"answers_invalid": "The answers do not match the open questions"
+		}
 	}
 }

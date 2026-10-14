@@ -610,5 +610,28 @@
 		"agent_not_found_description": "服务已响应，但此地址下没有智能体。请检查路径，例如 /agents/<name>。",
 		"ran_on_invalid_input_title": "已连接，但智能体对测试请求启动了运行",
 		"ran_on_invalid_input_description": "智能体对一个本应拒绝的请求启动了运行。它可以使用，但请告知其作者：AG-UI 智能体应以 HTTP 错误拒绝无效输入。"
+	},
+	"shared_chat": {
+		"stopped_time_limit": "已停止：达到时间限制",
+		"answer_pending_hint": "此对话正在等待一个本聊天暂时无法显示的回答。请新建对话继续。",
+		"tool_arguments": "参数",
+		"tool_result": "结果",
+		"error": {
+			"usage_limit": "已达到使用上限",
+			"rate_limited": "请求过于频繁，请稍后再试",
+			"busy": "智能体正忙，请稍后再试",
+			"model_unavailable": "模型不可用",
+			"agent_error": "智能体出错",
+			"generic": "智能体无法回答",
+			"agent_auth_failed": "智能体拒绝了平台的凭据",
+			"agent_not_found": "未找到该智能体",
+			"agent_rejected_input": "智能体拒绝了该请求",
+			"provider_unreachable": "智能体正在重启，请重试",
+			"upstream_error": "无法读取智能体的回答",
+			"conversation_not_found": "此对话已不存在",
+			"run_in_progress": "此对话中仍有回答正在生成",
+			"answer_pending": "此对话需要先得到回答",
+			"answers_invalid": "回答与待处理的问题不匹配"
+		}
 	}
 }
