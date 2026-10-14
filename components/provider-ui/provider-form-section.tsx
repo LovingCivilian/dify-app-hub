@@ -2,6 +2,7 @@
 
 import type { ProviderId } from '@/lib/providers/ids'
 
+import AguiFormSection from './agui/form-section'
 import DifyFormSection from './dify/form-section'
 
 /**
@@ -22,6 +23,13 @@ export default function ProviderFormSection({
 		case 'dify':
 			return (
 				<DifyFormSection
+					appId={appId}
+					editing={editing}
+				/>
+			)
+		case 'agui':
+			return (
+				<AguiFormSection
 					appId={appId}
 					editing={editing}
 				/>

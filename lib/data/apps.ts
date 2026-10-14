@@ -11,7 +11,7 @@ import { hasAdminRights } from '@/lib/auth/roles'
 import { assertAdmin, type SessionUser } from '@/lib/auth/session'
 import { isProviderId, type ProviderId } from '@/lib/providers/ids'
 import {
-	PROVIDERS,
+	providerDefinition,
 	type ProviderChatFields,
 	type ProviderSecretsSet,
 	type ProviderSummaryFields,
@@ -107,15 +107,19 @@ type RecordRow = {
 	settings: unknown
 }
 
-/** An app as a user's DTOs see it: its neutral fields and its settings as its provider's schema reads them. */
-export type AppRecord = {
+/**
+ * An app as a user's DTOs see it: its neutral fields and its settings as its provider's schema reads them. Generic over
+ * the provider like StoredSettings (lib/providers/schemas.ts), so the DTO mappers below hand one provider's settings to
+ * that provider's registry entry for every provider at once.
+ */
+export type AppRecord<P extends ProviderId = ProviderId> = {
 	id: string
 	name: string
 	description: string
 	tags: string[]
 	enabled: boolean
 	hasIcon: boolean
-} & StoredSettings
+} & StoredSettings<P>
 
 const toRecord = (row: RecordRow): AppRecord | null => {
 	const documents = readSettings(row.id, row.provider, row.settings)
@@ -135,36 +139,51 @@ const toRecord = (row: RecordRow): AppRecord | null => {
 type ChatAppCommon = Pick<AppRecord, 'id' | 'name' | 'description' | 'enabled' | 'hasIcon'>
 
 /** The chat's view (spec §2.3): a union keyed by provider; never the base URL or the secrets (file links go through the proxy). */
-export type ChatAppDto = {
-	[P in ProviderId]: ChatAppCommon & { provider: P } & ProviderChatFields<P>
-}[ProviderId]
+export type ChatAppDto<P extends ProviderId = ProviderId> = {
+	[K in P]: ChatAppCommon & { provider: K } & ProviderChatFields<K>
+}[P]
 
 type SummaryCommon = Pick<AppRecord, 'id' | 'name' | 'description' | 'tags' | 'hasIcon'>
 
 /** What a gallery card shows (spec §2.3, E10): the provider's own fields are its summary fields (for Dify, the type). */
-export type AppSummary = {
-	[P in ProviderId]: SummaryCommon & { provider: P } & ProviderSummaryFields<P>
-}[ProviderId]
+export type AppSummary<P extends ProviderId = ProviderId> = {
+	[K in P]: SummaryCommon & { provider: K } & ProviderSummaryFields<K>
+}[P]
 
-export const toChatAppDto = (record: AppRecord): ChatAppDto => ({
-	id: record.id,
-	provider: record.provider,
-	name: record.name,
-	description: record.description,
-	enabled: record.enabled,
-	hasIcon: record.hasIcon,
-	...PROVIDERS[record.provider].chatFields(record.settings),
-})
+/*
+ * The two mappers spread two values typed apart: a spread of an object literal with a generic value is typed as an
+ * intersection TypeScript does not match to the mapped type above, while a spread of two typed values is exactly
+ * `ChatAppCommon & { provider: P } & ProviderChatFields<P>`, which it does.
+ */
+export const toChatAppDto = <P extends ProviderId>(record: AppRecord<P>): ChatAppDto<P> => {
+	const common: ChatAppCommon & { provider: P } = {
+		id: record.id,
+		provider: record.provider,
+		name: record.name,
+		description: record.description,
+		enabled: record.enabled,
+		hasIcon: record.hasIcon,
+	}
+	const fields: ProviderChatFields<P> = providerDefinition(record.provider).chatFields(
+		record.settings,
+	)
+	return { ...common, ...fields }
+}
 
-export const toAppSummary = (record: AppRecord): AppSummary => ({
-	id: record.id,
-	provider: record.provider,
-	name: record.name,
-	description: record.description,
-	tags: record.tags,
-	hasIcon: record.hasIcon,
-	...PROVIDERS[record.provider].summaryFields(record.settings),
-})
+export const toAppSummary = <P extends ProviderId>(record: AppRecord<P>): AppSummary<P> => {
+	const common: SummaryCommon & { provider: P } = {
+		id: record.id,
+		provider: record.provider,
+		name: record.name,
+		description: record.description,
+		tags: record.tags,
+		hasIcon: record.hasIcon,
+	}
+	const fields: ProviderSummaryFields<P> = providerDefinition(record.provider).summaryFields(
+		record.settings,
+	)
+	return { ...common, ...fields }
+}
 
 /* ----- The admin's DTO (spec §2.3, §4.5) ----- */
 
@@ -183,19 +202,22 @@ type AdminAppCommon = {
 
 /**
  * The admin's view: every app with its access, its settings and which secrets are set, never their values (spec §2.3;
- * DV 10, OWASP ASVS 14.2.6). A row whose documents fail carries `invalid: true` and no settings: the table marks it and
- * the form opens on the provider's defaults so the admin can repair it.
+ * DV 10, OWASP ASVS 14.2.6). A row whose documents fail carries `invalid: true` and no secrets flags: the table marks it
+ * and the form opens on its stored settings when they still read, else on the provider's defaults, so the admin repairs
+ * only what broke (Part 2 spec §2.5, issue #62's M5).
  */
-export type AdminAppDto =
+export type AdminAppDto<P extends ProviderId = ProviderId> =
 	| {
-			[P in ProviderId]: AdminAppCommon & {
-				provider: P
+			[K in P]: AdminAppCommon & {
+				provider: K
 				invalid: false
-				settings: ProviderSettings<P>
-				secretsSet: ProviderSecretsSet<P>
+				settings: ProviderSettings<K>
+				secretsSet: ProviderSecretsSet<K>
 			}
-	  }[ProviderId]
-	| (AdminAppCommon & { invalid: true })
+	  }[P]
+	| {
+			[K in P]: AdminAppCommon & { provider: K; invalid: true; settings?: ProviderSettings<K> }
+	  }[P]
 
 /** Every column the admin DTO reads: the secrets too (for `secretsSet`), never the icon bytes. */
 const adminColumns = {
@@ -230,6 +252,18 @@ type AdminRow = {
 type GroupGrant = { appId: string; groupId: string }
 type UserGrant = { appId: string; userId: string }
 
+/** A row whose documents read, as the admin sees it: generic over the provider, so its secrets go to its own `secretsSet`. */
+const validAdminDto = <P extends ProviderId>(
+	common: AdminAppCommon,
+	documents: StoredDocuments<P>,
+): AdminAppDto<P> => ({
+	...common,
+	provider: documents.provider,
+	invalid: false,
+	settings: documents.settings,
+	secretsSet: providerDefinition(documents.provider).secretsSet(documents.secrets),
+})
+
 /**
  * One app with its access; only the grants of this app count, whatever lists it is handed. Null for a provider the hub
  * does not know (DV 11: the CHECK allows none; such a row is logged and left out).
@@ -260,14 +294,12 @@ export const toAdminAppDto = (
 		updatedAt: row.updatedAt.toISOString(),
 	}
 	const documents = readDocuments(row.id, row.provider, row.settings, row.secrets)
-	if (!documents) return { ...common, invalid: true }
-	return {
-		...common,
-		provider: documents.provider,
-		invalid: false,
-		settings: documents.settings,
-		secretsSet: PROVIDERS[documents.provider].secretsSet(documents.secrets),
-	}
+	if (documents) return validAdminDto(common, documents)
+	// M5: the refusal is logged once (readDocuments); settings that still read go back to the form without a second line.
+	const settings = checkSettings(row.provider, row.settings)
+	return settings.ok
+		? { ...common, ...settings.documents, invalid: true }
+		: { ...common, invalid: true }
 }
 
 /** The apps with their access, each grant list grouped once by app (MDN `Map.groupBy`); the apps' order stays. */

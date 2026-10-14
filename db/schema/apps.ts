@@ -45,7 +45,8 @@ export const apps = pgTable(
 	},
 	table => [
 		// PostgreSQL 18 "Check Constraints"; Drizzle "Indexes & Constraints", check(). The ids are the code's own constants,
-		// never input, so they are written into the SQL as literals (sql.raw). Part 2 adds 'agui' through PROVIDER_IDS.
+		// never input, so they are written into the SQL as literals (sql.raw); a new id is a generated migration that
+		// replaces the constraint (Part 2 spec §2.1).
 		check(
 			'apps_provider_check',
 			sql`${table.provider} IN (${sql.raw(PROVIDER_IDS.map(id => `'${id}'`).join(', '))})`,

@@ -517,7 +517,22 @@
 		"api_key_required": "请输入 API 密钥",
 		"api_key_placeholder": "请输入 API 密钥",
 		"secret_keep_placeholder": "留空则保留原值",
-		"test_connection": "测试连接"
+		"test_connection": "测试连接",
+		"agent_url": "智能体地址",
+		"agent_url_tooltip": "应用中心发送每次运行的完整地址，如 http://agents:8000/agents/assistant",
+		"agent_url_placeholder": "请输入智能体地址",
+		"agent_url_required": "请输入智能体地址",
+		"agent_url_invalid": "请输入以 http:// 或 https:// 开头、不超过 500 个字符的地址",
+		"audience": "受众",
+		"audience_tooltip": "智能体期望的 JWT 受众（aud），即其 AGENT_JWT_AUDIENCE，如 assistant",
+		"audience_placeholder": "请输入受众",
+		"audience_required": "请输入受众",
+		"audience_invalid": "不超过 255 个字符",
+		"jwt_secret": "JWT 密钥",
+		"jwt_secret_tooltip": "应用中心用来签署每次请求令牌的密钥，智能体持有相同的值。至少 32 个随机字符，例如由 openssl rand -base64 48 生成",
+		"jwt_secret_placeholder": "请输入 JWT 密钥",
+		"jwt_secret_required": "请输入 JWT 密钥",
+		"jwt_secret_invalid": "请输入 32 到 512 个字符"
 	},
 	"workflow": {
 		"title": "工作流",
@@ -576,7 +591,8 @@
 		"not_waiting": "此表单已不再等待回答。请重新打开对话查看结果。"
 	},
 	"provider": {
-		"dify": "Dify"
+		"dify": "Dify",
+		"agui": "AG-UI 智能体"
 	},
 	"connection_test": {
 		"reachable_title": "连接成功",

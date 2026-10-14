@@ -63,7 +63,7 @@ describe('readDocuments and readSettings', () => {
 		expect(spy).not.toHaveBeenCalled()
 	})
 	it.each([
-		['an unknown provider', 'agui', settings, { apiKey: 'app-secret' }, 'unknown_provider'],
+		['an unknown provider', 'openai', settings, { apiKey: 'app-secret' }, 'unknown_provider'],
 		[
 			'broken settings',
 			'dify',
@@ -112,6 +112,30 @@ describe('the user DTOs (spec §2.3)', () => {
 			},
 		})
 		expect(JSON.stringify(dto)).not.toContain('dify.example')
+	})
+	// Part 2 spec §2.2: in 2a an AG-UI app's chat DTO and card carry nothing of its documents.
+	it('an AG-UI app’s chat DTO and card carry no agent URL, audience or provider fields', () => {
+		const agui = {
+			...record,
+			provider: 'agui' as const,
+			settings: { agentUrl: 'http://agents:8000/agents/assistant', audience: 'assistant' },
+		}
+		expect(toChatAppDto(agui)).toEqual({
+			id: 'a1',
+			provider: 'agui',
+			name: 'Tea',
+			description: 'desc',
+			enabled: true,
+			hasIcon: true,
+		})
+		expect(toAppSummary(agui)).toEqual({
+			id: 'a1',
+			provider: 'agui',
+			name: 'Tea',
+			description: 'desc',
+			tags: ['a', 'b'],
+			hasIcon: true,
+		})
 	})
 	it('the gallery card carries the provider and the type, never the base or the switches', () => {
 		expect(toAppSummary(record)).toEqual({
@@ -167,17 +191,45 @@ describe('the admin DTO (spec §2.3)', () => {
 		})
 		expect(JSON.stringify(dto)).not.toContain('app-secret')
 	})
-	it('marks a row whose documents fail invalid, with no settings and no secrets flags', () => {
-		vi.spyOn(console, 'error').mockImplementation(() => {})
+	// Part 2 spec §2.5 (issue #62's M5): the form opens on settings that still read, so only the secret is retyped.
+	it('marks a row whose secrets fail invalid, keeping its settings and no secrets flags', () => {
+		const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
 		const dto = toAdminAppDto({ ...row, secrets: { apiKey: '' } }, [], [])
+		expect(dto).toMatchObject({ id: 'a1', provider: 'dify', invalid: true, settings })
+		expect(dto).not.toHaveProperty('secretsSet')
+		expect(spy).toHaveBeenCalledTimes(1)
+		expect(spy).toHaveBeenCalledWith('Stored app documents refused:', {
+			appId: 'a1',
+			code: 'invalid_secrets',
+		})
+	})
+	it('marks a row whose settings fail invalid, with no settings and no secrets flags', () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {})
+		const dto = toAdminAppDto({ ...row, settings: { ...settings, appType: null } }, [], [])
 		expect(dto).toMatchObject({ id: 'a1', provider: 'dify', invalid: true })
 		expect(dto).not.toHaveProperty('settings')
 		expect(dto).not.toHaveProperty('secretsSet')
 	})
+	it('carries an AG-UI app’s settings and whether its secret is set, never the secret', () => {
+		const agui = { agentUrl: 'http://agents:8000/agents/assistant', audience: 'assistant' }
+		const jwtSecret = 'an-app-secret-of-at-least-32-chars!'
+		const dto = toAdminAppDto(
+			{ ...row, provider: 'agui', settings: agui, secrets: { jwtSecret } },
+			[],
+			[],
+		)
+		expect(dto).toMatchObject({
+			provider: 'agui',
+			invalid: false,
+			settings: agui,
+			secretsSet: { jwtSecret: true },
+		})
+		expect(JSON.stringify(dto)).not.toContain(jwtSecret)
+	})
 	// DV 11: the CHECK allows no other provider; a row that has one anyway is left out of the list, logged.
 	it('leaves out a row whose provider the hub does not know', () => {
 		const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
-		expect(toAdminAppDto({ ...row, provider: 'agui' }, [], [])).toBeNull()
+		expect(toAdminAppDto({ ...row, provider: 'openai' }, [], [])).toBeNull()
 		expect(spy).toHaveBeenCalledWith('Stored app documents refused:', {
 			appId: 'a1',
 			code: 'unknown_provider',

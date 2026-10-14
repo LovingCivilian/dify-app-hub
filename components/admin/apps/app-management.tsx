@@ -8,7 +8,12 @@ import { useTranslation } from 'react-i18next'
 import { tablePagination } from '@/components/admin/table-pagination'
 import PageHeader from '@/components/shell/page-header'
 import AppIcon from '@/components/apps/app-icon'
-import { adminAppType, PROVIDER_UI, providerLine } from '@/components/provider-ui/registry'
+import {
+	adminAppType,
+	PROVIDER_UI,
+	providerLine,
+	typeName,
+} from '@/components/provider-ui/registry'
 import SearchInput from '@/components/shell/search-input'
 import type { GroupOption } from '@/lib/data/groups'
 import type { UserOption } from '@/lib/data/users'
@@ -79,7 +84,7 @@ export default function AppManagement({
 							text: t(ui.labelKey),
 							value: id,
 							children: ui.types.map(type => ({
-								text: t(ui.typeLabelKeys[type]),
+								text: typeName(t, id, type),
 								value: `${id}:${type}`,
 							})),
 						}

@@ -1,4 +1,4 @@
-import { ApartmentOutlined, AppstoreOutlined } from '@ant-design/icons'
+import { ApartmentOutlined, AppstoreOutlined, RobotOutlined } from '@ant-design/icons'
 import type { TFunction } from 'i18next'
 import { describe, expect, it } from 'vitest'
 
@@ -17,10 +17,19 @@ describe('the client registry (spec §3)', () => {
 	it('has an entry per provider id (DV 11)', () => {
 		expect(Object.keys(PROVIDER_UI).sort()).toEqual([...PROVIDER_IDS].sort())
 	})
-	// E11: Dify's fallback icon, and the generic one for a provider the browser does not know.
+	// E11: each provider's fallback icon (Part 2 spec §2.1: RobotOutlined for AG-UI), and the generic one for a provider
+	// the browser does not know.
 	it('gives each provider its fallback icon, and an unknown one the generic icon', () => {
 		expect(providerIcon('dify')).toBe(ApartmentOutlined)
-		expect(providerIcon('agui')).toBe(AppstoreOutlined)
+		expect(providerIcon('agui')).toBe(RobotOutlined)
+		expect(providerIcon('openai')).toBe(AppstoreOutlined)
+	})
+	// Part 2 spec §2.2: "AG-UI agent", with no app types.
+	it('names an AG-UI app by its provider alone', () => {
+		expect(providerLine(t, 'agui')).toBe('provider.agui')
+		expect(providerLine(t, 'agui', 'chat')).toBe('provider.agui')
+		expect(typeName(t, 'agui', 'chat')).toBe('chat')
+		expect(PROVIDER_UI.agui.types).toEqual([])
 	})
 	// E9 and E10: "Dify · Chatflow".
 	it('names the provider and the app type, or the provider alone', () => {
@@ -63,6 +72,15 @@ describe('the client registry (spec §3)', () => {
 			}),
 		).toBe('workflow')
 		expect(adminAppType({ ...common, invalid: true })).toBeUndefined()
+		expect(
+			adminAppType({
+				...common,
+				provider: 'agui',
+				invalid: false,
+				settings: { agentUrl: 'http://agents:8000/agents/a', audience: 'a' },
+				secretsSet: { jwtSecret: true },
+			}),
+		).toBeUndefined()
 	})
 	it('lists Dify’s types in the console’s order', () => {
 		expect(PROVIDER_UI.dify.types).toEqual([

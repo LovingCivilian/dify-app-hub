@@ -517,7 +517,22 @@
 		"api_key_required": "أدخل مفتاح API",
 		"api_key_placeholder": "أدخل مفتاح API",
 		"secret_keep_placeholder": "اتركه فارغًا للإبقاء على القيمة الحالية",
-		"test_connection": "اختبار الاتصال"
+		"test_connection": "اختبار الاتصال",
+		"agent_url": "عنوان الوكيل",
+		"agent_url_tooltip": "العنوان الكامل الذي ترسل إليه المنصة كل تشغيل، مثال: http://agents:8000/agents/assistant",
+		"agent_url_placeholder": "أدخل عنوان الوكيل",
+		"agent_url_required": "أدخل عنوان الوكيل",
+		"agent_url_invalid": "أدخل عنوانًا يبدأ بـ http:// أو https:// ولا يتجاوز 500 حرف",
+		"audience": "الجمهور",
+		"audience_tooltip": "جمهور JWT (aud) الذي يتوقعه الوكيل، أي قيمة AGENT_JWT_AUDIENCE لديه، مثال: assistant",
+		"audience_placeholder": "أدخل الجمهور",
+		"audience_required": "أدخل الجمهور",
+		"audience_invalid": "لا يتجاوز 255 حرفًا",
+		"jwt_secret": "سر JWT",
+		"jwt_secret_tooltip": "المفتاح الذي توقّع به المنصة رمز كل طلب، ويحمل الوكيل القيمة نفسها. 32 حرفًا عشوائيًا على الأقل، مثلًا من openssl rand -base64 48",
+		"jwt_secret_placeholder": "أدخل سر JWT",
+		"jwt_secret_required": "أدخل سر JWT",
+		"jwt_secret_invalid": "أدخل من 32 إلى 512 حرفًا"
 	},
 	"workflow": {
 		"title": "سير العمل",
@@ -576,7 +591,8 @@
 		"not_waiting": "لم يعد هذا النموذج بانتظار إجابة. أعد فتح المحادثة لعرض النتيجة."
 	},
 	"provider": {
-		"dify": "Dify"
+		"dify": "Dify",
+		"agui": "وكيل AG-UI"
 	},
 	"connection_test": {
 		"reachable_title": "تم الاتصال",

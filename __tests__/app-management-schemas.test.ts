@@ -76,7 +76,8 @@ describe('createAppFormSchema (spec §4.3)', () => {
 		['an empty tag', { tags: [' '] }],
 		['a 33-character tag', { tags: ['a'.repeat(33)] }],
 		['11 different tags', { tags: Array.from({ length: 11 }, (_, index) => `t${index}`) }],
-		['an unknown provider', { provider: 'agui' }],
+		['an unknown provider', { provider: 'openai' }],
+		['Dify settings under the AG-UI provider', { provider: 'agui' }],
 		['settings Dify refuses', { settings: { ...settings, appType: 'rag-pipeline' } }],
 		['no key on a new app', { secrets: { apiKey: '' } }],
 	])('refuses %s', (_label, over) => {
@@ -119,6 +120,43 @@ describe('connectionTestSchema (spec §4.2)', () => {
 	// Part 0 spec §3.2: an id from outside passes z.uuid() before it reaches a query.
 	it('refuses an app id that is not a UUID', () => {
 		expect(connectionTestSchema.safeParse({ ...test, appId: 'a1' }).success).toBe(false)
+	})
+})
+
+// Part 2 spec §2.2: an AG-UI app is read by AG-UI's schemas, its secret write-only like Dify's key.
+describe('the AG-UI variants', () => {
+	const agui = {
+		...values,
+		provider: 'agui',
+		settings: { agentUrl: 'http://agents:8000/agents/assistant', audience: 'assistant' },
+		secrets: { jwtSecret: 'k'.repeat(32) },
+	}
+	const aguiForm = (over: Record<string, unknown> = {}) => ({
+		values: JSON.stringify({ ...agui, ...over }),
+		iconIntent: 'keep',
+	})
+	it('create an AG-UI app with its settings and secret', () => {
+		const parsed = createAppFormSchema.parse(aguiForm())
+		expect(parsed.provider).toBe('agui')
+		expect(parsed.settings).toEqual(agui.settings)
+		expect(parsed.secrets).toEqual(agui.secrets)
+	})
+	it('refuse a new AG-UI app without a 32-character secret', () => {
+		expect(
+			createAppFormSchema.safeParse(aguiForm({ secrets: { jwtSecret: 'short' } })).success,
+		).toBe(false)
+	})
+	it('read a blank secret on an edit, and on a test, as not given', () => {
+		expect(updateAppFormSchema.parse(aguiForm({ secrets: { jwtSecret: '' } })).secrets).toEqual({
+			jwtSecret: undefined,
+		})
+		expect(
+			connectionTestSchema.parse({
+				provider: 'agui',
+				settings: agui.settings,
+				secrets: { jwtSecret: '' },
+			}),
+		).toEqual({ provider: 'agui', settings: agui.settings, secrets: { jwtSecret: undefined } })
 	})
 })
 

@@ -8,9 +8,17 @@ import { requireAdmin } from '@/lib/auth/session'
 import { createApp, deleteApp, getStoredSecrets, updateApp } from '@/lib/data/apps'
 import { isForeignKeyViolation } from '@/lib/data/db-errors'
 import { isId } from '@/lib/ids'
+import type { ProviderCaller } from '@/lib/providers/caller'
 import type { ConnectionTestResult } from '@/lib/providers/connection'
-import { PROVIDERS } from '@/lib/providers/registry'
-import { documentFieldErrors, mergeSecrets } from '@/lib/providers/schemas'
+import type { ProviderId } from '@/lib/providers/ids'
+import { providerDefinition } from '@/lib/providers/registry'
+import {
+	documentFieldErrors,
+	mergeSecrets,
+	PROVIDER_SCHEMAS,
+	secretsSchemaOf,
+	type StoredSettings,
+} from '@/lib/providers/schemas'
 
 import {
 	connectionTestSchema,
@@ -98,6 +106,27 @@ const testOutcome = (
 }
 
 /**
+ * One provider's test, generic over its id so its settings, its merged secrets and its test go together (the registry's
+ * `providerDefinition`): the merged secrets are parsed first, then the provider is asked as the admin (Part 2 plan call
+ * P2: an AG-UI token's `sub` is the admin running the test).
+ */
+const runTest = async <P extends ProviderId>(
+	documents: StoredSettings<P>,
+	secrets: unknown,
+	caller: ProviderCaller,
+): Promise<ActionResult<ConnectionTestOutcome>> => {
+	const merged = secretsSchemaOf(documents.provider).safeParse(secrets)
+	if (!merged.success) return fail('invalid_input', documentFieldErrors('secrets', merged.error))
+	const result = await providerDefinition(documents.provider).testConnection(
+		documents.settings,
+		merged.data,
+		caller,
+	)
+	if (!result.ok) return fail(TEST_FAILURES[result.code])
+	return ok(testOutcome(result.warning))
+}
+
+/**
  * Test connection (spec §4.2; decision 18): verifies the admin (ADR-0024), reads the stored secret on the server when the
  * app exists and a field is blank, and asks the provider through the registry. It saves nothing and copies nothing. A
  * refused input answers by field with codes only, as the save actions do (review B7: a zod message can echo the input).
@@ -109,10 +138,9 @@ export async function testAppConnectionAction(
 		const actor = await requireAdmin()
 		const parsed = connectionTestSchema.safeParse(input)
 		if (!parsed.success) return fail('invalid_input', formFieldErrors(parsed.error))
-		const { appId, provider, settings, secrets } = parsed.data
-		const definition = PROVIDERS[provider]
+		const { appId, provider, secrets } = parsed.data
 		// Spec §4.2 step 2: the stored secrets are read only for a saved app with a secret field left blank.
-		const blank = Object.keys(definition.defaultSecrets).some(
+		const blank = Object.keys(PROVIDER_SCHEMAS[provider].defaultSecrets).some(
 			key => (secrets as Record<string, string | undefined>)[key] === undefined,
 		)
 		let stored: unknown = {}
@@ -121,11 +149,7 @@ export async function testAppConnectionAction(
 			if (!found) return fail('not_found')
 			stored = found.secrets
 		}
-		const merged = definition.secretsSchema.safeParse(mergeSecrets(stored, secrets))
-		if (!merged.success) return fail('invalid_input', documentFieldErrors('secrets', merged.error))
-		const result = await definition.testConnection(settings, merged.data)
-		if (!result.ok) return fail(TEST_FAILURES[result.code])
-		return ok(testOutcome(result.warning))
+		return await runTest(parsed.data, mergeSecrets(stored, secrets), actor)
 	} catch (error) {
 		return toActionFailure(error, 'testAppConnectionAction')
 	}

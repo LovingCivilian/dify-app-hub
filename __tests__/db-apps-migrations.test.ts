@@ -10,14 +10,16 @@ const sqlOf = (suffix: string) => {
 	return readFileSync(path.join('db/migrations', folder!, 'migration.sql'), 'utf8')
 }
 
-// Part 1 spec §2.4 and Plan decision b: expand (generated), data (custom), contract (generated), in that order.
+// Part 1 spec §2.4 and Plan decision b: expand (generated), data (custom), contract (generated), in that order; Part 2
+// adds the provider migration after them.
 describe("Part 1's migrations", () => {
-	it('follow the baseline as expand, data and contract', () => {
+	it('follow the baseline as expand, data and contract, then Part 2’s provider migration', () => {
 		expect(folders.map(name => name.replace(/^\d{14}_/, ''))).toEqual([
 			'baseline',
 			'apps_expand',
 			'apps_data',
 			'apps_contract',
+			'agui_provider',
 		])
 	})
 	// A rename keeps the rows and the grants' foreign keys; a drop and create would lose them (Review Focus 2).
@@ -60,5 +62,14 @@ describe("Part 1's migrations", () => {
 			expect(sql).toContain(`ALTER TABLE "apps" DROP COLUMN "${name}";`)
 		for (const name of ['provider', 'settings', 'secrets', 'description', 'tags'])
 			expect(sql).toContain(`ALTER TABLE "apps" ALTER COLUMN "${name}" SET NOT NULL;`)
+	})
+})
+
+// Part 2 spec §2.1: AG-UI joins the CHECK through PROVIDER_IDS, in one generated statement that replaces the constraint.
+describe("Part 2's provider migration", () => {
+	it('replaces apps_provider_check with one that lists dify and agui', () => {
+		expect(sqlOf('agui_provider').trim()).toBe(
+			`ALTER TABLE "apps" DROP CONSTRAINT "apps_provider_check", ADD CONSTRAINT "apps_provider_check" CHECK ("provider" IN ('dify', 'agui'));`,
+		)
 	})
 })

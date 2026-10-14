@@ -44,7 +44,8 @@ export const providerDefaults = (
 
 /**
  * A saved app as the form's values. The stored secrets never come back to the browser, so their fields start blank (a
- * blank keeps them, spec §2.3); an invalid row opens on its provider's defaults so the admin can repair it.
+ * blank keeps them, spec §2.3). An invalid row opens on its stored settings when they still read, else on its provider's
+ * defaults, so the admin repairs only what broke (Part 2 spec §2.5, issue #62's M5).
  */
 export const toAppFormValues = (app: AdminAppDto): AppFormValues => ({
 	provider: app.provider,
@@ -54,7 +55,7 @@ export const toAppFormValues = (app: AdminAppDto): AppFormValues => ({
 	enabled: app.enabled,
 	access: app.access,
 	...providerDefaults(app.provider),
-	...(app.invalid ? {} : { settings: app.settings }),
+	...(app.settings ? { settings: app.settings } : {}),
 })
 
 /** The action's FormData (spec §4.3): the values as JSON, the icon intent and, for a replacement, the file. */

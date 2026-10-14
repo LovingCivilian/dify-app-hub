@@ -1,5 +1,6 @@
 'use client'
 
+import AppUnavailable from '@/components/chat/app-unavailable'
 import ChatWorkspace from '@/components/chat/chat-workspace'
 import type { ChatAppDto } from '@/lib/data/apps'
 
@@ -13,9 +14,11 @@ export default function ProviderChat({ app }: { app: ChatAppDto }) {
 	switch (app.provider) {
 		case 'dify':
 			return <ChatWorkspace app={app} />
+		case 'agui':
+			// Part 2 plan call P12: the shared chat (Task 16) replaces this inside the branch.
+			return <AppUnavailable reason="missing" />
 		default:
-			// Narrows the provider id itself: with one provider the DTO is a single object type, which a switch does not narrow
-			// (TypeScript handbook, Narrowing > "Exhaustiveness checking"; `satisfies` is the TS 4.9 operator).
-			return app.provider satisfies never
+			// TypeScript handbook, Narrowing > "Exhaustiveness checking"; `satisfies` is the TS 4.9 operator.
+			return app satisfies never
 	}
 }

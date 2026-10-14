@@ -24,10 +24,11 @@ const settings = {
 }
 
 describe('the provider ids (spec §3; decision 24)', () => {
-	it('are Dify only in Part 1', () => {
-		expect(PROVIDER_IDS).toEqual(['dify'])
+	it('are Dify and, since Part 2, AG-UI agents (Part 2 spec §2.1)', () => {
+		expect(PROVIDER_IDS).toEqual(['dify', 'agui'])
 		expect(isProviderId('dify')).toBe(true)
-		expect(isProviderId('agui')).toBe(false)
+		expect(isProviderId('agui')).toBe(true)
+		expect(isProviderId('openai')).toBe(false)
 		expect(isProviderId(undefined)).toBe(false)
 	})
 	it('each have their schemas (DV 11: the map is exhaustive)', () => {
@@ -101,9 +102,26 @@ describe('checkDocuments (spec §2.3)', () => {
 	})
 	// DV 11: an id the hub does not know fails closed.
 	it('refuses an unknown provider', () => {
-		expect(checkDocuments('agui', settings, { apiKey: 'app-k' })).toEqual({
+		expect(checkDocuments('openai', settings, { apiKey: 'app-k' })).toEqual({
 			ok: false,
 			code: 'unknown_provider',
+		})
+	})
+	// Part 2 spec §2.2: an AG-UI app's documents go through the same reads.
+	it('reads an AG-UI app’s documents with its own schemas', () => {
+		const agui = { agentUrl: 'http://agents:8000/agents/assistant', audience: 'assistant' }
+		const jwtSecret = 'k'.repeat(32)
+		expect(checkDocuments('agui', agui, { jwtSecret })).toEqual({
+			ok: true,
+			documents: { provider: 'agui', settings: agui, secrets: { jwtSecret } },
+		})
+		expect(checkDocuments('agui', settings, { jwtSecret })).toEqual({
+			ok: false,
+			code: 'invalid_settings',
+		})
+		expect(checkDocuments('agui', agui, { apiKey: 'app-k' })).toEqual({
+			ok: false,
+			code: 'invalid_secrets',
 		})
 	})
 	it('says which document failed', () => {
@@ -128,7 +146,7 @@ describe('checkSettings', () => {
 		})
 	})
 	it('refuses an unknown provider and broken settings', () => {
-		expect(checkSettings('agui', settings)).toEqual({ ok: false, code: 'unknown_provider' })
+		expect(checkSettings('openai', settings)).toEqual({ ok: false, code: 'unknown_provider' })
 		expect(checkSettings('dify', { ...settings, apiBase: 'nope' })).toEqual({
 			ok: false,
 			code: 'invalid_settings',

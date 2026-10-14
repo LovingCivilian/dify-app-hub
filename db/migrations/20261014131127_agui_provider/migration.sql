@@ -1,0 +1,1 @@
+ALTER TABLE "apps" DROP CONSTRAINT "apps_provider_check", ADD CONSTRAINT "apps_provider_check" CHECK ("provider" IN ('dify', 'agui'));
