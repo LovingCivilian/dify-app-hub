@@ -53,7 +53,7 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0029](0029-sign-directory-accounts-in-over-ldap-and-keep-them-in-step-with-a-scheduled-sync.md) | Sign directory accounts in over LDAP and keep them in step with a scheduled sync | accepted | 2026-10-10 |
 | [0030](0030-set-each-settings-area-from-the-environment-or-the-admin-page.md) | Set each settings area from the environment or the admin page | accepted | 2026-10-11 |
 | [0031](0031-move-the-database-to-postgresql-18.md) | Move the database to PostgreSQL 18 | accepted | 2026-10-11 |
-| [0032](0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md) | Organise apps by provider: a shared core with provider modules | proposed | 2026-10-11 |
+| [0032](0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md) | Organise apps by provider: a shared core with provider modules | accepted | 2026-10-11 |
 
 ## Inherited from upstream (not fork decisions)
 

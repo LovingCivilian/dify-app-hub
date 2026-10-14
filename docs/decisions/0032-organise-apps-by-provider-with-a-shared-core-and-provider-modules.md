@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-11
 decision-makers: LovingCivilian (fork owner)
 consulted: Claude Code sessions (provider-hub brainstorm, the docs check `doc-verification.md`, Part 1 spec and plan)
@@ -207,3 +207,7 @@ Notes on [ADR-0023](0023-build-the-dify-layer-as-one-route-per-operation.md), [A
 Follow-ups: encrypting provider secrets (`apps.secrets`) with the settings key, with SMTP and LDAP (decision 8); the AG-UI provider and `'agui'` in the CHECK (Part 2); Dify onto the shared chat (Part 3).
 
 Sources: Drizzle "PostgreSQL column types" (`jsonb`, `.$type<>()`), "Migrations" and drizzle-kit `generate --custom`; PostgreSQL 18 "Constraints" (CHECK), "Enumerated Types", "ALTER TYPE", "ALTER TABLE" (RENAME), "SQL Dump" (the backup and its restore); Docker Compose `build` and `up` references (the `project-service` image tag, `--no-build`); zod 4.6.5 (`safeParse`, `z.discriminatedUnion`, "Codecs"); Next 16.3 bundled docs (`01-getting-started/05-server-and-client-components.md`, `01-getting-started/07-mutating-data.md`, `02-guides/data-security.md`, `03-api-reference/05-config/01-next-config-js/serverActions.md`); React "'use client'" caveats; OWASP ASVS 5.0 14.2.6 and the Secrets Management Cheat Sheet; MDN `AbortSignal.timeout()`; antd 6.6.5 Form (`layout`, `labelCol`, `requiredMark`), Upload, Table (`filters`), Select (`mode="tags"`); LibreChat `packages/api/src/endpoints/config/providers.ts`; LobeHub `packages/database/src/schemas/aiInfra.ts` and `packages/model-runtime/src/runtimeMap.ts`; Dify `api/models/provider.py` and `api/core/entities/provider_configuration.py`.
+
+### Note, 2026-10-14 (the owner's check; accepted)
+
+The owner checked the branch on the local stack after the migration and reported: "everything is working". With that last verification item done, the record is accepted.
