@@ -405,6 +405,35 @@ Rules that apply throughout:
       - **Backlog:** comments went to #44, #45 and #49.
     - Next: Part 2, the shared chat on AG-UI and the AG-UI provider. Its spec comes first, then its plan, written against the merged code (decision 33).
 
+## Part 2's brainstorm (2026-10-14)
+
+The decisions below were taken in one session on 2026-10-14. The spec they produced is `docs/superpowers/specs/2026-10-14-part-2-agui-shared-chat-design.md`; its "Progress" section is where the state of Part 2 is kept from now on.
+
+40. **Part 2 starts from the charter** (owner, 2026-10-14: "use the charter and contume with brainstorming"). No Part 2 plan existed; the charter's decisions are not re-opened, and the brainstorm covers what it left open (§8). Claude classed the work as architectural (full spec).
+41. **Scope: the core chat plus four extras** (owner, 2026-10-14, all four picked): tool approvals, ask-user questions, a shared-state panel and attachments. The core is streamed text, reasoning, tool calls as cards, run errors, stop and history from the hub's store. Sub-agents, A2UI, citations and predictive state wait for a later part.
+42. **Admins can read every conversation** (owner, 2026-10-14: "Admins can read"): a read-only Logs view per app; users see and delete only their own. Options not taken: owner-only reading; auto-expiry.
+43. **Every choice is backed by docs, best practice and reference projects** (owner, 2026-10-14: "follow docs, best oractiers, and refrense other projetcs"). Four research notes were written beside this record: `part2-store-and-logs.md`, `part2-proxy-stop-identity.md`, `part2-x-mapping.md`, `part2-hitl-state-files.md`.
+44. **The spike ran** (owner, 2026-10-14: "Go ahead"; scripted Pydantic AI `FunctionModel` agents with no key, a spec-level 1.0 stub, a throwaway `spike/agui` branch). Its answers are in `agui-spike.md`: one X message per assistant turn with ordered parts; interrupts continue the same turn through `onReload`; aborting upstream stops a Pydantic AI agent; `HttpAgent.runAgent()` on the server reads 0.x and 1.0 streams; structured history replays; only inline base64 attachments reach the model.
+45. **Identity: a per-request signed JWT is the only auth header** (owner, 2026-10-14, choosing "Bearer + signed user JWT" and giving the agent service's contract). The owner's agents are a separate Python service (Pydantic AI over AG-UI) that trusts only the hub's server and verifies every request itself.
+    - Call: `POST <agent URL>` (the owner's service: `<base>/agents/<name>`), body the `RunAgentInput` unchanged, `Authorization: Bearer <JWT>`, no other auth or identity header; stream back unbuffered (`Cache-Control: no-cache, no-transform`).
+    - JWT: HS256 with a per-app secret of at least 32 random bytes (never `NEXTAUTH_SECRET`), minted per request; `sub` = the account id (ADR-0026), `iat`, `exp` = 60 s, `iss` = `nextjs-bff`, `aud` = the app's audience such as `assistant`, `auth_source` = `local` or `ldap`, optional `roles`; name and email omitted.
+    - The agent answers 401, 404, 415 or 422 before streaming; a refused connection means it is restarting; in-stream `RUN_ERROR` codes are `usage_limit`, `rate_limited`, `busy`, `model_unavailable` and `agent_error`, with a message safe to show; a time limit ends with `CUSTOM run_cancelled {reason: run_timeout}` then `RUN_FINISHED`.
+    - The owner's reason against a static bearer plus a user-id header: "anyone holding the static secret can claim to be any user, roles can't be passed in a way the agent can trust, and the secret never expires".
+46. **Ask-user follows the full-stack template, advertised by the hub** (owner, 2026-10-14: "i want you to check project like the full stack ai template and how they do it", then "Template's design, hub-advertised"). The template's `ask_user` blocks a run on its own WebSocket, which AG-UI's HTTP + SSE cannot do; the AG-UI equivalent is a frontend tool. The hub advertises `ask_user` with the template's schema (at most 10 questions; `question`, `options`, `allow_custom`), shows the template's stepping card and answers with its Q/A transcript. A per-app switch, off by default (an agent with its own `ask_user` would fail). Other non-approval interrupts get a generic card.
+47. **Shared state: a plan panel and activity cards** (owner, 2026-10-14). The template's plan panel, shown when the state reads as `steps: [{description, status}]` (the shape of AG-UI's Dojo and Pydantic AI's example); activity messages as read-only cards; no state editing by users. Options not taken: a generic state tree; both.
+48. **Attachments are stored in PostgreSQL `bytea` and sent inline** (owner, 2026-10-14). The owner's rules for the agent service: typed input content with a `data` source beside the text, never hub URLs; every run re-sends the full history; allowed kinds per app must match the model (many self-hosted models are text-only, most reject PDF `document` parts, which fails with `model_unavailable`); by default images only for vision models, and PDF or text extracted to plain text in the hub.
+49. **Logs policy: audited, with a notice, and soft delete** (owner, 2026-10-14: "Audited, notice, soft delete"). Each admin view writes an access-log row; users see that admins can read their conversations; a deleted conversation stays visible to admins for 30 days, then a job purges it.
+50. **An open approval, question or interrupt blocks the composer** (owner, 2026-10-14: "Block until answered"), as the template does; every card has a way out.
+51. **One spec, three PRs** (owner, 2026-10-14): 2a the core, 2b human in the loop, 2c attachments and Logs, each with its own plan written after the previous one merges (decision 33).
+52. **A custom backend contract in the app settings is not built** (owner, 2026-10-14: "currently the contract between the fronend and backend is fixed, cant we make it modular, in the app settings i can crerate a custom contarct, so that the app hub can support any backend. how would that be done?", then "Record it, continue"). The rule stays: the browser contract is AG-UI; backends plug in through the provider registry and standard protocols (AG-UI now, OpenAI-compatible next), and an exotic backend gets a small AG-UI shim beside it. An admin-configured "HTTP template" provider for text-only APIs is kept as an idea below. Admin-uploaded adapter code (Open WebUI's Pipe functions) was not proposed for adoption.
+53. **Images keep their size unless the app sets a maximum** (owner, 2026-10-14: "why resize the images?", then "Per-app max size"). Images are decoded and re-encoded to strip metadata (OWASP) at their original size; an optional per-app "max image edge" shrinks them.
+54. **A per-conversation cap of 6 MB, every attachment re-sent** (owner, 2026-10-14: "why is there a cap on the chat size?", then "Per-conversation cap"). The per-run budget with placeholders was offered and not taken; the "last N turns" placeholder setting is dropped.
+55. **The design's seven sections are approved** (owner, 2026-10-14: "go ahead", "go", "go", "go", "go", "yes", "yes"), and Part 2 must stay resumable (owner: "this will be a muli session project, so keep facts and progres durable is future agents dont lose context"). The spike and research notes are committed beside this record, the spec carries a Progress section, and each later session updates it.
+
+## Ideas kept for later
+
+- **An "HTTP template" provider** (decision 52): an admin-defined request template and response mapping for text-only APIs. It would need its own spec and an ADR recording the deviation from ADR-0002, since it is a home-made mapping language. References: LibreChat's custom endpoints vary only headers and parameters of an OpenAI-compatible wire format; LobeHub's custom providers pick from fixed SDK types.
+
 ## Research findings that shape the design (2026-10-11)
 
 Sources are in `agui-and-reference-hubs.md`.
@@ -460,9 +489,10 @@ All of them keep history themselves. None mixes history kept by the provider wit
 
 ## Open questions (asked one at a time)
 
-- How per-provider settings are stored (typed tables or a validated JSON document), after the reference-hub research.
-- Conversation storage on the hub for providers that keep no history.
-- The UI picks (provider picker in "add app", gallery provider badge, AG-UI chat elements): candidate lists for the owner.
+- ~~How per-provider settings are stored~~: decided (decision 17).
+- ~~Conversation storage on the hub for providers that keep no history~~: decided for Part 2 (decisions 42, 49; the Part 2 spec §3).
+- ~~The UI picks~~: Part 1's are decision 30; Part 2's are in its spec (decision 38 replaced the per-element picking with options and a recommendation).
+- Part 3: what happens to conversations that exist only in Dify; whether Dify's workflow and completion views move onto AG-UI runs; audio, file previews, suggestions and feedback as shared capabilities or Dify extras.
 
 ## Research in this folder
 
@@ -470,3 +500,8 @@ All of them keep history themselves. None mixes history kept by the provider wit
 - `dify-coupling-map.md`: every place the code assumes Dify, classified as neutral core, Dify-only, or name only.
 - `agui-and-reference-hubs.md`: the AG-UI protocol and `@ag-ui/client`, Pydantic AI's adapter, Ant Design X and AG-UI, and how LibreChat, Open WebUI and LobeChat model their providers.
 - `agui-reference-projects.md`: `vstorm-co/full-stack-ai-agent-template`, `vstorm-co/agenticos` (build or adopt), the AG-UI Dojo, Pydantic AI's AG-UI examples.
+- `agui-spike.md`: Part 2's spike (2026-10-14): findings, the answers to the charter's spike questions, and the spike's code to rerun it.
+- `part2-store-and-logs.md`: AG-UI's persistence guidance, how AG-UI backends and five chat hubs store conversations, admin access and retention, PostgreSQL specifics.
+- `part2-proxy-stop-identity.md`: `@ag-ui/client` on the server, CopilotKit's runtime, stop, identity headers, Test connection, Next 16 streaming.
+- `part2-x-mapping.md`: the x-sdk 2.9 contract, X's unreleased AgentProvider, other AG-UI React clients, components per element, the hub's shareable chat code.
+- `part2-hitl-state-files.md`: ask-user (frontend tool versus interrupt), approvals across frameworks, shared state, attachments and upload security.
