@@ -30,7 +30,9 @@ export default function AssistantTurn({ turn, status }: AssistantTurnProps) {
 	const groups = useMemo(() => groupParts(turn.parts), [turn.parts])
 	const errors = turn.runs.filter(run => run.error)
 	const caption = stoppedCaptionKey(turn)
-	const empty = groups.length === 0 && errors.length === 0 && !caption
+	// An answer that only interrupts (the agent asks and says nothing) is not empty.
+	const empty =
+		groups.length === 0 && errors.length === 0 && turn.interrupts.length === 0 && !caption
 	return (
 		<Flex
 			vertical

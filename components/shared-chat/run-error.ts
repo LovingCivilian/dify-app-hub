@@ -28,6 +28,7 @@ const HUB_CODE_KEYS = {
 	agent_auth_failed: 'shared_chat.error.agent_auth_failed',
 	agent_not_found: 'shared_chat.error.agent_not_found',
 	agent_rejected_input: 'shared_chat.error.agent_rejected_input',
+	invalid_param: 'shared_chat.error.invalid_param',
 	provider_unreachable: 'shared_chat.error.provider_unreachable',
 	upstream_error: 'shared_chat.error.upstream_error',
 	conversation_not_found: 'shared_chat.error.conversation_not_found',

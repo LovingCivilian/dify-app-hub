@@ -47,7 +47,7 @@ export default function AguiFormSection({ appId, editing }: { appId?: string; ed
 				name={['settings', 'agentUrl']}
 				tooltip={t('app_setting.agent_url_tooltip')}
 				rules={[
-					{ required: true, message: t('app_setting.agent_url_required') },
+					{ required: true, whitespace: true, message: t('app_setting.agent_url_required') },
 					schemaRule(aguiSettingsSchema.shape.agentUrl, t('app_setting.agent_url_invalid')),
 				]}
 			>

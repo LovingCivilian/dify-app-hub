@@ -3,9 +3,10 @@ import type { MessageInfo } from '@ant-design/x-sdk'
 
 import type { Turn } from '@/lib/chat/turn'
 
-/** Nothing to render yet: no part, and no run that ended in an error or a stop (both show in the bubble). */
+/** Nothing to render yet: no part, no open interrupt, and no run that ended in an error or a stop (all show in the bubble). */
 const isEmpty = (turn: Turn) =>
 	turn.parts.length === 0 &&
+	turn.interrupts.length === 0 &&
 	!turn.runs.some(run => run.error || run.outcome === 'cancelled' || run.outcome === 'truncated')
 
 /**

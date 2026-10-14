@@ -629,6 +629,7 @@
 			"agent_auth_failed": "智能体拒绝了平台的凭据",
 			"agent_not_found": "未找到该智能体",
 			"agent_rejected_input": "智能体拒绝了该请求",
+			"invalid_param": "无法发送该消息，可能太长。",
 			"provider_unreachable": "智能体正在重启，请重试",
 			"upstream_error": "无法读取智能体的回答",
 			"conversation_not_found": "此对话已不存在",

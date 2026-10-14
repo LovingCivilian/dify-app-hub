@@ -629,6 +629,7 @@
 			"agent_auth_failed": "رفض الوكيل بيانات اعتماد المنصة",
 			"agent_not_found": "لم يُعثر على الوكيل",
 			"agent_rejected_input": "رفض الوكيل الطلب",
+			"invalid_param": "تعذّر إرسال الرسالة. قد تكون طويلة جدًا.",
 			"provider_unreachable": "يُعاد تشغيل الوكيل، حاول مرة أخرى",
 			"upstream_error": "تعذّرت قراءة إجابة الوكيل",
 			"conversation_not_found": "لم تعد هذه المحادثة موجودة",

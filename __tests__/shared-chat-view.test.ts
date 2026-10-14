@@ -34,6 +34,12 @@ describe('runErrorView (spec §5.3, §8)', () => {
 		expect(view.description).toBeUndefined()
 		expect(english(view.titleKey)).toEqual(expect.any(String))
 	})
+	// A message over the length limit answers invalid_param (the Sender has no cap): its own title, not "could not answer".
+	it('titles invalid_param as a message that could not be sent', () => {
+		expect(runErrorView({ code: 'invalid_param', message: 'too long' })).toEqual({
+			titleKey: 'shared_chat.error.invalid_param',
+		})
+	})
 	it('gives any other code, or none, the generic title with the message', () => {
 		expect(runErrorView({ code: 'quota_gone', message: 'Out of credits.' })).toEqual({
 			titleKey: 'shared_chat.error.generic',
@@ -110,6 +116,15 @@ describe('turn parts', () => {
 })
 
 describe('toBubbleItems', () => {
+	it('does not show the loading dots for an answer that only interrupts', () => {
+		const interrupted: Turn = {
+			...emptyAssistantTurn(),
+			interrupts: [{ id: 'i1', reason: 'tool_calls' } as Turn['interrupts'][number]],
+		}
+		expect(toBubbleItems([{ id: 'a', message: interrupted, status: 'loading' }])[0]).toMatchObject({
+			loading: false,
+		})
+	})
 	it('shows the loading dots only for an empty placeholder and streams while updating', () => {
 		const answer: Turn = {
 			...emptyAssistantTurn(),
