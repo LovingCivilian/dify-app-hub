@@ -621,6 +621,13 @@
 		"answer_pending_hint": "This conversation waits for an answer this chat cannot show yet. Start a new conversation to go on.",
 		"tool_arguments": "Arguments",
 		"tool_result": "Result",
+		"plan": {
+			"title": "Plan {{done}}/{{total}}"
+		},
+		"activity": {
+			"content": "Content",
+			"truncated": "Shown in part: the content is longer than 10 KB."
+		},
 		"interrupt": {
 			"submit": "Submit",
 			"cancel": "Cancel",

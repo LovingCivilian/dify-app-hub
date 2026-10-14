@@ -621,6 +621,13 @@
 		"answer_pending_hint": "此对话正在等待一个本聊天暂时无法显示的回答。请新建对话继续。",
 		"tool_arguments": "参数",
 		"tool_result": "结果",
+		"plan": {
+			"title": "计划 {{done}}/{{total}}"
+		},
+		"activity": {
+			"content": "内容",
+			"truncated": "仅显示部分内容：内容超过 10 KB。"
+		},
 		"interrupt": {
 			"submit": "提交",
 			"cancel": "取消",

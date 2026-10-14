@@ -621,6 +621,13 @@
 		"answer_pending_hint": "تنتظر هذه المحادثة إجابةً لا يمكن لهذه الدردشة عرضها بعد. ابدأ محادثة جديدة للمتابعة.",
 		"tool_arguments": "المُدخلات",
 		"tool_result": "النتيجة",
+		"plan": {
+			"title": "الخطة {{done}}/{{total}}"
+		},
+		"activity": {
+			"content": "المحتوى",
+			"truncated": "يُعرض جزء منه فقط: المحتوى أطول من 10 KB."
+		},
 		"interrupt": {
 			"submit": "إرسال",
 			"cancel": "إلغاء",
