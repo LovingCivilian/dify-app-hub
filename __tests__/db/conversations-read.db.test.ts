@@ -8,6 +8,7 @@ vi.mock('@/db', async () => {
 })
 
 import { apps, conversationMessages, conversationRuns, conversations, users } from '@/db/schema'
+import { turnsFromMessages } from '@/lib/chat/turn'
 import {
 	decodeListCursor,
 	encodeListCursor,
@@ -188,6 +189,24 @@ describe('a page of history (spec §3.3, plan call P8)', () => {
 		expect(older?.cursor).toBeNull()
 		expect(older?.rows.map(row => row.seq)).toEqual([turn1.seq, turn1.seq + 1])
 		expect(older?.runs.map(run => run.id)).toEqual([turn1.runId])
+	})
+
+	it('groups a stored conversation into turns end to end (spec §3.3)', async () => {
+		const actor = await insertAccount(actorFor())
+		const appId = await insertApp()
+		const conversationId = await insertConversation(actor, appId)
+		const base = Date.now() - 60_000
+		const turn1 = await insertTurn(conversationId, new Date(base), 'one')
+		const turn2 = await insertTurn(conversationId, new Date(base + 1000), 'two')
+		const page = await readThreadPage(actor, appId, conversationId, { turns: 20 })
+		const turns = turnsFromMessages(page!.rows, page!.runs)
+		expect(turns.map(({ turn }) => turn.role)).toEqual(['user', 'assistant', 'user', 'assistant'])
+		expect(
+			turns.map(({ turn }) => turn.parts.map(part => ('text' in part ? part.text : ''))),
+		).toEqual([['one'], ['Re: one'], ['two'], ['Re: two']])
+		// The runs are stored with no outcome (null): it reads as success.
+		expect(turns[1].turn.runs).toEqual([{ runId: turn1.runId, outcome: 'success' }])
+		expect(turns[3].turn.runs).toEqual([{ runId: turn2.runId, outcome: 'success' }])
 	})
 
 	it('answers null for another account’s conversation, another app’s, or a deleted one', async () => {
