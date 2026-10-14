@@ -459,7 +459,15 @@ export default function ChatView() {
 		setDrawerOpen(false)
 		setRailListOpen(false)
 	}, [createTemp])
-	const conversationMenu = useConversationMenu({ rename, remove, getDifyId })
+	// A chat Dify has not named yet can only be deleted: its name is Dify's to give once the first reply starts it
+	// (spec §4.4). Stable while getDifyId is, so the memoised sidebar keeps its menu.
+	const canRename = useCallback((key: string) => Boolean(getDifyId(key)), [getDifyId])
+	// The menu's toast, worded as before (failureText, else the generic text).
+	const describeFailure = useCallback(
+		(error: unknown) => failureText(error, t, t('common.request_failed_retry')),
+		[t],
+	)
+	const conversationMenu = useConversationMenu({ rename, remove, canRename, describeFailure })
 
 	// A send queued for this conversation's history lives in the SDK's queue of this conversation, which only
 	// the conversation on screen sends: until its reply starts, the list keeps it (ADR-0017 note of 2026-10-05).
