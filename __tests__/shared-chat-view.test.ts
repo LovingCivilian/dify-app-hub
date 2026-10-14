@@ -1,3 +1,4 @@
+import type { Interrupt } from '@ag-ui/core'
 import type { TFunction } from 'i18next'
 import { describe, expect, it } from 'vitest'
 
@@ -9,7 +10,12 @@ import {
 	runErrorView,
 	stoppedCaptionKey,
 } from '@/components/shared-chat/run-error'
-import { groupParts, inputHint, prettyJson } from '@/components/shared-chat/turn-parts'
+import {
+	groupParts,
+	inputHint,
+	prettyJson,
+	standaloneInterrupts,
+} from '@/components/shared-chat/turn-parts'
 import { emptyAssistantTurn, userTurn, type Turn, type TurnPart } from '@/lib/chat/turn'
 import { RequestError } from '@/lib/http/browser'
 import en from '@/locales/en/translation.json'
@@ -162,5 +168,44 @@ describe('toBubbleItems', () => {
 				status: 'updating',
 			},
 		])
+	})
+})
+
+describe('standaloneInterrupts (spec §6.3, plan call P8)', () => {
+	const call = (id: string): TurnPart => ({
+		kind: 'tool',
+		toolCallId: id,
+		name: 'delete_file',
+		args: '{}',
+		status: 'waiting',
+	})
+	const approval: Interrupt = { id: 'i1', reason: 'tool_call', toolCallId: 'c1' }
+	const elsewhere: Interrupt = { id: 'i2', reason: 'tool_call', toolCallId: 'c9' }
+	const unbound: Interrupt = { id: 'i3', reason: 'tool_call' }
+	const input: Interrupt = { id: 'i4', reason: 'input_required', message: 'Which city?' }
+	const confirm: Interrupt = { id: 'i5', reason: 'confirmation', toolCallId: 'c1' }
+	it("leaves an approval to its own call's card and keeps every other interrupt in order", () => {
+		expect(
+			standaloneInterrupts([call('c1')], [approval, elsewhere, unbound, input, confirm]),
+		).toEqual([elsewhere, unbound, input, confirm])
+	})
+	it('keeps an approval as its own card when the turn holds no such call', () => {
+		expect(standaloneInterrupts([], [approval])).toEqual([approval])
+		expect(standaloneInterrupts([call('c2')], [approval])).toEqual([approval])
+	})
+	it('shows nothing when nothing is open', () => {
+		expect(standaloneInterrupts([call('c1')], [])).toEqual([])
+	})
+})
+
+describe('toBubbleItems with a waiting call (plan call P9)', () => {
+	it('does not show the loading dots for an answer whose only part waits for an answer', () => {
+		const asking: Turn = {
+			...emptyAssistantTurn(),
+			parts: [{ kind: 'tool', toolCallId: 'c1', name: 'ask_user', args: '{}', status: 'waiting' }],
+		}
+		expect(toBubbleItems([{ id: 'a', message: asking, status: 'loading' }])[0]).toMatchObject({
+			loading: false,
+		})
 	})
 })

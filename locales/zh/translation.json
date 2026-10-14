@@ -618,7 +618,7 @@
 	},
 	"shared_chat": {
 		"stopped_time_limit": "已停止：达到时间限制",
-		"answer_pending_hint": "此对话正在等待一个本聊天暂时无法显示的回答。请新建对话继续。",
+		"answer_pending_hint": "请先回应上方的智能体，然后继续。",
 		"tool_arguments": "参数",
 		"tool_result": "结果",
 		"plan": {

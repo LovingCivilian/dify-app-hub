@@ -1,3 +1,6 @@
+import type { Interrupt } from '@ag-ui/core'
+
+import { isApproval } from '@/lib/chat/interrupt-answers'
 import type { ToolPart, TurnPart } from '@/lib/chat/turn'
 
 export type { ToolPart }
@@ -34,4 +37,24 @@ export const prettyJson = (text: string): string => {
 	} catch {
 		return text
 	}
+}
+
+/**
+ * The open interrupts a turn shows as cards of their own (spec §6.3, plan call P8): all of them except an approval
+ * whose `toolCallId` names one of this turn's tool calls, which that call's ThoughtChain item answers (spec §6.1). An
+ * approval for a call the turn does not hold keeps its own card, with Approve and Reject. Order is kept.
+ */
+export const standaloneInterrupts = (
+	parts: readonly TurnPart[],
+	interrupts: readonly Interrupt[],
+): Interrupt[] => {
+	const calls = new Set(parts.flatMap(part => (part.kind === 'tool' ? [part.toolCallId] : [])))
+	return interrupts.filter(
+		interrupt =>
+			!(
+				isApproval(interrupt) &&
+				interrupt.toolCallId !== undefined &&
+				calls.has(interrupt.toolCallId)
+			),
+	)
 }
