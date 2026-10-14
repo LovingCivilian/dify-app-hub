@@ -32,6 +32,12 @@ export const connectionOutcome = (
 				title: t('connection_test.reachable_title'),
 				description: t('connection_test.reachable_description'),
 			}
+		if (result.data.outcome === 'ran_on_invalid_input')
+			return {
+				type: 'warning',
+				title: t('connection_test.ran_on_invalid_input_title'),
+				description: t('connection_test.ran_on_invalid_input_description'),
+			}
 		return {
 			type: 'warning',
 			title: t('connection_test.type_mismatch_title'),
@@ -59,6 +65,12 @@ export const connectionOutcome = (
 				type: 'error',
 				title: t('connection_test.upstream_error_title'),
 				description: t('connection_test.upstream_error_description'),
+			}
+		case 'provider_agent_not_found':
+			return {
+				type: 'error',
+				title: t('connection_test.agent_not_found_title'),
+				description: t('connection_test.agent_not_found_description'),
 			}
 		default:
 			return {

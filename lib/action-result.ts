@@ -10,6 +10,7 @@ export type ActionErrorCode =
 	| 'not_found'
 	| 'provider_unreachable'
 	| 'provider_key_refused'
+	| 'provider_agent_not_found'
 	| 'provider_error'
 	| 'sync_running'
 	| 'settings_not_editable'

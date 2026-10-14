@@ -589,6 +589,10 @@
 		"unreachable_description": "请检查 API 地址，并确认提供方正在运行且应用中心可以访问。",
 		"upstream_error_title": "提供方返回了错误",
 		"upstream_error_description": "请检查 API 地址：它应为提供方的 API 地址。",
-		"failed_title": "测试未运行"
+		"failed_title": "测试未运行",
+		"agent_not_found_title": "未找到智能体",
+		"agent_not_found_description": "服务已响应，但此地址下没有智能体。请检查路径，例如 /agents/<name>。",
+		"ran_on_invalid_input_title": "已连接，但智能体对测试请求启动了运行",
+		"ran_on_invalid_input_description": "智能体对一个本应拒绝的请求启动了运行。它可以使用，但请告知其作者：AG-UI 智能体应以 HTTP 错误拒绝无效输入。"
 	}
 }

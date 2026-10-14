@@ -589,6 +589,10 @@
 		"unreachable_description": "Check the API base, and that the provider is running and reachable from the hub.",
 		"upstream_error_title": "The provider answered with an error",
 		"upstream_error_description": "Check the API base: it should be the provider’s API address.",
-		"failed_title": "The test did not run"
+		"failed_title": "The test did not run",
+		"agent_not_found_title": "The agent was not found",
+		"agent_not_found_description": "The service answered, but no agent lives at this URL. Check the path, e.g. /agents/<name>.",
+		"ran_on_invalid_input_title": "Connected, but the agent ran on a test request",
+		"ran_on_invalid_input_description": "The agent started a run for a request it should have refused. It can be used, but tell its author: an AG-UI agent refuses invalid input with an HTTP error."
 	}
 }

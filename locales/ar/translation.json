@@ -589,6 +589,10 @@
 		"unreachable_description": "تحقّق من عنوان API، ومن أن المزوّد يعمل ويمكن للمنصة الوصول إليه.",
 		"upstream_error_title": "أجاب المزوّد بخطأ",
 		"upstream_error_description": "تحقّق من عنوان API: يجب أن يكون عنوان واجهة API لدى المزوّد.",
-		"failed_title": "لم يُنفَّذ الاختبار"
+		"failed_title": "لم يُنفَّذ الاختبار",
+		"agent_not_found_title": "لم يُعثر على الوكيل",
+		"agent_not_found_description": "استجابت الخدمة، لكن لا يوجد وكيل على هذا العنوان. تحقّق من المسار، مثل /agents/<name>.",
+		"ran_on_invalid_input_title": "تم الاتصال، لكن الوكيل بدأ تشغيلًا لطلب الاختبار",
+		"ran_on_invalid_input_description": "بدأ الوكيل تشغيلًا لطلب كان ينبغي أن يرفضه. يمكن استخدامه، لكن أبلغ مطوّره: يرفض وكيل AG-UI المدخلات غير الصالحة برمز خطأ HTTP."
 	}
 }
