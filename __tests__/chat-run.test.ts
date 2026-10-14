@@ -10,7 +10,7 @@ type FakeSession = {
 const { dal, sessions } = vi.hoisted(() => ({
 	dal: {
 		findConversation: vi.fn(),
-		lastRun: vi.fn(),
+		continuedRun: vi.fn(),
 		loadThread: vi.fn(),
 		startRun: vi.fn(),
 		finishRun: vi.fn(),
@@ -124,7 +124,7 @@ beforeEach(() => {
 	chat.runTurn.mockReset()
 	sessions.length = 0
 	dal.findConversation.mockResolvedValue(conversation)
-	dal.lastRun.mockResolvedValue(null)
+	dal.continuedRun.mockResolvedValue(null)
 	dal.loadThread.mockResolvedValue([])
 	dal.finishRun.mockResolvedValue(undefined)
 	dal.startRun.mockImplementation(
@@ -265,7 +265,7 @@ describe('runTurn: a run that opens', () => {
 			runId: 'r-old',
 		})
 		expect(dal.truncateStaleRun.mock.invocationCallOrder[0]).toBeLessThan(
-			dal.lastRun.mock.invocationCallOrder[0],
+			dal.continuedRun.mock.invocationCallOrder[0],
 		)
 		await vi.waitFor(() => expect(sessions[0].finish).toHaveBeenCalled())
 
@@ -286,7 +286,7 @@ describe('runTurn: what the conversation waits for', () => {
 	const approval = { id: 'int-1', reason: 'tool_call', toolCallId: 'call-1' }
 
 	it('refuses a message while an interrupt is open, storing nothing', async () => {
-		dal.lastRun.mockResolvedValue(interrupted([approval]))
+		dal.continuedRun.mockResolvedValue(interrupted([approval]))
 		expect(
 			await envelope(await run({ conversationId: CONVERSATION_ID, message: { text: 'hi' } })),
 		).toEqual({
@@ -297,7 +297,7 @@ describe('runTurn: what the conversation waits for', () => {
 	})
 
 	it('refuses answers that do not match what is open', async () => {
-		dal.lastRun.mockResolvedValue(interrupted([approval]))
+		dal.continuedRun.mockResolvedValue(interrupted([approval]))
 		const response = await run({
 			conversationId: CONVERSATION_ID,
 			answers: { resume: [{ interruptId: 'int-9', status: 'resolved' }] },
@@ -315,7 +315,7 @@ describe('runTurn: what the conversation waits for', () => {
 
 	it('resumes with the answers, and leaves the gated call to the agent', async () => {
 		opens({ ok: true })
-		dal.lastRun.mockResolvedValue(interrupted([approval]))
+		dal.continuedRun.mockResolvedValue(interrupted([approval]))
 		dal.loadThread.mockResolvedValue([
 			userRow(1, 'm1', 'Delete it'),
 			callRow(2, 'call-1', 'call-2'),

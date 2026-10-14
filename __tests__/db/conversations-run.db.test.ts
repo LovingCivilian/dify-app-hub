@@ -8,16 +8,24 @@ vi.mock('@/db', async () => {
 })
 
 import { apps, conversationMessages, conversationRuns, conversations, users } from '@/db/schema'
-import { errorToolMessage, STOPPED_TOOL_CONTENT, threadForAgent } from '@/lib/chat/thread'
 import {
+	errorToolMessage,
+	STOPPED_TOOL_CONTENT,
+	threadForAgent,
+	UNAVAILABLE_TOOL_CONTENT,
+	UNAVAILABLE_TOOL_ERROR,
+} from '@/lib/chat/thread'
+import {
+	continuedRun,
 	finishRun,
 	findConversation,
-	lastRun,
 	loadThread,
+	readThreadPage,
 	saveMessages,
 	saveState,
 	startRun,
 	truncateStaleRun,
+	type RunEnd,
 	type RunKey,
 } from '@/lib/data/conversations'
 
@@ -95,7 +103,7 @@ describe('a run’s writes (Part 2 spec §3.2)', () => {
 			title: 'Hello',
 			activeRunId: key.runId,
 		})
-		expect(await lastRun(key.conversationId)).toMatchObject({
+		expect(await continuedRun(key.conversationId)).toMatchObject({
 			id: key.runId,
 			status: 'running',
 			error: null,
@@ -221,7 +229,7 @@ describe('a run’s writes (Part 2 spec §3.2)', () => {
 		expect(thread.filter(row => row.role === 'tool')).toMatchObject([
 			{ messageId: stopped.id, runId: key.runId, status: 'complete', body: stopped },
 		])
-		expect(await lastRun(key.conversationId)).toMatchObject({
+		expect(await continuedRun(key.conversationId)).toMatchObject({
 			status: 'cancelled',
 			outcome: { type: 'cancelled' },
 			error: null,
@@ -302,7 +310,7 @@ describe('a run’s writes (Part 2 spec §3.2)', () => {
 				error: 'stopped',
 			},
 		])
-		expect((await lastRun(key.conversationId))?.status).toBe('truncated')
+		expect((await continuedRun(key.conversationId))?.status).toBe('truncated')
 		expect((await findConversation(actor, appId, key.conversationId))?.activeRunId).toBeNull()
 	})
 
@@ -317,6 +325,167 @@ describe('a run’s writes (Part 2 spec §3.2)', () => {
 		expect(log).toHaveBeenCalledWith('Stored conversation message refused:', {
 			conversationId: key.conversationId,
 			seq: Number(rows[0]!.seq),
+		})
+	})
+})
+
+// Plan call P10 (decision 62): an answering run the agent never started keeps what it answered open.
+describe('a run refused before its stream (plan call P10)', () => {
+	let actor: Actor
+	let appId: string
+	beforeEach(async () => {
+		actor = actorFor()
+		await insertAccount(actor)
+		appId = await insertApp()
+	})
+
+	const REFUSAL = {
+		code: 'provider_unreachable',
+		message: 'The agent is restarting, try again.',
+		beforeStream: true,
+	} as const
+	const refusedEnd = (withdraw?: string[]): RunEnd => ({
+		status: 'failed',
+		error: REFUSAL,
+		custom: [],
+		...(withdraw ? { withdraw } : {}),
+	})
+
+	/** The next run on the conversation, started with the given messages (an answering run carries tool messages). */
+	const answering = async (conversationId: string, messages: Message[]): Promise<RunKey> => {
+		const result = await startRun(actor, {
+			appId,
+			conversation: { id: conversationId },
+			runId: crypto.randomUUID(),
+			messages,
+		})
+		if (!result.ok) throw new Error(result.code)
+		return result.key
+	}
+	const askUserAnswer = (toolCallId: string): Message => ({
+		id: crypto.randomUUID(),
+		role: 'tool',
+		toolCallId,
+		content: 'Q: Which city?\nA: Paris',
+	})
+	/** A first run that asked with ask_user and ended; answers its key and the assistant message's id. */
+	const asked = async () => {
+		const key = await begin(actor, appId)
+		const askingId = crypto.randomUUID()
+		await saveMessages(key, [
+			{
+				message: {
+					id: askingId,
+					role: 'assistant',
+					toolCalls: [
+						{ id: 'call-1', type: 'function', function: { name: 'ask_user', arguments: '{}' } },
+					],
+				},
+				status: 'complete',
+			},
+		])
+		await done(key)
+		return { key, askingId }
+	}
+
+	it('is passed over: continuedRun answers the run before it', async () => {
+		const first = await begin(actor, appId)
+		await finishRun(first, {
+			status: 'interrupted',
+			outcome: { type: 'interrupt', interrupts: [{ id: 'int-1', reason: 'input_required' }] },
+			custom: [],
+		})
+		const refused = await answering(first.conversationId, [])
+		await finishRun(refused, refusedEnd())
+		expect(await continuedRun(first.conversationId)).toMatchObject({
+			id: first.runId,
+			status: 'interrupted',
+			outcome: { type: 'interrupt', interrupts: [{ id: 'int-1', reason: 'input_required' }] },
+		})
+	})
+
+	it('leaves runs without an error, or with an error without the flag, as the continued run', async () => {
+		const key = await begin(actor, appId)
+		expect((await continuedRun(key.conversationId))?.id).toBe(key.runId)
+		await done(key)
+		expect(await continuedRun(key.conversationId)).toMatchObject({ id: key.runId, error: null })
+		const failed = await answering(key.conversationId, [userMessage('Again')])
+		await finishRun(failed, {
+			status: 'failed',
+			error: { code: 'agent_rejected_input', message: 'The agent refused the request.' },
+			custom: [],
+		})
+		expect(await continuedRun(key.conversationId)).toMatchObject({
+			id: failed.runId,
+			error: { code: 'agent_rejected_input', message: 'The agent refused the request.' },
+		})
+	})
+
+	it('keeps the flag on the stored error and reads it back', async () => {
+		const first = await begin(actor, appId)
+		await done(first)
+		const refused = await answering(first.conversationId, [])
+		await finishRun(refused, refusedEnd())
+		const [stored] = await testDb
+			.select({ error: conversationRuns.error })
+			.from(conversationRuns)
+			.where(eq(conversationRuns.id, refused.runId))
+		expect(stored?.error).toEqual(REFUSAL)
+		const page = await readThreadPage(actor, appId, first.conversationId, { turns: 20 })
+		expect(page?.runs.find(run => run.id === refused.runId)).toMatchObject({
+			status: 'failed',
+			error: REFUSAL,
+		})
+	})
+
+	it('withdraws only the rows it names of this run, with the run’s end', async () => {
+		const { key: first, askingId } = await asked()
+		const answer = askUserAnswer('call-1')
+		const unavailable = errorToolMessage('call-2', UNAVAILABLE_TOOL_ERROR, UNAVAILABLE_TOOL_CONTENT)
+		const refused = await answering(first.conversationId, [unavailable, answer])
+		// The first run's assistant message is named too: it is another run's row, so it stays.
+		await finishRun(refused, refusedEnd([answer.id, askingId]))
+		const ids = (await loadThread(first.conversationId)).map(row => row.messageId)
+		expect(ids).not.toContain(answer.id)
+		expect(ids).toContain(askingId)
+		expect(ids).toContain(unavailable.id)
+		expect(await continuedRun(first.conversationId)).toMatchObject({ id: first.runId })
+		const conversation = await findConversation(actor, appId, first.conversationId)
+		expect(conversation?.activeRunId).toBeNull()
+		const page = await readThreadPage(actor, appId, first.conversationId, { turns: 20 })
+		expect(page?.runs.find(run => run.id === refused.runId)?.status).toBe('failed')
+	})
+
+	// PostgreSQL 18 Glossary, "Atomicity": "either all its operations complete as a single unit or none do". A tool message
+	// whose id is already stored breaks the end's last insert (UNIQUE (conversation_id, message_id)), so the withdrawal is
+	// rolled back with the rest of the end.
+	it('withdraws in the transaction that ends the run: an end that fails withdraws nothing', async () => {
+		const { key: first, askingId } = await asked()
+		const answer = askUserAnswer('call-1')
+		const refused = await answering(first.conversationId, [answer])
+		const clash = { ...askUserAnswer('call-9'), id: askingId }
+		await expect(
+			finishRun(refused, {
+				...refusedEnd([answer.id]),
+				close: { messageIds: [], toolMessages: [clash] },
+			}),
+		).rejects.toThrow()
+		expect((await loadThread(first.conversationId)).map(row => row.messageId)).toContain(answer.id)
+		expect((await continuedRun(first.conversationId))?.id).toBe(refused.runId)
+		expect((await continuedRun(first.conversationId))?.status).toBe('running')
+	})
+
+	it('withdraws nothing from a run that has already ended', async () => {
+		const { key: first } = await asked()
+		const answer = askUserAnswer('call-1')
+		const refused = await answering(first.conversationId, [answer])
+		await done(refused)
+		await finishRun(refused, refusedEnd([answer.id]))
+		expect((await loadThread(first.conversationId)).map(row => row.messageId)).toContain(answer.id)
+		expect(await continuedRun(first.conversationId)).toMatchObject({
+			id: refused.runId,
+			status: 'succeeded',
+			error: null,
 		})
 	})
 })

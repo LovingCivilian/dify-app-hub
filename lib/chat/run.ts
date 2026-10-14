@@ -5,7 +5,7 @@ import type { Message, ResumeEntry } from '@ag-ui/core'
 import type { SessionUser } from '@/lib/auth/session'
 import {
 	finishRun,
-	lastRun,
+	continuedRun,
 	loadThread,
 	startRun,
 	truncateStaleRun,
@@ -97,7 +97,7 @@ export const runTurn = async ({
 		conversation = found.conversation
 		await reconcileStaleRun(conversation)
 	}
-	const open = openItemsOf(conversation ? await lastRun(conversation.id) : null)
+	const open = openItemsOf(conversation ? await continuedRun(conversation.id) : null)
 	let resume: ResumeEntry[] | undefined
 	let answers: Message[] = []
 	if (body.answers) {
