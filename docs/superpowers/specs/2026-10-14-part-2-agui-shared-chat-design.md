@@ -15,7 +15,33 @@ Part 2 runs over several sessions (decision 55). **This section is the source of
 
 **Next:** 2a's plan (`superpowers-extended-cc:writing-plans`), recommended in a new session, written against `fork/overhaul` as it stands after the spec merged (decision 33), on a `docs/` branch with its own PR; then 2a's build on `feat/agui-core`.
 
-**A new session starts by reading, in order:** AGENTS.md; this section; the running record's decisions 40–55; the sections of this spec for the slice at hand; the slice's plan once it exists. Facts that are not in the repo yet are not facts: anything decided in a session goes into this spec, the running record or the slice's plan before the session ends.
+**Phases.**
+
+- **The programme:** Part 0 (merged, #39) → Part 1 (merged, #60) → Part 2 (spec merged, #63; then 2a → 2b → 2c) → Part 3, Dify onto the shared chat (its spec after 2c) → the local folder rename (decision 35).
+- **Each slice:**
+  1. **Plan:** on a `docs/` branch, with its own PR.
+  2. **Build:** on the slice's `feat/` branch, run by the superpowers skills.
+  3. **Gates:** AGENTS.md's, then the Docker gate.
+  4. **The owner's check.**
+  5. **Merge:** the PR merged, with its records (ADRs, the running record, this table, AGENTS.md's Layout, issues).
+
+**Handing off** (decision 57). A session that stops before its slice is done leaves the next one everything in the repo, never only in chat or memory:
+
+- **The Next line** says:
+  - the branch and its last pushed commit;
+  - the next plan task;
+  - what is verified and what is not;
+  - questions waiting for the owner;
+  - the local state (running containers, migrations applied to the local database).
+- **This table** shows every phase reached.
+- **The running record** has every owner decision, with their words and the date.
+- **Work is committed and pushed**, unfinished work included.
+- **Deviations** from this spec go in the plan or an ADR note.
+- **Findings left for later** go in a GitHub issue labelled `fork/overhaul`.
+
+No separate handoff document unless the owner asks.
+
+**A new session starts by reading, in order:** AGENTS.md; this section; the running record's decisions 40 onwards; the sections of this spec for the slice at hand; the slice's plan once it exists. Facts that are not in the repo yet are not facts: anything decided in a session goes into this spec, the running record or the slice's plan before the session ends.
 
 **Standing rules for every slice** (AGENTS.md, memory): documented approaches only, with a source per piece (ADR-0002) checked against every source AGENTS.md names; a feature branch in `~/repos/dify-app-hub` itself, no worktree; `nvm use` first (Node 22); a new dependency or pattern gets its ADR in the same PR; the gates of AGENTS.md before every commit; the Docker gate before merging.
 
