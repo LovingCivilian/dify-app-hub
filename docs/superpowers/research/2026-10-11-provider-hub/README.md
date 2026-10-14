@@ -443,6 +443,8 @@ The decisions below were taken in one session on 2026-10-14. The spec they produ
       - **Checks:** no `[ag-ui]` or `@ag-ui/` in `.next/static`, and every signed-out check as AGENTS.md lists, with 401 on the three new routes.
     - **The owner's word**, working remotely without a browser: "let's proceed nonetheless … I will test it in the morning … accept the ADR, push the PR, open the issues". ADR-0033 and ADR-0034 are accepted on it. The PR is #70, and the issues are #66–#69. The owner's browser check on the local stack comes before the merge, and a problem it finds becomes a fix on the branch.
 
+61. **2a is merged before the owner's browser check** (owner, 2026-10-14: "I merged it before my browser check, and I'll still do that check; a problem it finds becomes a fix/ branch"). PR #70 merged into `fork/overhaul` as `e8530dcc`; `feat/agui-core` is deleted, and issue #62 has the comment naming the three items 2a closed. The check (spec §12, "2a done when") stays due; a problem it finds is fixed on a `fix/` branch from `fork/overhaul`, not on 2b's branches. Next: 2b's plan on `docs/part-2b-plan`, written against `e8530dcc` (decision 33).
+
 ## Ideas kept for later
 
 - **An "HTTP template" provider** (decision 52): an admin-defined request template and response mapping for text-only APIs. It would need its own spec and an ADR recording the deviation from ADR-0002, since it is a home-made mapping language. References: LibreChat's custom endpoints vary only headers and parameters of an OpenAI-compatible wire format; LobeHub's custom providers pick from fixed SDK types.
