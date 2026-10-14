@@ -9,7 +9,7 @@ Part 2 runs over several sessions (decision 55). **This section is the source of
 | Slice | Branch | Plan | Build | PR | Merged |
 | --- | --- | --- | --- | --- | --- |
 | Spec | `docs/part-2-spec` | — | spec, spike and research notes written; approved 2026-10-14 | #63 | 2026-10-14 |
-| 2a the core | `feat/agui-core` | `docs/superpowers/plans/2026-10-14-part-2a-agui-core.md` (19 tasks; `docs/part-2a-plan`) | — | — | — |
+| 2a the core | `feat/agui-core` | `docs/superpowers/plans/2026-10-14-part-2a-agui-core.md` (19 tasks; `docs/part-2a-plan`, PR #65) | — | — | — |
 | 2b human in the loop | `feat/agui-hitl` | not written | — | — | — |
 | 2c attachments and Logs | `feat/agui-files-logs` | not written | — | — | — |
 
