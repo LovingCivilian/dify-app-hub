@@ -1,6 +1,6 @@
 # Part 2: the shared chat on AG-UI and the AG-UI provider (design)
 
-Date: 2026-10-14 · Status: approved in seven sections by the owner on 2026-10-14; the written spec waits for the owner's review · Programme: `2026-10-11-provider-hub-charter.md` · Builds on: Part 1 (`2026-10-11-part-1-provider-core-design.md`, ADR-0032, merged as `8500cce3`) · Decisions: running record `docs/superpowers/research/2026-10-11-provider-hub/README.md`, numbers 40–55 · Spike: `…/agui-spike.md` · Research: `…/part2-store-and-logs.md`, `…/part2-proxy-stop-identity.md`, `…/part2-x-mapping.md`, `…/part2-hitl-state-files.md`
+Date: 2026-10-14 · Status: approved by the owner on 2026-10-14 (seven sections, then the written spec: "specs looks good, push and merge") · Programme: `2026-10-11-provider-hub-charter.md` · Builds on: Part 1 (`2026-10-11-part-1-provider-core-design.md`, ADR-0032, merged as `8500cce3`) · Decisions: running record `docs/superpowers/research/2026-10-11-provider-hub/README.md`, numbers 40–55 · Spike: `…/agui-spike.md` · Research: `…/part2-store-and-logs.md`, `…/part2-proxy-stop-identity.md`, `…/part2-x-mapping.md`, `…/part2-hitl-state-files.md`
 
 ## 0. Progress and where a new session starts
 
@@ -8,12 +8,12 @@ Part 2 runs over several sessions (decision 55). **This section is the source of
 
 | Slice | Branch | Plan | Build | PR | Merged |
 | --- | --- | --- | --- | --- | --- |
-| Spec | `docs/part-2-spec` | — | spec, spike and research notes written | not opened | — |
+| Spec | `docs/part-2-spec` | — | spec, spike and research notes written; approved 2026-10-14 | docs PR to `fork/overhaul` | merging 2026-10-14 |
 | 2a the core | `feat/agui-core` | not written | — | — | — |
 | 2b human in the loop | `feat/agui-hitl` | not written | — | — | — |
 | 2c attachments and Logs | `feat/agui-files-logs` | not written | — | — | — |
 
-**Next:** the owner reviews this spec; then the spec PR; then 2a's plan (`superpowers-extended-cc:writing-plans`), written against `fork/overhaul` as it stands after the spec merges (decision 33).
+**Next:** 2a's plan (`superpowers-extended-cc:writing-plans`), recommended in a new session, written against `fork/overhaul` as it stands after the spec merged (decision 33), on a `docs/` branch with its own PR; then 2a's build on `feat/agui-core`.
 
 **A new session starts by reading, in order:** AGENTS.md; this section; the running record's decisions 40–55; the sections of this spec for the slice at hand; the slice's plan once it exists. Facts that are not in the repo yet are not facts: anything decided in a session goes into this spec, the running record or the slice's plan before the session ends.
 

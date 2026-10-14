@@ -429,6 +429,7 @@ The decisions below were taken in one session on 2026-10-14. The spec they produ
 53. **Images keep their size unless the app sets a maximum** (owner, 2026-10-14: "why resize the images?", then "Per-app max size"). Images are decoded and re-encoded to strip metadata (OWASP) at their original size; an optional per-app "max image edge" shrinks them.
 54. **A per-conversation cap of 6 MB, every attachment re-sent** (owner, 2026-10-14: "why is there a cap on the chat size?", then "Per-conversation cap"). The per-run budget with placeholders was offered and not taken; the "last N turns" placeholder setting is dropped.
 55. **The design's seven sections are approved** (owner, 2026-10-14: "go ahead", "go", "go", "go", "go", "yes", "yes"), and Part 2 must stay resumable (owner: "this will be a muli session project, so keep facts and progres durable is future agents dont lose context"). The spike and research notes are committed beside this record, the spec carries a Progress section, and each later session updates it.
+56. **Part 2's spec is approved** (owner, 2026-10-14: "specs looks good, push and merge"). It merges as a docs PR with the spike and research notes. The owner asked whether to write 2a's plan in the same session ("should we do it this session? its already at 500k context"); Claude recommended a new session that starts from the spec's §0.
 
 ## Ideas kept for later
 
