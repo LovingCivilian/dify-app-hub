@@ -2,13 +2,18 @@ import 'server-only'
 
 import type { Message } from '@ag-ui/core'
 import { MessageSchema } from '@ag-ui/core/schemas'
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { getDb } from '@/db'
 import { conversationMessages, conversationRuns, conversations } from '@/db/schema'
 import type { SessionUser } from '@/lib/auth/session'
-import type { MessageRole, MessageStatus, RunStatus } from '@/lib/chat/statuses'
+import {
+	PURGE_AFTER_DAYS,
+	type MessageRole,
+	type MessageStatus,
+	type RunStatus,
+} from '@/lib/chat/statuses'
 import {
 	errorToolMessage,
 	STOPPED_TOOL_CONTENT,
@@ -407,4 +412,210 @@ export async function truncateStaleRun(key: RunKey): Promise<void> {
 				.map(call => errorToolMessage(call.toolCallId, STOPPED_TOOL_ERROR, STOPPED_TOOL_CONTENT)),
 		},
 	})
+}
+
+/* ----- The browser's reads, rename and delete (spec §3.3, §3.4, §4.2) ----- */
+
+/** Plan call P8: the list answers at most the newest 100 conversations a page (Dify's sidebar limit). */
+export const LIST_PAGE_MAX = 100
+
+/** Plan call P8: a history page holds the latest 20 user turns and what follows each. */
+export const THREAD_PAGE_TURNS = 20
+
+export interface ConversationListItem {
+	id: string
+	title: string
+	/** ISO 8601 (Date.prototype.toISOString). */
+	updatedAt: string
+}
+
+const listCursorSchema = z.tuple([z.iso.datetime(), z.uuid()])
+
+/**
+ * The list's keyset cursor (spec §4.2: "keyset-paged on `(updated_at, id)`"): the last item's two keys as JSON, in
+ * base64url so the browser carries it as one opaque query value (Node.js "Buffer", 'base64url' encoding). A conversation's
+ * `updated_at` always comes from a JS Date (db/schema/conversations.ts), so the millisecond ISO string is its exact value.
+ */
+export const encodeListCursor = (updatedAt: Date, id: string): string =>
+	Buffer.from(JSON.stringify([updatedAt.toISOString(), id])).toString('base64url')
+
+/** The cursor's two keys, or null for anything this module did not write (zod 4 `z.iso.datetime()`, `z.uuid()`). */
+export const decodeListCursor = (value: string): { updatedAt: Date; id: string } | null => {
+	let raw: unknown
+	try {
+		raw = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'))
+	} catch {
+		return null
+	}
+	const parsed = listCursorSchema.safeParse(raw)
+	return parsed.success ? { updatedAt: new Date(parsed.data[0]), id: parsed.data[1] } : null
+}
+
+/**
+ * The actor's conversations of the app, not deleted, newest first (spec §4.2), on the `(user_id, app_id, updated_at)`
+ * index (spec §3.1). The keyset condition is a row comparison, `(updated_at, id) < (cursor)`, which compares left to
+ * right (PostgreSQL 18 "Row Constructor Comparison"), so ties on `updated_at` go by id and no row is skipped or
+ * repeated; one row more than the page tells whether another page follows. A cursor that does not decode answers an
+ * empty page (the route refuses one first, Task 11).
+ */
+export async function listConversations(
+	actor: SessionUser,
+	appId: string,
+	page: { cursor?: string; limit: number },
+): Promise<{ items: ConversationListItem[]; nextCursor: string | null }> {
+	const limit = Math.min(Math.max(Math.trunc(page.limit), 1), LIST_PAGE_MAX)
+	const after = page.cursor === undefined ? null : decodeListCursor(page.cursor)
+	if (page.cursor !== undefined && !after) return { items: [], nextCursor: null }
+	const rows = await getDb()
+		.select({
+			id: conversations.id,
+			title: conversations.title,
+			updatedAt: conversations.updatedAt,
+		})
+		.from(conversations)
+		.where(
+			and(
+				eq(conversations.userId, actor.id),
+				eq(conversations.appId, appId),
+				isNull(conversations.deletedAt),
+				after
+					? sql`(${conversations.updatedAt}, ${conversations.id}) < (${after.updatedAt}::timestamptz, ${after.id}::uuid)`
+					: undefined,
+			),
+		)
+		.orderBy(desc(conversations.updatedAt), desc(conversations.id))
+		.limit(limit + 1)
+	const items = rows.slice(0, limit)
+	const last = items.at(-1)
+	return {
+		items: items.map(row => ({
+			id: row.id,
+			title: row.title,
+			updatedAt: row.updatedAt.toISOString(),
+		})),
+		nextCursor: rows.length > limit && last ? encodeListCursor(last.updatedAt, last.id) : null,
+	}
+}
+
+export interface ThreadPage {
+	conversation: ConversationRecord
+	rows: StoredMessage[]
+	runs: StoredRun[]
+	/** The seq of the oldest user message shown, as a string; null when nothing is older (plan call P8). */
+	cursor: string | null
+}
+
+/**
+ * A page of the actor's conversation (spec §3.3, §4.2; plan call P8): the latest `turns` user messages before `before`
+ * (a `seq`), and every row from the oldest of them on, so a page holds whole turns; the cursor names that oldest user
+ * message while an older one exists. The runs are the ones started from that user message's run on (and before
+ * `before`'s), message-less runs included, such as one the agent refused before its stream, so each turn shows every
+ * run that answered it. Null when the conversation is not the actor's of this app, or deleted.
+ */
+export async function readThreadPage(
+	actor: SessionUser,
+	appId: string,
+	conversationId: string,
+	page: { before?: number; turns: number },
+): Promise<ThreadPage | null> {
+	const conversation = await findConversation(actor, appId, conversationId)
+	if (!conversation) return null
+	const db = getDb()
+	const inConversation = eq(conversationMessages.conversationId, conversationId)
+	const beforeCursor =
+		page.before === undefined ? undefined : lt(conversationMessages.seq, page.before)
+	const starts = await db
+		.select({ seq: conversationMessages.seq })
+		.from(conversationMessages)
+		.where(and(inConversation, eq(conversationMessages.role, 'user'), beforeCursor))
+		.orderBy(desc(conversationMessages.seq))
+		.limit(page.turns + 1)
+	const first = starts.slice(0, page.turns).at(-1)?.seq
+	if (first === undefined) return { conversation, rows: [], runs: [], cursor: null }
+	const rows = readMessages(
+		conversationId,
+		await db
+			.select(messageColumns)
+			.from(conversationMessages)
+			.where(and(inConversation, gte(conversationMessages.seq, first), beforeCursor))
+			.orderBy(asc(conversationMessages.seq)),
+	)
+	/** When the run of the user message at `seq` started; undefined when it has none. */
+	const runStart = async (seq: number) => {
+		const [row] = await db
+			.select({ startedAt: conversationRuns.startedAt })
+			.from(conversationMessages)
+			.innerJoin(conversationRuns, eq(conversationRuns.id, conversationMessages.runId))
+			.where(and(inConversation, eq(conversationMessages.seq, seq)))
+			.limit(1)
+		return row?.startedAt
+	}
+	const from = await runStart(first)
+	const to = page.before === undefined ? undefined : await runStart(page.before)
+	const runs = await db
+		.select(runColumns)
+		.from(conversationRuns)
+		.where(
+			and(
+				eq(conversationRuns.conversationId, conversationId),
+				from ? gte(conversationRuns.startedAt, from) : undefined,
+				to ? lt(conversationRuns.startedAt, to) : undefined,
+			),
+		)
+		.orderBy(asc(conversationRuns.startedAt), asc(conversationRuns.id))
+	return {
+		conversation,
+		rows,
+		runs: runs.map(toStoredRun),
+		cursor: starts.length > page.turns ? String(first) : null,
+	}
+}
+
+/**
+ * Renames the actor's conversation (spec §4.2, a Server Action's write: Task 12 checks the title, at most
+ * TITLE_MAX_LENGTH characters). Only the title: a rename is not activity, so `updated_at` stays (spec §3.1). False when
+ * no such conversation is the actor's (node-postgres "Result": `rowCount` may be null).
+ */
+export async function renameConversation(
+	actor: SessionUser,
+	appId: string,
+	conversationId: string,
+	title: string,
+): Promise<boolean> {
+	const result = await getDb()
+		.update(conversations)
+		.set({ title: title.trim() })
+		.where(ownedBy(actor, appId, conversationId))
+	return (result.rowCount ?? 0) > 0
+}
+
+/**
+ * The user's delete (spec §3.4; decision 49): sets `deleted_at`, so the conversation leaves the user's list at once;
+ * its runs and messages stay for the admins' Logs (2c) until the purge. A second delete answers false.
+ */
+export async function softDeleteConversation(
+	actor: SessionUser,
+	appId: string,
+	conversationId: string,
+): Promise<boolean> {
+	const result = await getDb()
+		.update(conversations)
+		.set({ deletedAt: new Date() })
+		.where(ownedBy(actor, appId, conversationId))
+	return (result.rowCount ?? 0) > 0
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * The daily job's delete (spec §3.4; lib/chat/purge.ts runs it): conversations deleted more than PURGE_AFTER_DAYS
+ * before `now`; their runs and messages go with them (ON DELETE CASCADE, PostgreSQL 18 "Foreign Keys"). `deleted_at <
+ * cutoff` is never true for a NULL `deleted_at` (PostgreSQL 18 "Comparison Operators": a comparison with NULL yields
+ * NULL), so a conversation that was not deleted is never purged. No actor: the system runs it, as the directory sync
+ * writes. Answers how many were deleted.
+ */
+export async function purgeDeletedConversations(now: Date = new Date()): Promise<number> {
+	const cutoff = new Date(now.getTime() - PURGE_AFTER_DAYS * DAY_MS)
+	const result = await getDb().delete(conversations).where(lt(conversations.deletedAt, cutoff))
+	return result.rowCount ?? 0
 }
