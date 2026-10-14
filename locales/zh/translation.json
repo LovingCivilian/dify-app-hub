@@ -621,6 +621,22 @@
 		"answer_pending_hint": "此对话正在等待一个本聊天暂时无法显示的回答。请新建对话继续。",
 		"tool_arguments": "参数",
 		"tool_result": "结果",
+		"answer": {
+			"approve": "批准",
+			"reject": "拒绝",
+			"approved": "已批准",
+			"rejected": "已拒绝",
+			"cancelled": "已取消",
+			"answered": "已回答",
+			"change": "更改",
+			"waiting_others": "正在等待其他回答",
+			"expired": "已过期",
+			"dismiss": "忽略"
+		},
+		"ask_user": {
+			"title": "需要您回答的问题",
+			"invalid": "智能体提出了无效的问题"
+		},
 		"error": {
 			"usage_limit": "已达到使用上限",
 			"rate_limited": "请求过于频繁，请稍后再试",

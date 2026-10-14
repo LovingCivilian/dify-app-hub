@@ -621,6 +621,22 @@
 		"answer_pending_hint": "This conversation waits for an answer this chat cannot show yet. Start a new conversation to go on.",
 		"tool_arguments": "Arguments",
 		"tool_result": "Result",
+		"answer": {
+			"approve": "Approve",
+			"reject": "Reject",
+			"approved": "Approved",
+			"rejected": "Rejected",
+			"cancelled": "Cancelled",
+			"answered": "Answered",
+			"change": "Change",
+			"waiting_others": "Waiting for the other answers",
+			"expired": "Expired",
+			"dismiss": "Dismiss"
+		},
+		"ask_user": {
+			"title": "Questions for you",
+			"invalid": "The agent asked an invalid question"
+		},
 		"error": {
 			"usage_limit": "Usage limit reached",
 			"rate_limited": "Too many requests, try again shortly",

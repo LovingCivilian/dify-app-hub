@@ -1,0 +1,4 @@
+/* The ask_user transcript as it went back to the agent ("Q: …" and "A: …" lines, plan call P3): its line breaks are kept. */
+.transcript {
+	white-space: pre-wrap;
+}
