@@ -1,5 +1,7 @@
 import 'server-only'
 
+import type { ChatAdapter } from '@/lib/chat/adapter'
+
 import { aguiProvider, type AguiChatFields, type AguiSummaryFields } from './agui/provider'
 import type { ProviderCaller } from './caller'
 import type { ConnectionTestResult } from './connection'
@@ -42,6 +44,12 @@ export interface ProviderDefinition<P extends ProviderId> {
 	secretsSet: (secrets: ProviderSecrets<P>) => ProviderSecretsSet<P>
 	/** Spec §4.1: the hub keeps this provider's conversations (the shared chat's store; 2c's Logs read it). */
 	hubHistory: boolean
+	/**
+	 * Part 2 spec §4.1: runs one chat turn; only a provider on the shared chat has one (AG-UI now, Dify in Part 3). A method
+	 * signature in ChatAdapter, so `ChatAdapter<ProviderId>` takes each provider's adapter (TypeScript handbook, "Method
+	 * Bivariance").
+	 */
+	chat?: ChatAdapter<P>
 }
 
 /**
@@ -64,3 +72,10 @@ const REGISTRY: { [P in ProviderId]: ProviderDefinition<P> } = PROVIDERS
 
 export const providerDefinition = <P extends ProviderId>(id: P): ProviderDefinition<P> =>
 	REGISTRY[id]
+
+/**
+ * Spec §4.1: the provider's chat adapter, or undefined for a provider not on the shared chat (Dify until Part 3). Read
+ * through `providerDefinition`, whose mapped-type view gives each provider's definition its `chat` (Task 4).
+ */
+export const chatAdapterOf = (provider: ProviderId): ChatAdapter<ProviderId> | undefined =>
+	providerDefinition(provider).chat

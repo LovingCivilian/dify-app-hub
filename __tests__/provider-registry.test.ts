@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/auth/options', () => ({ authOptions: {} }))
 
 import { PROVIDER_IDS } from '@/lib/providers/ids'
-import { PROVIDERS } from '@/lib/providers/registry'
+import { aguiChat } from '@/lib/providers/agui/chat'
+import { chatAdapterOf, PROVIDERS } from '@/lib/providers/registry'
 
 const settings = {
 	apiBase: 'https://dify.example/v1',
@@ -60,5 +61,13 @@ describe("Dify's DTO fields", () => {
 		const set = PROVIDERS.dify.secretsSet({ apiKey: 'app-secret' })
 		expect(set).toEqual({ apiKey: true })
 		expect(JSON.stringify(set)).not.toContain('app-secret')
+	})
+})
+
+// Spec §4.1: the shared chat reaches a provider's turn through the registry; Dify has none until Part 3.
+describe('chatAdapterOf', () => {
+	it('gives the AG-UI adapter, and none for Dify', () => {
+		expect(chatAdapterOf('agui')).toBe(aguiChat)
+		expect(chatAdapterOf('dify')).toBeUndefined()
 	})
 })
