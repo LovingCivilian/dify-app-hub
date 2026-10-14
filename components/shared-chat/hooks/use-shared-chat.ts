@@ -14,6 +14,7 @@ import { createQueuedSends, type QueuedSends } from '@/components/chat/hooks/que
 import { emptyAssistantTurn, type HubRunValue, type Turn } from '@/lib/chat/turn'
 import type { RequestError } from '@/lib/http/browser'
 
+import { decide, EMPTY_DRAFT, withoutAnswer, type AnswerDraft, type ItemAnswer } from '../answers'
 import type { SharedChatApi } from '../api'
 import { createHubFetch, runsUrl } from '../hub-fetch'
 import { parseConversationKey } from '../keys'
@@ -21,7 +22,7 @@ import { AgUiChatProvider, type SharedChatInput } from '../provider/ag-ui-chat-p
 import { getProvider } from '../provider-cache'
 import {
 	fallbackTurn,
-	openInterruptsOf,
+	openItemsOf,
 	prependLatestTurns,
 	sendDecision,
 	toMessageInfo,
@@ -37,6 +38,8 @@ interface Options {
 	getConversationId: () => string | undefined
 	/** A stream of `key` named its conversation and run (`hub:run`), whichever conversation is on screen by then. */
 	onRun?: (key: string, value: HubRunValue) => void
+	/** The app's ask_user switch now (spec §6.2): its waiting calls are open items only while it is on (decision 62). */
+	askUser: boolean
 }
 
 // Per conversation key and module-global, like the SDK's message store they serve (use-x-chat: defaultMessages runs
@@ -48,6 +51,8 @@ const cursors = new Map<string, string | null>()
 const historyErrors = new Map<string, RequestError>()
 /** The agent's state per key (spec §5.2: the side store holds it; 2b's plan panel reads it). */
 const states = new Map<string, unknown>()
+/** The decisions so far per key (spec §5.2: "the pending answers"; plan call P13), until the last open item has one. */
+const drafts = new Map<string, AnswerDraft>()
 const listeners = new Set<() => void>()
 const notify = () => {
 	for (const listener of listeners) listener()
@@ -63,6 +68,10 @@ const setHistoryError = (key: string, error: RequestError | undefined) => {
 }
 const setStateOf = (key: string, state: unknown) => {
 	states.set(key, state)
+	notify()
+}
+const setDraft = (key: string, draft: AnswerDraft) => {
+	drafts.set(key, draft)
 	notify()
 }
 const subscribe = (listener: () => void) => {
@@ -100,6 +109,7 @@ export const useSharedChat = ({
 	api,
 	getConversationId,
 	onRun,
+	askUser,
 }: Options) => {
 	// No provider (useXChat's `provider` is optional) and no key until there is a conversation: nothing is cached for a
 	// placeholder key, and a send without one is ignored.
@@ -156,9 +166,9 @@ export const useSharedChat = ({
 
 	// The callbacks below stay stable and read the committed render's values here (React: refs are written in effects,
 	// not during rendering).
-	const latest = useRef({ chat, provider, conversationKey, api })
+	const latest = useRef({ chat, provider, conversationKey, api, askUser })
 	useLayoutEffect(() => {
-		latest.current = { chat, provider, conversationKey, api }
+		latest.current = { chat, provider, conversationKey, api, askUser }
 		if (!conversationKey) return
 		conversationIdReaders.set(conversationKey, getConversationId)
 		if (onRun) runSinks.set(conversationKey, onRun)
@@ -215,6 +225,45 @@ export const useSharedChat = ({
 		if (latest.current.chat.isRequesting) latest.current.chat.abort()
 	}, [])
 
+	/**
+	 * One card's decision (spec §6; decision 62's third answer; plan call P13): kept in the key's draft until every open
+	 * item has one, then all of them go at once through `onReload`, which continues the turn in place (spike, "Browser
+	 * side": approvals, ask-user and input_required continue one turn). The draft is emptied before the request, so a
+	 * failed one leaves the cards to start over, and `decide` ignores a decision while a request runs, so one decision
+	 * never sends twice.
+	 */
+	const answer = useCallback((item: ItemAnswer) => {
+		const { chat, provider: current, conversationKey: key, askUser: advertised } = latest.current
+		const last = chat.messages.at(-1)
+		if (!key || !last) return
+		const decision = decide({
+			open: openItemsOf(chat.messages, advertised),
+			// The draft as it is now, not as a render saw it: a card may record several decisions in one handler.
+			draft: drafts.get(key) ?? EMPTY_DRAFT,
+			answer: item,
+			// The request's own flag turns at once when onReload runs it (x-request API, XRequestClass `isRequesting`);
+			// the hook's turns with the next render.
+			isRequesting: chat.isRequesting || Boolean(current?.request.isRequesting),
+			// Read when the card is clicked (an event handler, not a render): a resolved decision for an interrupt that
+			// expired since then no longer counts (P14).
+			now: new Date(),
+		})
+		if (decision.action === 'ignore') return
+		if (decision.action === 'keep') {
+			setDraft(key, decision.draft)
+			return
+		}
+		setDraft(key, EMPTY_DRAFT)
+		chat.onReload(last.id, { answers: decision.body, continues: last.message })
+	}, [])
+
+	/** "Change" (plan call P13): forgets an item's decision, until the answers have gone. */
+	const retract = useCallback((itemId: string) => {
+		const { chat, conversationKey: key } = latest.current
+		if (!key || chat.isRequesting) return
+		setDraft(key, withoutAnswer(drafts.get(key) ?? EMPTY_DRAFT, itemId))
+	}, [])
+
 	/** Prepends the next older page (plan call P8); rejects with a RequestError. */
 	const loadEarlier = useCallback(async () => {
 		const { chat, conversationKey: key, api: client } = latest.current
@@ -268,7 +317,12 @@ export const useSharedChat = ({
 		() => states.get(conversationKey),
 		() => undefined,
 	)
-	const openInterrupts = useMemo(() => openInterruptsOf(chat.messages), [chat.messages])
+	const draft = useSyncExternalStore(
+		subscribe,
+		() => drafts.get(conversationKey) ?? EMPTY_DRAFT,
+		() => EMPTY_DRAFT,
+	)
+	const openItems = useMemo(() => openItemsOf(chat.messages, askUser), [chat.messages, askUser])
 
 	return {
 		messages: chat.messages,
@@ -284,7 +338,11 @@ export const useSharedChat = ({
 		retryHistory,
 		/** The agent's last state (spec §5.2); 2b's plan panel reads it. */
 		state,
-		/** The last turn's open interrupts (spec §3.3); while any is open the Sender is disabled (plan call P3). */
-		openInterrupts,
+		/** What the last turn waits for (spec §3.3, §6); while anything is open the Sender is disabled (decision 50). */
+		openItems,
+		/** The decisions so far for those items (plan call P13). */
+		draft,
+		answer,
+		retract,
 	}
 }

@@ -1,6 +1,6 @@
 import { AbstractChatProvider } from '@ant-design/x-sdk'
 import type { ChatProviderConfig, SSEOutput, TransformMessage } from '@ant-design/x-sdk'
-import type { BaseEvent, ResumeEntry } from '@ag-ui/core'
+import type { BaseEvent } from '@ag-ui/core'
 
 import {
 	applyAgUiEvent,
@@ -11,12 +11,30 @@ import {
 	type Turn,
 } from '@/lib/chat/turn'
 
+import { withToolAnswers } from '../answers'
+
+/**
+ * An answer to one open interrupt (AG-UI 1.0 interrupt-resume: `{ interruptId, status, payload? }`); a `confirmation`
+ * without a `responseSchema` is answered with a bare boolean (plan call P6).
+ */
+export interface ResumeAnswer {
+	interruptId: string
+	status: 'resolved' | 'cancelled'
+	payload?: Record<string, unknown> | boolean
+}
+
+/** An answer to one `ask_user` call (spec §6.2): its transcript, or '' for a call with invalid arguments (P3). */
+export interface ToolAnswer {
+	toolCallId: string
+	content: string
+}
+
 /** The run route's body (spec §4.2), plus one client-only field that transformParams never sends. */
 export interface SharedChatInput {
 	conversationId?: string
 	message?: { text: string }
-	answers?: { resume?: ResumeEntry[]; toolResults?: { toolCallId: string; content: string }[] }
-	/** The turn answers continue (x-sdk `onReload`): kept for the reload's first chunk, never sent. */
+	answers?: { resume?: ResumeAnswer[]; toolResults?: ToolAnswer[] }
+	/** The turn answers continue (x-sdk onReload): never sent; transformParams merges the tool answers into it (P11). */
 	continues?: Turn
 }
 
@@ -77,11 +95,15 @@ export class AgUiChatProvider extends AbstractChatProvider<Turn, SharedChatInput
 
 	transformParams(requestParams: Partial<SharedChatInput>): SharedChatInput {
 		this.currentRunId = undefined
-		// The SDK passes no originMessage on a reload's first chunk (part2-x-mapping.md §1.2); keep the turn to extend it.
-		this.resumeBase = requestParams.continues ?? null
+		// The SDK passes no originMessage on a reload's first chunk (part2-x-mapping.md §1.2); keep the turn to extend it,
+		// with the ask_user answers merged in (spec §6.2). Merged when the request starts and shown from its first chunk:
+		// the placeholder is the turn as it was, so a request refused before its stream leaves the questions unanswered
+		// (plan call P11).
+		const { continues, answers } = requestParams
+		this.resumeBase = continues ? withToolAnswers(continues, answers?.toolResults ?? []) : null
 		const conversationId = this.getConversationId()
 		const body: SharedChatInput = conversationId ? { conversationId } : {}
-		if (requestParams.answers) body.answers = requestParams.answers
+		if (answers) body.answers = answers
 		else body.message = { text: requestParams.message?.text ?? '' }
 		return body
 	}

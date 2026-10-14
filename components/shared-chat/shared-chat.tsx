@@ -20,6 +20,7 @@ import { useConversationMenu } from '@/components/chat/chat-view/use-conversatio
 import WidthToggle from '@/components/chat/chat-view/width-toggle'
 import AppSider from '@/components/shell/app-sider'
 import UserShell from '@/components/shell/user-shell'
+import { hasOpenItems } from '@/lib/chat/open-items'
 import type { Turn } from '@/lib/chat/turn'
 import type { ChatAppDto } from '@/lib/data/apps'
 
@@ -76,6 +77,7 @@ export default function SharedChat({ app }: { app: AguiChatApp }) {
 		conversationKey: activeKey,
 		api,
 		getConversationId: readConversationId,
+		askUser: app.askUser,
 		// The stream named its conversation (hub:run): the item keeps its key and takes the id and title (ADR-0017).
 		onRun: (key, value) => markConversation(key, value.conversationId, value.title),
 	})
@@ -123,8 +125,8 @@ export default function SharedChat({ app }: { app: AguiChatApp }) {
 	const historyPending = chat.isDefaultMessagesRequesting && chat.messages.length === 0
 	const showWelcome =
 		Boolean(activeKey) && !historyPending && !chat.historyError && chat.messages.length === 0
-	// Plan call P3 and decision 50: an open interrupt blocks the composer; 2b's cards answer it.
-	const waiting = chat.openInterrupts.length > 0 && !chat.isRequesting
+	// Decision 50: an open approval, question or interrupt blocks the composer; its card answers it (spec §6).
+	const waiting = hasOpenItems(chat.openItems) && !chat.isRequesting
 
 	// The list's callbacks and menu are stable, so the memoised sidebar does not re-render per streamed chunk.
 	const { setActiveKey, createTemp, rename, remove, canRename } = list

@@ -3,13 +3,15 @@ import { describe, expect, it } from 'vitest'
 
 import {
 	fallbackTurn,
-	openInterruptsOf,
+	openItemsOf,
 	prependLatestTurns,
 	sendDecision,
 	toMessageInfo,
 	toRequestError,
 } from '@/components/shared-chat/hooks/chat-helpers'
-import { emptyAssistantTurn, userTurn, type Turn } from '@/lib/chat/turn'
+import { ASK_USER_TOOL_NAME } from '@/lib/chat/ask-user'
+import { hasOpenItems, NO_OPEN_ITEMS } from '@/lib/chat/open-items'
+import { emptyAssistantTurn, userTurn, type ToolPart, type Turn } from '@/lib/chat/turn'
 import { RequestError } from '@/lib/http/browser'
 
 // fetch rejects with a DOMException named AbortError; the SDK and the fallback only read `name`.
@@ -23,6 +25,29 @@ const streaming: Turn = {
 		{ kind: 'tool', toolCallId: 'c1', name: 'search', args: '{"q":', status: 'running' },
 	],
 	runs: [{ runId: 'r1', outcome: 'running' }],
+}
+
+/** A question to the user that the run ended on (plan call P9), and a gated call waiting for its approval. */
+const asking: ToolPart = {
+	kind: 'tool',
+	toolCallId: 'q1',
+	name: ASK_USER_TOOL_NAME,
+	args: '{"questions":[{"question":"Which city?"}]}',
+	status: 'waiting',
+}
+const gated: ToolPart = {
+	kind: 'tool',
+	toolCallId: 'c1',
+	name: 'delete_file',
+	args: '{"path":"a.txt"}',
+	status: 'waiting',
+}
+/** A turn that waits: its run ended on an interrupt and a question (spec §6). */
+const waitingTurn: Turn = {
+	...emptyAssistantTurn(),
+	parts: [{ kind: 'text', messageId: 'm1', text: 'Before I go on:' }, gated, asking],
+	runs: [{ runId: 'r1', outcome: 'interrupt' }],
+	interrupts: [{ id: 'int-1', reason: 'tool_call', toolCallId: 'c1' }],
 }
 
 describe('sendDecision (one reply at a time per conversation, as useDifyChat)', () => {
@@ -63,9 +88,39 @@ describe('fallbackTurn (useXChat requestFallback)', () => {
 			{ runId: 'r1', outcome: 'error', error: { code: undefined, message: '' } },
 		])
 	})
-	it('leaves a turn whose run had already ended as it was', () => {
+	it('stops the calls a cut-off run leaves without a result, waiting ones too (plan call P9)', () => {
+		const resumed: Turn = {
+			...waitingTurn,
+			runs: [...waitingTurn.runs, { runId: 'r2', outcome: 'running' }],
+			interrupts: [],
+		}
+		const turn = fallbackTurn(new TypeError('network error'), resumed)
+		expect(turn.parts.slice(1)).toEqual([
+			{ ...gated, status: 'stopped' },
+			{ ...asking, status: 'stopped' },
+		])
+	})
+	it('appends the failure of a request that continued an ended run, and keeps what it waits for (#67)', () => {
+		const turn = fallbackTurn(
+			new RequestError(503, 'provider_unreachable', 'The agent is restarting.'),
+			waitingTurn,
+		)
+		expect(turn.runs).toEqual([
+			{ runId: 'r1', outcome: 'interrupt' },
+			{ runId: '', outcome: 'error', error: { code: 'provider_unreachable', message: '' } },
+		])
+		expect(turn.parts).toEqual(waitingTurn.parts)
+		expect(turn.interrupts).toEqual(waitingTurn.interrupts)
+		expect(fallbackTurn(new TypeError('Failed to fetch'), waitingTurn).runs.at(-1)).toEqual({
+			runId: '',
+			outcome: 'error',
+			error: { code: undefined, message: '' },
+		})
+	})
+	it('leaves a turn whose run had already ended as it was when that request is aborted', () => {
 		const ended: Turn = { ...streaming, runs: [{ runId: 'r1', outcome: 'success' }] }
 		expect(fallbackTurn(abortError(), ended)).toEqual(ended)
+		expect(fallbackTurn(abortError(), waitingTurn)).toBe(waitingTurn)
 	})
 })
 
@@ -112,7 +167,7 @@ describe('prependLatestTurns (a retried first page)', () => {
 	})
 })
 
-describe('toMessageInfo and openInterruptsOf', () => {
+describe('toMessageInfo and openItemsOf', () => {
 	it('shows a history turn as a finished message under its id (plan call P9)', () => {
 		const turn = answer('r1')
 		expect(toMessageInfo({ id: 'turn-r1', turn })).toEqual({
@@ -121,13 +176,26 @@ describe('toMessageInfo and openInterruptsOf', () => {
 			status: 'success',
 		})
 	})
-	it('reads the open interrupts of the last turn only (spec §3.3)', () => {
-		const interrupted: Turn = {
-			...answer('r1'),
-			interrupts: [{ id: 'int-1', reason: 'tool_call' }],
-		}
-		expect(openInterruptsOf([info('a', interrupted)])).toEqual(interrupted.interrupts)
-		expect(openInterruptsOf([info('a', interrupted), info('b', userTurn('b', 'x'))])).toEqual([])
-		expect(openInterruptsOf([])).toEqual([])
+	it("reads what the last turn waits for, its questions while the app's switch is on (spec §3.3, §6)", () => {
+		expect(openItemsOf([info('a', waitingTurn)], true)).toEqual({
+			interrupts: waitingTurn.interrupts,
+			questions: [asking],
+		})
+		expect(openItemsOf([info('a', waitingTurn)], false)).toEqual({
+			interrupts: waitingTurn.interrupts,
+			questions: [],
+		})
+		expect(openItemsOf([info('a', waitingTurn), info('b', userTurn('b', 'x'))], true)).toEqual(
+			NO_OPEN_ITEMS,
+		)
+		expect(openItemsOf([], true)).toEqual(NO_OPEN_ITEMS)
+	})
+	it('keeps the items open after a failed answer, so the cards can answer again (#67)', () => {
+		const failed = fallbackTurn(new RequestError(400, 'answers_invalid', 'x'), waitingTurn)
+		expect(openItemsOf([info('a', failed, 'error')], true)).toEqual({
+			interrupts: waitingTurn.interrupts,
+			questions: [asking],
+		})
+		expect(hasOpenItems(openItemsOf([info('a', failed, 'error')], true))).toBe(true)
 	})
 })
