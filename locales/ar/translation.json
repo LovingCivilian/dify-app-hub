@@ -621,6 +621,15 @@
 		"answer_pending_hint": "تنتظر هذه المحادثة إجابةً لا يمكن لهذه الدردشة عرضها بعد. ابدأ محادثة جديدة للمتابعة.",
 		"tool_arguments": "المُدخلات",
 		"tool_result": "النتيجة",
+		"interrupt": {
+			"submit": "إرسال",
+			"cancel": "إلغاء",
+			"yes": "نعم",
+			"no": "لا",
+			"title_input_required": "يحتاج الوكيل إلى مزيد من المعلومات",
+			"title_confirmation": "يطلب منك الوكيل التأكيد",
+			"title_tool_call": "يطلب الوكيل تشغيل أداة"
+		},
 		"answer": {
 			"approve": "موافقة",
 			"reject": "رفض",

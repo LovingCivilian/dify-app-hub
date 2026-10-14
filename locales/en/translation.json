@@ -621,6 +621,15 @@
 		"answer_pending_hint": "This conversation waits for an answer this chat cannot show yet. Start a new conversation to go on.",
 		"tool_arguments": "Arguments",
 		"tool_result": "Result",
+		"interrupt": {
+			"submit": "Submit",
+			"cancel": "Cancel",
+			"yes": "Yes",
+			"no": "No",
+			"title_input_required": "The agent needs more information",
+			"title_confirmation": "The agent asks you to confirm",
+			"title_tool_call": "The agent asks to run a tool"
+		},
 		"answer": {
 			"approve": "Approve",
 			"reject": "Reject",

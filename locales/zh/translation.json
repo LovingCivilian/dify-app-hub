@@ -621,6 +621,15 @@
 		"answer_pending_hint": "此对话正在等待一个本聊天暂时无法显示的回答。请新建对话继续。",
 		"tool_arguments": "参数",
 		"tool_result": "结果",
+		"interrupt": {
+			"submit": "提交",
+			"cancel": "取消",
+			"yes": "是",
+			"no": "否",
+			"title_input_required": "智能体需要更多信息",
+			"title_confirmation": "智能体请你确认",
+			"title_tool_call": "智能体请求运行一个工具"
+		},
 		"answer": {
 			"approve": "批准",
 			"reject": "拒绝",
