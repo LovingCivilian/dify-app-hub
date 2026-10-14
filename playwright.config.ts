@@ -34,7 +34,11 @@ export default defineConfig({
 			url: `${baseURL}/api/auth/providers`,
 			reuseExistingServer: !process.env.CI,
 			timeout: 120_000,
-			env: e2eEnv,
+			// Without a heap size in NODE_OPTIONS, next dev gives its server half the machine's memory and restarts it once
+			// 80% is in use (next/dist/cli/next-dev.js, next/dist/server/lib/utils.js), which reloads the page under test.
+			// Half of a 4.9 GB machine ran out about 80% into a full run: a fixed cap keeps the restart out of it (Next CLI
+			// "Passing Node.js options"; Node `--max-old-space-size`, in MiB; ADR-0010 note of 2026-10-14).
+			env: { ...e2eEnv, NODE_OPTIONS: '--max-old-space-size=4096' },
 		},
 	],
 	projects: [
