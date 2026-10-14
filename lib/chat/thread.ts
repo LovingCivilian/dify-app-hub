@@ -54,10 +54,14 @@ export const threadForAgent = (rows: readonly StoredMessage[]): Message[] => {
 	)
 }
 
-/** The calls of the thread's assistant messages that no tool message answers, in order (spec §3.2 step 4, §6.2). */
+/**
+ * The calls of the thread's assistant messages that no tool message answers, in order (spec §3.2 step 4, §6.2), with
+ * each call's arguments as the agent streamed them (AG-UI 1.0 `ToolCall.function.arguments`, a JSON string), which the
+ * open questions read (lib/chat/answers.ts).
+ */
 export const unansweredToolCalls = (
 	messages: readonly Message[],
-): { toolCallId: string; name: string }[] => {
+): { toolCallId: string; name: string; args: string }[] => {
 	const answered = new Set(
 		messages.flatMap(message => (message.role === 'tool' ? [message.toolCallId] : [])),
 	)
@@ -65,7 +69,11 @@ export const unansweredToolCalls = (
 		message.role === 'assistant'
 			? (message.toolCalls ?? [])
 					.filter(call => !answered.has(call.id))
-					.map(call => ({ toolCallId: call.id, name: call.function.name }))
+					.map(call => ({
+						toolCallId: call.id,
+						name: call.function.name,
+						args: call.function.arguments,
+					}))
 			: [],
 	)
 }

@@ -97,7 +97,8 @@ export const runTurn = async ({
 		conversation = found.conversation
 		await reconcileStaleRun(conversation)
 	}
-	const open = openItemsOf(conversation ? await continuedRun(conversation.id) : null)
+	// Task 8 reads the thread and the app's hub tools here; until then no ask_user call is open, as in 2a.
+	const open = openItemsOf(conversation ? await continuedRun(conversation.id) : null, [], [])
 	let resume: ResumeEntry[] | undefined
 	let answers: Message[] = []
 	if (body.answers) {
