@@ -441,7 +441,7 @@ The decisions below were taken in one session on 2026-10-14. The spec they produ
       - **Backup:** the old image kept as `ai-app-hub-local-app:part1`, and a mode-600 dump with 12 tables.
       - **Rebuild:** one `Database migration complete`, RestartCount 0, and six migration rows ending `_agui_provider` and `_conversations`. `apps_provider_check` allows `'agui'`, the three tables exist, and the apps count is unchanged (2).
       - **Checks:** no `[ag-ui]` or `@ag-ui/` in `.next/static`, and every signed-out check as AGENTS.md lists, with 401 on the three new routes.
-    - **The owner's word**, working remotely without a browser: "let's proceed nonetheless … I will test it in the morning … accept the ADR, push the PR, open the issues". ADR-0033 and ADR-0034 are accepted on it. The issues are #66–#69. The owner's browser check on the local stack comes before the merge, and a problem it finds becomes a fix on the branch.
+    - **The owner's word**, working remotely without a browser: "let's proceed nonetheless … I will test it in the morning … accept the ADR, push the PR, open the issues". ADR-0033 and ADR-0034 are accepted on it. The PR is #70, and the issues are #66–#69. The owner's browser check on the local stack comes before the merge, and a problem it finds becomes a fix on the branch.
 
 ## Ideas kept for later
 
