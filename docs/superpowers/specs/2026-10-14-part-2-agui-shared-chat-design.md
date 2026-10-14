@@ -8,7 +8,7 @@ Part 2 runs over several sessions (decision 55). **This section is the source of
 
 | Slice | Branch | Plan | Build | PR | Merged |
 | --- | --- | --- | --- | --- | --- |
-| Spec | `docs/part-2-spec` | — | spec, spike and research notes written; approved 2026-10-14 | docs PR to `fork/overhaul` | merging 2026-10-14 |
+| Spec | `docs/part-2-spec` | — | spec, spike and research notes written; approved 2026-10-14 | #63 | 2026-10-14 |
 | 2a the core | `feat/agui-core` | not written | — | — | — |
 | 2b human in the loop | `feat/agui-hitl` | not written | — | — | — |
 | 2c attachments and Logs | `feat/agui-files-logs` | not written | — | — | — |
