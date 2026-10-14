@@ -1,8 +1,15 @@
 import { expect, test as setup } from '@playwright/test'
 
-import { ADMIN_STATE, SEEDED_EXTRA_APPS, STUB_APPS } from './fixtures/constants'
+import {
+	ADMIN_STATE,
+	aguiAgentUrl,
+	SEEDED_EXTRA_APPS,
+	STUB_AGUI_APPS,
+	STUB_AGUI_AUDIENCE,
+	STUB_APPS,
+} from './fixtures/constants'
 import { withDb } from './fixtures/db'
-import { e2eEnv, stubApiBase } from './fixtures/env'
+import { e2eEnv, stubApiBase, stubPort } from './fixtures/env'
 import { signInAs } from './fixtures/users'
 
 setup(
@@ -53,6 +60,28 @@ setup(
 					],
 				)
 			}
+			// Part 2 spec §10: two AG-UI apps on the stub agent (plan call P14), open to everyone like the stub apps. The
+			// documents are the AG-UI provider's (spec §2.2): the agent's URL, the JWT audience and the shared secret.
+			for (const app of STUB_AGUI_APPS) {
+				await db.query(
+					"INSERT INTO apps (id, provider, name, description, is_enabled, access_mode, settings, secrets) VALUES ($1, 'agui', $2, 'Seeded for the e2e suite', true, 'everyone', $3::jsonb, $4::jsonb) ON CONFLICT (id) DO UPDATE SET is_enabled = EXCLUDED.is_enabled, access_mode = EXCLUDED.access_mode, settings = EXCLUDED.settings, secrets = EXCLUDED.secrets, icon_image = NULL, icon_mime = NULL",
+					[
+						app.id,
+						app.name,
+						JSON.stringify({
+							agentUrl: aguiAgentUrl(stubPort, app.agent),
+							audience: STUB_AGUI_AUDIENCE,
+						}),
+						JSON.stringify({ jwtSecret: e2eEnv.E2E_AGUI_JWT_SECRET }),
+					],
+				)
+			}
+			// The e2e database outlives a run (e2e/global-setup.ts reuses the container): the AG-UI apps' conversations of an
+			// earlier run are removed, so each run's sidebar starts empty. Runs and messages go with them (ON DELETE CASCADE,
+			// spec §3.1).
+			await db.query('DELETE FROM conversations WHERE app_id = ANY($1::uuid[])', [
+				STUB_AGUI_APPS.map(app => app.id),
+			])
 		})
 
 		await signInAs(page, e2eEnv.E2E_ADMIN_EMAIL, e2eEnv.E2E_ADMIN_PASSWORD)

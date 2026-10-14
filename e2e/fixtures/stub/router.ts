@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
+import { handleAgui } from './agui'
 import { appFromPath, modeFromPath, type StubMode } from './apps'
 import { STUB_PNG, STUB_WAV } from './assets'
 import * as ev from './events'
@@ -254,6 +255,8 @@ export const handle = async (req: IncomingMessage, res: ServerResponse, port: nu
 		res.writeHead(200)
 		return res.end()
 	}
+	// Part 2 spec §10: the AG-UI 1.0 stub agent lives on the same server, under its own prefix.
+	if (url.pathname.startsWith('/agui/')) return handleAgui(req, res, url)
 	// Test connection (Part 1 spec §9): a key Dify does not know is its 401 envelope (endpoint map, Conventions:
 	// "401 unauthorized (missing/invalid bearer token)"), whatever the path.
 	if (req.headers.authorization === 'Bearer app-refused')
