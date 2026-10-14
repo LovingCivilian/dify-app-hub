@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test'
 
 import { chooseFile, demoLogo, resetBranding } from './fixtures/branding'
-import { APP_ID, APP_IDS } from './fixtures/constants'
+import { AGUI_APP, APP_ID, APP_IDS } from './fixtures/constants'
 import { waitForHydration } from './fixtures/hydration'
 
 /**
@@ -109,6 +109,19 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 			await page.getByLabel('Topic').fill('coffee')
 			await runButton(page).click()
 			await expect(page.getByText('A short note about coffee.')).toBeVisible()
+		},
+	},
+	// The shared chat (Part 2 spec §5.3): the stub's `tool` scenario, its card opened.
+	'chat-agui': {
+		path: `/chat/${AGUI_APP.id}?isNewCvst=1`,
+		ready: async page => {
+			await noSpinner(page)
+			await expect(header(page)).toBeVisible()
+			await senderBox(page).fill('tool')
+			await page.keyboard.press('Enter')
+			await expect(page.getByText('It is 18 °C and cloudy in Paris.')).toBeVisible()
+			await page.getByText('get_weather', { exact: true }).click()
+			await expect(page.getByText('Arguments', { exact: true })).toBeVisible()
 		},
 	},
 }
