@@ -532,7 +532,9 @@
 		"jwt_secret_tooltip": "应用中心用来签署每次请求令牌的密钥，智能体持有相同的值。至少 32 个随机字符，例如由 openssl rand -base64 48 生成",
 		"jwt_secret_placeholder": "请输入 JWT 密钥",
 		"jwt_secret_required": "请输入 JWT 密钥",
-		"jwt_secret_invalid": "请输入 32 到 512 个字符"
+		"jwt_secret_invalid": "请输入 32 到 512 个字符",
+		"ask_user": "向用户提问",
+		"ask_user_tooltip": "为智能体提供应用中心的 ask_user 工具，使其可以提出附带建议答案的问题。如果智能体已有名为 ask_user 的工具，请保持关闭。"
 	},
 	"workflow": {
 		"title": "工作流",

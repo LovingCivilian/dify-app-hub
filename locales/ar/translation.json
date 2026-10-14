@@ -532,7 +532,9 @@
 		"jwt_secret_tooltip": "المفتاح الذي توقّع به المنصة رمز كل طلب، ويحمل الوكيل القيمة نفسها. 32 حرفًا عشوائيًا على الأقل، مثلًا من openssl rand -base64 48",
 		"jwt_secret_placeholder": "أدخل سر JWT",
 		"jwt_secret_required": "أدخل سر JWT",
-		"jwt_secret_invalid": "أدخل من 32 إلى 512 حرفًا"
+		"jwt_secret_invalid": "أدخل من 32 إلى 512 حرفًا",
+		"ask_user": "سؤال المستخدم",
+		"ask_user_tooltip": "يتيح للوكيل أداة ask_user الخاصة بالمنصة ليطرح أسئلة مع إجابات مقترحة. اتركه معطّلًا إذا كان لدى الوكيل أداة خاصة به باسم ask_user."
 	},
 	"workflow": {
 		"title": "سير العمل",

@@ -60,7 +60,7 @@ const app = {
 	id: APP_ID,
 	enabled: true,
 	provider: 'agui' as const,
-	settings: { agentUrl: 'http://agent/agents/a', audience: 'a' },
+	settings: { agentUrl: 'http://agent/agents/a', audience: 'a', askUser: false },
 	secrets: { jwtSecret: 'x'.repeat(32) },
 }
 const conversation = {

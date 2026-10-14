@@ -11,7 +11,11 @@ import { aguiChat, upstreamCodeFor } from '@/lib/providers/agui/chat'
 
 const SECRET = 'a-test-secret-of-at-least-32-characters'
 const app = {
-	settings: { agentUrl: 'http://agents.test:8000/agents/assistant', audience: 'assistant' },
+	settings: {
+		agentUrl: 'http://agents.test:8000/agents/assistant',
+		audience: 'assistant',
+		askUser: false,
+	},
 	secrets: { jwtSecret: SECRET },
 }
 const encoder = new EventEncoder()

@@ -1,6 +1,6 @@
 'use client'
 
-import { Divider, Form, Input } from 'antd'
+import { Divider, Form, Input, Switch } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type * as z from 'zod'
 
@@ -28,9 +28,10 @@ const schemaRule = (schema: z.ZodType, message: string) => ({
 })
 
 /**
- * AG-UI's section of the app form (Part 2 spec §2.1, §2.2): Connection (the agent URL, the JWT audience, the JWT secret,
- * Test connection). The secret is write-only as Dify's key is (ADR-0032): required on a new app, and on an edit blank by
- * default, which keeps the stored one. The server parses the documents again.
+ * AG-UI's sections of the app form (Part 2 spec §2.1, §2.2): Connection (the agent URL, the JWT audience, the JWT secret,
+ * Test connection) and Conversation (the hub's ask_user tool, spec §6.2). The secret is write-only as Dify's key is
+ * (ADR-0032): required on a new app, and on an edit blank by default, which keeps the stored one. The server parses the
+ * documents again.
  */
 export default function AguiFormSection({ appId, editing }: { appId?: string; editing: boolean }) {
 	const { t } = useTranslation()
@@ -91,6 +92,20 @@ export default function AguiFormSection({ appId, editing }: { appId?: string; ed
 					provider="agui"
 					fields={CONNECTION_FIELDS}
 				/>
+			</Form.Item>
+
+			{/*
+			 * 2b's plan call P16: the Dify form's Conversation section and its switch (Form.Item `valuePropName="checked"`:
+			 * "the prop of Switch or Checkbox is `checked`", antd 6.6.5 Form). Not a connection field: the test ignores it.
+			 */}
+			<Divider titlePlacement="start">{t('app_setting.section_conversation')}</Divider>
+			<Form.Item
+				label={t('app_setting.ask_user')}
+				name={['settings', 'askUser']}
+				tooltip={t('app_setting.ask_user_tooltip')}
+				valuePropName="checked"
+			>
+				<Switch />
 			</Form.Item>
 		</>
 	)

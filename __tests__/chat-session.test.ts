@@ -492,7 +492,11 @@ describe('RunSession behind aguiChat', () => {
 		session.start()
 		const handle = aguiChat.runTurn(
 			{
-				settings: { agentUrl: 'http://agents.test/agents/assistant', audience: 'assistant' },
+				settings: {
+					agentUrl: 'http://agents.test/agents/assistant',
+					audience: 'assistant',
+					askUser: false,
+				},
 				secrets: { jwtSecret: 'a-test-secret-of-at-least-32-characters' },
 			},
 			{

@@ -138,8 +138,18 @@ describe('the AG-UI variants', () => {
 	it('create an AG-UI app with its settings and secret', () => {
 		const parsed = createAppFormSchema.parse(aguiForm())
 		expect(parsed.provider).toBe('agui')
-		expect(parsed.settings).toEqual(agui.settings)
+		expect(parsed.settings).toEqual({ ...agui.settings, askUser: false })
 		expect(parsed.secrets).toEqual(agui.secrets)
+	})
+	// Spec §6.2, 2b's plan call P16: the drawer's switch reaches the settings createApp and updateApp store.
+	it('carry the ask_user switch into the settings, and refuse a value that is not a boolean', () => {
+		const on = aguiForm({ settings: { ...agui.settings, askUser: true } })
+		expect(createAppFormSchema.parse(on)).toMatchObject({ settings: { askUser: true } })
+		expect(updateAppFormSchema.parse(on)).toMatchObject({ settings: { askUser: true } })
+		const parsed = createAppFormSchema.safeParse(
+			aguiForm({ settings: { ...agui.settings, askUser: 'yes' } }),
+		)
+		expect(formFieldErrors(parsed.error!)).toEqual({ 'settings.askUser': ['invalid_type'] })
 	})
 	it('refuse a new AG-UI app without a 32-character secret', () => {
 		expect(
@@ -156,7 +166,11 @@ describe('the AG-UI variants', () => {
 				settings: agui.settings,
 				secrets: { jwtSecret: '' },
 			}),
-		).toEqual({ provider: 'agui', settings: agui.settings, secrets: { jwtSecret: undefined } })
+		).toEqual({
+			provider: 'agui',
+			settings: { ...agui.settings, askUser: false },
+			secrets: { jwtSecret: undefined },
+		})
 	})
 })
 
