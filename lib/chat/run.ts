@@ -227,23 +227,32 @@ const streamRun = async ({
 		// An upstream request the adapter already started must not outlive the failure.
 		controller.abort()
 		detach()
-		endStream(out, key.runId)
-		await finishRun(key, {
-			status: 'failed',
-			error: { code: 'internal_error', message: '' },
-			custom: [],
-		}).catch(finishError => logActionError(finishError, 'runTurn'))
+		// The run is stored before it is released, as in settle: a concurrent request must not truncate it meanwhile.
+		try {
+			await finishRun(key, {
+				status: 'failed',
+				error: { code: 'internal_error', message: '' },
+				custom: [],
+			})
+		} catch (finishError) {
+			logActionError(finishError, 'runTurn')
+		} finally {
+			endStream(out, key.runId)
+		}
 		throw error
 	}
 	if (!opened.ok && activeRuns.reasonOf(key.runId) === undefined) {
 		logRun(app.id, key.runId, opened.code)
 		detach()
-		endStream(out, key.runId)
-		await finishRun(key, {
-			status: 'failed',
-			error: { code: opened.code, message: UPSTREAM_MESSAGES[opened.code] },
-			custom: [],
-		})
+		try {
+			await finishRun(key, {
+				status: 'failed',
+				error: { code: opened.code, message: UPSTREAM_MESSAGES[opened.code] },
+				custom: [],
+			})
+		} finally {
+			endStream(out, key.runId)
+		}
 		return errorResponse(opened.code, UPSTREAM_MESSAGES[opened.code], UPSTREAM_STATUS[opened.code])
 	}
 	void settle(handle, session, key, app.id, out, detach)

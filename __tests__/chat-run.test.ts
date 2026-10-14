@@ -393,6 +393,19 @@ describe('runTurn: an agent that refuses before the stream', () => {
 		},
 	)
 
+	it('stores the run failed before it releases it', async () => {
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+		const held: boolean[] = []
+		dal.finishRun.mockImplementation(async (key: { runId: string }) => {
+			held.push(activeRuns.has(key.runId))
+		})
+		opens({ ok: false, code: 'provider_unreachable' }, Promise.resolve({ failed: true }))
+		await run({ message: { text: 'hi' } })
+		expect(held).toEqual([true])
+		expect(activeRuns.has(started().runId)).toBe(false)
+		errorSpy.mockRestore()
+	})
+
 	it('stores the run failed and rethrows when the hub cannot hand it to the agent', async () => {
 		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 		dal.loadThread.mockRejectedValueOnce(new Error('db down'))
@@ -402,6 +415,21 @@ describe('runTurn: an agent that refuses before the stream', () => {
 			{ status: 'failed', error: { code: 'internal_error', message: '' }, custom: [] },
 		)
 		expect(chat.runTurn).not.toHaveBeenCalled()
+		expect(activeRuns.has(started().runId)).toBe(false)
+		errorSpy.mockRestore()
+	})
+
+	it('stores the run failed before it releases it when the hand-over throws', async () => {
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+		const held: boolean[] = []
+		dal.finishRun.mockImplementation(async (key: { runId: string }) => {
+			held.push(activeRuns.has(key.runId))
+		})
+		chat.runTurn.mockImplementation(() => {
+			throw new Error('adapter broke')
+		})
+		await expect(run({ message: { text: 'hi' } })).rejects.toThrow('adapter broke')
+		expect(held).toEqual([true])
 		expect(activeRuns.has(started().runId)).toBe(false)
 		errorSpy.mockRestore()
 	})
