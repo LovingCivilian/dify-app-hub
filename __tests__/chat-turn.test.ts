@@ -84,6 +84,8 @@ const runRow = (over: Partial<TurnRunRow> = {}): TurnRunRow => ({
 })
 /** A run started `minutes` after the first one. */
 const at = (minutes: number) => new Date(Date.UTC(2026, 9, 14, 10, minutes))
+/** An approval (spec §6.1): a tool_call interrupt naming its call. */
+const APPROVAL = { id: 'int-1', reason: 'tool_call', toolCallId: 'call-1' }
 
 /* Scenarios modelled on the e2e stub's (Task 13) and the spike's multi-message run, with the run each one stores. */
 const SCENARIOS: [string, BaseEvent[], Partial<TurnRunRow>][] = [
@@ -148,6 +150,31 @@ const SCENARIOS: [string, BaseEvent[], Partial<TurnRunRow>][] = [
 			...text('m-1', 'First.'),
 			ev('STEP_FINISHED', { stepName: 'draft' }),
 			...text('m-2', 'Second.'),
+			finished({ type: 'success' }),
+		],
+		{},
+	],
+	[
+		'approval: a gated call, then the interrupt (plan call P9)',
+		[
+			started,
+			ev('TOOL_CALL_START', { toolCallId: 'call-1', toolCallName: 'delete_file' }),
+			ev('TOOL_CALL_ARGS', { toolCallId: 'call-1', delta: '{"path":"notes.txt"}' }),
+			ev('TOOL_CALL_END', { toolCallId: 'call-1' }),
+			finished({ type: 'interrupt', interrupts: [APPROVAL] }),
+		],
+		{ status: 'interrupted', outcome: { type: 'interrupt', interrupts: [APPROVAL] } },
+	],
+	[
+		'frontend: an ask_user call the run leaves unanswered (plan call P9)',
+		[
+			started,
+			ev('TOOL_CALL_START', { toolCallId: 'call-2', toolCallName: 'ask_user' }),
+			ev('TOOL_CALL_ARGS', {
+				toolCallId: 'call-2',
+				delta: '{"questions":[{"question":"Which city?"}]}',
+			}),
+			ev('TOOL_CALL_END', { toolCallId: 'call-2' }),
 			finished({ type: 'success' }),
 		],
 		{},
@@ -233,7 +260,7 @@ describe('applyAgUiEvent', () => {
 			content: { done: 1 },
 		})
 	})
-	it('ends a run with its outcome, settles running tools and drops empty text (plan call P10)', () => {
+	it('ends a run with its outcome, settles running tools and drops empty text (plan call P9)', () => {
 		const toolRun = [
 			ev('TEXT_MESSAGE_START', { messageId: 'm-0', role: 'assistant' }),
 			ev('TEXT_MESSAGE_END', { messageId: 'm-0' }),
@@ -243,7 +270,7 @@ describe('applyAgUiEvent', () => {
 		const success = live([...toolRun, finished()])
 		expect(success.runs[0].outcome).toBe('success')
 		expect(success.parts).toEqual([
-			{ kind: 'tool', toolCallId: 'call-1', name: 'ask_user', args: '', status: 'done' },
+			{ kind: 'tool', toolCallId: 'call-1', name: 'ask_user', args: '', status: 'waiting' },
 		])
 		const interrupt = live([
 			...toolRun,
@@ -254,6 +281,7 @@ describe('applyAgUiEvent', () => {
 		])
 		expect(interrupt.runs[0].outcome).toBe('interrupt')
 		expect(interrupt.interrupts).toEqual([{ id: 'i-1', reason: 'tool_call', toolCallId: 'call-1' }])
+		expect(interrupt.parts[0]).toMatchObject({ status: 'waiting' })
 		const cancelled = live([...toolRun, finished({ type: 'cancelled' })])
 		expect(cancelled.runs[0].outcome).toBe('cancelled')
 		expect(cancelled.parts[0]).toMatchObject({ status: 'stopped' })
@@ -281,6 +309,24 @@ describe('applyAgUiEvent', () => {
 			},
 		])
 		expect(turn.parts[0]).toMatchObject({ status: 'stopped' })
+	})
+	it('lets the turn’s last run settle a call an earlier run left waiting (plan call P9)', () => {
+		const interrupted = live([
+			ev('TOOL_CALL_START', { toolCallId: 'call-1', toolCallName: 'delete_file' }),
+			ev('TOOL_CALL_END', { toolCallId: 'call-1' }),
+			finished({ type: 'interrupt', interrupts: [APPROVAL] }),
+		])
+		const resumed = applyAgUiEvent(interrupted, hubRun('run-2'))
+		expect(resumed.parts[0]).toMatchObject({ status: 'waiting' })
+		const end = (event: BaseEvent) => applyAgUiEvent(resumed, event).parts[0]
+		expect(end(finished({ type: 'success' }))).toMatchObject({ status: 'waiting' })
+		expect(end(finished({ type: 'cancelled' }))).toMatchObject({ status: 'stopped' })
+		expect(end(ev('RUN_ERROR', { code: 'agent_error', message: 'Boom.' }))).toMatchObject({
+			status: 'stopped',
+		})
+		expect(
+			end(ev('TOOL_CALL_RESULT', { messageId: 'r-1', toolCallId: 'call-1', content: 'Deleted' })),
+		).toMatchObject({ status: 'done', result: 'Deleted' })
 	})
 	it('returns the same turn for events it does not render', () => {
 		const turn = live(text('m-1', 'Hi'))
@@ -591,9 +637,113 @@ describe('turnsFromMessages', () => {
 		]
 		const status = (over: Partial<TurnRunRow>) =>
 			turnsFromMessages(rows, [runRow({ id: 'r-1', ...over })])[1].turn.parts[0]
-		expect(status({})).toMatchObject({ status: 'done' })
+		expect(status({})).toMatchObject({ status: 'waiting' })
+		expect(
+			status({ status: 'interrupted', outcome: { type: 'interrupt', interrupts: [] } }),
+		).toMatchObject({ status: 'waiting' })
 		expect(status({ status: 'running' })).toMatchObject({ status: 'running' })
+		expect(status({ status: 'cancelled' })).toMatchObject({ status: 'stopped' })
+		expect(status({ status: 'failed', error: { message: 'Boom.' } })).toMatchObject({
+			status: 'stopped',
+		})
 		expect(status({ status: 'truncated' })).toMatchObject({ status: 'stopped' })
+	})
+
+	// Plan call P10 (decision 62): a run the agent never started continues nothing; its error still shows.
+	describe('a run refused before its stream', () => {
+		const rows = [
+			user('u-1', 'r-1', 'Delete it'),
+			assistant('a-1', 'r-1', {
+				toolCalls: [
+					{ id: 'call-1', type: 'function', function: { name: 'delete_file', arguments: '{}' } },
+				],
+			}),
+		]
+		const interruptedRun = runRow({
+			id: 'r-1',
+			status: 'interrupted',
+			outcome: { type: 'interrupt', interrupts: [APPROVAL] },
+			startedAt: at(0),
+		})
+		const refused = runRow({
+			id: 'r-2',
+			status: 'failed',
+			outcome: null,
+			error: {
+				code: 'provider_unreachable',
+				message: 'The agent is restarting, try again.',
+				beforeStream: true,
+			},
+			startedAt: at(5),
+		})
+
+		it('leaves the turn’s interrupts and its waiting calls as the run before it left them', () => {
+			const [, turn] = turnsFromMessages(rows, [interruptedRun, refused])
+			expect(turn.turn.interrupts).toEqual([APPROVAL])
+			expect(turn.turn.parts).toEqual([
+				{ kind: 'tool', toolCallId: 'call-1', name: 'delete_file', args: '{}', status: 'waiting' },
+			])
+		})
+
+		it('still shows the refused run in the turn’s runs, with its error and without the store’s flag', () => {
+			const [, turn] = turnsFromMessages(rows, [interruptedRun, refused])
+			expect(turn.turn.runs).toEqual([
+				{ runId: 'r-1', outcome: 'interrupt' },
+				{
+					runId: 'r-2',
+					outcome: 'error',
+					error: { code: 'provider_unreachable', message: 'The agent is restarting, try again.' },
+				},
+			])
+		})
+
+		it('ends the turn when the run failed in its stream instead: no interrupt, the call stopped', () => {
+			const inStream = runRow({
+				...refused,
+				error: { code: 'agent_error', message: 'Boom.' },
+			})
+			const [, turn] = turnsFromMessages(rows, [interruptedRun, inStream])
+			expect(turn.turn.interrupts).toEqual([])
+			expect(turn.turn.parts[0]).toMatchObject({ status: 'stopped' })
+		})
+
+		it('stops the calls when the last run the agent started was cancelled, as the live turn does', () => {
+			const cancelled = runRow({
+				id: 'r-2',
+				status: 'cancelled',
+				outcome: { type: 'cancelled' },
+				startedAt: at(3),
+			})
+			const later = runRow({ ...refused, id: 'r-3', startedAt: at(6) })
+			const [, turn] = turnsFromMessages(rows, [interruptedRun, cancelled, later])
+			expect(turn.turn.interrupts).toEqual([])
+			expect(turn.turn.parts[0]).toMatchObject({ status: 'stopped' })
+			const resumedLive = [
+				hubRun('run-2'),
+				ev('RUN_FINISHED', { threadId: THREAD, runId: 'run-2', outcome: { type: 'cancelled' } }),
+			].reduce(
+				applyAgUiEvent,
+				live([
+					ev('TOOL_CALL_START', { toolCallId: 'call-1', toolCallName: 'delete_file' }),
+					ev('TOOL_CALL_ARGS', { toolCallId: 'call-1', delta: '{}' }),
+					ev('TOOL_CALL_END', { toolCallId: 'call-1' }),
+					finished({ type: 'interrupt', interrupts: [APPROVAL] }),
+				]),
+			)
+			expect(resumedLive.parts).toEqual(turn.turn.parts)
+			expect(resumedLive.interrupts).toEqual([])
+		})
+
+		it('carries no interrupts on a turn whose only runs were refused', () => {
+			const turns = turnsFromMessages(
+				[user('u-1', 'r-1', 'Hi')],
+				[runRow({ ...refused, id: 'r-1', startedAt: at(0) })],
+			)
+			expect(turns[1].turn).toMatchObject({
+				interrupts: [],
+				runs: [{ runId: 'r-1', outcome: 'error' }],
+			})
+		})
 	})
 })
 

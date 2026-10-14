@@ -1,6 +1,6 @@
-import type { TurnPart } from '@/lib/chat/turn'
+import type { ToolPart, TurnPart } from '@/lib/chat/turn'
 
-export type ToolPart = Extract<TurnPart, { kind: 'tool' }>
+export type { ToolPart }
 
 /** A turn's parts as the turn renders them: tool calls that follow each other form one chain (spec §5.3). */
 export type PartGroup =

@@ -33,8 +33,13 @@ import {
  * bundle carries none of the AG-UI runtime), so event types are compared as strings.
  */
 
-/** Plan call P10: running until its result; done with one; error for a tool message with an error; stopped when cut off. */
-export type ToolStatus = 'running' | 'done' | 'error' | 'stopped'
+/**
+ * Plan call P9 (2b's revision of 2a's P10): running while its run runs; waiting when the run ended (success or
+ * interrupt) without its result, for an approval, an answer or the next run's `not_available` answer (AG-UI 1.0 "Tool
+ * Calls", Frontend tools: the pending calls are "every tool call the run started that received no result", on an
+ * interrupted run too); done with one; error for a tool message with an error; stopped when cut off.
+ */
+export type ToolStatus = 'running' | 'waiting' | 'done' | 'error' | 'stopped'
 
 /** A turn's pieces, each keyed by its AG-UI id (spec §5.2): text and reasoning by message id, a tool call by its id. */
 export type TurnPart =
@@ -50,6 +55,9 @@ export type TurnPart =
 			error?: string
 	  }
 	| { kind: 'activity'; messageId: string; activityType: string; content: unknown }
+
+/** A tool call's part: the ThoughtChain items, the hub's tool cards and the open items read it. */
+export type ToolPart = Extract<TurnPart, { kind: 'tool' }>
 
 /** What AG-UI said of a run (spec §5.2's second layer; X's own status is the transport's). */
 export type RunOutcome = 'running' | 'success' | 'interrupt' | 'cancelled' | 'error' | 'truncated'
@@ -67,7 +75,7 @@ export interface Turn {
 	role: 'user' | 'assistant'
 	parts: TurnPart[]
 	runs: TurnRun[]
-	/** The last run's open interrupts (spec §3.3); 2b renders them. */
+	/** The open interrupts of the turn's last run the agent started (spec §3.3, plan call P10). */
 	interrupts: Interrupt[]
 }
 
@@ -132,15 +140,19 @@ const pushRun = (turn: Turn, runId: string): Turn =>
 		: { ...turn, runs: [...turn.runs, { runId, outcome: 'running' }], interrupts: [] }
 
 /**
- * A run's end settles its parts (plan call P10): a call still running is done (success, interrupt) or stopped (cancel,
- * error), and an empty text part goes: Pydantic AI opens an empty text message before its tool calls (spike), and the
- * stored assistant message of it has no content, so the live turn and the reloaded one agree.
+ * A run's end settles its parts (plan call P9). A call without its result, still running or left waiting by an earlier
+ * run of the turn, waits after a success or an interrupt and is stopped after a cancel or an error: the turn's last run
+ * decides, as `turnsFromMessages` decides after a reload. An empty text part goes: Pydantic AI opens an empty text
+ * message before its tool calls (spike), and the stored assistant message of it has no content, so the live turn and the
+ * reloaded one agree.
  */
 const settleParts = (parts: TurnPart[], tools: ToolStatus): TurnPart[] =>
 	parts
 		.filter(part => !(part.kind === 'text' && part.text === ''))
 		.map(part =>
-			part.kind === 'tool' && part.status === 'running' ? { ...part, status: tools } : part,
+			part.kind === 'tool' && (part.status === 'running' || part.status === 'waiting')
+				? { ...part, status: tools }
+				: part,
 		)
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -249,7 +261,7 @@ export const applyAgUiEvent = (turn: Turn, event: BaseEvent): Turn => {
 					: 'success'
 			return {
 				...turn,
-				parts: settleParts(turn.parts, cancelled ? 'stopped' : 'done'),
+				parts: settleParts(turn.parts, cancelled ? 'stopped' : 'waiting'),
 				runs: patchLastRun(turn, run => ({ ...run, outcome: next })),
 				interrupts: outcome?.type === 'interrupt' ? outcome.interrupts : [],
 			}
@@ -296,7 +308,8 @@ export interface TurnRunRow {
 	id: string
 	status: RunStatus
 	outcome: unknown
-	error: { code?: string; message: string } | null
+	/** `beforeStream` (plan call P10): the agent never started this run, so it continues nothing. */
+	error: { code?: string; message: string; beforeStream?: true } | null
 	custom: { name: string; value: unknown }[]
 	startedAt: Date
 }
@@ -314,25 +327,40 @@ const cancelledReasonOf = (custom: TurnRunRow['custom']): string | undefined => 
 		: 'cancelled'
 }
 
+/** A stored error as the turn shows it, with RUN_ERROR's two fields (applyAgUiEvent); the refusal flag is the store's. */
+const turnErrorOf = ({
+	code,
+	message,
+}: NonNullable<TurnRunRow['error']>): NonNullable<TurnRun['error']> =>
+	code === undefined ? { message } : { code, message }
+
 const toTurnRun = (run: TurnRunRow): TurnRun => {
 	const reason = cancelledReasonOf(run.custom)
 	return {
 		runId: run.id,
 		outcome: runOutcomeOf(run.status),
-		...(run.error ? { error: run.error } : {}),
+		...(run.error ? { error: turnErrorOf(run.error) } : {}),
 		...(reason ? { cancelledReason: reason } : {}),
 	}
 }
+
+/**
+ * Plan call P10: a run the agent never started (refused before its stream, or the hub failed before sending it) does not
+ * continue its turn, so the turn's calls and open interrupts are what the run before it left; its error still shows.
+ */
+const continues = (run: TurnRunRow | undefined): run is TurnRunRow =>
+	run !== undefined && run.error?.beforeStream !== true
 
 const interruptsOf = (outcome: unknown): Interrupt[] =>
 	isRecord(outcome) && outcome.type === 'interrupt' && Array.isArray(outcome.interrupts)
 		? (outcome.interrupts as Interrupt[])
 		: []
 
+/** Plan call P9: what a call without a tool message reads by how the turn's last run ended (applyAgUiEvent's settleParts). */
 const TOOL_STATUS_AT_END: Record<RunOutcome, ToolStatus> = {
 	running: 'running',
-	success: 'done',
-	interrupt: 'done',
+	success: 'waiting',
+	interrupt: 'waiting',
 	cancelled: 'stopped',
 	error: 'stopped',
 	truncated: 'stopped',
@@ -387,8 +415,9 @@ const foldRow = (parts: TurnPart[], body: Message): TurnPart[] => {
 /**
  * The server's grouping of stored rows into turns (spec §3.3), since "nothing on the wire carries run identity"
  * (assistant-ui; research `part2-x-mapping.md` §C): a user turn per user message, then one assistant turn holding every
- * row up to the next user message, across the runs that resumed it. The last turn carries the open interrupts while its
- * last run is interrupted, so they survive a reload.
+ * row up to the next user message, across the runs that resumed it. A call without a tool message reads how the turn's
+ * last run ended, and the last turn carries the open interrupts while that run is interrupted, so they survive a reload;
+ * that run is the last one the agent started (plan call P10), while every run, a refused one included, shows in `runs`.
  */
 export const turnsFromMessages = (
 	rows: readonly TurnMessageRow[],
@@ -444,7 +473,8 @@ export const turnsFromMessages = (
 			return run ? [toTurnRun(run)] : []
 		})
 		if (!turnRuns.length && !group.parts.length) continue
-		const atEnd = TOOL_STATUS_AT_END[turnRuns.at(-1)?.outcome ?? 'success']
+		const continued = ordered.map(id => runById.get(id)).findLast(continues)
+		const atEnd = TOOL_STATUS_AT_END[continued ? runOutcomeOf(continued.status) : 'success']
 		turns.push({
 			id: `turn-${group.runIds[0] ?? group.firstId}`,
 			turn: {
@@ -458,12 +488,9 @@ export const turnsFromMessages = (
 		})
 	}
 	const lastTurn = turns.at(-1)
-	const lastRun = lastTurn?.turn.runs.at(-1)
-	if (lastTurn && lastRun?.outcome === 'interrupt')
-		lastTurn.turn = {
-			...lastTurn.turn,
-			interrupts: interruptsOf(runById.get(lastRun.runId)?.outcome),
-		}
+	const continued = lastTurn?.turn.runs.map(run => runById.get(run.runId)).findLast(continues)
+	if (lastTurn && continued?.status === 'interrupted')
+		lastTurn.turn = { ...lastTurn.turn, interrupts: interruptsOf(continued.outcome) }
 	return turns
 }
 

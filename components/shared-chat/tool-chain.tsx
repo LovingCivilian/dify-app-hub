@@ -1,5 +1,6 @@
 'use client'
 
+import { HourglassOutlined } from '@ant-design/icons'
 import { CodeHighlighter, ThoughtChain } from '@ant-design/x'
 import type { CodeHighlighterProps, ThoughtChainItemType } from '@ant-design/x'
 import { Flex, Typography } from 'antd'
@@ -12,9 +13,15 @@ import { useThemeContext } from '@/lib/theme'
 
 import { inputHint, prettyJson, type ToolPart } from './turn-parts'
 
-/** ThoughtChain's item statuses (X 2.9.0 `es/thought-chain/Status.d.ts`) for the tool part's (plan call P10). */
-const STATUS: Record<ToolStatus, NonNullable<ThoughtChainItemType['status']>> = {
+/**
+ * ThoughtChain's item statuses (X 2.9.0 `es/thought-chain/Status.d.ts`: loading, success, error, abort) for the tool
+ * part's (plan calls P9, P10). A waiting call has none of the four: its item shows an hourglass `icon` and no status
+ * colour (`es/thought-chain/Status.js` draws a status's own icon when the item has a status, else the item's `icon`;
+ * `Node.js` puts the item's number there when it has neither).
+ */
+const STATUS: Record<ToolStatus, ThoughtChainItemType['status']> = {
 	running: 'loading',
+	waiting: undefined,
 	done: 'success',
 	error: 'error',
 	stopped: 'abort',
@@ -45,6 +52,7 @@ export default function ToolChain({ tools }: { tools: ToolPart[] }) {
 				title: tool.name,
 				description: inputHint(tool.args),
 				status: STATUS[tool.status],
+				icon: tool.status === 'waiting' ? <HourglassOutlined /> : undefined,
 				blink: tool.status === 'running',
 				collapsible: true,
 				content: (
