@@ -227,6 +227,10 @@ export const applyAgUiEvent = (turn: Turn, event: BaseEvent): Turn => {
 		}
 		case 'TOOL_CALL_START': {
 			const { toolCallId, toolCallName } = event as ToolCallStartEvent
+			// A resumed run that starts a call again keeps the answer the user sent it (sent-answers.ts), as history does.
+			const decision = turn.parts.find(
+				(part): part is ToolPart => part.kind === 'tool' && part.toolCallId === toolCallId,
+			)?.decision
 			return {
 				...turn,
 				parts: upsertPart(turn.parts, {
@@ -235,6 +239,7 @@ export const applyAgUiEvent = (turn: Turn, event: BaseEvent): Turn => {
 					name: toolCallName,
 					args: '',
 					status: 'running',
+					...(decision ? { decision } : {}),
 				}),
 			}
 		}

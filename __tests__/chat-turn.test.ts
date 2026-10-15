@@ -203,6 +203,35 @@ const SCENARIOS: [string, BaseEvent[], Partial<TurnRunRow>][] = [
 ]
 
 describe('applyAgUiEvent', () => {
+	it('keeps a call’s recorded decision when a resumed run starts the same call again', () => {
+		const decided: Turn = {
+			...emptyAssistantTurn(),
+			parts: [
+				{
+					kind: 'tool',
+					toolCallId: 'call-1',
+					name: 'delete_file',
+					args: '{"path":"a.txt"}',
+					status: 'waiting',
+					decision: 'approved',
+				},
+			],
+		}
+		const turn = applyAgUiEvent(
+			decided,
+			ev('TOOL_CALL_START', { toolCallId: 'call-1', toolCallName: 'delete_file' }),
+		)
+		expect(turn.parts).toEqual([
+			{
+				kind: 'tool',
+				toolCallId: 'call-1',
+				name: 'delete_file',
+				args: '',
+				status: 'running',
+				decision: 'approved',
+			},
+		])
+	})
 	it('opens a run on hub:run, once, and leaves RUN_STARTED of that run alone', () => {
 		const turn = [hubRun(), hubRun(), started].reduce(applyAgUiEvent, emptyAssistantTurn())
 		expect(turn.runs).toEqual([{ runId: RUN, outcome: 'running' }])
