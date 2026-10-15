@@ -25,6 +25,8 @@ const freeAnswer = (page: Page) => page.getByPlaceholder('Something else')
  * its name says which question is on show.
  */
 const pager = (page: Page, name: string | RegExp) => page.getByRole('group', { name })
+/** An option of the ask_user card: a button named by the option's text (its digit badge is hidden from the name). */
+const option = (page: Page, name: string) => page.getByRole('button', { name, exact: true })
 const RUNS_PATH = /\/api\/apps\/[^/]+\/runs$/
 
 const send = async (page: Page, text: string) => {
@@ -214,6 +216,59 @@ test.describe('human in the loop in the AG-UI chat', () => {
 			answers(page)
 				.last()
 				.getByText('Got your answers: Q: Which city? / A: Rome / Q: Which month? / A: June'),
+		).toBeVisible()
+	})
+
+	test('‹ goes back to change an answer, and the card moves on to the first question without one', async ({
+		page,
+		isMobile,
+	}) => {
+		await send(page, 'question')
+		await option(page, 'Paris').click()
+		await expect(pager(page, 'Question 2 of 2')).toBeVisible()
+		// › reaches only a question that has an answer; Skip is how to pass one without.
+		await expect(page.getByRole('button', { name: 'Next question' })).toBeDisabled()
+		await activate(page.getByRole('button', { name: 'Previous question' }), isMobile)
+		await expect(pager(page, 'Question 1 of 2')).toBeVisible()
+		// The answer given there shows as chosen (✓; `aria-current`) and has the focus.
+		await expect(option(page, 'Paris')).toHaveAttribute('aria-current', 'true')
+		await expect(option(page, 'Paris')).toBeFocused()
+		await expect(option(page, 'Rome')).not.toHaveAttribute('aria-current')
+		await expect(page.getByRole('button', { name: 'Previous question' })).toBeDisabled()
+		await expect(page.getByRole('button', { name: 'Next question' })).toBeEnabled()
+		// Another option replaces the answer, and the card goes on to the question without one.
+		await option(page, 'Rome').click()
+		await expect(pager(page, 'Question 2 of 2')).toBeVisible()
+		await expect(freeAnswer(page)).toHaveValue('')
+		await freeAnswer(page).fill('May')
+		await freeAnswer(page).press('Enter')
+		await expect(
+			answers(page)
+				.last()
+				.getByText('Got your answers: Q: Which city? / A: Rome / Q: Which month? / A: May'),
+		).toBeVisible()
+		await expect(senderBox(page)).toBeEnabled()
+	})
+
+	test('the arrow keys move between the options, and Enter picks one', async ({ page }) => {
+		await send(page, 'question')
+		await expect(pager(page, 'Question 1 of 2')).toBeVisible()
+		// The question opens with its first option focused, so the keys work at once.
+		await expect(option(page, 'Paris')).toBeFocused()
+		// One highlighted row: a moving mouse takes the focus along, and the keys go on from there.
+		await option(page, 'Rome').hover()
+		await expect(option(page, 'Rome')).toBeFocused()
+		await page.keyboard.press('ArrowUp')
+		await expect(option(page, 'Paris')).toBeFocused()
+		await page.keyboard.press('ArrowDown')
+		await expect(option(page, 'Rome')).toBeFocused()
+		await page.keyboard.press('Enter')
+		await expect(pager(page, 'Question 2 of 2')).toBeVisible()
+		await page.getByRole('button', { name: 'Skip' }).press('Enter')
+		await expect(
+			answers(page)
+				.last()
+				.getByText('Got your answers: Q: Which city? / A: Rome / Q: Which month? / A: (skipped)'),
 		).toBeVisible()
 	})
 
