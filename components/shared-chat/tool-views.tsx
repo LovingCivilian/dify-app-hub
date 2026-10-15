@@ -84,8 +84,9 @@ function JsonTable({ rows }: { rows: JsonRow[] }) {
 }
 
 /**
- * The JSON view: X CodeHighlighter as it ships, its header ("json" and copy) included (`lang` "json"; Prism's light mode
- * loads the one `json` grammar, X CodeHighlighter API `prismLightMode`; the owner, 2026-10-15: "keep it default ant
+ * The JSON view: X CodeHighlighter as it ships, without its header (`header={false}`, X 2.9
+ * `es/code-highlighter/interface.d.ts`; the owner, 2026-10-15: "remove the json header"), no other overrides (`lang`
+ * "json"; Prism's light mode loads the one `json` grammar, X CodeHighlighter API `prismLightMode`; "keep it default ant
  * design"). Dark mode swaps the style as the Markdown code block does.
  */
 function JsonCode({ json }: { json: string }) {
@@ -93,6 +94,7 @@ function JsonCode({ json }: { json: string }) {
 	return (
 		<CodeHighlighter
 			lang="json"
+			header={false}
 			highlightProps={isDark ? DARK_HIGHLIGHT : undefined}
 		>
 			{json}
