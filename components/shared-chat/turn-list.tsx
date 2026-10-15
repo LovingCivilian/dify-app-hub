@@ -55,11 +55,16 @@ export default function TurnList({
 			assistant: {
 				placement: 'start',
 				variant: 'borderless',
-				// The full row's width, so a card or a thought keeps one width open or closed (the owner, 2026-10-15: "the
-				// width should be fixed to the chat width"): X sizes a start bubble to its content (`es/bubble/style/bubble.js`:
-				// `align-self: flex-start`, the body `max-width: 100%`), so its semantic `root` and `body` (Bubble API
-				// `styles`) take the row's width; the row itself is capped at `maxWidth` (rowStyles below).
-				styles: { root: { width: '100%' }, body: { width: '100%' } },
+				// The chat's width, so a card or a thought keeps one width open or closed (the owner, 2026-10-15: "the width
+				// should be fixed to the chat width"): X sizes a start bubble to its content (`es/bubble/style/bubble.js`:
+				// `align-self: flex-start`, the body `max-width: 100%`), so its semantic `root` and `body` (Bubble API `styles`)
+				// take the row's width. A role's `styles` replace the list's (`es/bubble/BubbleList.js`: "items configuration
+				// has higher priority, overrides", `style: rootStyle || bubbleStyle`), so the root carries the list's row cap
+				// too (rowStyles below: the chat-width switch's `maxWidth`, centred).
+				styles: {
+					root: { width: '100%', maxWidth, marginInline: 'auto' },
+					body: { width: '100%' },
+				},
 				contentRender: (content, info) => renderAssistant(content as Turn, info),
 				footer: renderFooter ? (content, info) => renderFooter(content as Turn, info) : undefined,
 			},
@@ -68,7 +73,7 @@ export default function TurnList({
 				contentRender: content => <UserTurn turn={content as Turn} />,
 			},
 		}),
-		[renderAssistant, renderFooter],
+		[maxWidth, renderAssistant, renderFooter],
 	)
 
 	// One object per width, like the role map: Bubble.List hands it to every item on each render.
