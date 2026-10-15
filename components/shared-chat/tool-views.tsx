@@ -108,7 +108,10 @@ function JsonTable({ rows }: { rows: JsonRow[] }) {
  * styles the code box as the part below a header (`es/code-highlighter/style/index.js`: no top border, no top radius),
  * so its semantic `styles.code` closes the box with the same border. Its radius is the table frame's, borderRadiusLG
  * (antd Table's `headerBorderRadius`), not X's own `token.borderRadius`, so the Table and JSON views of one section have
- * the same corners (the owner, 2026-10-15: "why does the code and table have diff radius?").
+ * the same corners (the owner, 2026-10-15: "why does the code and table have diff radius?"). The style sets the very
+ * properties X's rule sets (`borderTop`, and the four logical corner radii `borderStartStartRadius` …), not a shorthand:
+ * a physical `borderRadius` beside X's logical `borderStartStartRadius: 0` left the top corners square and the bottom
+ * ones rounded, the table frame's corners reversed (the owner, 2026-10-15: "the json border radius reversed").
  */
 function JsonCode({ json }: { json: string }) {
 	const { isDark } = useThemeContext()
@@ -120,8 +123,11 @@ function JsonCode({ json }: { json: string }) {
 			highlightProps={isDark ? DARK_HIGHLIGHT : undefined}
 			styles={{
 				code: {
-					borderBlockStart: `${token.lineWidth}px ${token.lineType} ${token.colorBorderSecondary}`,
-					borderRadius: token.borderRadiusLG,
+					borderTop: `${token.lineWidth}px ${token.lineType} ${token.colorBorderSecondary}`,
+					borderStartStartRadius: token.borderRadiusLG,
+					borderStartEndRadius: token.borderRadiusLG,
+					borderEndStartRadius: token.borderRadiusLG,
+					borderEndEndRadius: token.borderRadiusLG,
 				},
 			}}
 		>
