@@ -17,7 +17,7 @@ import { hasWord } from './scenarios'
  * refuses a bad request with a plain HTTP status before any stream ("Input rejected before the run starts — malformed
  * JSON, failed validation, refused auth — is an HTTP error status with no event stream", AG-UI 1.0 HTTP + SSE binding,
  * Errors). Scenarios are picked by the last user text, as the Dify stub's are: the default (reasoning and Markdown
- * text), `tool`, `error <code>`, `timeout`, `slow` and `invalid`; 2b's human-in-the-loop scenarios (HITL_KEYWORDS) are
+ * text), `tool`, `nested`, `error <code>`, `timeout`, `slow` and `invalid`; 2b's human-in-the-loop scenarios (HITL_KEYWORDS) are
  * checked first.
  */
 
@@ -138,6 +138,46 @@ const weatherCall = (parentMessageId: string): Event[] => {
 	]
 }
 
+/**
+ * The `nested` scenario's call (the json-tree brief): arguments with an array of scalars, an object and an array of
+ * objects, streamed in two deltas as `weatherCall`'s are, and a nested JSON result with a long string value.
+ */
+const emailCall = (parentMessageId: string): Event[] => {
+	const toolCallId = `call-${randomUUID()}`
+	const args = JSON.stringify({
+		subject: 'Office closed',
+		to: ['ana@x.com', 'bo@x.com'],
+		options: { urgent: true, channel: 'email' },
+		attachments: [
+			{ name: 'plan.pdf', size: 1204 },
+			{ name: 'map.png', size: 88 },
+		],
+	})
+	const half = Math.floor(args.length / 2)
+	return [
+		{ type: EventType.TOOL_CALL_START, toolCallId, toolCallName: 'send_email', parentMessageId },
+		{ type: EventType.TOOL_CALL_ARGS, toolCallId, delta: args.slice(0, half) },
+		{ type: EventType.TOOL_CALL_ARGS, toolCallId, delta: args.slice(half) },
+		{ type: EventType.TOOL_CALL_END, toolCallId },
+		{
+			type: EventType.TOOL_CALL_RESULT,
+			messageId: randomUUID(),
+			toolCallId,
+			role: 'tool',
+			content: JSON.stringify({
+				id: 'msg-42',
+				status: 'queued',
+				recipients: [
+					{ address: 'ana@x.com', accepted: true },
+					{ address: 'bo@x.com', accepted: true },
+				],
+				delivery: { channel: 'email', eta_s: 30 },
+				note: 'Queued for both recipients; the attachments go as links that expire in seven days.',
+			}),
+		},
+	]
+}
+
 type Plan = { refuse: true } | { events: Event[]; delayMs: number; slow?: true }
 
 const planFor = (threadId: string, runId: string, text: string): Plan => {
@@ -180,6 +220,19 @@ const planFor = (threadId: string, runId: string, text: string): Plan => {
 			events: [started, ...textMessage(words), finished],
 			delayMs: SLOW_WORD_DELAY_MS,
 			slow: true,
+		}
+	}
+	if (said.includes('nested')) {
+		const askId = randomUUID()
+		return {
+			events: [
+				started,
+				...textMessage('Let me send the email.', askId),
+				...emailCall(askId),
+				...textMessage('The email is queued.'),
+				finished,
+			],
+			delayMs: WORD_DELAY_MS,
 		}
 	}
 	if (said.includes('tool')) {

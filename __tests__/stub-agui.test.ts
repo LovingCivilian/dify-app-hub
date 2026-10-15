@@ -152,6 +152,54 @@ describe('the AG-UI stub agent (Part 2 spec §10)', () => {
 		})
 	})
 
+	it('nested calls send_email with nested arguments and answers it with a nested JSON result', async () => {
+		const response = await post(AGENT, { auth: await token(), body: input('nested') })
+		expect(response.status).toBe(200)
+		const frames = await framesOf(response)
+		expect(typesOf(frames)).toEqual([
+			'RUN_STARTED',
+			'TEXT_MESSAGE_START',
+			'TEXT_MESSAGE_CONTENT',
+			'TEXT_MESSAGE_END',
+			'TOOL_CALL_START',
+			'TOOL_CALL_ARGS',
+			'TOOL_CALL_END',
+			'TOOL_CALL_RESULT',
+			'TEXT_MESSAGE_START',
+			'TEXT_MESSAGE_CONTENT',
+			'TEXT_MESSAGE_END',
+			'RUN_FINISHED',
+		])
+		const start = frames.find(frame => frame.type === 'TOOL_CALL_START')
+		expect(start?.toolCallName).toBe('send_email')
+		const args = frames
+			.filter(frame => frame.type === 'TOOL_CALL_ARGS')
+			.map(frame => frame.delta)
+			.join('')
+		// The json-tree brief's arguments: an array of scalars, an object and an array of objects beside a string.
+		expect(JSON.parse(args)).toEqual({
+			subject: 'Office closed',
+			to: ['ana@x.com', 'bo@x.com'],
+			options: { urgent: true, channel: 'email' },
+			attachments: [
+				{ name: 'plan.pdf', size: 1204 },
+				{ name: 'map.png', size: 88 },
+			],
+		})
+		const result = frames.find(frame => frame.type === 'TOOL_CALL_RESULT')
+		expect(result).toMatchObject({ toolCallId: start?.toolCallId, role: 'tool' })
+		expect(JSON.parse(String(result?.content))).toEqual({
+			id: 'msg-42',
+			status: 'queued',
+			recipients: [
+				{ address: 'ana@x.com', accepted: true },
+				{ address: 'bo@x.com', accepted: true },
+			],
+			delivery: { channel: 'email', eta_s: 30 },
+			note: 'Queued for both recipients; the attachments go as links that expire in seven days.',
+		})
+	})
+
 	it('is read by @ag-ui/client without a protocol error, scenario by scenario', async () => {
 		const auth = await token()
 		const runText = async (text: string) => {
@@ -180,6 +228,7 @@ describe('the AG-UI stub agent (Part 2 spec §10)', () => {
 		expect(tool.roles).toEqual(['assistant', 'tool', 'assistant'])
 		const caller = tool.newMessages[0] as Extract<Message, { role: 'assistant' }>
 		expect(caller.toolCalls?.[0]?.function.name).toBe('get_weather')
+		expect((await runText('nested')).roles).toEqual(['assistant', 'tool', 'assistant'])
 		// Any of the hub's five RUN_ERROR codes (Task 17 loops over them).
 		for (const code of ['usage_limit', 'rate_limited', 'busy', 'model_unavailable', 'agent_error'])
 			expect((await runText(`error ${code}`)).seen.errorCode).toBe(code)
