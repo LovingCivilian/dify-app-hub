@@ -621,8 +621,8 @@
 		"answer_pending_hint": "Answer the agent above to continue.",
 		"tool_arguments": "Arguments",
 		"tool_result": "Result",
-		"tool_view_table": "Table",
-		"tool_view_json": "JSON",
+		"tool_view_formatted": "Formatted",
+		"tool_view_raw": "Raw",
 		"plan": {
 			"title": "Plan {{done}}/{{total}}"
 		},

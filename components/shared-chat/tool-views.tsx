@@ -42,7 +42,7 @@ const DARK_HIGHLIGHT: CodeHighlighterProps['highlightProps'] = {
 const EMPTY: ToolDetail = { kind: 'empty' }
 
 /** What a section with JSON shows: the tree table, or the indented JSON (its "Show JSON" toggle). */
-type DetailView = 'table' | 'json'
+type DetailView = 'formatted' | 'raw'
 
 /**
  * The tree table's two columns, name and value (no header: `showHeader={false}`). A row's own expand arrow and indent sit
@@ -134,9 +134,10 @@ function JsonCode({ json }: { json: string }) {
 }
 
 /**
- * One part of the card's body as its kind says (tool-view-data.ts `toolDetail`): text as an antd Paragraph keeping its
- * line breaks, and JSON as the tree table or, once its toggle says so, as indented JSON. Every text renders as text,
- * never HTML.
+ * One part of the card's body as its kind says (tool-view-data.ts `toolDetail`) and as its switch says (the owner,
+ * 2026-10-15: "Formatted | Raw"): JSON as the tree table, or raw as the indented JSON in the code box; text in a frame
+ * like the table's, keeping its line breaks, or raw in a monospace box, as received. Every text renders as text, never
+ * HTML.
  */
 function DetailBody({
 	detail,
@@ -147,33 +148,37 @@ function DetailBody({
 }) {
 	switch (detail.kind) {
 		case 'text':
-			return (
-				<Typography.Paragraph
-					className={styles.text}
-					style={{ marginBottom: 0 }}
-				>
-					{detail.text}
-				</Typography.Paragraph>
+			return view === 'raw' ? (
+				<div className={`${styles.box} ${styles.raw}`}>{detail.text}</div>
+			) : (
+				<div className={styles.box}>
+					<Typography.Paragraph
+						className={styles.text}
+						style={{ marginBottom: 0 }}
+					>
+						{detail.text}
+					</Typography.Paragraph>
+				</div>
 			)
 		case 'tree':
-			return view === 'json' ? <JsonCode json={detail.json} /> : <JsonTable rows={detail.rows} />
+			return view === 'raw' ? <JsonCode json={detail.json} /> : <JsonTable rows={detail.rows} />
 		default:
 			return detail satisfies never
 	}
 }
 
 /**
- * A labelled part of the body ("Arguments", "Result"), left out when it has nothing to show. A part with JSON carries,
- * beside its label, a small antd Radio.Group drawn as two joined buttons, the selected one filled (`optionType="button"`,
+ * A labelled part of the body ("Arguments", "Result"), left out when it has nothing to show. Every part carries,
+ * beside its label, the Formatted | Raw switch (the owner, 2026-10-15), a small antd Radio.Group drawn as two joined buttons, the selected one filled (`optionType="button"`,
  * `buttonStyle="solid"`, `size`, `options`, `value`, `onChange`: `antd info Radio --version 6.6.5`, the "radiobutton-solid"
  * demo; the owner, 2026-10-15: "two buttons that are joined and switch which one is selected"). The group is a
  * `radiogroup` named by the label (antd `es/radio/group.js` passes `aria-*` through `pickAttrs`); its state is the
- * section's own and starts at the table (json-tree brief, item 2).
+ * section's own and starts at Formatted.
  */
 function DetailSection({ label, detail }: { label: string; detail: ToolDetail }) {
 	const { t } = useTranslation()
 	const { token } = theme.useToken()
-	const [view, setView] = useState<DetailView>('table')
+	const [view, setView] = useState<DetailView>('formatted')
 	if (detail.kind === 'empty') return null
 	return (
 		<Flex
@@ -191,21 +196,19 @@ function DetailSection({ label, detail }: { label: string; detail: ToolDetail })
 				>
 					{label}
 				</Typography.Text>
-				{detail.kind === 'tree' && (
-					<Radio.Group
-						optionType="button"
-						buttonStyle="solid"
-						size="small"
-						aria-label={label}
-						value={view}
-						// antd types the event's value as `any` (es/radio/interface.d.ts); read it back to the two views.
-						onChange={event => setView(event.target.value === 'json' ? 'json' : 'table')}
-						options={[
-							{ value: 'table', label: t('shared_chat.tool_view_table') },
-							{ value: 'json', label: t('shared_chat.tool_view_json') },
-						]}
-					/>
-				)}
+				<Radio.Group
+					optionType="button"
+					buttonStyle="solid"
+					size="small"
+					aria-label={label}
+					value={view}
+					// antd types the event's value as `any` (es/radio/interface.d.ts); read it back to the two views.
+					onChange={event => setView(event.target.value === 'raw' ? 'raw' : 'formatted')}
+					options={[
+						{ value: 'formatted', label: t('shared_chat.tool_view_formatted') },
+						{ value: 'raw', label: t('shared_chat.tool_view_raw') },
+					]}
+				/>
 			</Flex>
 			<DetailBody
 				detail={detail}

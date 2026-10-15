@@ -69,7 +69,6 @@ describe('locale files', () => {
 			'admin_users.directory_ldaps',
 			'admin_users.directory_starttls',
 			'provider.dify',
-			'shared_chat.tool_view_json',
 		])
 		const notArabic = Object.entries(translations.ar)
 			.filter(([key, value]) => !latinOnly.has(key) && !/[؀-ۿ]/.test(value))
