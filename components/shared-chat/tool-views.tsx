@@ -64,29 +64,38 @@ const COLUMNS: TableColumnsType<JsonRow> = [
 ]
 
 /**
- * A JSON object or array as one small, bordered antd Table with tree data (json-tree brief, item 1; `size`, `bordered`,
- * `showHeader`, `pagination`, `rowHoverable` and `styles.body.cell`: `antd info Table --version 6.6.5`, semantic DOM
- * `body.cell`): a nested object or array is a row with `children`, which the Table shows collapsed behind its own expand
- * arrow (`expandable.defaultExpandAllRows` is false); a flat object has no `children`, so no arrows and no indent.
+ * A JSON object or array as one small antd Table with tree data (json-tree brief, item 1; `size`, `showHeader`,
+ * `pagination`, `rowHoverable` and `styles.root`/`styles.body.cell`: `antd info Table --version 6.6.5`, semantic DOM
+ * `root`, `body.cell`): a nested object or array is a row with `children`, which the Table shows collapsed behind its own
+ * expand arrow (`expandable.defaultExpandAllRows` is false); a flat object has no `children`, so no arrows and no indent.
  * Read-only rows, so no hover highlight, as the Descriptions it replaces had none.
+ *
+ * The frame is the module's `.tree` wrapper, not antd's `bordered`: antd rounds only a table's top corners and leaves
+ * the bottom to a footer or pagination (`es/table/style/radius.js`: the table and its container get `r r 0 0`, the
+ * footer `0 0 r r`), so a bordered table without one ends in square corners (the owner, 2026-10-15: "why does it have
+ * sharp corners on the bottom?"). Unbordered, the Table draws only its rows' bottom lines; the wrapper draws the outer
+ * border with all four corners rounded and clips the rows inside it, and the root's negative end margin of one line
+ * width tucks the last row's bottom line under the wrapper's own, so the bottom edge is one line, not two.
  */
 function JsonTable({ rows }: { rows: JsonRow[] }) {
 	const { token } = theme.useToken()
 	return (
-		<Table<JsonRow>
-			size="small"
-			bordered
-			showHeader={false}
-			pagination={false}
-			rowHoverable={false}
-			columns={COLUMNS}
-			dataSource={rows}
-			// The Descriptions' tighter cell than `size="small"`'s paddingXS on both axes, so a short object stays a few
-			// slim rows (the approved design of 2026-10-15, A.2).
-			styles={{
-				body: { cell: { paddingBlock: token.paddingXXS, paddingInline: token.paddingSM } },
-			}}
-		/>
+		<div className={styles.tree}>
+			<Table<JsonRow>
+				size="small"
+				showHeader={false}
+				pagination={false}
+				rowHoverable={false}
+				columns={COLUMNS}
+				dataSource={rows}
+				// The Descriptions' tighter cell than `size="small"`'s paddingXS on both axes, so a short object stays a few
+				// slim rows (the approved design of 2026-10-15, A.2).
+				styles={{
+					root: { marginBlockEnd: -token.lineWidth },
+					body: { cell: { paddingBlock: token.paddingXXS, paddingInline: token.paddingSM } },
+				}}
+			/>
+		</div>
 	)
 }
 
