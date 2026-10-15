@@ -55,6 +55,11 @@ export default function TurnList({
 			assistant: {
 				placement: 'start',
 				variant: 'borderless',
+				// The full row's width, so a card or a thought keeps one width open or closed (the owner, 2026-10-15: "the
+				// width should be fixed to the chat width"): X sizes a start bubble to its content (`es/bubble/style/bubble.js`:
+				// `align-self: flex-start`, the body `max-width: 100%`), so its semantic `root` and `body` (Bubble API
+				// `styles`) take the row's width; the row itself is capped at `maxWidth` (rowStyles below).
+				styles: { root: { width: '100%' }, body: { width: '100%' } },
 				contentRender: (content, info) => renderAssistant(content as Turn, info),
 				footer: renderFooter ? (content, info) => renderFooter(content as Turn, info) : undefined,
 			},
