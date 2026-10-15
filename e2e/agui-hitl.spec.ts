@@ -59,10 +59,14 @@ const runRequests = (page: Page) => {
 	return urls
 }
 
-/** Opens each tool card's collapsible body by its title (ThoughtChain `collapsible`, as in e2e/agui-chat.spec.ts). */
-const openToolCards = async (answer: Locator, name: string) => {
-	for (const title of await answer.getByText(name, { exact: true }).all()) await title.click()
-}
+/**
+ * A tool card's result, a code block in its body (ADR-0035: AI Elements' Tool look; a completed card starts open, so
+ * the result is in view without a click).
+ */
+const toolResult = (answer: Locator, text: string) =>
+	answer.locator('pre').filter({ hasText: text })
+/** A receipt in a card's bordered box: the decision that went, read-only (ADR-0035). */
+const receipt = (answer: Locator, label: string) => answer.getByText(label, { exact: true })
 
 test.describe('human in the loop in the AG-UI chat', () => {
 	test.beforeEach(async ({ page }) => {
@@ -87,8 +91,9 @@ test.describe('human in the loop in the AG-UI chat', () => {
 		await expect(answer.getByText('Awaiting approval', { exact: true })).toHaveCount(0)
 		// The resumed run continues the same turn (spec §6.1, onReload), and its result lands on the gated call's card.
 		await expect(answers(page)).toHaveCount(1)
-		await openToolCards(answer, 'delete_file')
-		await expect(answer).toContainText('Deleted report.pdf.')
+		await expect(toolResult(answer, 'Deleted report.pdf.')).toBeVisible()
+		// The decision stays on the card, between its arguments and its result (ADR-0035).
+		await expect(receipt(answer, 'Approved')).toBeVisible()
 		await expect(answer.getByRole('button', { name: 'Approve' })).toHaveCount(0)
 		await expect(senderBox(page)).toBeEnabled()
 		await expect(hint(page)).toHaveCount(0)
@@ -102,9 +107,9 @@ test.describe('human in the loop in the AG-UI chat', () => {
 		const answer = answers(page).last()
 		await activate(answer.getByRole('button', { name: 'Reject' }), isMobile)
 		await expect(answer.getByText('Done: report.pdf kept.')).toBeVisible()
-		await openToolCards(answer, 'delete_file')
 		// Plan call P5: the schema declares a string `reason`, so Reject adds REJECTED_REASON.
-		await expect(answer).toContainText('Not deleted: Rejected by the user')
+		await expect(toolResult(answer, 'Not deleted: Rejected by the user')).toBeVisible()
+		await expect(receipt(answer, 'Rejected')).toBeVisible()
 		await expect(senderBox(page)).toBeEnabled()
 	})
 
@@ -133,9 +138,10 @@ test.describe('human in the loop in the AG-UI chat', () => {
 		await expect(answer.getByText('Done: report.pdf deleted, notes.txt kept.')).toBeVisible()
 		// Exactly one request carried both answers (a request after the first decision would make it three).
 		expect(runs).toHaveLength(2)
-		await openToolCards(answer, 'delete_file')
-		await expect(answer).toContainText('Deleted report.pdf.')
-		await expect(answer).toContainText('Not deleted: Rejected by the user')
+		await expect(toolResult(answer, 'Deleted report.pdf.')).toBeVisible()
+		await expect(toolResult(answer, 'Not deleted: Rejected by the user')).toBeVisible()
+		await expect(receipt(answer, 'Approved')).toBeVisible()
+		await expect(receipt(answer, 'Rejected')).toBeVisible()
 		await expect(senderBox(page)).toBeEnabled()
 	})
 
@@ -200,7 +206,7 @@ test.describe('human in the loop in the AG-UI chat', () => {
 
 		await page.goto(`/chat/${AGUI_APP.id}?isNewCvst=1`)
 		await send(page, 'question')
-		await activate(page.getByRole('button', { name: 'Dismiss questions' }), isMobile)
+		await activate(page.getByRole('button', { name: 'Dismiss questions', exact: true }), isMobile)
 		await expect(
 			answers(page)
 				.last()
@@ -235,15 +241,17 @@ test.describe('human in the loop in the AG-UI chat', () => {
 		await option(page, 'Paris').click()
 		await expect(pager(page, 'Question 2 of 2')).toBeVisible()
 		// › reaches only a question that has an answer; Skip is how to pass one without.
-		await expect(page.getByRole('button', { name: 'Next question' })).toBeDisabled()
-		await activate(page.getByRole('button', { name: 'Previous question' }), isMobile)
+		await expect(page.getByRole('button', { name: 'Next question', exact: true })).toBeDisabled()
+		await activate(page.getByRole('button', { name: 'Previous question', exact: true }), isMobile)
 		await expect(pager(page, 'Question 1 of 2')).toBeVisible()
 		// The answer given there shows as chosen (✓; `aria-current`) and has the focus.
 		await expect(option(page, 'Paris')).toHaveAttribute('aria-current', 'true')
 		await expect(option(page, 'Paris')).toBeFocused()
 		await expect(option(page, 'Rome')).not.toHaveAttribute('aria-current')
-		await expect(page.getByRole('button', { name: 'Previous question' })).toBeDisabled()
-		await expect(page.getByRole('button', { name: 'Next question' })).toBeEnabled()
+		await expect(
+			page.getByRole('button', { name: 'Previous question', exact: true }),
+		).toBeDisabled()
+		await expect(page.getByRole('button', { name: 'Next question', exact: true })).toBeEnabled()
 		// Another option replaces the answer, and the card goes on to the question without one.
 		await option(page, 'Rome').click()
 		await expect(pager(page, 'Question 2 of 2')).toBeVisible()
@@ -296,7 +304,7 @@ test.describe('human in the loop in the AG-UI chat', () => {
 		// Plan call P3: the call's arguments fail the schema; its card in the turn says so.
 		await expect(answer.getByText('The agent asked an invalid question')).toBeVisible()
 		await expect(senderBox(page)).toBeDisabled()
-		await activate(page.getByRole('button', { name: 'Dismiss questions' }), isMobile)
+		await activate(page.getByRole('button', { name: 'Dismiss questions', exact: true }), isMobile)
 		await expect(answer.getByText('The question was dismissed.')).toBeVisible()
 		await expect(senderBox(page)).toBeEnabled()
 	})
@@ -365,8 +373,9 @@ test.describe('human in the loop in the AG-UI chat', () => {
 		await expect(
 			answers(page).last().getByText('I made a plan and finished its first step.'),
 		).toBeVisible()
-		// Spec §6.4: one Collapse panel headed "Plan 1/3" (antd's header is a button with aria-expanded).
-		const panel = page.getByRole('button', { name: 'Plan 1/3' })
+		// Spec §6.4, ADR-0035: the chat's card headed "Plan" with its progress, "1/3", as the badge (antd's Collapse header
+		// is a button with aria-expanded).
+		const panel = page.getByRole('button', { name: /Plan\s+1\/3/ })
 		await expect(panel).toHaveAttribute('aria-expanded', 'true')
 		expect(await top(panel)).toBeLessThan(await top(senderBox(page)))
 		for (const step of ['Gather the sources', 'Draft the summary', 'Review the draft'])
@@ -375,7 +384,8 @@ test.describe('human in the loop in the AG-UI chat', () => {
 		await expect(senderBox(page)).toBeEnabled()
 
 		await send(page, 'finish plan')
-		const done = page.getByRole('button', { name: 'Plan 3/3' })
+		// Every step done: the badge reads Completed, and the card closes.
+		const done = page.getByRole('button', { name: /Plan\s.*Completed/ })
 		await expect(done).toBeVisible()
 		await expect(done).toHaveAttribute('aria-expanded', 'false')
 		await expect(page.getByText('Gather the sources', { exact: true })).toBeHidden()
@@ -385,11 +395,43 @@ test.describe('human in the loop in the AG-UI chat', () => {
 		await send(page, 'activity')
 		const answer = answers(page).last()
 		await expect(answer.getByText('Indexing finished.')).toBeVisible()
-		// Spec §6.4: a Card titled with the activityType; a flat content as Descriptions, after its deltas (done 3 of 3).
+		// Spec §6.4, ADR-0035: the chat's card titled with the activityType, open; a flat content as Descriptions, after its
+		// deltas (done 3 of 3).
 		const card = answer
-			.locator('.ant-card')
+			.locator('.ant-collapse')
 			.filter({ has: page.getByText('progress', { exact: true }) })
 		await expect(card.getByRole('row')).toHaveText([/label\s*Indexing/, /done\s*3/, /total\s*3/])
+	})
+
+	test('the sent answers stay on their cards after a reload', async ({ page, isMobile }) => {
+		// ADR-0035: the runs' stored resume is read back, so a reload, or another device, shows what was decided.
+		await send(page, 'gated')
+		let answer = answers(page).last()
+		await activate(answer.getByRole('button', { name: 'Approve' }), isMobile)
+		await expect(answer.getByText('Done: report.pdf deleted.')).toBeVisible()
+		await page.goto(`/chat/${AGUI_APP.id}`)
+		answer = answers(page).last()
+		await expect(answer.getByText('Done: report.pdf deleted.')).toBeVisible()
+		await expect(receipt(answer, 'Approved')).toBeVisible()
+		await expect(toolResult(answer, 'Deleted report.pdf.')).toBeVisible()
+
+		await page.goto(`/chat/${AGUI_APP.id}?isNewCvst=1`)
+		await send(page, 'form')
+		answer = answers(page).last()
+		await answer.getByRole('radio', { name: 'Q2' }).check()
+		await answer.getByLabel('year').fill('2026')
+		await answer.getByLabel('revenue').fill('1250')
+		await activate(answer.getByRole('button', { name: 'Submit' }), isMobile)
+		await expect(
+			answer.getByText('Filed: {"quarter":"Q2","year":2026,"revenue":1250}'),
+		).toBeVisible()
+		await page.goto(`/chat/${AGUI_APP.id}`)
+		answer = answers(page).last()
+		// The form's card, read-only: its values without a border, and "Submitted" in its box and its header.
+		await expect(answer.getByText('Please provide the quarterly filing details.')).toBeVisible()
+		await expect(answer.getByRole('row').filter({ hasText: 'quarter' })).toContainText('Q2')
+		await expect(receipt(answer, 'Submitted')).toHaveCount(2)
+		await expect(answer.getByRole('button', { name: 'Submit', exact: true })).toHaveCount(0)
 	})
 
 	test('a reload restores a waiting approval and a waiting question, with the Sender blocked', async ({
@@ -416,7 +458,7 @@ test.describe('human in the loop in the AG-UI chat', () => {
 		await expect(pager(page, 'Question 1 of 2')).toBeVisible()
 		await expect(senderBox(page)).toBeDisabled()
 		await expect(hint(page)).toBeVisible()
-		await activate(page.getByRole('button', { name: 'Dismiss questions' }), isMobile)
+		await activate(page.getByRole('button', { name: 'Dismiss questions', exact: true }), isMobile)
 		await expect(
 			answers(page)
 				.last()

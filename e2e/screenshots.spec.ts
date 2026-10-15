@@ -111,7 +111,7 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 			await expect(page.getByText('A short note about coffee.')).toBeVisible()
 		},
 	},
-	// The shared chat (Part 2 spec §5.3): the stub's `tool` scenario, its card opened.
+	// The shared chat (Part 2 spec §5.3): the stub's `tool` scenario, its card open once the call completed (ADR-0035).
 	'chat-agui': {
 		path: `/chat/${AGUI_APP.id}?isNewCvst=1`,
 		ready: async page => {
@@ -120,7 +120,6 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 			await senderBox(page).fill('tool')
 			await page.keyboard.press('Enter')
 			await expect(page.getByText('It is 18 °C and cloudy in Paris.')).toBeVisible()
-			await page.getByText('get_weather', { exact: true }).click()
 			await expect(page.getByText('Arguments', { exact: true })).toBeVisible()
 		},
 	},

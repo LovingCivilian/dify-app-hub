@@ -8,7 +8,8 @@ import { APP_ID } from './fixtures/constants'
 const senderBox = (page: Page) => page.getByPlaceholder('Type a message')
 /** The chat's own Layout.Content (the region beside the sider), the innermost content of the nested layouts. */
 const contentRegion = (page: Page) => page.locator('.ant-layout-content').last()
-const scrollBox = (page: Page) => page.locator('.ant-bubble-list-scroll-box')
+/** The chats' scroll box (components/chat/chat-view/chat-scroll.tsx, ADR-0036; its CSS Module class `scrollBox`). */
+const scrollBox = (page: Page) => page.locator('[class*="scrollBox"]')
 
 const edges = async (locator: ReturnType<Page['locator']>) => {
 	const box = await locator.boundingBox()
