@@ -260,9 +260,12 @@ function QuestionStep({ question, answer, labelId, disabled, onCommit }: Questio
 						vertical
 						gap={token.marginXXS}
 						ref={optionsRef}
+						// A toolbar, not a radiogroup or listbox: a click answers at once, as a toolbar's buttons act, and the APG
+						// Toolbar pattern gives the arrow keys; the earlier answer is `aria-current`, not a checked state.
 						role="toolbar"
 						aria-orientation="vertical"
 						aria-labelledby={labelId}
+						className={styles.options}
 						onKeyDown={onOptionsKeyDown}
 					>
 						{options.map((option, optionIndex) => (
@@ -301,11 +304,14 @@ function QuestionStep({ question, answer, labelId, disabled, onCommit }: Questio
 									},
 								}}
 								onFocus={() => setActive(optionIndex)}
-								// One highlighted row, as the template's `onMouseEnter={() => setFocusIdx(i)}`: while an option has the
-								// focus, a moving mouse moves it, so the row showing ↵ is the one Enter picks; the free answer and the
-								// pager keep theirs. On pointer move, as Radix Menu's items do (`@radix-ui/react-menu` 2.1.24,
-								// `MenuItem`: `onPointerMove` for a mouse, `focus({ preventScroll: true })`): a row that slides under a
-								// resting pointer (‹ makes the card taller) gets `mouseenter` but must not take the focus.
+								// The focus follows a moving mouse while an option has it, so the row showing ↵ is the one Enter picks;
+								// the free answer and the pager keep theirs. ADR-0002: no antd or WAI-ARIA APG API covers this (the APG
+								// Toolbar pattern moves the focus by keyboard only), so it follows reference projects, as the owner's
+								// rule allows when the docs are silent: Radix Menu's item (`@radix-ui/react-menu` 2.1.24,
+								// `dist/index.mjs`, `MenuItem`: `onPointerMove` for a mouse, then `item.focus({ preventScroll: true })`)
+								// and the full-stack template's `QuestionPrompt` (`onMouseEnter={() => setFocusIdx(i)}`). On pointer
+								// move, as Radix does: a row that slides under a resting pointer (‹ makes the card taller) gets
+								// `mouseenter` but must not take the focus.
 								onPointerMove={event => {
 									const row = event.currentTarget
 									if (event.pointerType !== 'mouse' || row === document.activeElement) return

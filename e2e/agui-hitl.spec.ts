@@ -260,6 +260,13 @@ test.describe('human in the loop in the AG-UI chat', () => {
 		await expect(option(page, 'Rome')).toBeFocused()
 		await page.keyboard.press('ArrowUp')
 		await expect(option(page, 'Paris')).toBeFocused()
+		// The pointer still rests on Rome, which drops its hover look while Paris has the keyboard focus: one ↵, and
+		// Rome's background is the text button's resting one.
+		const enterMarks = page
+			.getByRole('toolbar', { name: 'Which city?' })
+			.locator('[aria-label="enter"]')
+		await expect(enterMarks.filter({ visible: true })).toHaveCount(1)
+		await expect(option(page, 'Rome')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
 		await page.keyboard.press('ArrowDown')
 		await expect(option(page, 'Rome')).toBeFocused()
 		await page.keyboard.press('Enter')

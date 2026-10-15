@@ -1,10 +1,21 @@
 /* The ask_user card (ask-user-card.tsx) in the layout of Claude's question prompt: token values only (ADR-0021), logical
    properties for right-to-left. The antd elements keep their own box; these rules style the card's own spans and the
-   option rows' states, which antd's text Button does not have: the focused row looks like the hovered one (the text
-   variant's hover background, `colorFillTertiary`, antd `es/button/style/variant.js`). */
+   option rows' highlight.
 
-.option:focus {
+   One highlighted row at a time: the row with the keyboard focus (`:focus-visible`, so a mouse click leaves no
+   background behind), else the row under the pointer. The keyboard-focused row looks like a hovered one (the text
+   variant's hover background, `colorFillTertiary`, antd `es/button/style/variant.js`); antd's own `:hover` and `:active`
+   rules (`:not(:disabled):not(.ant-btn-disabled):hover`, specificity 0,4,0) outrank `.option:focus-visible` (0,2,0), so
+   pressing a row still shows antd's `:active` background. While a row has the keyboard focus, a row under a resting
+   pointer (the arrow keys moved the focus away from it, or ‹ made the card taller) goes back to the text button's
+   resting background (`transparent`, the variant's `bg-color`), so it does not look highlighted too. */
+
+.option:focus-visible {
 	background-color: var(--ant-color-fill-tertiary);
+}
+
+.options:has(.option:focus-visible) .option:hover:not(:focus-visible) {
+	background-color: transparent;
 }
 
 /* The row inside an option Button: the text takes the room and wraps (the Button's own content does not), the marks
@@ -30,8 +41,8 @@
 	color: var(--ant-color-text-secondary);
 }
 
-.option:hover .badge,
-.option:focus .badge {
+.option:focus-visible .badge,
+.options:not(:has(.option:focus-visible)) .option:hover .badge {
 	color: var(--ant-color-text);
 	background-color: var(--ant-color-fill-secondary);
 }
@@ -42,15 +53,15 @@
 	color: var(--ant-color-primary);
 }
 
-/* ↵ on the highlighted row (hover or focus): Enter picks it. Hidden, not removed, so the rows keep their width. */
+/* ↵ on the highlighted row: Enter picks it. Hidden, not removed, so the rows keep their width. */
 .enter {
 	display: inline-flex;
 	color: var(--ant-color-text-tertiary);
 	visibility: hidden;
 }
 
-.option:hover .enter,
-.option:focus .enter {
+.option:focus-visible .enter,
+.options:not(:has(.option:focus-visible)) .option:hover .enter {
 	visibility: visible;
 }
 
