@@ -6,8 +6,7 @@ import type { TurnOpenItems } from '@/lib/chat/open-items'
 import type { ToolPart } from '@/lib/chat/turn'
 
 import type { AnswerDraft } from './answers'
-import { jsonRows, leafText, type JsonRow } from './json-tree'
-import { inputHint } from './turn-parts'
+import { jsonRows, type JsonRow } from './json-tree'
 
 /*
  * What the tool cards show, decided outside React so the unit suite covers it (tool-views.tsx, approval-actions.tsx and
@@ -21,28 +20,6 @@ const parseJson = (text: string): { value: unknown } | null => {
 	} catch {
 		return null
 	}
-}
-
-/** An object, not an array: the arguments the summary line reads key by key. */
-const isObject = (value: unknown): value is Record<string, unknown> =>
-	typeof value === 'object' && value !== null && !Array.isArray(value)
-
-/**
- * The card's summary line, the ThoughtChain item's `description` (the approved design of 2026-10-15, A.1; assistant-ui's
- * `ApprovalCard` reads arguments as key/value pairs, never JSON), one level deep (json-tree brief, item 4): each key of
- * an object as `key: value`, the value as its row shows it when it has no rows below it (json-tree.ts `leafText`: a
- * scalar, an array of scalars joined by `, `, `[]`, `{}`) and as `{…}` or `[…]` when it has; the pairs joined by ` · `,
- * on one line and cut like the input hint; an empty object as nothing. Anything that is not an object (an array, a
- * scalar, arguments still streaming) reads as the input hint (spec §5.3).
- */
-export const toolSummary = (args: string): string => {
-	const json = parseJson(args)
-	if (!json || !isObject(json.value)) return inputHint(args)
-	return inputHint(
-		Object.entries(json.value)
-			.map(([key, value]) => `${key}: ${leafText(value) ?? (Array.isArray(value) ? '[…]' : '{…}')}`)
-			.join(' · '),
-	)
 }
 
 /** One part of an expanded tool card, its arguments or its result, as the card renders it (A.2). */

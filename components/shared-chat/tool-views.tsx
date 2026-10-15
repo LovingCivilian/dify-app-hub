@@ -14,13 +14,7 @@ import type { ToolPart } from '@/lib/chat/turn'
 import { useThemeContext } from '@/lib/theme'
 
 import type { JsonRow } from './json-tree'
-import {
-	askUserView,
-	toolDetail,
-	toolSummary,
-	type AskUserView,
-	type ToolDetail,
-} from './tool-view-data'
+import { askUserView, toolDetail, type AskUserView, type ToolDetail } from './tool-view-data'
 import styles from './tool-views.module.css'
 
 /** One ThoughtChain item's own fields (X 2.9.0 `ThoughtChainItemType`); the chain adds the key, status and footer. */
@@ -224,9 +218,9 @@ function ToolCallDetails({ args, result }: { args: ToolDetail; result: ToolDetai
 }
 
 /**
- * Any tool: title = its name, description = the summary line (A.1), a collapsible body with the arguments and the
- * result (A.2). A call with nothing in either has no body, so no chevron (X draws it only with `content`,
- * `es/thought-chain/Node.js`).
+ * Any tool: title = its name and a collapsible body with the arguments and the result (A.2); no line under the name
+ * (the owner, 2026-10-15: "remove the subtitle under the tool call"). A call with nothing in either has no body, so no
+ * chevron (X draws it only with `content`, `es/thought-chain/Node.js`).
  */
 const genericView = (part: ToolPart): ToolItemView => {
 	const args = toolDetail(part.args)
@@ -234,7 +228,6 @@ const genericView = (part: ToolPart): ToolItemView => {
 	const empty = args.kind === 'empty' && result.kind === 'empty'
 	return {
 		title: part.name,
-		description: toolSummary(part.args) || undefined,
 		collapsible: !empty,
 		content: empty ? undefined : (
 			<ToolCallDetails

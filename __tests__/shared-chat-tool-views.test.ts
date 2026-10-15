@@ -8,9 +8,7 @@ import {
 	askUserView,
 	toolDetail,
 	toolFooter,
-	toolSummary,
 } from '@/components/shared-chat/tool-view-data'
-import { inputHint } from '@/components/shared-chat/turn-parts'
 import { approvalPayload } from '@/lib/chat/interrupt-answers'
 import type { TurnOpenItems } from '@/lib/chat/open-items'
 import type { ToolPart } from '@/lib/chat/turn'
@@ -183,59 +181,6 @@ describe('toolFooter (spec §6.1, plan call P13)', () => {
 })
 
 // The approved design (2026-10-15), A.1, one level deep since the json-tree brief (item 4): the card's summary line.
-describe('toolSummary', () => {
-	it('shows flat arguments as key: value pairs joined by a middle dot, values as text', () => {
-		expect(toolSummary('{"city": "Paris", "days": 3, "metric": true, "note": null}')).toBe(
-			'city: Paris · days: 3 · metric: true · note: null',
-		)
-	})
-	it('reads one level: arrays of scalars joined, nested objects as {…}, arrays of objects as […]', () => {
-		expect(
-			toolSummary(
-				JSON.stringify({ to: ['ana', 'bo'], opts: { urgent: true }, files: [{ name: 'a' }] }),
-			),
-		).toBe('to: ana, bo · opts: {…} · files: […]')
-		expect(toolSummary(JSON.stringify({ grid: [[1, 2]], mixed: [1, { a: 1 }] }))).toBe(
-			'grid: […] · mixed: […]',
-		)
-	})
-	it('reads an empty array as [] and an empty object as {}, as the rows do', () => {
-		expect(toolSummary('{"tags": [], "meta": {}}')).toBe('tags: [] · meta: {}')
-	})
-	it('keeps the pairs on one line and cuts them at 60 code points', () => {
-		expect(toolSummary(JSON.stringify({ message: 'Closed on Friday.\nOpen on Monday.' }))).toBe(
-			'message: Closed on Friday. Open on Monday.',
-		)
-		const long = toolSummary(JSON.stringify({ message: '😀'.repeat(70) }))
-		expect(long).toBe(`message: ${'😀'.repeat(51)}…`)
-		expect(Array.from(long)).toHaveLength(61)
-		const nested = toolSummary(
-			JSON.stringify({
-				subject: 'Office closed',
-				to: ['ana@x.com', 'bo@x.com'],
-				options: { urgent: true },
-				attachments: [{ name: 'plan.pdf' }],
-			}),
-		)
-		expect(nested).toBe('subject: Office closed · to: ana@x.com, bo@x.com · options: …')
-	})
-	it('shows nothing for an empty object', () => {
-		expect(toolSummary('{}')).toBe('')
-		expect(toolSummary('{ }')).toBe('')
-	})
-	it.each([
-		['an array', '["Paris", "Rome"]'],
-		['an array of objects', '[{"city": "Paris"}]'],
-		['arguments still streaming', '{"city": '],
-		['a JSON string', '"Paris"'],
-		['a number', '18'],
-		['null', 'null'],
-	])('keeps the input hint for %s', (_label, args) => {
-		expect(toolSummary(args)).toBe(inputHint(args))
-	})
-})
-
-// A.2, with the json-tree brief (items 1 and 3): what each part of the expanded card renders as.
 describe('toolDetail', () => {
 	it('reads a flat object as tree rows, one per key, and its JSON indented by two spaces', () => {
 		expect(toolDetail('{"city": "Paris", "temperature_c": 18, "cloudy": true}')).toEqual({
