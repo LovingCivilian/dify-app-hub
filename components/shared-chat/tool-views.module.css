@@ -18,6 +18,10 @@
 	border: var(--ant-line-width) var(--ant-line-type) var(--ant-color-border-secondary);
 	border-radius: var(--ant-border-radius);
 	overflow: hidden;
+	/* The Table's own background (its `tableBg` token is colorBgContainer): antd still rounds the table's top corners at
+	 * its larger radius (borderRadiusLG) inside this frame, and without a fill the page showed through between the two
+	 * curves, so the top corners read as the table's radius (the owner, 2026-10-15: "the table still uses its radius"). */
+	background: var(--ant-color-bg-container);
 }
 
 .name {
