@@ -6,11 +6,66 @@ import type { TurnOpenItems } from '@/lib/chat/open-items'
 import type { ToolPart } from '@/lib/chat/turn'
 
 import type { AnswerDraft } from './answers'
+import { flatFields, type Field } from './flat-fields'
+import { inputHint } from './turn-parts'
 
 /*
  * What the tool cards show, decided outside React so the unit suite covers it (tool-views.tsx, approval-actions.tsx and
  * tool-chain.tsx only render it). Client-safe: `@ag-ui/core` is imported for its types only (spec §9).
  */
+
+/** JSON's value of `text`, or null when it does not parse (arguments still streaming, a plain-text result). */
+const parseJson = (text: string): { value: unknown } | null => {
+	try {
+		return { value: JSON.parse(text) }
+	} catch {
+		return null
+	}
+}
+
+/**
+ * The card's summary line, the ThoughtChain item's `description` (the approved design of 2026-10-15, A.1; assistant-ui's
+ * `ApprovalCard` reads arguments as key/value pairs, never JSON): arguments that are a flat object (flat-fields.ts) as
+ * `key: value` pairs joined by ` · `, on one line and cut like the input hint; an empty object as nothing; anything
+ * else (nested, an array, arguments still streaming) as the input hint (spec §5.3).
+ */
+export const toolSummary = (args: string): string => {
+	const json = parseJson(args)
+	const fields = json && flatFields(json.value)
+	return fields
+		? inputHint(fields.map(({ key, value }) => `${key}: ${value}`).join(' · '))
+		: inputHint(args)
+}
+
+/** One part of an expanded tool card, its arguments or its result, as the card renders it (A.2). */
+export type ToolDetail =
+	/** Nothing to show: no text, or an empty object. */
+	| { kind: 'empty' }
+	/** Text, as plain text with its line breaks. */
+	| { kind: 'text'; text: string }
+	/** A flat object, as antd Descriptions. */
+	| { kind: 'fields'; items: Field[] }
+	/** Nested JSON or an array, indented by two spaces for X CodeHighlighter. */
+	| { kind: 'json'; text: string }
+
+/**
+ * A.2: a flat object as fields (flat-fields.ts) and only nested or array JSON as code, so the code panel appears where
+ * structure needs it (AI Elements' `Tool` shows a string output as text and an object as code). Text that is not JSON
+ * (a plain-text result, arguments still streaming) is shown as sent, a JSON string as its text, and any other JSON
+ * scalar as sent. The card puts all of it into text nodes, never HTML.
+ */
+export const toolDetail = (text: string): ToolDetail => {
+	if (text.trim() === '') return { kind: 'empty' }
+	const json = parseJson(text)
+	if (!json) return { kind: 'text', text }
+	const { value } = json
+	if (typeof value === 'string') return { kind: 'text', text: value }
+	const fields = flatFields(value)
+	if (fields) return fields.length > 0 ? { kind: 'fields', items: fields } : { kind: 'empty' }
+	return typeof value === 'object' && value !== null
+		? { kind: 'json', text: JSON.stringify(value, null, 2) }
+		: { kind: 'text', text }
+}
 
 /** The `ask_user` call in the turn (spec §6.2; the full-stack template's `AskUserResult`). */
 export type AskUserView =

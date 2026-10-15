@@ -1,3 +1,5 @@
+import { flatFields, type Field } from './flat-fields'
+
 /*
  * An activity message's content as its card shows it (Part 2 spec §6.4; 2b's plan call P17): a flat object as antd
  * Descriptions, anything else as indented JSON in X CodeHighlighter; spec §6.4 caps the content at 10 KB, so content
@@ -11,23 +13,8 @@
 export const ACTIVITY_JSON_MAX = 10_240
 
 export type ActivityView =
-	| { kind: 'fields'; items: { key: string; value: string }[] }
+	| { kind: 'fields'; items: Field[] }
 	| { kind: 'json'; text: string; truncated: boolean }
-
-type Scalar = string | number | boolean | null
-
-const isScalarEntry = (entry: [string, unknown]): entry is [string, Scalar] =>
-	entry[1] === null || ['string', 'number', 'boolean'].includes(typeof entry[1])
-
-/**
- * P17: a flat object's entries: not an array, at least one key, every value a string, number, boolean or null. Null for
- * anything else.
- */
-const flatEntries = (content: unknown): [string, Scalar][] | null => {
-	if (typeof content !== 'object' || content === null || Array.isArray(content)) return null
-	const entries = Object.entries(content)
-	return entries.length > 0 && entries.every(isScalarEntry) ? entries : null
-}
 
 /**
  * The first `max` code points of `text`, or null when it has no more. A code point is one or two UTF-16 units, so a text
@@ -47,8 +34,9 @@ const cutAt = (text: string, max: number): string | null => {
 }
 
 /**
- * P17: content whose indented JSON is longer than ACTIVITY_JSON_MAX as that JSON, cut; otherwise a flat object as fields
- * (values as `String(value)`) and anything else as the whole JSON.
+ * P17: content whose indented JSON is longer than ACTIVITY_JSON_MAX as that JSON, cut; otherwise a flat object with at
+ * least one key as fields (flat-fields.ts, values as `String(value)`) and anything else, an empty object too, as the
+ * whole JSON.
  */
 export const activityView = (content: unknown): ActivityView => {
 	// JSON.stringify answers undefined, not text, for undefined (ECMA-262 SerializeJSONProperty): a missing content reads
@@ -56,8 +44,8 @@ export const activityView = (content: unknown): ActivityView => {
 	const text = content === undefined ? 'null' : JSON.stringify(content, null, 2)
 	const cut = cutAt(text, ACTIVITY_JSON_MAX)
 	if (cut !== null) return { kind: 'json', text: cut, truncated: true }
-	const entries = flatEntries(content)
-	return entries
-		? { kind: 'fields', items: entries.map(([key, value]) => ({ key, value: String(value) })) }
+	const fields = flatFields(content)
+	return fields && fields.length > 0
+		? { kind: 'fields', items: fields }
 		: { kind: 'json', text, truncated: false }
 }

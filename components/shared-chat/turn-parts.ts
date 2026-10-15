@@ -30,15 +30,6 @@ export const inputHint = (args: string): string => {
 	return flat.length > HINT_MAX ? `${flat.slice(0, HINT_MAX).join('')}…` : flat.join('')
 }
 
-/** Arguments and results for CodeHighlighter: JSON indented when it parses (streaming arguments may not yet), else as sent. */
-export const prettyJson = (text: string): string => {
-	try {
-		return JSON.stringify(JSON.parse(text), null, 2)
-	} catch {
-		return text
-	}
-}
-
 /**
  * The open interrupts a turn shows as cards of their own (spec §6.3, plan call P8): all of them except an approval
  * whose `toolCallId` names one of this turn's tool calls, which that call's ThoughtChain item answers (spec §6.1). An

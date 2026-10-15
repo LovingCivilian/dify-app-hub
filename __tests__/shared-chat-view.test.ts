@@ -10,12 +10,7 @@ import {
 	runErrorView,
 	stoppedCaptionKey,
 } from '@/components/shared-chat/run-error'
-import {
-	groupParts,
-	inputHint,
-	prettyJson,
-	standaloneInterrupts,
-} from '@/components/shared-chat/turn-parts'
+import { groupParts, inputHint, standaloneInterrupts } from '@/components/shared-chat/turn-parts'
 import { emptyAssistantTurn, userTurn, type Turn, type TurnPart } from '@/lib/chat/turn'
 import { RequestError } from '@/lib/http/browser'
 import en from '@/locales/en/translation.json'
@@ -113,11 +108,6 @@ describe('turn parts', () => {
 	it('hints at the input on one line, at most 60 characters', () => {
 		expect(inputHint('{\n  "city": "Paris"\n}')).toBe('{ "city": "Paris" }')
 		expect(inputHint('x'.repeat(70))).toBe(`${'x'.repeat(60)}…`)
-	})
-	it('pretty-prints JSON and keeps any other text', () => {
-		expect(prettyJson('{"city":"Paris"}')).toBe('{\n  "city": "Paris"\n}')
-		expect(prettyJson('{"city":')).toBe('{"city":')
-		expect(prettyJson('18 °C')).toBe('18 °C')
 	})
 })
 

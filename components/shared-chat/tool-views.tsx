@@ -2,7 +2,7 @@
 
 import { CodeHighlighter } from '@ant-design/x'
 import type { CodeHighlighterProps } from '@ant-design/x'
-import { Flex, Typography } from 'antd'
+import { Descriptions, Flex, Typography, theme } from 'antd'
 import type { TFunction } from 'i18next'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,9 +12,14 @@ import { ASK_USER_TOOL_NAME } from '@/lib/chat/ask-user'
 import type { ToolPart } from '@/lib/chat/turn'
 import { useThemeContext } from '@/lib/theme'
 
-import { askUserView, type AskUserView } from './tool-view-data'
+import {
+	askUserView,
+	toolDetail,
+	toolSummary,
+	type AskUserView,
+	type ToolDetail,
+} from './tool-view-data'
 import styles from './tool-views.module.css'
-import { inputHint, prettyJson } from './turn-parts'
 
 /** One ThoughtChain item's own fields (X 2.9.0 `ThoughtChainItemType`); the chain adds the key, status and footer. */
 export interface ToolItemView {
@@ -31,54 +36,125 @@ const DARK_HIGHLIGHT: CodeHighlighterProps['highlightProps'] = {
 	customStyle: { margin: 0 },
 }
 
+/** A part of the card's body that has nothing to show (no result yet, an empty object). */
+const EMPTY: ToolDetail = { kind: 'empty' }
+
 /**
- * The generic card's body (spec §5.3, the full-stack template's tool card on X's own component): the arguments and the
- * result in X CodeHighlighter (`lang` "json"; Prism's light mode loads the one `json` grammar, X CodeHighlighter API
- * `prismLightMode`). Every text renders as text, never HTML.
+ * One part of the card's body as its kind says (tool-view-data.ts `toolDetail`): text as an antd Paragraph keeping its
+ * line breaks, a flat object as small, bordered one-column antd Descriptions (`size`, `bordered`, `column`, `styles`:
+ * `antd info Descriptions`; bordered, its values line up in one column), and
+ * only nested or array JSON in X CodeHighlighter (`lang` "json"; Prism's light mode loads the one `json` grammar, X
+ * CodeHighlighter API `prismLightMode`). Every text renders as text, never HTML.
  */
-function ToolCallDetails({ args, result }: { args: string; result?: string }) {
-	const { t } = useTranslation()
+function DetailBody({ detail }: { detail: Exclude<ToolDetail, { kind: 'empty' }> }) {
 	const { isDark } = useThemeContext()
-	const highlight = isDark ? DARK_HIGHLIGHT : undefined
+	const { token } = theme.useToken()
+	// A tighter cell than `size="small"`'s paddingXS × padding, so a short object stays a few slim rows (antd's semantic
+	// `styles.label` and `styles.content` land on the bordered cells, `es/descriptions/Cell.js`).
+	const cell = { paddingBlock: token.paddingXXS, paddingInline: token.paddingSM }
+	switch (detail.kind) {
+		case 'text':
+			return (
+				<Typography.Paragraph
+					className={styles.text}
+					style={{ marginBottom: 0 }}
+				>
+					{detail.text}
+				</Typography.Paragraph>
+			)
+		case 'fields':
+			return (
+				<Descriptions
+					size="small"
+					bordered
+					column={1}
+					styles={{ label: cell, content: cell }}
+					items={detail.items.map(item => ({
+						key: item.key,
+						label: item.key,
+						children: <span className={styles.text}>{item.value}</span>,
+					}))}
+				/>
+			)
+		case 'json':
+			return (
+				<CodeHighlighter
+					lang="json"
+					highlightProps={isDark ? DARK_HIGHLIGHT : undefined}
+				>
+					{detail.text}
+				</CodeHighlighter>
+			)
+		default:
+			return detail satisfies never
+	}
+}
+
+/** A labelled part of the body ("Arguments", "Result"), left out when it has nothing to show. */
+function DetailSection({ label, detail }: { label: string; detail: ToolDetail }) {
+	const { token } = theme.useToken()
+	if (detail.kind === 'empty') return null
 	return (
 		<Flex
 			vertical
-			gap="small"
+			gap={token.marginXXS}
 		>
-			<Typography.Text type="secondary">{t('shared_chat.tool_arguments')}</Typography.Text>
-			<CodeHighlighter
-				lang="json"
-				highlightProps={highlight}
+			<Typography.Text
+				type="secondary"
+				style={{ fontSize: token.fontSizeSM }}
 			>
-				{prettyJson(args)}
-			</CodeHighlighter>
-			{result !== undefined && (
-				<>
-					<Typography.Text type="secondary">{t('shared_chat.tool_result')}</Typography.Text>
-					<CodeHighlighter
-						lang="json"
-						highlightProps={highlight}
-					>
-						{prettyJson(result)}
-					</CodeHighlighter>
-				</>
-			)}
+				{label}
+			</Typography.Text>
+			<DetailBody detail={detail} />
 		</Flex>
 	)
 }
 
-/** Any tool: title = its name, description = a short input hint, a collapsible body with the arguments and the result. */
-const genericView = (part: ToolPart): ToolItemView => ({
-	title: part.name,
-	description: inputHint(part.args),
-	collapsible: true,
-	content: (
-		<ToolCallDetails
-			args={part.args}
-			result={part.result}
-		/>
-	),
-})
+/**
+ * The generic card's body (spec §5.3; the approved design of 2026-10-15, A.2, after AI Elements' `Tool`, whose
+ * arguments and result sit behind the chevron under small labels): the arguments, then the result once there is one.
+ */
+function ToolCallDetails({ args, result }: { args: ToolDetail; result: ToolDetail }) {
+	const { t } = useTranslation()
+	const { token } = theme.useToken()
+	return (
+		<Flex
+			vertical
+			gap={token.marginSM}
+		>
+			<DetailSection
+				label={t('shared_chat.tool_arguments')}
+				detail={args}
+			/>
+			<DetailSection
+				label={t('shared_chat.tool_result')}
+				detail={result}
+			/>
+		</Flex>
+	)
+}
+
+/**
+ * Any tool: title = its name, description = the summary line (A.1), a collapsible body with the arguments and the
+ * result (A.2). A call with nothing in either has no body, so no chevron (X draws it only with `content`,
+ * `es/thought-chain/Node.js`).
+ */
+const genericView = (part: ToolPart): ToolItemView => {
+	const args = toolDetail(part.args)
+	const result = part.result === undefined ? EMPTY : toolDetail(part.result)
+	const empty = args.kind === 'empty' && result.kind === 'empty'
+	return {
+		title: part.name,
+		description: toolSummary(part.args) || undefined,
+		collapsible: !empty,
+		content: empty ? undefined : (
+			<ToolCallDetails
+				args={args}
+				result={result}
+			/>
+		),
+	}
+}
 
 const askUserContent = (view: AskUserView, t: TFunction): ReactNode => {
 	switch (view.kind) {

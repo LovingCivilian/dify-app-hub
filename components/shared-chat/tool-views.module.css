@@ -2,3 +2,8 @@
 .transcript {
 	white-space: pre-wrap;
 }
+
+/* A tool's text in its expanded card (a plain-text result, a field's value): its line breaks are kept. */
+.text {
+	white-space: pre-wrap;
+}

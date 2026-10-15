@@ -2,7 +2,15 @@ import type { Interrupt } from '@ag-ui/core'
 import { describe, expect, it } from 'vitest'
 
 import { EMPTY_DRAFT, type AnswerDraft } from '@/components/shared-chat/answers'
-import { approvalView, askUserView, toolFooter } from '@/components/shared-chat/tool-view-data'
+import { flatFields } from '@/components/shared-chat/flat-fields'
+import {
+	approvalView,
+	askUserView,
+	toolDetail,
+	toolFooter,
+	toolSummary,
+} from '@/components/shared-chat/tool-view-data'
+import { inputHint } from '@/components/shared-chat/turn-parts'
 import { approvalPayload } from '@/lib/chat/interrupt-answers'
 import type { TurnOpenItems } from '@/lib/chat/open-items'
 import type { ToolPart } from '@/lib/chat/turn'
@@ -171,5 +179,109 @@ describe('toolFooter (spec §6.1, plan call P13)', () => {
 		}
 		expect(toolFooter(asked, { open, draft })).toEqual({ kind: 'answered' })
 		expect(toolFooter(asked, { open, draft: EMPTY_DRAFT })).toBeNull()
+	})
+})
+
+// The flat-object rule the activity card and the tool cards share (2b's plan call P17).
+describe('flatFields', () => {
+	it('reads a flat object’s entries in their order, each value as text', () => {
+		expect(flatFields({ city: 'Paris', days: 3, metric: true, note: null })).toEqual([
+			{ key: 'city', value: 'Paris' },
+			{ key: 'days', value: '3' },
+			{ key: 'metric', value: 'true' },
+			{ key: 'note', value: 'null' },
+		])
+	})
+	it('reads an empty object as no fields', () => {
+		expect(flatFields({})).toEqual([])
+	})
+	it.each([
+		['a nested object', { filter: { city: 'Paris' } }],
+		['an object with an array value', { cities: ['Paris'] }],
+		['an array', ['Paris', 'Rome']],
+		['a string', 'Paris'],
+		['a number', 3],
+		['null', null],
+		['nothing', undefined],
+	])('reads %s as no flat object', (_label, value) => {
+		expect(flatFields(value)).toBeNull()
+	})
+})
+
+// The approved design (2026-10-15), A.1: the card's summary line.
+describe('toolSummary', () => {
+	it('shows flat arguments as key: value pairs joined by a middle dot, values as text', () => {
+		expect(toolSummary('{"city": "Paris", "days": 3, "metric": true, "note": null}')).toBe(
+			'city: Paris · days: 3 · metric: true · note: null',
+		)
+	})
+	it('keeps the pairs on one line and cuts them at 60 code points', () => {
+		expect(toolSummary(JSON.stringify({ message: 'Closed on Friday.\nOpen on Monday.' }))).toBe(
+			'message: Closed on Friday. Open on Monday.',
+		)
+		const long = toolSummary(JSON.stringify({ message: '😀'.repeat(70) }))
+		expect(long).toBe(`message: ${'😀'.repeat(51)}…`)
+		expect(Array.from(long)).toHaveLength(61)
+	})
+	it('shows nothing for an empty object', () => {
+		expect(toolSummary('{}')).toBe('')
+		expect(toolSummary('{ }')).toBe('')
+	})
+	it.each([
+		['nested arguments', '{"filter": {"city": "Paris"}}'],
+		['an array', '["Paris", "Rome"]'],
+		['arguments still streaming', '{"city": '],
+		['a JSON string', '"Paris"'],
+	])('keeps the input hint for %s', (_label, args) => {
+		expect(toolSummary(args)).toBe(inputHint(args))
+	})
+})
+
+// A.2: what each part of the expanded card renders as.
+describe('toolDetail', () => {
+	it('reads a flat object as fields, values as text', () => {
+		expect(toolDetail('{"city": "Paris", "temperature_c": 18, "cloudy": true}')).toEqual({
+			kind: 'fields',
+			items: [
+				{ key: 'city', value: 'Paris' },
+				{ key: 'temperature_c', value: '18' },
+				{ key: 'cloudy', value: 'true' },
+			],
+		})
+	})
+	it('reads an empty object, an empty text and blank text as nothing to show', () => {
+		for (const text of ['{}', '', '  \n']) expect(toolDetail(text)).toEqual({ kind: 'empty' })
+	})
+	it('keeps nested objects and arrays as JSON indented by two spaces', () => {
+		expect(toolDetail('{"city":"Paris","hours":[9,17]}')).toEqual({
+			kind: 'json',
+			text: '{\n  "city": "Paris",\n  "hours": [\n    9,\n    17\n  ]\n}',
+		})
+		expect(toolDetail('["Paris","Rome"]')).toEqual({
+			kind: 'json',
+			text: '[\n  "Paris",\n  "Rome"\n]',
+		})
+	})
+	it('shows text that is not JSON as sent: a plain-text result, or arguments still streaming', () => {
+		expect(toolDetail('Deleted report.pdf.\nNothing else changed.')).toEqual({
+			kind: 'text',
+			text: 'Deleted report.pdf.\nNothing else changed.',
+		})
+		expect(toolDetail('{"city": ')).toEqual({ kind: 'text', text: '{"city": ' })
+	})
+	it('shows a JSON string as its text, and any other JSON scalar as sent', () => {
+		expect(toolDetail('"Deleted report.pdf."')).toEqual({
+			kind: 'text',
+			text: 'Deleted report.pdf.',
+		})
+		expect(toolDetail('18')).toEqual({ kind: 'text', text: '18' })
+		expect(toolDetail('null')).toEqual({ kind: 'text', text: 'null' })
+	})
+	it('keeps markup as text for the card to render as text', () => {
+		expect(toolDetail('<b>bold</b>')).toEqual({ kind: 'text', text: '<b>bold</b>' })
+		expect(toolDetail('{"note": "<b>bold</b>"}')).toEqual({
+			kind: 'fields',
+			items: [{ key: 'note', value: '<b>bold</b>' }],
+		})
 	})
 })
