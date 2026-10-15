@@ -7,26 +7,3 @@
 .text {
 	white-space: pre-wrap;
 }
-
-/*
- * The tree table's name cells, shaded as the bordered Descriptions' labels were (antd's `labelBg` is colorFillAlter,
- * `es/descriptions/style/index.js`). antd gives a body cell no background of its own, and the table's rows do not hover
- * (`rowHoverable={false}`), so this class is the cell's only background.
- */
-.name {
-	background: var(--ant-color-fill-alter);
-	/* The column line the bordered table drew (antd's `tableBorder`: lineWidth, lineType, the Table's borderColor, which
-	 * is colorBorderSecondary); an unbordered table's cells draw only their bottom line, so this one adds no second. */
-	border-inline-end: var(--ant-line-width) var(--ant-line-type) var(--ant-color-border-secondary);
-}
-
-/*
- * The tree table's frame (tool-views.tsx `JsonTable`): one border with all four corners rounded at antd's table radius
- * (the Table's `headerBorderRadius` is borderRadiusLG, `es/table/style/index.js`), clipping the rows inside it, since
- * antd rounds only a table's top corners (`es/table/style/radius.js`).
- */
-.tree {
-	border: var(--ant-line-width) var(--ant-line-type) var(--ant-color-border-secondary);
-	border-radius: var(--ant-border-radius-lg);
-	overflow: hidden;
-}

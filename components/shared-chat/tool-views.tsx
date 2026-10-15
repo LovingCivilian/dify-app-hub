@@ -25,20 +25,11 @@ export interface ToolItemView {
 	collapsible: boolean
 }
 
-// The `<pre>` the highlighter draws carries Prism's own inline corners and background (one-light's and one-dark's
-// `pre[class*="language-"]`: `borderRadius: '0.3em'`), which showed inside the code box as the default rounding; its
-// `customStyle` ("combined with the top level style on the pre tag, styles here will overwrite earlier styles",
-// react-syntax-highlighter README) squares them, so the code box's own corners (`JsonCode`) clip it (the owner,
-// 2026-10-15: "it reverted to the default").
-const PRE_STYLE = { margin: 0, borderRadius: 0 }
-
-// Light: X's own one-light style (it sets `highlightProps` only after its defaults, `es/code-highlighter/CodeHighlighter.js`),
-// with the pre squared. Dark, as the Markdown code block does (components/chat/message/markdown/code-block.tsx):
-// `highlightProps.style` replaces one-light. Module constants: X memoises on them.
-const LIGHT_HIGHLIGHT: CodeHighlighterProps['highlightProps'] = { customStyle: PRE_STYLE }
+// Dark scheme, as the Markdown code block does (components/chat/message/markdown/code-block.tsx): CodeHighlighter
+// highlights with Prism's one-light style, and `highlightProps.style` replaces it. A module constant: X memoises on it.
 const DARK_HIGHLIGHT: CodeHighlighterProps['highlightProps'] = {
 	style: oneDark,
-	customStyle: PRE_STYLE,
+	customStyle: { margin: 0 },
 }
 
 /** A part of the card's body that has nothing to show (no result yet, an empty object). */
@@ -57,7 +48,6 @@ const COLUMNS: TableColumnsType<JsonRow> = [
 	{
 		key: 'name',
 		dataIndex: 'name',
-		className: styles.name,
 		render: (name: JsonRow['name']) => <Typography.Text type="secondary">{name}</Typography.Text>,
 	},
 	{
@@ -73,71 +63,37 @@ const COLUMNS: TableColumnsType<JsonRow> = [
 ]
 
 /**
- * A JSON object or array as one small antd Table with tree data (json-tree brief, item 1; `size`, `showHeader`,
- * `pagination`, `rowHoverable` and `styles.root`/`styles.body.cell`: `antd info Table --version 6.6.5`, semantic DOM
- * `root`, `body.cell`): a nested object or array is a row with `children`, which the Table shows collapsed behind its own
- * expand arrow (`expandable.defaultExpandAllRows` is false); a flat object has no `children`, so no arrows and no indent.
- * Read-only rows, so no hover highlight, as the Descriptions it replaces had none.
- *
- * The frame is the module's `.tree` wrapper, not antd's `bordered`: antd rounds only a table's top corners and leaves
- * the bottom to a footer or pagination (`es/table/style/radius.js`: the table and its container get `r r 0 0`, the
- * footer `0 0 r r`), so a bordered table without one ends in square corners (the owner, 2026-10-15: "why does it have
- * sharp corners on the bottom?"). Unbordered, the Table draws only its rows' bottom lines; the wrapper draws the outer
- * border with all four corners rounded and clips the rows inside it, and the root's negative end margin of one line
- * width tucks the last row's bottom line under the wrapper's own, so the bottom edge is one line, not two. antd has no
- * documented way to round a table's bottom corners without a footer: the negative margin is a workaround that relies on
- * each body row drawing one lineWidth bottom line, kept on the owner's word over a footer or square corners (2026-10-15:
- * "keep it"). If antd changes its row borders, check this edge first.
+ * A JSON object or array as one small, bordered antd Table with tree data, antd's defaults otherwise (json-tree brief,
+ * item 1; `size`, `bordered`, `showHeader`, `pagination`: `antd info Table --version 6.6.5`; the owner, 2026-10-15: "keep
+ * it default ant design, no hacks and workarounds"): a nested object or array is a row with `children`, which the Table
+ * shows collapsed behind its own expand arrow (`expandable.defaultExpandAllRows` is false); a flat object has no
+ * `children`, so no arrows and no indent. No header (the columns have no titles) and no pagination (every row of the
+ * value is shown).
  */
 function JsonTable({ rows }: { rows: JsonRow[] }) {
-	const { token } = theme.useToken()
 	return (
-		<div className={styles.tree}>
-			<Table<JsonRow>
-				size="small"
-				showHeader={false}
-				pagination={false}
-				rowHoverable={false}
-				columns={COLUMNS}
-				dataSource={rows}
-				// The Descriptions' tighter cell than `size="small"`'s paddingXS on both axes, so a short object stays a few
-				// slim rows (the approved design of 2026-10-15, A.2).
-				styles={{
-					root: { marginBlockEnd: -token.lineWidth },
-					body: { cell: { paddingBlock: token.paddingXXS, paddingInline: token.paddingSM } },
-				}}
-			/>
-		</div>
+		<Table<JsonRow>
+			size="small"
+			bordered
+			showHeader={false}
+			pagination={false}
+			columns={COLUMNS}
+			dataSource={rows}
+		/>
 	)
 }
 
 /**
- * The JSON view: X CodeHighlighter (`lang` "json"; Prism's light mode loads the one `json` grammar, X CodeHighlighter API
- * `prismLightMode`) without its header (`header?: false | ReactNode`, X 2.9 `es/code-highlighter/interface.d.ts`). X
- * styles the code box as the part below a header (`es/code-highlighter/style/index.js`: no top border, no top radius),
- * so its semantic `styles.code` closes the box with the same border. Its radius is the table frame's, borderRadiusLG
- * (antd Table's `headerBorderRadius`), not X's own `token.borderRadius`, so the Table and JSON views of one section have
- * the same corners (the owner, 2026-10-15: "why does the code and table have diff radius?"). The style sets the very
- * properties X's rule sets (`borderTop`, and the four logical corner radii `borderStartStartRadius` …) rather than a
- * shorthand beside them; the highlighter's own `<pre>` is squared by `PRE_STYLE`, so these corners are the ones seen.
+ * The JSON view: X CodeHighlighter as it ships, its header ("json" and copy) included (`lang` "json"; Prism's light mode
+ * loads the one `json` grammar, X CodeHighlighter API `prismLightMode`; the owner, 2026-10-15: "keep it default ant
+ * design"). Dark mode swaps the style as the Markdown code block does.
  */
 function JsonCode({ json }: { json: string }) {
 	const { isDark } = useThemeContext()
-	const { token } = theme.useToken()
 	return (
 		<CodeHighlighter
 			lang="json"
-			header={false}
-			highlightProps={isDark ? DARK_HIGHLIGHT : LIGHT_HIGHLIGHT}
-			styles={{
-				code: {
-					borderTop: `${token.lineWidth}px ${token.lineType} ${token.colorBorderSecondary}`,
-					borderStartStartRadius: token.borderRadiusLG,
-					borderStartEndRadius: token.borderRadiusLG,
-					borderEndStartRadius: token.borderRadiusLG,
-					borderEndEndRadius: token.borderRadiusLG,
-				},
-			}}
+			highlightProps={isDark ? DARK_HIGHLIGHT : undefined}
 		>
 			{json}
 		</CodeHighlighter>
