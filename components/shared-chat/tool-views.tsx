@@ -25,11 +25,20 @@ export interface ToolItemView {
 	collapsible: boolean
 }
 
-// Dark scheme, as the Markdown code block does (components/chat/message/markdown/code-block.tsx): CodeHighlighter
-// highlights with Prism's one-light style, and `highlightProps.style` replaces it. A module constant: X memoises on it.
+// The `<pre>` the highlighter draws carries Prism's own inline corners and background (one-light's and one-dark's
+// `pre[class*="language-"]`: `borderRadius: '0.3em'`), which showed inside the code box as the default rounding; its
+// `customStyle` ("combined with the top level style on the pre tag, styles here will overwrite earlier styles",
+// react-syntax-highlighter README) squares them, so the code box's own corners (`JsonCode`) clip it (the owner,
+// 2026-10-15: "it reverted to the default").
+const PRE_STYLE = { margin: 0, borderRadius: 0 }
+
+// Light: X's own one-light style (it sets `highlightProps` only after its defaults, `es/code-highlighter/CodeHighlighter.js`),
+// with the pre squared. Dark, as the Markdown code block does (components/chat/message/markdown/code-block.tsx):
+// `highlightProps.style` replaces one-light. Module constants: X memoises on them.
+const LIGHT_HIGHLIGHT: CodeHighlighterProps['highlightProps'] = { customStyle: PRE_STYLE }
 const DARK_HIGHLIGHT: CodeHighlighterProps['highlightProps'] = {
 	style: oneDark,
-	customStyle: { margin: 0 },
+	customStyle: PRE_STYLE,
 }
 
 /** A part of the card's body that has nothing to show (no result yet, an empty object). */
@@ -109,9 +118,8 @@ function JsonTable({ rows }: { rows: JsonRow[] }) {
  * so its semantic `styles.code` closes the box with the same border. Its radius is the table frame's, borderRadiusLG
  * (antd Table's `headerBorderRadius`), not X's own `token.borderRadius`, so the Table and JSON views of one section have
  * the same corners (the owner, 2026-10-15: "why does the code and table have diff radius?"). The style sets the very
- * properties X's rule sets (`borderTop`, and the four logical corner radii `borderStartStartRadius` …), not a shorthand:
- * a physical `borderRadius` beside X's logical `borderStartStartRadius: 0` left the top corners square and the bottom
- * ones rounded, the table frame's corners reversed (the owner, 2026-10-15: "the json border radius reversed").
+ * properties X's rule sets (`borderTop`, and the four logical corner radii `borderStartStartRadius` …) rather than a
+ * shorthand beside them; the highlighter's own `<pre>` is squared by `PRE_STYLE`, so these corners are the ones seen.
  */
 function JsonCode({ json }: { json: string }) {
 	const { isDark } = useThemeContext()
@@ -120,7 +128,7 @@ function JsonCode({ json }: { json: string }) {
 		<CodeHighlighter
 			lang="json"
 			header={false}
-			highlightProps={isDark ? DARK_HIGHLIGHT : undefined}
+			highlightProps={isDark ? DARK_HIGHLIGHT : LIGHT_HIGHLIGHT}
 			styles={{
 				code: {
 					borderTop: `${token.lineWidth}px ${token.lineType} ${token.colorBorderSecondary}`,
