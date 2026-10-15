@@ -69,7 +69,7 @@ AG-UI agents become the hub's second provider, and the hub gets its own chat: on
 | --- | --- | --- |
 | 2a the core | the provider, the store, the API, the browser chat, the e2e stub, ADR-0033 and ADR-0034 | §2–§5, §8–§12 |
 | 2b human in the loop | approvals, `ask_user`, other interrupts, the plan panel, activity cards | §6 |
-| 2c attachments and Logs | attachments, the Logs page, the access log, the notice, ADR-0035 | §7 |
+| 2c attachments and Logs | attachments, the Logs page, the access log, the notice, ADR-0037 | §7 |
 
 ## 2. The AG-UI provider (2a)
 
@@ -338,7 +338,7 @@ Decisions 48, 53 and 54.
 - **Table `conversation_attachments`:** `id` (uuid); `user_id`, `app_id` (both cascade) and `conversation_id` (NULL until sent, then cascade); `message_id` (text NULL); `kind` (`image`, `document`, `text`, CHECK); `mime` (detected); `name` (the original name, for display only); `size`; `sha256`; `data` (`bytea`); `extracted_text` (text NULL); `created_at`. The purge (§3.4) removes rows never sent after 24 hours (LibreChat keeps temporary uploads for an hour).
 - **Upload:** `POST /api/apps/[appId]/attachments`, one multipart part named `file` (the shape of Dify's upload route, `parseFilePart`), guarded by `resolveChatRoute`. Checks (OWASP File Upload Cheat Sheet): the kind is allowed by the app's settings; the type is detected from the bytes, never the browser's claim; at most 5 MB per file (under Next's 10 MB `proxyClientMaxBodySize`, which would truncate silently); at most 6 MB of attachments per conversation; at most 5 files per message. Refusals: 413 `attachment_too_large`, 413 `conversation_attachments_full`, 415 `attachment_type_not_allowed`, 400 `attachment_invalid`.
 - **Images:** PNG, JPEG or WebP, decoded by sharp with ADR-0030's pixel limit (SVG and anything else refused), metadata stripped, re-encoded in the same format at the original size; shrunk only to the app's `maxImageEdge` when set (decision 53). A new `chatImage` kind in `lib/settings/images.ts`.
-- **PDFs:** checked by their `%PDF-` header. In `text` mode the hub extracts the text (Mozilla's pdf.js, `pdfjs-dist`, chosen in ADR-0035 after a docs check of its Node usage; at most 100,000 characters per file). **Text files** (`.txt`, `.md`, `.csv`) must be valid UTF-8.
+- **PDFs:** checked by their `%PDF-` header. In `text` mode the hub extracts the text (Mozilla's pdf.js, `pdfjs-dist`, chosen in ADR-0037 after a docs check of its Node usage; at most 100,000 characters per file). **Text files** (`.txt`, `.md`, `.csv`) must be valid UTF-8.
 - **To the agent:** the user message's `content` array holds the text part, then per attachment: `{ type: 'image', source: { type: 'data', value: <base64>, mimeType } }`; in `native` mode `{ type: 'document', source: { type: 'data', value, mimeType: 'application/pdf' } }`; in `text` mode a text part `[file report.pdf]` followed by the extracted text (text files always go this way). `mimeType` is `@ag-ui/core` 1.0's name; the agent's 0.1.22 models accept it (spike). Never a hub URL: a model provider cannot reach it and Pydantic AI blocks private addresses (the owner's rule). Every run re-sends every attachment (decision 54).
 - **Serving back:** `GET /api/apps/[appId]/attachments/[attachmentId]` to the conversation's owner, or an admin through the Logs (audited, §7.2); `Content-Type` as detected, `X-Content-Type-Options: nosniff`, the icon route's sandbox CSP, `Content-Disposition: inline` only for re-encoded images and `attachment` otherwise.
 - **UI:** X `Attachments` in the `Sender.Header`, as the Dify chat's `sender-attachments.tsx`, limited to the app's allowed kinds; `FileCard` and image thumbnails in the user bubble, as `message-files.tsx`.
@@ -384,7 +384,7 @@ Each gets its ADR in the slice that adds it (ADR-0015), with its docs checked:
 | `@ag-ui/core` | 1.0.2 | 2a | the protocol's types and message schema | zod 4 as a peer for its schemas |
 | `@ag-ui/encoder` | 1.0.2 | 2a | `EventEncoder.encodeSSE` toward the browser | pulls `@ag-ui/proto` |
 | `jose` | 6.2.12 | 2a | `SignJWT`, HS256 | no dependencies |
-| `pdfjs-dist` | the release current when 2c's plan is written, pinned there | 2c | PDF text extraction | its Node usage is checked in 2c's plan; ADR-0035 records it, or a better-documented alternative the check finds |
+| `pdfjs-dist` | the release current when 2c's plan is written, pinned there | 2c | PDF text extraction | its Node usage is checked in 2c's plan; ADR-0037 records it, or a better-documented alternative the check finds |
 
 The browser bundle carries none of `@ag-ui/client`'s runtime: the browser parses events with XRequest and the reducer, and imports only `@ag-ui/core`'s types.
 
@@ -408,7 +408,7 @@ The browser bundle carries none of `@ag-ui/client`'s runtime: the browser parses
 | --- | --- |
 | 2a | **ADR-0033** "Use AG-UI as the hub's chat protocol with a hub-side conversation store": `@ag-ui/client`, `core` and `encoder` and the second zod; one X message per turn; the stop route; the store. **ADR-0034** "Add AG-UI agents as a provider": the agent contract and its JWT (`jose`), the Test connection convention, the rule of decision 52 (the provider registry and standard protocols; the "HTTP template" provider not taken). Notes on ADR-0017 (its "one `DifyChatProvider`" is superseded once Part 3 lands), ADR-0023 (the shared chat routes beside the Dify routes), ADR-0026 (the account id as the JWT `sub`) and ADR-0032 (the second provider, the #62 items of §2.5). `docs/agui-agents.md`, the operator guide for agent authors: the URL, the JWT, the error codes, the five-minute silence limit. |
 | 2b | Notes on ADR-0034: `ask_user`, the interrupt answers, the plan state shape. `docs/agui-agents.md`: the same three. |
-| 2c | **ADR-0035** "Keep chat attachments and admin logs on the hub": `bytea`, the PDF library, the caps, the audit and the notice. A note on ADR-0030 (the `chatImage` kind). `docs/agui-agents.md`: attachment kinds. |
+| 2c | **ADR-0037** "Keep chat attachments and admin logs on the hub": `bytea`, the PDF library, the caps, the audit and the notice. A note on ADR-0030 (the `chatImage` kind). `docs/agui-agents.md`: attachment kinds. |
 | every slice | AGENTS.md's Layout (`components/shared-chat/`, `lib/chat/`, the new routes), §0 of this spec, the running record, issue #62. |
 
 ## 12. Done when
