@@ -131,6 +131,8 @@ Approvals, for example:
 
 The hub never sends `editedArgs`: the arguments are not editable. An approval whose `toolCallId` matches no tool call in the turn shows as a card of its own with the same buttons.
 
+The approval shows your interrupt's `message` as the request beside **Reject** and **Approve** (without one, "Run this tool?"), so write it for the user, e.g. "Post this announcement to the team?", rather than rely on a framework default that repeats the call, such as Pydantic AI's `Approve <tool>(<args>)?`: the tool's card already shows its name and arguments.
+
 **The form** reads a flat object schema: `properties` whose `type` is `string` (with `minLength`, `maxLength`), `number` or `integer` (with `minimum`, `maximum`) or `boolean`, or an `enum` of strings or numbers, each with an optional `title`, `description` and `default`; `required`; and at the top `title`, `description`, `additionalProperties: false` and `$schema`. Lengths count characters (code points). With any other keyword, a nested object or array, a `required` name that is not a property, or a `default` of the wrong type, the user sees only your `message` and **Cancel**. The hub checks every payload against your schema before your next run starts.
 
 **The card's title** is the reason: the reasons AG-UI defines are translated, and any other reason (namespace your own, e.g. `myframework:choose_slot`) is shown as written. Write `message` for the user; it is shown as plain text.
