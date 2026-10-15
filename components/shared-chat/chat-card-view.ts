@@ -25,6 +25,7 @@ export type CardBadge =
 	| 'waiting'
 	| 'expired'
 	| 'answered'
+	| 'submitted'
 	| 'approved'
 	| 'rejected'
 	| 'cancelled'
@@ -40,6 +41,7 @@ export const CARD_BADGES = {
 	waiting: { color: 'warning', key: 'shared_chat.interrupt.waiting' },
 	expired: { color: 'warning', key: 'shared_chat.answer.expired' },
 	answered: { color: 'success', key: 'shared_chat.answer.answered' },
+	submitted: { color: 'success', key: 'shared_chat.answer.submitted' },
 	approved: { color: 'success', key: 'shared_chat.answer.approved' },
 	rejected: { color: 'error', key: 'shared_chat.answer.rejected' },
 	cancelled: { color: 'default', key: 'shared_chat.answer.cancelled' },
@@ -60,13 +62,15 @@ export const openInterruptBadge = (
 ): 'waiting' | 'expired' => (isExpired(interrupt, now) ? 'expired' : 'waiting')
 
 /**
- * An answered interrupt's badge, by its receipt (answer-receipt.ts): an approval's decision, Cancelled, or Answered,
- * also for a confirmation, whose receipt in the body says Yes or No.
+ * An answered interrupt's badge, by its receipt (answer-receipt.ts): an approval's decision, Cancelled, a form's
+ * Submitted, or Answered, also for a confirmation, whose receipt in the body says Yes or No.
  */
 export const answeredBadge = (
 	mark: ReceiptMark,
-): 'answered' | 'approved' | 'rejected' | 'cancelled' =>
-	mark === 'approved' || mark === 'rejected' || mark === 'cancelled' ? mark : 'answered'
+): 'answered' | 'submitted' | 'approved' | 'rejected' | 'cancelled' =>
+	mark === 'approved' || mark === 'rejected' || mark === 'cancelled' || mark === 'submitted'
+		? mark
+		: 'answered'
 
 /** The plan panel's badge: its progress while a step is left, Completed once every step is (planProgress). */
 export const planBadge = ({ complete }: { complete: boolean }): 'progress' | 'completed' =>

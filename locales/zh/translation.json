@@ -653,6 +653,7 @@
 			"rejected": "已拒绝",
 			"cancelled": "已取消",
 			"answered": "已回答",
+			"submitted": "已提交",
 			"change": "更改",
 			"waiting_others": "正在等待其他回答",
 			"expired": "已过期",

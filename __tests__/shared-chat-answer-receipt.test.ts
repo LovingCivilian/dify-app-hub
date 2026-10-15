@@ -70,11 +70,11 @@ describe('answeredReceipt (what an answered interrupt’s card shows)', () => {
 		expect(
 			answeredReceipt({ interrupt: form, status: 'resolved', payload: { region: 'EU', seats: 2 } }),
 		).toEqual({
-			mark: 'answered',
+			mark: 'submitted',
 			values: { kind: 'code', code: '{\n  "region": "EU",\n  "seats": 2\n}', lang: 'json' },
 		})
 		expect(answeredReceipt({ interrupt: form, status: 'resolved', payload: {} })).toEqual({
-			mark: 'answered',
+			mark: 'submitted',
 			values: { kind: 'empty' },
 		})
 	})
@@ -103,6 +103,7 @@ describe('answeredReceipt (what an answered interrupt’s card shows)', () => {
 			cancelled: 'secondary',
 			yes: 'success',
 			no: 'danger',
+			submitted: 'success',
 			answered: 'success',
 		})
 	})

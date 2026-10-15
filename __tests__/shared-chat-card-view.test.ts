@@ -79,6 +79,8 @@ describe('answeredBadge (an answered interrupt’s card, by its receipt)', () =>
 		expect(answeredBadge('yes')).toBe('answered')
 		expect(answeredBadge('no')).toBe('answered')
 		expect(answeredBadge('answered')).toBe('answered')
+		// A form's answer reads Submitted, in the header as in its receipt (the owner, 2026-10-15: "make it submitted").
+		expect(answeredBadge('submitted')).toBe('submitted')
 	})
 })
 
@@ -110,6 +112,7 @@ describe('CARD_BADGES', () => {
 			waiting: 'warning',
 			expired: 'warning',
 			answered: 'success',
+			submitted: 'success',
 			approved: 'success',
 			rejected: 'error',
 			cancelled: 'default',

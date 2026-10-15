@@ -653,6 +653,7 @@
 			"rejected": "Rejected",
 			"cancelled": "Cancelled",
 			"answered": "Answered",
+			"submitted": "Submitted",
 			"change": "Change",
 			"waiting_others": "Waiting for the other answers",
 			"expired": "Expired",

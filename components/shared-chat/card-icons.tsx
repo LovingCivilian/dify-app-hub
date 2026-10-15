@@ -32,6 +32,7 @@ const BADGE_ICONS = {
 	waiting: <ClockCircleOutlined />,
 	expired: <ClockCircleOutlined />,
 	answered: <CheckCircleOutlined />,
+	submitted: <CheckCircleOutlined />,
 	approved: <CheckCircleOutlined />,
 	rejected: <CloseCircleOutlined />,
 	cancelled: <MinusCircleOutlined />,
