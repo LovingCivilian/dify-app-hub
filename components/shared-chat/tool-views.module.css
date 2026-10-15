@@ -3,7 +3,16 @@
 	white-space: pre-wrap;
 }
 
-/* A tool's text in its expanded card (a plain-text result, a field's value): its line breaks are kept. */
+/* A tool's text in its expanded card (a plain-text result, a value in the tree table): its line breaks are kept. */
 .text {
 	white-space: pre-wrap;
+}
+
+/*
+ * The tree table's name cells, shaded as the bordered Descriptions' labels were (antd's `labelBg` is colorFillAlter,
+ * `es/descriptions/style/index.js`). antd gives a body cell no background of its own, and the table's rows do not hover
+ * (`rowHoverable={false}`), so this class is the cell's only background.
+ */
+.name {
+	background: var(--ant-color-fill-alter);
 }

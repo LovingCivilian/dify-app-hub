@@ -6,7 +6,7 @@ import type { TurnOpenItems } from '@/lib/chat/open-items'
 import type { ToolPart } from '@/lib/chat/turn'
 
 import type { AnswerDraft } from './answers'
-import { flatFields, type Field } from './flat-fields'
+import { jsonRows, leafText, type JsonRow } from './json-tree'
 import { inputHint } from './turn-parts'
 
 /*
@@ -23,18 +23,26 @@ const parseJson = (text: string): { value: unknown } | null => {
 	}
 }
 
+/** An object, not an array: the arguments the summary line reads key by key. */
+const isObject = (value: unknown): value is Record<string, unknown> =>
+	typeof value === 'object' && value !== null && !Array.isArray(value)
+
 /**
  * The card's summary line, the ThoughtChain item's `description` (the approved design of 2026-10-15, A.1; assistant-ui's
- * `ApprovalCard` reads arguments as key/value pairs, never JSON): arguments that are a flat object (flat-fields.ts) as
- * `key: value` pairs joined by ` · `, on one line and cut like the input hint; an empty object as nothing; anything
- * else (nested, an array, arguments still streaming) as the input hint (spec §5.3).
+ * `ApprovalCard` reads arguments as key/value pairs, never JSON), one level deep (json-tree brief, item 4): each key of
+ * an object as `key: value`, the value as its row shows it when it has no rows below it (json-tree.ts `leafText`: a
+ * scalar, an array of scalars joined by `, `, `[]`, `{}`) and as `{…}` or `[…]` when it has; the pairs joined by ` · `,
+ * on one line and cut like the input hint; an empty object as nothing. Anything that is not an object (an array, a
+ * scalar, arguments still streaming) reads as the input hint (spec §5.3).
  */
 export const toolSummary = (args: string): string => {
 	const json = parseJson(args)
-	const fields = json && flatFields(json.value)
-	return fields
-		? inputHint(fields.map(({ key, value }) => `${key}: ${value}`).join(' · '))
-		: inputHint(args)
+	if (!json || !isObject(json.value)) return inputHint(args)
+	return inputHint(
+		Object.entries(json.value)
+			.map(([key, value]) => `${key}: ${leafText(value) ?? (Array.isArray(value) ? '[…]' : '{…}')}`)
+			.join(' · '),
+	)
 }
 
 /** One part of an expanded tool card, its arguments or its result, as the card renders it (A.2). */
@@ -43,29 +51,28 @@ export type ToolDetail =
 	| { kind: 'empty' }
 	/** Text, as plain text with its line breaks. */
 	| { kind: 'text'; text: string }
-	/** A flat object, as antd Descriptions. */
-	| { kind: 'fields'; items: Field[] }
-	/** Nested JSON or an array, indented by two spaces for X CodeHighlighter. */
-	| { kind: 'json'; text: string }
+	/** An object or array: its rows for the antd tree table, and its JSON indented by two spaces for the JSON view. */
+	| { kind: 'tree'; rows: JsonRow[]; json: string }
+
+const EMPTY: ToolDetail = { kind: 'empty' }
 
 /**
- * A.2: a flat object as fields (flat-fields.ts) and only nested or array JSON as code, so the code panel appears where
- * structure needs it (AI Elements' `Tool` shows a string output as text and an object as code). Text that is not JSON
- * (a plain-text result, arguments still streaming) is shown as sent, a JSON string as its text (nothing when it is
- * blank), and any other JSON scalar as sent. The card puts all of it into text nodes, never HTML.
+ * A.2 with the json-tree brief (items 1 and 3): every JSON object or array as the rows of one tree table (json-tree.ts),
+ * with its indented JSON for the "Show JSON" toggle. Text that is not JSON (a plain-text result, arguments still
+ * streaming) is shown as sent, a JSON string as its text (nothing when it is blank), and any other JSON scalar as sent;
+ * an empty object is nothing to show, and an empty array, which a table would show as a table without rows, is shown as
+ * sent like a scalar. The card puts all of it into text nodes, never HTML.
  */
 export const toolDetail = (text: string): ToolDetail => {
-	if (text.trim() === '') return { kind: 'empty' }
+	if (text.trim() === '') return EMPTY
 	const json = parseJson(text)
 	if (!json) return { kind: 'text', text }
 	const { value } = json
-	if (typeof value === 'string')
-		return value.trim() === '' ? { kind: 'empty' } : { kind: 'text', text: value }
-	const fields = flatFields(value)
-	if (fields) return fields.length > 0 ? { kind: 'fields', items: fields } : { kind: 'empty' }
-	return typeof value === 'object' && value !== null
-		? { kind: 'json', text: JSON.stringify(value, null, 2) }
-		: { kind: 'text', text }
+	if (typeof value === 'string') return value.trim() === '' ? EMPTY : { kind: 'text', text: value }
+	if (typeof value !== 'object' || value === null) return { kind: 'text', text }
+	const rows = jsonRows(value)
+	if (rows.length > 0) return { kind: 'tree', rows, json: JSON.stringify(value, null, 2) }
+	return Array.isArray(value) ? { kind: 'text', text } : EMPTY
 }
 
 /** The `ask_user` call in the turn (spec §6.2; the full-stack template's `AskUserResult`). */

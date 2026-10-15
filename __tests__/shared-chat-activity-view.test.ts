@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { ACTIVITY_JSON_MAX, activityView } from '@/components/shared-chat/activity-view'
+import { flatFields } from '@/components/shared-chat/flat-fields'
 
 // 2b's plan call P17: a flat object as antd Descriptions.
 describe('activityView: fields', () => {
@@ -86,5 +87,31 @@ describe('activityView: JSON', () => {
 		let content: unknown = 'leaf'
 		for (let depth = 0; depth < 100; depth += 1) content = { child: content }
 		expect(activityView(content).kind).toBe('json')
+	})
+})
+
+// The flat-object rule the activity card reads its content by (2b's plan call P17).
+describe('flatFields', () => {
+	it('reads a flat object’s entries in their order, each value as text', () => {
+		expect(flatFields({ city: 'Paris', days: 3, metric: true, note: null })).toEqual([
+			{ key: 'city', value: 'Paris' },
+			{ key: 'days', value: '3' },
+			{ key: 'metric', value: 'true' },
+			{ key: 'note', value: 'null' },
+		])
+	})
+	it('reads an empty object as no fields', () => {
+		expect(flatFields({})).toEqual([])
+	})
+	it.each([
+		['a nested object', { filter: { city: 'Paris' } }],
+		['an object with an array value', { cities: ['Paris'] }],
+		['an array', ['Paris', 'Rome']],
+		['a string', 'Paris'],
+		['a number', 3],
+		['null', null],
+		['nothing', undefined],
+	])('reads %s as no flat object', (_label, value) => {
+		expect(flatFields(value)).toBeNull()
 	})
 })

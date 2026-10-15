@@ -2,9 +2,10 @@
 
 import { CodeHighlighter } from '@ant-design/x'
 import type { CodeHighlighterProps } from '@ant-design/x'
-import { Descriptions, Flex, Typography, theme } from 'antd'
+import { Flex, Segmented, Table, Typography, theme } from 'antd'
+import type { TableColumnsType } from 'antd'
 import type { TFunction } from 'i18next'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
@@ -12,6 +13,7 @@ import { ASK_USER_TOOL_NAME } from '@/lib/chat/ask-user'
 import type { ToolPart } from '@/lib/chat/turn'
 import { useThemeContext } from '@/lib/theme'
 
+import type { JsonRow } from './json-tree'
 import {
 	askUserView,
 	toolDetail,
@@ -39,19 +41,99 @@ const DARK_HIGHLIGHT: CodeHighlighterProps['highlightProps'] = {
 /** A part of the card's body that has nothing to show (no result yet, an empty object). */
 const EMPTY: ToolDetail = { kind: 'empty' }
 
+/** What a section with JSON shows: the tree table, or the indented JSON (its "Show JSON" toggle). */
+type DetailView = 'table' | 'json'
+
 /**
- * One part of the card's body as its kind says (tool-view-data.ts `toolDetail`): text as an antd Paragraph keeping its
- * line breaks, a flat object as small, bordered one-column antd Descriptions (`size`, `bordered`, `column`, `styles`:
- * `antd info Descriptions`; bordered, its values line up in one column), and
- * only nested or array JSON in X CodeHighlighter (`lang` "json"; Prism's light mode loads the one `json` grammar, X
- * CodeHighlighter API `prismLightMode`). Every text renders as text, never HTML.
+ * The tree table's two columns, name and value (no header: `showHeader={false}`). A row's own expand arrow and indent sit
+ * in the first column (antd Table "Tree data"). Names and values are text nodes in Typography.Text, whose `word-break:
+ * break-word` lets a long value wrap inside the card (`es/typography/style/index.js`); a branch's preview (`{a, b}`,
+ * `[n]`) is secondary text, so it does not read as a string value.
  */
-function DetailBody({ detail }: { detail: Exclude<ToolDetail, { kind: 'empty' }> }) {
+const COLUMNS: TableColumnsType<JsonRow> = [
+	{
+		key: 'name',
+		dataIndex: 'name',
+		className: styles.name,
+		render: (name: JsonRow['name']) => <Typography.Text type="secondary">{name}</Typography.Text>,
+	},
+	{
+		key: 'value',
+		dataIndex: 'value',
+		render: (value: string, row) =>
+			row.children ? (
+				<Typography.Text type="secondary">{value}</Typography.Text>
+			) : (
+				<Typography.Text className={styles.text}>{value}</Typography.Text>
+			),
+	},
+]
+
+/**
+ * A JSON object or array as one small, bordered antd Table with tree data (json-tree brief, item 1; `size`, `bordered`,
+ * `showHeader`, `pagination`, `rowHoverable` and `styles.body.cell`: `antd info Table --version 6.6.5`, semantic DOM
+ * `body.cell`): a nested object or array is a row with `children`, which the Table shows collapsed behind its own expand
+ * arrow (`expandable.defaultExpandAllRows` is false); a flat object has no `children`, so no arrows and no indent.
+ * Read-only rows, so no hover highlight, as the Descriptions it replaces had none.
+ */
+function JsonTable({ rows }: { rows: JsonRow[] }) {
+	const { token } = theme.useToken()
+	return (
+		<Table<JsonRow>
+			size="small"
+			bordered
+			showHeader={false}
+			pagination={false}
+			rowHoverable={false}
+			columns={COLUMNS}
+			dataSource={rows}
+			// The Descriptions' tighter cell than `size="small"`'s paddingXS on both axes, so a short object stays a few
+			// slim rows (the approved design of 2026-10-15, A.2).
+			styles={{
+				body: { cell: { paddingBlock: token.paddingXXS, paddingInline: token.paddingSM } },
+			}}
+		/>
+	)
+}
+
+/**
+ * The JSON view: X CodeHighlighter (`lang` "json"; Prism's light mode loads the one `json` grammar, X CodeHighlighter API
+ * `prismLightMode`) without its header (`header?: false | ReactNode`, X 2.9 `es/code-highlighter/interface.d.ts`). X
+ * styles the code box as the part below a header (`es/code-highlighter/style/index.js`: no top border, no top radius),
+ * so its semantic `styles.code` closes the box with the same border and radius.
+ */
+function JsonCode({ json }: { json: string }) {
 	const { isDark } = useThemeContext()
 	const { token } = theme.useToken()
-	// A tighter cell than `size="small"`'s paddingXS × padding, so a short object stays a few slim rows (antd's semantic
-	// `styles.label` and `styles.content` land on the bordered cells, `es/descriptions/Cell.js`).
-	const cell = { paddingBlock: token.paddingXXS, paddingInline: token.paddingSM }
+	return (
+		<CodeHighlighter
+			lang="json"
+			header={false}
+			highlightProps={isDark ? DARK_HIGHLIGHT : undefined}
+			styles={{
+				code: {
+					borderBlockStart: `${token.lineWidth}px ${token.lineType} ${token.colorBorderSecondary}`,
+					borderRadius: token.borderRadius,
+				},
+			}}
+		>
+			{json}
+		</CodeHighlighter>
+	)
+}
+
+/**
+ * One part of the card's body as its kind says (tool-view-data.ts `toolDetail`): text as an antd Paragraph keeping its
+ * line breaks, and JSON as the tree table or, once its toggle says so, as indented JSON. Every text renders as text,
+ * never HTML.
+ */
+function DetailBody({
+	detail,
+	view,
+}: {
+	detail: Exclude<ToolDetail, { kind: 'empty' }>
+	view: DetailView
+}) {
 	switch (detail.kind) {
 		case 'text':
 			return (
@@ -62,50 +144,57 @@ function DetailBody({ detail }: { detail: Exclude<ToolDetail, { kind: 'empty' }>
 					{detail.text}
 				</Typography.Paragraph>
 			)
-		case 'fields':
-			return (
-				<Descriptions
-					size="small"
-					bordered
-					column={1}
-					styles={{ label: cell, content: cell }}
-					items={detail.items.map(item => ({
-						key: item.key,
-						label: item.key,
-						children: <span className={styles.text}>{item.value}</span>,
-					}))}
-				/>
-			)
-		case 'json':
-			return (
-				<CodeHighlighter
-					lang="json"
-					highlightProps={isDark ? DARK_HIGHLIGHT : undefined}
-				>
-					{detail.text}
-				</CodeHighlighter>
-			)
+		case 'tree':
+			return view === 'json' ? <JsonCode json={detail.json} /> : <JsonTable rows={detail.rows} />
 		default:
 			return detail satisfies never
 	}
 }
 
-/** A labelled part of the body ("Arguments", "Result"), left out when it has nothing to show. */
+/**
+ * A labelled part of the body ("Arguments", "Result"), left out when it has nothing to show. A part with JSON carries a
+ * small antd Segmented beside its label (`size`, `value`, `onChange`, `options`: `antd info Segmented --version 6.6.5`),
+ * named by the label (rc-segmented's radiogroup takes the `aria-label` it is given over its default "segmented
+ * control"); its state is the section's own and starts at the table (json-tree brief, item 2).
+ */
 function DetailSection({ label, detail }: { label: string; detail: ToolDetail }) {
+	const { t } = useTranslation()
 	const { token } = theme.useToken()
+	const [view, setView] = useState<DetailView>('table')
 	if (detail.kind === 'empty') return null
 	return (
 		<Flex
 			vertical
 			gap={token.marginXXS}
 		>
-			<Typography.Text
-				type="secondary"
-				style={{ fontSize: token.fontSizeSM }}
+			<Flex
+				justify="space-between"
+				align="center"
+				gap={token.marginXS}
 			>
-				{label}
-			</Typography.Text>
-			<DetailBody detail={detail} />
+				<Typography.Text
+					type="secondary"
+					style={{ fontSize: token.fontSizeSM }}
+				>
+					{label}
+				</Typography.Text>
+				{detail.kind === 'tree' && (
+					<Segmented<DetailView>
+						size="small"
+						aria-label={label}
+						value={view}
+						onChange={setView}
+						options={[
+							{ value: 'table', label: t('shared_chat.tool_view_table') },
+							{ value: 'json', label: t('shared_chat.tool_view_json') },
+						]}
+					/>
+				)}
+			</Flex>
+			<DetailBody
+				detail={detail}
+				view={view}
+			/>
 		</Flex>
 	)
 }

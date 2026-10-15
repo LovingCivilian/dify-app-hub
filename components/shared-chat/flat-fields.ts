@@ -1,7 +1,7 @@
 /*
- * The flat-object rule the turn's read-only views share: 2b's plan call P17 wrote it for the activity card
- * (activity-view.ts), and the tool cards read their arguments and results by it (tool-view-data.ts). Pure and
- * client-safe; the views put the fields into text nodes, never HTML (spec §6.4).
+ * The flat-object rule 2b's plan call P17 wrote for the activity card (activity-view.ts); the tool cards read their JSON
+ * as a tree instead (json-tree.ts). Pure and client-safe; the card puts the fields into text nodes, never HTML
+ * (spec §6.4).
  */
 
 /** One entry of a flat object, its value as text. */

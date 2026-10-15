@@ -621,6 +621,8 @@
 		"answer_pending_hint": "请先回应上方的智能体，然后继续。",
 		"tool_arguments": "参数",
 		"tool_result": "结果",
+		"tool_view_table": "表格",
+		"tool_view_json": "JSON",
 		"plan": {
 			"title": "计划 {{done}}/{{total}}"
 		},

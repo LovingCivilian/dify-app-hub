@@ -621,6 +621,8 @@
 		"answer_pending_hint": "أجب الوكيل أعلاه للمتابعة.",
 		"tool_arguments": "المُدخلات",
 		"tool_result": "النتيجة",
+		"tool_view_table": "جدول",
+		"tool_view_json": "JSON",
 		"plan": {
 			"title": "الخطة {{done}}/{{total}}"
 		},

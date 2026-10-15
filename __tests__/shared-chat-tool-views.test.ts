@@ -2,7 +2,7 @@ import type { Interrupt } from '@ag-ui/core'
 import { describe, expect, it } from 'vitest'
 
 import { EMPTY_DRAFT, type AnswerDraft } from '@/components/shared-chat/answers'
-import { flatFields } from '@/components/shared-chat/flat-fields'
+import { jsonRows } from '@/components/shared-chat/json-tree'
 import {
 	approvalView,
 	askUserView,
@@ -182,38 +182,25 @@ describe('toolFooter (spec §6.1, plan call P13)', () => {
 	})
 })
 
-// The flat-object rule the activity card and the tool cards share (2b's plan call P17).
-describe('flatFields', () => {
-	it('reads a flat object’s entries in their order, each value as text', () => {
-		expect(flatFields({ city: 'Paris', days: 3, metric: true, note: null })).toEqual([
-			{ key: 'city', value: 'Paris' },
-			{ key: 'days', value: '3' },
-			{ key: 'metric', value: 'true' },
-			{ key: 'note', value: 'null' },
-		])
-	})
-	it('reads an empty object as no fields', () => {
-		expect(flatFields({})).toEqual([])
-	})
-	it.each([
-		['a nested object', { filter: { city: 'Paris' } }],
-		['an object with an array value', { cities: ['Paris'] }],
-		['an array', ['Paris', 'Rome']],
-		['a string', 'Paris'],
-		['a number', 3],
-		['null', null],
-		['nothing', undefined],
-	])('reads %s as no flat object', (_label, value) => {
-		expect(flatFields(value)).toBeNull()
-	})
-})
-
-// The approved design (2026-10-15), A.1: the card's summary line.
+// The approved design (2026-10-15), A.1, one level deep since the json-tree brief (item 4): the card's summary line.
 describe('toolSummary', () => {
 	it('shows flat arguments as key: value pairs joined by a middle dot, values as text', () => {
 		expect(toolSummary('{"city": "Paris", "days": 3, "metric": true, "note": null}')).toBe(
 			'city: Paris · days: 3 · metric: true · note: null',
 		)
+	})
+	it('reads one level: arrays of scalars joined, nested objects as {…}, arrays of objects as […]', () => {
+		expect(
+			toolSummary(
+				JSON.stringify({ to: ['ana', 'bo'], opts: { urgent: true }, files: [{ name: 'a' }] }),
+			),
+		).toBe('to: ana, bo · opts: {…} · files: […]')
+		expect(toolSummary(JSON.stringify({ grid: [[1, 2]], mixed: [1, { a: 1 }] }))).toBe(
+			'grid: […] · mixed: […]',
+		)
+	})
+	it('reads an empty array as [] and an empty object as {}, as the rows do', () => {
+		expect(toolSummary('{"tags": [], "meta": {}}')).toBe('tags: [] · meta: {}')
 	})
 	it('keeps the pairs on one line and cuts them at 60 code points', () => {
 		expect(toolSummary(JSON.stringify({ message: 'Closed on Friday.\nOpen on Monday.' }))).toBe(
@@ -222,48 +209,73 @@ describe('toolSummary', () => {
 		const long = toolSummary(JSON.stringify({ message: '😀'.repeat(70) }))
 		expect(long).toBe(`message: ${'😀'.repeat(51)}…`)
 		expect(Array.from(long)).toHaveLength(61)
+		const nested = toolSummary(
+			JSON.stringify({
+				subject: 'Office closed',
+				to: ['ana@x.com', 'bo@x.com'],
+				options: { urgent: true },
+				attachments: [{ name: 'plan.pdf' }],
+			}),
+		)
+		expect(nested).toBe('subject: Office closed · to: ana@x.com, bo@x.com · options: …')
 	})
 	it('shows nothing for an empty object', () => {
 		expect(toolSummary('{}')).toBe('')
 		expect(toolSummary('{ }')).toBe('')
 	})
 	it.each([
-		['nested arguments', '{"filter": {"city": "Paris"}}'],
 		['an array', '["Paris", "Rome"]'],
+		['an array of objects', '[{"city": "Paris"}]'],
 		['arguments still streaming', '{"city": '],
 		['a JSON string', '"Paris"'],
+		['a number', '18'],
+		['null', 'null'],
 	])('keeps the input hint for %s', (_label, args) => {
 		expect(toolSummary(args)).toBe(inputHint(args))
 	})
 })
 
-// A.2: what each part of the expanded card renders as.
+// A.2, with the json-tree brief (items 1 and 3): what each part of the expanded card renders as.
 describe('toolDetail', () => {
-	it('reads a flat object as fields, values as text', () => {
+	it('reads a flat object as tree rows, one per key, and its JSON indented by two spaces', () => {
 		expect(toolDetail('{"city": "Paris", "temperature_c": 18, "cloudy": true}')).toEqual({
-			kind: 'fields',
-			items: [
-				{ key: 'city', value: 'Paris' },
-				{ key: 'temperature_c', value: '18' },
-				{ key: 'cloudy', value: 'true' },
+			kind: 'tree',
+			rows: [
+				{ key: '/city', name: 'city', value: 'Paris' },
+				{ key: '/temperature_c', name: 'temperature_c', value: '18' },
+				{ key: '/cloudy', name: 'cloudy', value: 'true' },
 			],
+			json: '{\n  "city": "Paris",\n  "temperature_c": 18,\n  "cloudy": true\n}',
+		})
+	})
+	it('reads nested JSON as tree rows with children', () => {
+		const detail = toolDetail('{"city":"Paris","hours":[{"open":9},{"open":10}]}')
+		expect(detail).toEqual({
+			kind: 'tree',
+			rows: jsonRows({ city: 'Paris', hours: [{ open: 9 }, { open: 10 }] }),
+			json: JSON.stringify({ city: 'Paris', hours: [{ open: 9 }, { open: 10 }] }, null, 2),
+		})
+		expect(detail.kind === 'tree' && detail.rows[1]?.children).toHaveLength(2)
+	})
+	it('reads a top-level array as tree rows by index', () => {
+		expect(toolDetail('["Paris","Rome"]')).toEqual({
+			kind: 'tree',
+			rows: [
+				{ key: '/0', name: 0, value: 'Paris' },
+				{ key: '/1', name: 1, value: 'Rome' },
+			],
+			json: '[\n  "Paris",\n  "Rome"\n]',
 		})
 	})
 	it('reads an empty object, an empty text and blank text as nothing to show', () => {
-		for (const text of ['{}', '', '  \n']) expect(toolDetail(text)).toEqual({ kind: 'empty' })
+		for (const text of ['{}', '{ }', '', '  \n'])
+			expect(toolDetail(text)).toEqual({ kind: 'empty' })
+	})
+	it('shows an empty array as sent, as it shows a scalar: a table would have no rows', () => {
+		expect(toolDetail('[]')).toEqual({ kind: 'text', text: '[]' })
 	})
 	it('reads a JSON string that is empty or blank as nothing to show', () => {
 		for (const text of ['""', '"  "']) expect(toolDetail(text)).toEqual({ kind: 'empty' })
-	})
-	it('keeps nested objects and arrays as JSON indented by two spaces', () => {
-		expect(toolDetail('{"city":"Paris","hours":[9,17]}')).toEqual({
-			kind: 'json',
-			text: '{\n  "city": "Paris",\n  "hours": [\n    9,\n    17\n  ]\n}',
-		})
-		expect(toolDetail('["Paris","Rome"]')).toEqual({
-			kind: 'json',
-			text: '[\n  "Paris",\n  "Rome"\n]',
-		})
 	})
 	it('shows text that is not JSON as sent: a plain-text result, or arguments still streaming', () => {
 		expect(toolDetail('Deleted report.pdf.\nNothing else changed.')).toEqual({
@@ -279,12 +291,14 @@ describe('toolDetail', () => {
 		})
 		expect(toolDetail('18')).toEqual({ kind: 'text', text: '18' })
 		expect(toolDetail('null')).toEqual({ kind: 'text', text: 'null' })
+		expect(toolDetail('true')).toEqual({ kind: 'text', text: 'true' })
 	})
 	it('keeps markup as text for the card to render as text', () => {
 		expect(toolDetail('<b>bold</b>')).toEqual({ kind: 'text', text: '<b>bold</b>' })
 		expect(toolDetail('{"note": "<b>bold</b>"}')).toEqual({
-			kind: 'fields',
-			items: [{ key: 'note', value: '<b>bold</b>' }],
+			kind: 'tree',
+			rows: [{ key: '/note', name: 'note', value: '<b>bold</b>' }],
+			json: '{\n  "note": "<b>bold</b>"\n}',
 		})
 	})
 })
