@@ -93,10 +93,16 @@ export const toolBadge = (status: ToolStatus, approval: ApprovalView | null): To
 
 /**
  * Whether a tool card starts open: AI Elements opens completed and failed tools ("Auto-opens completed tools by default",
- * its Tool docs), and a call that waits for its approval opens so its arguments are in view beside Approve and Reject.
+ * its Tool docs); a call that waits for its approval opens so its arguments are in view beside Approve and Reject, and
+ * one past it so Dismiss is; a call with a decision (`decided`: drafted or sent) stays open while it runs, so the card
+ * does not close and open again around its approval (ADR-0035).
  */
-export const toolOpenByDefault = (badge: ToolBadge): boolean =>
-	badge === 'completed' || badge === 'error' || badge === 'awaiting_approval'
+export const toolOpenByDefault = (badge: ToolBadge, decided: boolean): boolean =>
+	decided ||
+	badge === 'completed' ||
+	badge === 'error' ||
+	badge === 'awaiting_approval' ||
+	badge === 'expired'
 
 /** The `ask_user` call in the turn (spec §6.2; the full-stack template's `AskUserResult`). */
 export type AskUserView =
@@ -190,7 +196,7 @@ export const approvalView = (
 	}
 }
 
-/** What a tool's ThoughtChain item carries below its body, in the turn that waits. */
+/** What a tool's card carries in its body, in the turn that waits (tool-chain.tsx). */
 export type ToolFooter = { kind: 'approval'; interrupt: Interrupt } | { kind: 'answered' } | null
 
 /**

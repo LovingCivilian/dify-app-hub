@@ -96,7 +96,7 @@ describe('draftTagColor (a drafted decision’s Tag in an open interrupt’s car
 		expect(draftTagColor('shared_chat.answer.approved')).toBe('success')
 		expect(draftTagColor('shared_chat.answer.rejected')).toBe('error')
 		expect(draftTagColor('shared_chat.answer.cancelled')).toBe('default')
-		expect(draftTagColor('shared_chat.answer.answered')).toBe('success')
+		expect(draftTagColor('shared_chat.answer.submitted')).toBe('success')
 		expect(draftTagColor('shared_chat.interrupt.yes')).toBe('success')
 		expect(draftTagColor('shared_chat.interrupt.no')).toBe('error')
 	})

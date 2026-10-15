@@ -1,14 +1,7 @@
 'use client'
 
-import {
-	useEffect,
-	useImperativeHandle,
-	useRef,
-	type ReactNode,
-	type Ref,
-	type RefObject,
-} from 'react'
-import { StickToBottom, type StickToBottomContext } from 'use-stick-to-bottom'
+import { useEffect, useImperativeHandle, type ReactNode, type Ref } from 'react'
+import { useStickToBottom, type StickToBottomInstance } from 'use-stick-to-bottom'
 
 import styles from './chat-view.module.css'
 
@@ -27,37 +20,39 @@ const STIFFNESS = 0.1
 export interface ChatScrollHandle {
 	/** Brings the reader to the latest message and follows it again, as after they send one. */
 	scrollToBottom: () => void
+	/**
+	 * Lets go of the bottom, as the reader scrolling up does (the library's `stopScroll`): before earlier messages
+	 * load, whose arrival above would otherwise count as the messages growing and pull a reader at the bottom back down.
+	 */
+	stopScroll: () => void
 }
 
 /**
  * WORKAROUND for use-stick-to-bottom 1.1.6, issue #40 "scroll position drifts when scroll container height changes
  * (flex sibling resize)" (https://github.com/stackblitz-labs/use-stick-to-bottom/issues/40), fixed upstream by the
  * open PR #43 "re-anchor to bottom when the scroll container itself resizes"
- * (https://github.com/stackblitz-labs/use-stick-to-bottom/pull/43). Delete this once a release carries that fix.
+ * (https://github.com/stackblitz-labs/use-stick-to-bottom/pull/43). Delete this once a release carries that fix (#73).
  *
  * The library watches only the messages, so when something below the list grows (the composer as a long message is
  * typed, the plan panel, the question card) the scroll box shrinks and the newest lines slide out of view. This is
- * PR #43's second ResizeObserver, on the scroll box, through the library's own API (`contextRef`, its `state` and
- * `scrollToBottom`): a box that shrinks while the reader is at the bottom re-anchors there, as the library does when
- * the messages grow; a resize is recorded in `state.resizeDifference`, so the scroll event of the browser's clamp when
- * the box grows back is not taken for the reader scrolling up, which would stop the following.
+ * PR #43's second ResizeObserver, on the scroll box, through the library's own API (the instance's `scrollRef`,
+ * `state` and `scrollToBottom`): a box that shrinks while the reader is at the bottom re-anchors there, as the library
+ * does when the messages grow; a resize is recorded in `state.resizeDifference`, so the scroll event of the browser's
+ * clamp when the box grows back is not taken for the reader scrolling up, which would stop the following.
  */
-function useScrollBoxResize(context: RefObject<StickToBottomContext | null>) {
+function useScrollBoxResize({ scrollRef, state, scrollToBottom }: StickToBottomInstance) {
 	useEffect(() => {
-		const box = context.current?.scrollRef.current
+		const box = scrollRef.current
 		if (!box) return
 		let previousHeight: number | undefined
 		const observer = new ResizeObserver(([entry]) => {
-			const current = context.current
-			if (!current) return
 			const { height } = entry.contentRect
 			const difference = height - (previousHeight ?? height)
 			previousHeight = height
 			if (!difference) return
-			const { state } = current
 			state.resizeDifference = difference
 			if (difference < 0 && state.isAtBottom)
-				void current.scrollToBottom({
+				void scrollToBottom({
 					// The region's spring (`resize`, as PR #43 takes): 'smooth' merges onto its options.
 					animation: 'smooth',
 					wait: true,
@@ -73,18 +68,22 @@ function useScrollBoxResize(context: RefObject<StickToBottomContext | null>) {
 		})
 		observer.observe(box)
 		return () => observer.disconnect()
-	}, [context])
+	}, [scrollRef, state, scrollToBottom])
 }
 
 /**
- * ADR-0036. The chats' scroll region (the Dify chat's MessageList and the shared chat's TurnList), as AI Elements' `Conversation`
- * builds it (vercel/ai-elements `packages/elements/src/conversation.tsx`): use-stick-to-bottom's `StickToBottom` and
- * its `Content` (README "`<StickToBottom>` Component"), around a Bubble.List with `autoScroll` off. The messages flow
- * from the top, so a card or a thought that opens grows downwards and nothing above it moves; the region follows the
- * answer while the reader is at the bottom ("automatically sticks to the bottom … whilst new content is being added"),
- * lets go when they scroll up, comes back to it when they send (ChatScrollHandle), and opens each conversation at its
- * latest message (`initial`, at once; the caller keys the region by conversation). X's own `autoScroll` lays the list out bottom-up (`flex-direction: column-reverse`) and
- * holds it in place by script, which lost its place while a card opened in Firefox (the owner, 2026-10-15).
+ * ADR-0036. The chats' scroll region (the Dify chat's MessageList and the shared chat's TurnList), on the library AI
+ * Elements' `Conversation` is built on (vercel/ai-elements `packages/elements/src/conversation.tsx`): use-stick-to-bottom's
+ * `useStickToBottom` hook with its `scrollRef` and `contentRef` on the region's own elements (README "`useStickToBottom`
+ * Hook"), around a Bubble.List with `autoScroll` off. The hook rather than its `StickToBottom.Content`, which sets
+ * `scrollbar-gutter: stable both-edges` inline and so would narrow the wide chat's bubbles by a scrollbar's width on
+ * each side of the composer's width. The messages flow from the top, so a card or a thought that opens grows downwards
+ * and nothing above it moves; the region follows the answer while the reader is at the bottom ("automatically sticks to
+ * the bottom … whilst new content is being added"), lets go when they scroll up or load earlier messages, comes back to
+ * it when they send (ChatScrollHandle), and opens each conversation at its latest message (`initial`, at once; the
+ * caller keys the region by conversation). X's own `autoScroll` lays the list out bottom-up (`flex-direction:
+ * column-reverse`) and holds it in place by script, which lost its place while a card opened in Firefox (the owner,
+ * 2026-10-15).
  */
 export default function ChatScroll({
 	children,
@@ -94,24 +93,21 @@ export default function ChatScroll({
 	/** The chat's handle (React 19: `ref` as a prop), for its send handler. */
 	ref?: Ref<ChatScrollHandle>
 }) {
-	const context = useRef<StickToBottomContext>(null)
-	useScrollBoxResize(context)
-	// The library's README has the chat box scroll to the bottom when the user enters a message
-	// (`useStickToBottomContext().scrollToBottom`); the chats' composers sit beside the region, so they reach it here.
-	useImperativeHandle(
-		ref,
-		() => ({ scrollToBottom: () => void context.current?.scrollToBottom() }),
-		[],
-	)
+	const stick = useStickToBottom({ initial: 'instant', resize: 'smooth', stiffness: STIFFNESS })
+	useScrollBoxResize(stick)
+	const { scrollToBottom, stopScroll } = stick
+	// The library's README has the chat box scroll to the bottom when the user enters a message (`scrollToBottom`); the
+	// chats' composers sit beside the region, so they reach it here.
+	useImperativeHandle(ref, () => ({ scrollToBottom: () => void scrollToBottom(), stopScroll }), [
+		scrollToBottom,
+		stopScroll,
+	])
 	return (
-		<StickToBottom
-			className={styles.scrollRegion}
-			initial="instant"
-			resize="smooth"
-			stiffness={STIFFNESS}
-			contextRef={context}
+		<div
+			ref={stick.scrollRef}
+			className={styles.scrollBox}
 		>
-			<StickToBottom.Content scrollClassName={styles.scrollBox}>{children}</StickToBottom.Content>
-		</StickToBottom>
+			<div ref={stick.contentRef}>{children}</div>
+		</div>
 	)
 }

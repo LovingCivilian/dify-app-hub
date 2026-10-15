@@ -109,7 +109,7 @@ type DecisionKey =
 	| 'shared_chat.answer.cancelled'
 	| 'shared_chat.answer.approved'
 	| 'shared_chat.answer.rejected'
-	| 'shared_chat.answer.answered'
+	| 'shared_chat.answer.submitted'
 	| 'shared_chat.interrupt.yes'
 	| 'shared_chat.interrupt.no'
 
@@ -154,6 +154,7 @@ export const interruptCardView = (
 				tagKey: payload === true ? 'shared_chat.interrupt.yes' : 'shared_chat.interrupt.no',
 			}
 		default:
-			return { kind: 'decided', tagKey: 'shared_chat.answer.answered' }
+			// A form, the only other kind a resolved answer takes: "Submitted", as its receipt reads once sent (ADR-0035).
+			return { kind: 'decided', tagKey: 'shared_chat.answer.submitted' }
 	}
 }

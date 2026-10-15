@@ -205,7 +205,7 @@ describe('toolFooter (spec §6.1, plan call P13)', () => {
 	})
 })
 
-// The approved design (2026-10-15), A.1, one level deep since the json-tree brief (item 4): the card's summary line.
+// ADR-0035: the tool card's arguments and result as code blocks, as AI Elements' ToolInput and ToolOutput show them.
 describe('toolDetail (AI Elements: parameters and result as code blocks)', () => {
 	it('reads an object or an array as JSON indented by two spaces', () => {
 		expect(toolDetail('{"city": "Paris", "temperature_c": 18}')).toEqual({
@@ -268,11 +268,16 @@ describe('toolBadge and toolOpenByDefault (AI Elements: the status badge, comple
 		expect(toolBadge('waiting', { kind: 'expired' })).toBe('expired')
 		expect(toolBadge('waiting', { kind: 'decided', decision: 'approved' })).toBe('waiting')
 	})
-	it('opens completed and failed calls, and one awaiting approval', () => {
-		expect(toolOpenByDefault('completed')).toBe(true)
-		expect(toolOpenByDefault('error')).toBe(true)
-		expect(toolOpenByDefault('awaiting_approval')).toBe(true)
-		for (const badge of ['running', 'waiting', 'stopped', 'expired'] as const)
-			expect(toolOpenByDefault(badge)).toBe(false)
+	it('opens completed and failed calls, and one awaiting approval or past it (its Dismiss must be in view)', () => {
+		expect(toolOpenByDefault('completed', false)).toBe(true)
+		expect(toolOpenByDefault('error', false)).toBe(true)
+		expect(toolOpenByDefault('awaiting_approval', false)).toBe(true)
+		expect(toolOpenByDefault('expired', false)).toBe(true)
+		for (const badge of ['running', 'waiting', 'stopped'] as const)
+			expect(toolOpenByDefault(badge, false)).toBe(false)
+	})
+	it('keeps a decided call open while it runs, so it does not close and open again around its approval', () => {
+		for (const badge of ['running', 'waiting', 'stopped'] as const)
+			expect(toolOpenByDefault(badge, true)).toBe(true)
 	})
 })

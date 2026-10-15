@@ -153,14 +153,6 @@ const askUserContent = (view: AskUserView, t: TFunction): ReactNode => {
 	}
 }
 
-/**
- * The hub's own `ask_user` tool in the turn (spec §6.2: "Afterwards the ask_user card in the transcript shows the
- * questions and answers"; the template's `AskUserResult`): always open, so the questions, or each question with its
- * answer, are always in view, as an interrupt card's are (the owner, 2026-10-15: the content without a border, and the
- * box only around the choice): below them "Answered" and Change (`inner`) while the answers wait to go, and once they
- * went the receipt "Answered" in the same bordered box (an antd Card `size="small"`). The card that answers it sits
- * above the composer (ask-user-card.tsx).
- */
 /** The `ask_user` card's body: its content, then its box, at the tool card's spacing between sections. */
 function AskUserDetails({ content, box }: { content: ReactNode; box: ReactNode }) {
 	const { token } = theme.useToken()
@@ -175,6 +167,14 @@ function AskUserDetails({ content, box }: { content: ReactNode; box: ReactNode }
 	)
 }
 
+/**
+ * The hub's own `ask_user` tool in the turn (spec §6.2: "Afterwards the ask_user card in the transcript shows the
+ * questions and answers"; the template's `AskUserResult`): always open, so the questions, or each question with its
+ * answer, are always in view, as an interrupt card's are (the owner, 2026-10-15: the content without a border, and the
+ * box only around the choice): below them "Answered" and Change (`inner`) while the answers wait to go, and once they
+ * went the receipt "Answered" in the same bordered box (an antd Card `size="small"`). The card that answers it sits
+ * above the composer (ask-user-card.tsx).
+ */
 const askUserItemView = (
 	part: ToolPart,
 	t: TFunction,

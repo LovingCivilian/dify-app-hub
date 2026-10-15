@@ -1,3 +1,5 @@
+import type { Interrupt } from '@ag-ui/core'
+
 import { answerKindOf } from '@/lib/chat/interrupt-answers'
 import {
 	approvalDecisionOf,
@@ -47,8 +49,8 @@ const NO_VALUES: ToolDetail = { kind: 'empty' }
 /**
  * The receipt of an answer to an interrupt with a card of its own (spec §6.3, plan calls P6–P8): Cancelled for a
  * cancelled one; otherwise by how the interrupt is answered (answerKindOf), Approved or Rejected for an approval by its
- * own schema's key, Yes or No for a confirmation, Submitted for a form and Answered for anything else, with the object it sent as
- * indented JSON, as the tool cards show their arguments (toolDetail: an empty object shows nothing).
+ * own schema's key, Yes or No for a confirmation, Submitted for a form and Answered for anything else, with the object
+ * it sent as indented JSON, as the tool cards show their arguments (toolDetail: an empty object shows nothing).
  */
 export const answeredReceipt = (answered: AnsweredInterrupt): AnsweredReceipt => {
 	const { interrupt, status, payload } = answered
@@ -64,4 +66,16 @@ export const answeredReceipt = (answered: AnsweredInterrupt): AnsweredReceipt =>
 				values: typeof payload === 'object' ? toolDetail(JSON.stringify(payload)) : NO_VALUES,
 			}
 	}
+}
+
+/**
+ * A sent value's label, as the open form labelled its field (interrupt-card.tsx: the field's `title`, else its name;
+ * answerKindOf reads the flat schema, plan call P7), so the record matches the form (ADR-0035); a key the schema does
+ * not name, or an interrupt that is no form, is labelled by the key itself. Fields are looked up by name, never as an
+ * object's own properties: a key is the agent's string.
+ */
+export const fieldLabel = (interrupt: Interrupt, key: string): string => {
+	const answer = answerKindOf(interrupt)
+	const field = answer.kind === 'form' ? answer.fields.find(({ name }) => name === key) : undefined
+	return field?.title ?? key
 }

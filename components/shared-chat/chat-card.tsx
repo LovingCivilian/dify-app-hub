@@ -36,17 +36,17 @@ export type ChatCardProps = ChatCardOpening & {
 const PANEL_KEY = 'card'
 
 /**
- * ADR-0035. Every card in the shared chat, in the tool card's look (the owner, 2026-10-15: "i like the new card look, so can we
- * make everything follow that?"), which follows AI Elements' `Tool` (vercel/ai-elements
+ * ADR-0035. Every card in the shared chat, in the tool card's look (the owner, 2026-10-15: "i like the new card look,
+ * so can we make everything follow that?"), which follows AI Elements' `Tool` (vercel/ai-elements
  * `packages/elements/src/tool.tsx`): a bordered, rounded card that opens and closes, an antd Collapse with one panel
  * (`size`, `expandIconPlacement`, `items`, `activeKey`, `defaultActiveKey`, `onChange`; item `label`, `extra`,
  * `showArrow`, `children`: `antd info Collapse --version 6.6.5`), its header the card's icon, its title in strong text
  * and its status badge, an antd Tag with a preset status colour and an icon (the Tag "status" demo, `antd demo Tag
- * status --version 6.6.5`). The icon stays beside the title, and the title and the badge wrap below each other when
- * the title is long. A collapsible card is keyed by `defaultOpen`, so it opens when, say, its tool call completes
- * (React: resetting state with a key); a held card is held through the controlled `activeKey` with no `onChange` and
- * shows no arrow (antd: "If false, panel will not show arrow icon"); a controlled card reports the user's clicks
- * through `onOpenChange`.
+ * status --version 6.6.5`). The icon stays beside the title, and the title and the badge wrap below each other when the
+ * title is long. A collapsible card is keyed by `defaultOpen`, so it opens when, say, its tool call completes (React:
+ * resetting state with a key); a held card is held through the controlled `activeKey` with no `onChange`, shows no
+ * arrow (antd: "If false, panel will not show arrow icon") and has no button in its header; a controlled card reports
+ * the user's clicks through `onOpenChange`.
  */
 export default function ChatCard(props: ChatCardProps) {
 	const { icon, title, badge, extra, children, fixed, onOpenChange } = props
@@ -70,6 +70,10 @@ export default function ChatCard(props: ChatCardProps) {
 				{
 					key: PANEL_KEY,
 					showArrow: fixed === undefined,
+					// A held card is no button: with `collapsible` 'icon' the header carries no role, Tab stop or toggle (rc-collapse
+					// `Panel.js` moves them to the arrow, which a held card does not show), so the controls in its `extra` are
+					// ordinary buttons, not nested in one (antd Collapse item `collapsible`: header | icon | disabled).
+					collapsible: fixed === undefined ? undefined : 'icon',
 					label: (
 						<Flex
 							align="center"

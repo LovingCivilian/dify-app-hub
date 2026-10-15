@@ -139,7 +139,7 @@ const weatherCall = (parentMessageId: string): Event[] => {
 }
 
 /**
- * The `nested` scenario's call (the json-tree brief): arguments with an array of scalars, an object and an array of
+ * The `nested` scenario's call (the playground's nested JSON): arguments with an array of scalars, an object and an array of
  * objects, streamed in two deltas as `weatherCall`'s are, and a nested JSON result with a long string value.
  */
 const emailCall = (parentMessageId: string): Event[] => {

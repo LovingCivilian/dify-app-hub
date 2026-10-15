@@ -112,7 +112,12 @@ function ToolCard({ tool }: { tool: ToolPart }) {
 		? ({ fixed: 'open' } as const)
 		: view.content === undefined
 			? ({ fixed: 'closed' } as const)
-			: { defaultOpen: toolOpenByDefault(badgeKind) }
+			: {
+					defaultOpen: toolOpenByDefault(
+						badgeKind,
+						Boolean(tool.decision) || approval?.kind === 'decided',
+					),
+				}
 	return (
 		<ChatCard
 			{...opening}

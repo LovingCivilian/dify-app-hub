@@ -1,7 +1,7 @@
 import type { Interrupt } from '@ag-ui/core'
 import { describe, expect, it } from 'vitest'
 
-import { answeredReceipt, RECEIPT_MARKS } from '@/components/shared-chat/answer-receipt'
+import { answeredReceipt, fieldLabel, RECEIPT_MARKS } from '@/components/shared-chat/answer-receipt'
 import { approvalPayload } from '@/lib/chat/interrupt-answers'
 import en from '@/locales/en/translation.json'
 
@@ -106,5 +106,26 @@ describe('answeredReceipt (what an answered interrupt’s card shows)', () => {
 			submitted: 'success',
 			answered: 'success',
 		})
+	})
+})
+
+describe('fieldLabel (a sent form’s values, labelled as the form labelled them)', () => {
+	const titled: Interrupt = {
+		...form,
+		responseSchema: {
+			type: 'object',
+			properties: { region: { type: 'string', title: 'Region' }, seats: { type: 'integer' } },
+		},
+	}
+	it('reads each value’s field title from the interrupt’s schema, else its name', () => {
+		expect(fieldLabel(titled, 'region')).toBe('Region')
+		expect(fieldLabel(titled, 'seats')).toBe('seats')
+	})
+	it('labels a key the schema does not name, or a schema that is no flat form, by the key itself', () => {
+		expect(fieldLabel(titled, 'extra')).toBe('extra')
+		// An agent string: an object's own property name such as `constructor` is no field.
+		expect(fieldLabel(titled, 'constructor')).toBe('constructor')
+		expect(fieldLabel(confirm, 'region')).toBe('region')
+		expect(fieldLabel(other, 'region')).toBe('region')
 	})
 })

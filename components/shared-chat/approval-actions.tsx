@@ -1,7 +1,7 @@
 'use client'
 
 import type { Interrupt } from '@ag-ui/core'
-import { Button, Card, Flex, Tag } from 'antd'
+import { Button, Card, Flex } from 'antd'
 import { use } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,9 +25,10 @@ const DECISION_TAGS = {
  * 2026-10-15: "the approval should be shown inside the block like how AI Elements does it"). An antd Card (`size="small"`,
  * `antd info Card --version 6.6.5`) holds the interrupt's message as plain text, as the agent sent it (spec §6.4;
  * RequestMessage), or "Run this tool?" when it has none, and below it the buttons at the end. The answer follows the
- * interrupt's own `responseSchema` (approvalPayload, plan call P5); an expired approval shows "Expired" with Dismiss
- * only, which answers it `cancelled` (plan call P14); a recorded decision shows its DecisionNote with Change until the
- * last open item has one (plan call P13). Outside a waiting chat it renders nothing.
+ * interrupt's own `responseSchema` (approvalPayload, plan call P5); an expired approval, which the card's badge calls
+ * "Expired", offers Dismiss only, which answers it `cancelled` (plan call P14); a recorded decision shows its
+ * DecisionNote with Change until the last open item has one (plan call P13). Outside a waiting chat it renders
+ * nothing.
  */
 export default function ApprovalActions({ interrupt }: { interrupt: Interrupt }) {
 	const { t } = useTranslation()
@@ -82,13 +83,13 @@ export default function ApprovalActions({ interrupt }: { interrupt: Interrupt })
 						</Button>
 					</Flex>
 				) : (
+					// "Expired" is the card's badge (tool-chain.tsx); the box holds only the way out, as the interrupt card's does.
 					<Flex
 						gap="small"
 						justify="end"
 						align="center"
 						wrap
 					>
-						<Tag color="warning">{t('shared_chat.answer.expired')}</Tag>
 						<Button
 							disabled={disabled}
 							onClick={() =>

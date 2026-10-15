@@ -83,7 +83,7 @@ const DRAFT_TAG_COLORS = {
 	'shared_chat.answer.approved': 'success',
 	'shared_chat.answer.rejected': 'error',
 	'shared_chat.answer.cancelled': 'default',
-	'shared_chat.answer.answered': 'success',
+	'shared_chat.answer.submitted': 'success',
 	'shared_chat.interrupt.yes': 'success',
 	'shared_chat.interrupt.no': 'error',
 } as const satisfies Record<DraftKey, 'success' | 'error' | 'default'>

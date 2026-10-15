@@ -176,7 +176,7 @@ describe('the AG-UI stub agent (Part 2 spec §10)', () => {
 			.filter(frame => frame.type === 'TOOL_CALL_ARGS')
 			.map(frame => frame.delta)
 			.join('')
-		// The json-tree brief's arguments: an array of scalars, an object and an array of objects beside a string.
+		// The `nested` scenario's arguments: an array of scalars, an object and an array of objects beside a string.
 		expect(JSON.parse(args)).toEqual({
 			subject: 'Office closed',
 			to: ['ana@x.com', 'bo@x.com'],

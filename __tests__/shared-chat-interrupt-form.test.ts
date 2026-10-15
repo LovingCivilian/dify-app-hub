@@ -185,10 +185,11 @@ describe('interruptCardView (plan calls P13, P14)', () => {
 			'shared_chat.interrupt.no',
 		],
 		[
+			// As the sent form's receipt reads (ADR-0035).
 			'a form’s answer',
 			form,
 			{ interruptId: 'int-3', status: 'resolved', payload: { note: 'x' } },
-			'shared_chat.answer.answered',
+			'shared_chat.answer.submitted',
 		],
 		[
 			'a cancel',

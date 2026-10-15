@@ -32,7 +32,7 @@ export default function AnsweredInterruptCard({ answered }: { answered: Answered
 			badge={cardBadge(answeredBadge(receipt.mark), t)}
 		>
 			<AnswerRecord
-				message={interrupt.message}
+				interrupt={interrupt}
 				values={receipt.values}
 				payload={answered.payload}
 			>

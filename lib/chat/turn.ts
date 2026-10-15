@@ -64,7 +64,7 @@ export type TurnPart =
 	  }
 	| { kind: 'activity'; messageId: string; activityType: string; content: unknown }
 
-/** A tool call's part: the ThoughtChain items, the hub's tool cards and the open items read it. */
+/** A tool call's part: the tool cards, the hub's `ask_user` card and the open items read it. */
 export type ToolPart = Extract<TurnPart, { kind: 'tool' }>
 
 /** What AG-UI said of a run (spec §5.2's second layer; X's own status is the transport's). */

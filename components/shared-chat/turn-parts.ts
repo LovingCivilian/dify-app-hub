@@ -10,7 +10,7 @@ export type PartGroup =
 	| Exclude<TurnPart, ToolPart>
 	| { kind: 'tools'; key: string; tools: ToolPart[] }
 
-/** Arrival order kept (spec §5.2); consecutive tool parts are one ThoughtChain, keyed by its first call. */
+/** Arrival order kept (spec §5.2); consecutive tool parts are one group of tool cards, keyed by its first call. */
 export const groupParts = (parts: readonly TurnPart[]): PartGroup[] => {
 	const groups: PartGroup[] = []
 	for (const part of parts) {
@@ -32,7 +32,7 @@ export const inputHint = (args: string): string => {
 
 /**
  * The open interrupts a turn shows as cards of their own (spec §6.3, plan call P8): all of them except an approval
- * whose `toolCallId` names one of this turn's tool calls, which that call's ThoughtChain item answers (spec §6.1). An
+ * whose `toolCallId` names one of this turn's tool calls, which that call's tool card answers (spec §6.1). An
  * approval for a call the turn does not hold keeps its own card, with Approve and Reject. Order is kept.
  */
 export const standaloneInterrupts = (

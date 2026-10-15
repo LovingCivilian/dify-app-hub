@@ -96,13 +96,18 @@ export default function TurnList({
 			marginInline: 'auto',
 			...(maxWidth === 'none' ? {} : { paddingInline: 0 }),
 		}
-		return { bubble: row, system: row, divider: row }
+		// X's own scroll box (`scroll`) is no scroll container while ChatScroll scrolls (chat-scroll.tsx): left `overflow-y:
+		// auto`, it is where use-stick-to-bottom's wheel handler stops looking for the region's box, so a wheel up over the
+		// messages would not let go of a streaming answer.
+		return { bubble: row, system: row, divider: row, scroll: { overflow: 'visible' } }
 	}, [maxWidth])
 
 	const items = useMemo(() => toBubbleItems(messages), [messages])
 
 	const onLoadEarlier = async () => {
 		const firstKey = items[0]?.key
+		// The reader goes up: the region lets go of the bottom first (chat-scroll.tsx `stopScroll`).
+		scrollRef.current?.stopScroll()
 		try {
 			await loadEarlier()
 		} catch {
