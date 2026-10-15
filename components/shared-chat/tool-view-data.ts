@@ -51,15 +51,16 @@ export type ToolDetail =
 /**
  * A.2: a flat object as fields (flat-fields.ts) and only nested or array JSON as code, so the code panel appears where
  * structure needs it (AI Elements' `Tool` shows a string output as text and an object as code). Text that is not JSON
- * (a plain-text result, arguments still streaming) is shown as sent, a JSON string as its text, and any other JSON
- * scalar as sent. The card puts all of it into text nodes, never HTML.
+ * (a plain-text result, arguments still streaming) is shown as sent, a JSON string as its text (nothing when it is
+ * blank), and any other JSON scalar as sent. The card puts all of it into text nodes, never HTML.
  */
 export const toolDetail = (text: string): ToolDetail => {
 	if (text.trim() === '') return { kind: 'empty' }
 	const json = parseJson(text)
 	if (!json) return { kind: 'text', text }
 	const { value } = json
-	if (typeof value === 'string') return { kind: 'text', text: value }
+	if (typeof value === 'string')
+		return value.trim() === '' ? { kind: 'empty' } : { kind: 'text', text: value }
 	const fields = flatFields(value)
 	if (fields) return fields.length > 0 ? { kind: 'fields', items: fields } : { kind: 'empty' }
 	return typeof value === 'object' && value !== null

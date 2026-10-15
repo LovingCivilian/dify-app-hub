@@ -252,6 +252,9 @@ describe('toolDetail', () => {
 	it('reads an empty object, an empty text and blank text as nothing to show', () => {
 		for (const text of ['{}', '', '  \n']) expect(toolDetail(text)).toEqual({ kind: 'empty' })
 	})
+	it('reads a JSON string that is empty or blank as nothing to show', () => {
+		for (const text of ['""', '"  "']) expect(toolDetail(text)).toEqual({ kind: 'empty' })
+	})
 	it('keeps nested objects and arrays as JSON indented by two spaces', () => {
 		expect(toolDetail('{"city":"Paris","hours":[9,17]}')).toEqual({
 			kind: 'json',
