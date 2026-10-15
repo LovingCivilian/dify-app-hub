@@ -6,6 +6,7 @@ import { App, Button, Skeleton } from 'antd'
 import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ChatScroll, { type ChatScrollHandle } from '@/components/chat/chat-view/chat-scroll'
 import styles from '@/components/chat/chat-view/chat-view.module.css'
 import type { BubbleInfo } from '@/components/chat/chat-view/message-list'
 import type { Turn } from '@/lib/chat/turn'
@@ -29,11 +30,13 @@ export interface TurnListProps {
 	/** An answer's content; keep it stable (useCallback): the role map, and so every bubble, follows it. */
 	renderAssistant: (turn: Turn, info: BubbleInfo) => React.ReactNode
 	renderFooter?: (turn: Turn, info: BubbleInfo) => React.ReactNode
+	/** The scroll region's handle, for the chat's send (chat-scroll.tsx). */
+	scrollRef: React.RefObject<ChatScrollHandle | null>
 }
 
 /**
  * X Bubble.List over the conversation's turns, with "load earlier" above it: the Dify chat's MessageList for the shared
- * turn (spec §5.1; plan call P11), the same role map, widths, skeleton and scroll anchoring.
+ * turn (spec §5.1; plan call P11), the same role map, widths, skeleton and scroll region (chat-scroll.tsx).
  */
 export default function TurnList({
 	messages,
@@ -44,6 +47,7 @@ export default function TurnList({
 	maxWidth,
 	renderAssistant,
 	renderFooter,
+	scrollRef,
 }: TurnListProps) {
 	const { t } = useTranslation()
 	const { message: toast } = App.useApp()
@@ -105,7 +109,8 @@ export default function TurnList({
 			toast.error(t('common.request_failed_retry'))
 			return
 		}
-		// The turn that was first stays where the reader is instead of the list jumping (the Dify chat's rule).
+		// The turn that was first stays where the reader is instead of the list jumping (the Dify chat's rule): Bubble.List's
+		// `scrollTo` with a key scrolls it into view (`scrollIntoView`), which scrolls ChatScroll's box.
 		if (firstKey !== undefined)
 			listRef.current?.scrollTo({ key: firstKey, block: 'start', behavior: 'instant' })
 	}
@@ -132,16 +137,20 @@ export default function TurnList({
 					</Button>
 				</div>
 			)}
-			<Bubble.List
+			{/* Each conversation opens at its latest turn (ChatScroll's `initial`, keyed by the conversation). */}
+			<ChatScroll
 				key={conversationKey}
-				ref={listRef}
-				items={items}
-				role={role}
-				autoScroll
-				className={styles.bubbleList}
-				classNames={{ scroll: styles.scrollBox }}
-				styles={rowStyles}
-			/>
+				ref={scrollRef}
+			>
+				<Bubble.List
+					ref={listRef}
+					items={items}
+					role={role}
+					// ChatScroll scrolls and follows the answer; X's own auto-scroll is off (chat-scroll.tsx).
+					autoScroll={false}
+					styles={rowStyles}
+				/>
+			</ChatScroll>
 		</div>
 	)
 }

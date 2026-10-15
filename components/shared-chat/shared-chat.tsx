@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ChatAppInfoContext } from '@/components/chat/chat-view/app-info-context'
+import type { ChatScrollHandle } from '@/components/chat/chat-view/chat-scroll'
 import ChatSender, { type SenderRef } from '@/components/chat/chat-view/chat-sender'
 import styles from '@/components/chat/chat-view/chat-view.module.css'
 import ConversationDrawer from '@/components/chat/chat-view/conversation-drawer'
@@ -58,6 +59,7 @@ export default function SharedChat({ app }: { app: AguiChatApp }) {
 	const searchParams = useSearchParams()
 	const api = useMemo(() => createSharedChatApi(app.id), [app.id])
 	const senderRef = useRef<SenderRef>(null)
+	const scrollRef = useRef<ChatScrollHandle>(null)
 	const [drawerOpen, setDrawerOpen] = useState(false)
 	// The sider's collapsed state and, when collapsed, the popover that holds the list (the Dify chat's).
 	const [collapsed, setCollapsed] = useState(false)
@@ -320,6 +322,7 @@ export default function SharedChat({ app }: { app: AguiChatApp }) {
 									maxWidth={bubbleWidth}
 									renderAssistant={renderAssistant}
 									renderFooter={renderFooter}
+									scrollRef={scrollRef}
 								/>
 							</TurnAnswersContext>
 							{(plan || asking) && (
@@ -367,7 +370,12 @@ export default function SharedChat({ app }: { app: AguiChatApp }) {
 									loading={chat.isRequesting}
 									disabled={!activeKey || waiting}
 									senderRef={senderRef}
-									onSend={text => chat.send(text)}
+									onSend={text => {
+										const sent = chat.send(text)
+										// A sent message brings the reader to it, also from further up (chat-scroll.tsx).
+										if (sent) scrollRef.current?.scrollToBottom()
+										return sent
+									}}
 									onStop={() => void chat.stop()}
 								/>
 							</div>
