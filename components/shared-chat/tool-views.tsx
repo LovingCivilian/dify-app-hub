@@ -2,7 +2,7 @@
 
 import { CodeHighlighter } from '@ant-design/x'
 import type { CodeHighlighterProps } from '@ant-design/x'
-import { Flex, Segmented, Table, Typography, theme } from 'antd'
+import { Flex, Radio, Table, Typography, theme } from 'antd'
 import type { TableColumnsType } from 'antd'
 import type { TFunction } from 'i18next'
 import { useState, type ReactNode } from 'react'
@@ -160,10 +160,12 @@ function DetailBody({
 }
 
 /**
- * A labelled part of the body ("Arguments", "Result"), left out when it has nothing to show. A part with JSON carries a
- * small antd Segmented beside its label (`size`, `value`, `onChange`, `options`: `antd info Segmented --version 6.6.5`),
- * named by the label (rc-segmented's radiogroup takes the `aria-label` it is given over its default "segmented
- * control"); its state is the section's own and starts at the table (json-tree brief, item 2).
+ * A labelled part of the body ("Arguments", "Result"), left out when it has nothing to show. A part with JSON carries,
+ * beside its label, a small antd Radio.Group drawn as two joined buttons, the selected one filled (`optionType="button"`,
+ * `buttonStyle="solid"`, `size`, `options`, `value`, `onChange`: `antd info Radio --version 6.6.5`, the "radiobutton-solid"
+ * demo; the owner, 2026-10-15: "two buttons that are joined and switch which one is selected"). The group is a
+ * `radiogroup` named by the label (antd `es/radio/group.js` passes `aria-*` through `pickAttrs`); its state is the
+ * section's own and starts at the table (json-tree brief, item 2).
  */
 function DetailSection({ label, detail }: { label: string; detail: ToolDetail }) {
 	const { t } = useTranslation()
@@ -187,11 +189,14 @@ function DetailSection({ label, detail }: { label: string; detail: ToolDetail })
 					{label}
 				</Typography.Text>
 				{detail.kind === 'tree' && (
-					<Segmented<DetailView>
+					<Radio.Group
+						optionType="button"
+						buttonStyle="solid"
 						size="small"
 						aria-label={label}
 						value={view}
-						onChange={setView}
+						// antd types the event's value as `any` (es/radio/interface.d.ts); read it back to the two views.
+						onChange={event => setView(event.target.value === 'json' ? 'json' : 'table')}
 						options={[
 							{ value: 'table', label: t('shared_chat.tool_view_table') },
 							{ value: 'json', label: t('shared_chat.tool_view_json') },
