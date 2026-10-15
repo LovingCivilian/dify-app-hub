@@ -1,0 +1,67 @@
+/* The ask_user card (ask-user-card.tsx) in the layout of Claude's question prompt: token values only (ADR-0021), logical
+   properties for right-to-left. The antd elements keep their own box; these rules style the card's own spans and the
+   option rows' states, which antd's text Button does not have: the focused row looks like the hovered one (the text
+   variant's hover background, `colorFillTertiary`, antd `es/button/style/variant.js`). */
+
+.option:focus {
+	background-color: var(--ant-color-fill-tertiary);
+}
+
+/* The row inside an option Button: the text takes the room and wraps (the Button's own content does not), the marks
+   sit at the row's end. */
+.row {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: var(--ant-margin-xs);
+	min-width: 0;
+	text-align: start;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+.text {
+	flex: 1;
+	min-width: 0;
+}
+
+/* The digit key's badge (antd Tag): muted, and stronger on the highlighted row. */
+.option .badge {
+	color: var(--ant-color-text-secondary);
+}
+
+.option:hover .badge,
+.option:focus .badge {
+	color: var(--ant-color-text);
+	background-color: var(--ant-color-fill-secondary);
+}
+
+/* ✓ on the answer given when the user came back to the step. */
+.chosen {
+	display: inline-flex;
+	color: var(--ant-color-primary);
+}
+
+/* ↵ on the highlighted row (hover or focus): Enter picks it. Hidden, not removed, so the rows keep their width. */
+.enter {
+	display: inline-flex;
+	color: var(--ant-color-text-tertiary);
+	visibility: hidden;
+}
+
+.option:hover .enter,
+.option:focus .enter {
+	visibility: visible;
+}
+
+/* ✎ before the free answer. */
+.muted {
+	display: inline-flex;
+	color: var(--ant-color-text-tertiary);
+}
+
+/* Arrows that point along the reading direction turn round in a right-to-left layout. */
+.directional:dir(rtl),
+.enter:dir(rtl) {
+	transform: scaleX(-1);
+}

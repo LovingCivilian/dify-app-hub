@@ -144,7 +144,7 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 			await expect(header(page)).toBeVisible()
 			await senderBox(page).fill('question')
 			await page.keyboard.press('Enter')
-			await expect(page.getByText('Question 1 of 2')).toBeVisible()
+			await expect(page.getByRole('group', { name: 'Question 1 of 2' })).toBeVisible()
 			await expect(page.getByText('Paris')).toBeVisible()
 		},
 	},

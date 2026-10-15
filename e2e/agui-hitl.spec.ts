@@ -19,7 +19,12 @@ const answers = (page: Page) => page.locator('.ant-bubble-start')
 /** Plan call P15 (#69): the visible line above the Sender while an answer is pending. */
 const hint = (page: Page) => page.getByText('Answer the agent above to continue.')
 /** The free answer of the ask_user card (Task 12, `shared_chat.ask_user.custom_placeholder`). */
-const freeAnswer = (page: Page) => page.getByPlaceholder('Type your own answer')
+const freeAnswer = (page: Page) => page.getByPlaceholder('Something else')
+/**
+ * The ask_user card's pager (`‹ 1 of 2 ›`), a group named by `shared_chat.ask_user.progress` ("Question 1 of 2"), so
+ * its name says which question is on show.
+ */
+const pager = (page: Page, name: string | RegExp) => page.getByRole('group', { name })
 const RUNS_PATH = /\/api\/apps\/[^/]+\/runs$/
 
 const send = async (page: Page, text: string) => {
@@ -149,14 +154,15 @@ test.describe('human in the loop in the AG-UI chat', () => {
 		page,
 	}) => {
 		await send(page, 'question')
-		const progress = page.getByText('Question 1 of 2')
+		const progress = pager(page, 'Question 1 of 2')
 		await expect(progress).toBeVisible()
+		await expect(progress).toContainText('1 of 2')
 		expect(await top(progress)).toBeLessThan(await top(senderBox(page)))
 		await expect(senderBox(page)).toBeDisabled()
 		await expect(hint(page)).toBeVisible()
-		// Spec §6.2: the options as X Prompts, one click picks.
+		// Spec §6.2: the options as buttons, one click picks.
 		await page.getByText('Paris').click()
-		await expect(page.getByText('Question 2 of 2')).toBeVisible()
+		await expect(pager(page, 'Question 2 of 2')).toBeVisible()
 		await freeAnswer(page).fill('May')
 		await freeAnswer(page).press('Enter')
 		// The template's Q/A transcript reached the agent as the call's tool message (Task 16 echoes it, lines as " / ").
@@ -165,7 +171,7 @@ test.describe('human in the loop in the AG-UI chat', () => {
 				.last()
 				.getByText('Got your answers: Q: Which city? / A: Paris / Q: Which month? / A: May'),
 		).toBeVisible()
-		await expect(page.getByText(/^Question \d+ of \d+$/)).toHaveCount(0)
+		await expect(pager(page, /^Question \d+ of \d+$/)).toHaveCount(0)
 		await expect(senderBox(page)).toBeEnabled()
 		await expect(hint(page)).toHaveCount(0)
 	})
@@ -173,7 +179,7 @@ test.describe('human in the loop in the AG-UI chat', () => {
 	test('Skip skips one question, and Dismiss skips the rest', async ({ page, isMobile }) => {
 		await send(page, 'question')
 		await activate(page.getByRole('button', { name: 'Skip' }), isMobile)
-		await expect(page.getByText('Question 2 of 2')).toBeVisible()
+		await expect(pager(page, 'Question 2 of 2')).toBeVisible()
 		await freeAnswer(page).fill('May')
 		await freeAnswer(page).press('Enter')
 		await expect(
@@ -197,11 +203,11 @@ test.describe('human in the loop in the AG-UI chat', () => {
 
 	test('a digit key picks that option', async ({ page }) => {
 		await send(page, 'question')
-		await expect(page.getByText('Question 1 of 2')).toBeVisible()
+		await expect(pager(page, 'Question 1 of 2')).toBeVisible()
 		// The template's keyboard rule (question-prompt.tsx): a digit picks that option from anywhere in the question;
 		// Locator.press focuses Skip first, and the key reaches the question's handler.
 		await page.getByRole('button', { name: 'Skip' }).press('2')
-		await expect(page.getByText('Question 2 of 2')).toBeVisible()
+		await expect(pager(page, 'Question 2 of 2')).toBeVisible()
 		await freeAnswer(page).fill('June')
 		await freeAnswer(page).press('Enter')
 		await expect(
@@ -335,9 +341,9 @@ test.describe('human in the loop in the AG-UI chat', () => {
 
 		await page.goto(`/chat/${AGUI_APP.id}?isNewCvst=1`)
 		await send(page, 'question')
-		await expect(page.getByText('Question 1 of 2')).toBeVisible()
+		await expect(pager(page, 'Question 1 of 2')).toBeVisible()
 		await page.goto(`/chat/${AGUI_APP.id}`)
-		await expect(page.getByText('Question 1 of 2')).toBeVisible()
+		await expect(pager(page, 'Question 1 of 2')).toBeVisible()
 		await expect(senderBox(page)).toBeDisabled()
 		await expect(hint(page)).toBeVisible()
 		await activate(page.getByRole('button', { name: 'Dismiss questions' }), isMobile)

@@ -653,9 +653,12 @@
 			"title": "Questions for you",
 			"invalid": "The agent asked an invalid question",
 			"progress": "Question {{current}} of {{total}}",
+			"position": "{{current}} of {{total}}",
+			"previous": "Previous question",
+			"next": "Next question",
 			"skip": "Skip",
 			"dismiss": "Dismiss questions",
-			"custom_placeholder": "Type your own answer",
+			"custom_placeholder": "Something else",
 			"send": "Send",
 			"label": "Question from the agent"
 		},

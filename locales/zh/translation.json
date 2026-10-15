@@ -653,9 +653,12 @@
 			"title": "需要您回答的问题",
 			"invalid": "智能体提出了无效的问题",
 			"progress": "第 {{current}} 个问题，共 {{total}} 个",
+			"position": "{{current}} / {{total}}",
+			"previous": "上一个问题",
+			"next": "下一个问题",
 			"skip": "跳过",
 			"dismiss": "忽略这些问题",
-			"custom_placeholder": "输入您自己的回答",
+			"custom_placeholder": "其他回答",
 			"send": "发送",
 			"label": "来自智能体的问题"
 		},

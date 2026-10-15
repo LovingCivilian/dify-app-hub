@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest'
 
 import {
 	answerStep,
+	canGoBack,
+	canGoForward,
 	dismissSteps,
 	finishedCalls,
 	optionIndexOfKey,
 	questionSteps,
 	SKIPPED,
+	stepChoice,
 } from '@/components/shared-chat/ask-user-steps'
 import { askUserTranscript, type AskUserAnswer } from '@/lib/chat/ask-user'
 import type { ToolPart } from '@/lib/chat/turn'
@@ -73,17 +76,32 @@ describe('finishedCalls (plan call P3)', () => {
 
 describe('answerStep and dismissSteps (the template: every call is handed over at once)', () => {
 	it('hands nothing over until the last step has an answer, then every call', () => {
-		const one = answerStep([first, second], [], picked('Rome'))
-		expect(one).toEqual({ answers: [picked('Rome')], complete: null })
-		const two = answerStep([first, second], one.answers, picked('June'))
+		const one = answerStep([first, second], [], 0, picked('Rome'))
+		expect(one).toEqual({ answers: [picked('Rome')], complete: null, next: 1 })
+		const two = answerStep([first, second], one.answers, 1, picked('June'))
 		expect(two.complete).toBeNull()
-		const three = answerStep([first, second], two.answers, SKIPPED)
+		const three = answerStep([first, second], two.answers, 2, SKIPPED)
 		expect(three.complete).toEqual(finishedCalls([first, second], three.answers))
 		expect(three.complete?.map(answer => answer.toolCallId)).toEqual(['c1', 'c2'])
+	})
+	it('replaces the answer of an earlier step and moves on to the first step without one', () => {
+		const result = answerStep([first, second], [picked('Paris'), picked('May')], 0, picked('Rome'))
+		expect(result).toEqual({ answers: [picked('Rome'), picked('May')], complete: null, next: 2 })
+		// Skip replaces an answer too.
+		expect(
+			answerStep([first, second], [picked('Paris'), picked('May')], 1, SKIPPED).answers,
+		).toEqual([picked('Paris'), SKIPPED])
+	})
+	it('refuses a step after the first one without an answer (answers stay a prefix)', () => {
+		expect(() => answerStep([first, second], [picked('Paris')], 2, picked('Low'))).toThrow(
+			RangeError,
+		)
+		expect(() => answerStep([first, second], [], -1, picked('Low'))).toThrow(RangeError)
 	})
 	it('skips the current step and every one after it on Dismiss, and hands every call over', () => {
 		const result = dismissSteps([first, second], [picked('Paris')])
 		expect(result.answers).toEqual([picked('Paris'), SKIPPED, SKIPPED])
+		expect(result.next).toBe(3)
 		expect(result.complete).toEqual([
 			{
 				toolCallId: 'c1',
@@ -98,6 +116,38 @@ describe('answerStep and dismissSteps (the template: every call is handed over a
 			{ toolCallId: 'c3', content: '' },
 			{ toolCallId: 'c2', content: askUserTranscript(questionsOf(second), [SKIPPED]) },
 		])
+	})
+})
+
+describe('canGoBack and canGoForward (going back to change an answer)', () => {
+	it('goes back from every step but the first', () => {
+		expect(canGoBack(0)).toBe(false)
+		expect(canGoBack(1)).toBe(true)
+		expect(canGoBack(2)).toBe(true)
+	})
+	it('goes forward only from a step that has an answer', () => {
+		expect(canGoForward(0, [])).toBe(false)
+		expect(canGoForward(0, [picked('Paris')])).toBe(true)
+		expect(canGoForward(1, [picked('Paris')])).toBe(false)
+		expect(canGoForward(0, [SKIPPED, picked('May')])).toBe(true)
+		expect(canGoForward(1, [SKIPPED, picked('May')])).toBe(true)
+	})
+})
+
+describe('stepChoice (what an answered step shows when the card returns to it)', () => {
+	const city = questionsOf(first)[0]!
+	const when = questionsOf(first)[1]!
+	it('shows the option whose text is the answer', () => {
+		expect(stepChoice(city, picked('Rome'))).toEqual({ option: 1, text: '' })
+		expect(stepChoice(city, picked('Paris'))).toEqual({ option: 0, text: '' })
+	})
+	it('shows any other answer as free text (an exact match only picks an option)', () => {
+		expect(stepChoice(when, picked('May'))).toEqual({ option: null, text: 'May' })
+		expect(stepChoice(city, picked('paris'))).toEqual({ option: null, text: 'paris' })
+	})
+	it('shows nothing for a skipped step or one without an answer', () => {
+		expect(stepChoice(city, SKIPPED)).toEqual({ option: null, text: '' })
+		expect(stepChoice(city, undefined)).toEqual({ option: null, text: '' })
 	})
 })
 

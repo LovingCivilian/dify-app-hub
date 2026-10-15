@@ -653,9 +653,12 @@
 			"title": "أسئلة موجّهة إليك",
 			"invalid": "طرح الوكيل سؤالًا غير صالح",
 			"progress": "السؤال {{current}} من {{total}}",
+			"position": "{{current}} من {{total}}",
+			"previous": "السؤال السابق",
+			"next": "السؤال التالي",
 			"skip": "تخطّي",
 			"dismiss": "تجاهل الأسئلة",
-			"custom_placeholder": "اكتب إجابتك الخاصة",
+			"custom_placeholder": "إجابة أخرى",
 			"send": "إرسال",
 			"label": "سؤال من الوكيل"
 		},
