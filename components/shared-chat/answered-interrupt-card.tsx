@@ -1,6 +1,6 @@
 'use client'
 
-import { Card, Flex, theme } from 'antd'
+import { Card, Descriptions, Flex, theme } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 import type { AnsweredInterrupt } from '@/lib/chat/sent-answers'
@@ -11,6 +11,7 @@ import ChatCard from './chat-card'
 import { answeredBadge, interruptIcon } from './chat-card-view'
 import CodeSection from './code-section'
 import DecisionReceipt from './decision-receipt'
+import { flatFields } from './flat-fields'
 import { interruptTitleKey } from './interrupt-form'
 import RequestMessage from './request-message'
 
@@ -18,11 +19,12 @@ import RequestMessage from './request-message'
  * An interrupt the user answered, read-only, in the turn it continued (the owner, 2026-10-15: "record everything that
  * happens in the chat, so even with other browsers or devices, it will still have all the data"): the card the open
  * interrupt had (interrupt-card.tsx: the same icon and title, from its reason; chat-card.tsx), open at first and
- * collapsible as a completed tool card is. Its badge says how it was answered (chat-card-view.ts `answeredBadge`):
- * Approved or Rejected, Cancelled, or Answered. Its body: the bordered box (an antd Card `size="small"`, `antd info Card
- * --version 6.6.5`) with its message and the answer that went (answer-receipt.ts: Cancelled, Yes or No, Approved or
- * Rejected, or Answered), where the open card had its controls, then a form's values as JSON (CodeSection). Every agent
- * string renders as text.
+ * collapsible as a completed tool card is. Its badge says how it was answered (chat-card-view.ts `answeredBadge`). Its
+ * body as a completed tool card's: the message and a form's values with no border (a flat object as antd Descriptions,
+ * `antd info Descriptions --version 6.6.5`, as the activity card shows one; anything else as JSON, CodeSection), then
+ * the answer that went in the bordered box (an antd Card `size="small"`), where the open card had its buttons: the box
+ * holds only the choice (the owner, 2026-10-15: "the inner border should be for the choice you selected, like in the
+ * tool"). Every agent string renders as text.
  */
 export default function AnsweredInterruptCard({ answered }: { answered: AnsweredInterrupt }) {
 	const { t } = useTranslation()
@@ -30,6 +32,7 @@ export default function AnsweredInterruptCard({ answered }: { answered: Answered
 	const { interrupt } = answered
 	const titleKey = interruptTitleKey(interrupt.reason)
 	const receipt = answeredReceipt(answered)
+	const fields = receipt.values.kind === 'empty' ? null : flatFields(answered.payload)
 	return (
 		<ChatCard
 			defaultOpen
@@ -42,16 +45,23 @@ export default function AnsweredInterruptCard({ answered }: { answered: Answered
 				vertical
 				gap={token.marginSM}
 			>
+				{interrupt.message && <RequestMessage>{interrupt.message}</RequestMessage>}
+				{fields ? (
+					<Descriptions
+						size="small"
+						column={1}
+						items={fields.map(field => ({
+							key: field.key,
+							label: field.key,
+							children: field.value,
+						}))}
+					/>
+				) : (
+					<CodeSection detail={receipt.values} />
+				)}
 				<Card size="small">
-					<Flex
-						vertical
-						gap="small"
-					>
-						{interrupt.message && <RequestMessage>{interrupt.message}</RequestMessage>}
-						<DecisionReceipt mark={receipt.mark} />
-					</Flex>
+					<DecisionReceipt mark={receipt.mark} />
 				</Card>
-				<CodeSection detail={receipt.values} />
 			</Flex>
 		</ChatCard>
 	)
