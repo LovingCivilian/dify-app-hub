@@ -9,7 +9,7 @@ import {
 	SyncOutlined,
 	ToolOutlined,
 } from '@ant-design/icons'
-import { Collapse, Flex, Tag, Typography } from 'antd'
+import { Card, Collapse, Flex, Tag, Typography } from 'antd'
 import type { TagProps } from 'antd'
 import { use, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,6 +19,7 @@ import type { ToolPart } from '@/lib/chat/turn'
 import { TurnAnswersContext } from './answer-context'
 import ApprovalActions from './approval-actions'
 import DecisionNote from './decision-note'
+import DecisionReceipt from './decision-receipt'
 import {
 	approvalView,
 	toolBadge,
@@ -73,7 +74,10 @@ const BADGES = {
  * (React: resetting state with a key). A card with no body has no chevron; the hub's `ask_user` card stays open. Inside
  * the card, in the turn that waits (TurnAnswersContext), sits the approval's request with Reject and Approve between
  * the arguments and the result (spec §6.1; AI Elements puts its `Confirmation` there), or "Answered" with Change under
- * drafted `ask_user` answers (plan call P13).
+ * drafted `ask_user` answers (plan call P13). Once the approval's answer went, the same place keeps it read-only in the
+ * request's bordered box, an antd Card `size="small"` (approval-actions.tsx), after the tool has run too, as AI Elements
+ * keeps "✓ Accepted" between the parameters and the result (the owner, 2026-10-15: "record everything that happens in
+ * the chat").
  */
 function ToolCard({ tool }: { tool: ToolPart }) {
 	const { t } = useTranslation()
@@ -88,6 +92,10 @@ function ToolCard({ tool }: { tool: ToolPart }) {
 				color="success"
 				label={t('shared_chat.answer.answered')}
 			/>
+		) : tool.decision ? (
+			<Card size="small">
+				<DecisionReceipt mark={tool.decision} />
+			</Card>
 		) : undefined
 	const view = toolItemView(tool, t, inner)
 	const approval =

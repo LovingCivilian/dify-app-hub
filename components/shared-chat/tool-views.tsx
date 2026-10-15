@@ -1,17 +1,14 @@
 'use client'
 
-import { CodeHighlighter } from '@ant-design/x'
-import type { CodeHighlighterProps } from '@ant-design/x'
 import { Alert, Flex, Typography, theme } from 'antd'
 import type { TFunction } from 'i18next'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
 import { ASK_USER_TOOL_NAME } from '@/lib/chat/ask-user'
 import type { ToolPart } from '@/lib/chat/turn'
-import { useThemeContext } from '@/lib/theme'
 
+import CodeSection from './code-section'
 import { askUserView, toolDetail, type AskUserView, type ToolDetail } from './tool-view-data'
 import styles from './tool-views.module.css'
 
@@ -21,44 +18,6 @@ export interface ToolItemView {
 	content?: ReactNode
 	/** The body is always in view, never behind the chevron (the hub's own `ask_user` card). */
 	alwaysOpen?: boolean
-}
-
-// Dark scheme, as the Markdown code block does (components/chat/message/markdown/code-block.tsx): CodeHighlighter
-// highlights with Prism's one-light style, and `highlightProps.style` replaces it. A module constant: X memoises on it.
-const DARK_HIGHLIGHT: CodeHighlighterProps['highlightProps'] = {
-	style: oneDark,
-	customStyle: { margin: 0 },
-}
-
-/**
- * One labelled part of the body ("Arguments", "Result"), left out when it has nothing to show: a small secondary label
- * over X CodeHighlighter as it ships, its header ("json" or "markdown" and copy) included (AI Elements' `ToolInput` and
- * `ToolOutput`: a small label over a code block; `lang`: Prism's light mode loads only that grammar, X CodeHighlighter API
- * `prismLightMode`). Every text goes into the code block as text, never HTML.
- */
-function CodeSection({ label, detail }: { label: string; detail: ToolDetail }) {
-	const { token } = theme.useToken()
-	const { isDark } = useThemeContext()
-	if (detail.kind === 'empty') return null
-	return (
-		<Flex
-			vertical
-			gap={token.marginXXS}
-		>
-			<Typography.Text
-				type="secondary"
-				style={{ fontSize: token.fontSizeSM }}
-			>
-				{label}
-			</Typography.Text>
-			<CodeHighlighter
-				lang={detail.lang}
-				highlightProps={isDark ? DARK_HIGHLIGHT : undefined}
-			>
-				{detail.code}
-			</CodeHighlighter>
-		</Flex>
-	)
 }
 
 /**
