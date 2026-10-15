@@ -3,6 +3,7 @@ import 'server-only'
 import { HttpAgent } from '@ag-ui/client'
 
 import type { ChatAdapter, ChatTurnOpened, UpstreamErrorCode } from '@/lib/chat/adapter'
+import { ASK_USER_TOOL_NAME } from '@/lib/chat/ask-user'
 import { env } from '@/lib/env'
 
 import { mintAgentToken } from './jwt'
@@ -47,6 +48,11 @@ export const upstreamCodeFor = (status: number): UpstreamErrorCode => {
  * session drops.
  */
 export const aguiChat: ChatAdapter<'agui'> = {
+	/**
+	 * Spec §6.2: `ask_user` is advertised only while the app's switch is on (off by default: Pydantic AI fails a run whose
+	 * agent already has a tool of that name); decision 62: the switch as it is now, for a pending call too.
+	 */
+	hubTools: settings => (settings.askUser ? [ASK_USER_TOOL_NAME] : []),
 	runTurn({ settings, secrets }, input, sink) {
 		const { signal } = input.abortController
 		let open: (value: ChatTurnOpened) => void = () => undefined

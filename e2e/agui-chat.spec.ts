@@ -84,11 +84,23 @@ test.describe('the AG-UI chat', () => {
 		// Arrival order (spec §5.2): the text, the call, the text after its result.
 		expect(await top(before)).toBeLessThan(await top(title))
 		expect(await top(title)).toBeLessThan(await top(after))
-		// The card's body opens on a click (ThoughtChain `collapsible`): the arguments and the result as JSON.
-		await title.click()
-		await expect(answer.getByText('Arguments', { exact: true })).toBeVisible()
-		await expect(answer.getByText('Result', { exact: true })).toBeVisible()
-		await expect(answer).toContainText('"city": "Paris"')
+		// ADR-0035, AI Elements' Tool: the name and its status badge in the header, and the card open once the call
+		// completed, its arguments and its result as JSON code blocks under their labels.
+		const card = answer
+			.locator('.ant-collapse')
+			.filter({ has: page.getByText('get_weather', { exact: true }) })
+		const header = card.getByRole('button', { name: /get_weather/ })
+		await expect(card.getByText('Completed', { exact: true })).toBeVisible()
+		await expect(header).toHaveAttribute('aria-expanded', 'true')
+		await expect(card.getByText('Arguments', { exact: true })).toBeVisible()
+		await expect(card.getByText('Result', { exact: true })).toBeVisible()
+		await expect(card.locator('pre')).toHaveText([
+			/"city": "Paris"/,
+			/"temperature_c": 18,\s*"conditions": "cloudy"/,
+		])
+		// The header opens and closes it (antd Collapse).
+		await header.click()
+		await expect(header).toHaveAttribute('aria-expanded', 'false')
 	})
 
 	test('a run error shows its localised title and the agent’s message', async ({ page }) => {

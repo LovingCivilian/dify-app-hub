@@ -67,9 +67,13 @@ describe('threadForAgent (spec §3.3, plan call P7)', () => {
 })
 
 describe('unansweredToolCalls (spec §3.2 step 4, §6.2)', () => {
-	it('lists the calls no tool message answers, in order, with their tool names', () => {
+	it('lists the calls no tool message answers, in order, with their tool names and arguments', () => {
+		expect(unansweredToolCalls([user, call])).toEqual([
+			{ toolCallId: 'c1', name: 'get_weather', args: '{"city":"Paris"}' },
+			{ toolCallId: 'c2', name: 'get_time', args: '{}' },
+		])
 		expect(unansweredToolCalls([user, call, result1, text])).toEqual([
-			{ toolCallId: 'c2', name: 'get_time' },
+			{ toolCallId: 'c2', name: 'get_time', args: '{}' },
 		])
 		expect(unansweredToolCalls([user, call, result1, result2])).toEqual([])
 	})

@@ -1,0 +1,16 @@
+/* What waits above the composer (Part 2 spec §6.2, §6.4): the plan panel and the ask_user card. Like the column's
+   top area (chat-view.module.css `.top`), it takes at most half the column and scrolls beyond that, so the
+   messages always keep room. */
+.dock {
+	flex: 0 1 auto;
+	min-height: 0;
+	max-height: 50%;
+	overflow: auto;
+	padding-block-start: var(--ant-padding-sm);
+}
+/* The visible hint above the Sender while an answer is pending (spec §6.3, plan call P15): its own line, as the
+   Dify chat's disclaimer below the Sender (chat-view.module.css `.disclaimer`). */
+.hint {
+	display: block;
+	padding-block-end: var(--ant-padding-xs);
+}

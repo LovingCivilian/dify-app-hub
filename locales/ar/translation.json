@@ -532,7 +532,9 @@
 		"jwt_secret_tooltip": "المفتاح الذي توقّع به المنصة رمز كل طلب، ويحمل الوكيل القيمة نفسها. 32 حرفًا عشوائيًا على الأقل، مثلًا من openssl rand -base64 48",
 		"jwt_secret_placeholder": "أدخل سر JWT",
 		"jwt_secret_required": "أدخل سر JWT",
-		"jwt_secret_invalid": "أدخل من 32 إلى 512 حرفًا"
+		"jwt_secret_invalid": "أدخل من 32 إلى 512 حرفًا",
+		"ask_user": "سؤال المستخدم",
+		"ask_user_tooltip": "يتيح للوكيل أداة ask_user الخاصة بالمنصة ليطرح أسئلة مع إجابات مقترحة. اتركه معطّلًا إذا كان لدى الوكيل أداة خاصة به باسم ask_user."
 	},
 	"workflow": {
 		"title": "سير العمل",
@@ -616,9 +618,64 @@
 	},
 	"shared_chat": {
 		"stopped_time_limit": "توقّف: انتهت المهلة الزمنية",
-		"answer_pending_hint": "تنتظر هذه المحادثة إجابةً لا يمكن لهذه الدردشة عرضها بعد. ابدأ محادثة جديدة للمتابعة.",
+		"answer_pending_hint": "أجب الوكيل أعلاه للمتابعة.",
 		"tool_arguments": "المُدخلات",
 		"tool_result": "النتيجة",
+		"tool_status": {
+			"running": "قيد التشغيل",
+			"waiting": "بانتظار",
+			"completed": "مكتمل",
+			"error": "خطأ",
+			"stopped": "متوقف"
+		},
+		"plan": {
+			"label": "الخطة",
+			"progress": "{{done}}/{{total}}"
+		},
+		"activity": {
+			"content": "المحتوى",
+			"truncated": "يُعرض جزء منه فقط: المحتوى أطول من 10 KB."
+		},
+		"interrupt": {
+			"submit": "إرسال",
+			"cancel": "إلغاء",
+			"yes": "نعم",
+			"no": "لا",
+			"title_input_required": "يحتاج الوكيل إلى مزيد من المعلومات",
+			"title_confirmation": "يطلب منك الوكيل التأكيد",
+			"title_tool_call": "يطلب الوكيل تشغيل أداة",
+			"waiting": "بانتظار ردّك"
+		},
+		"answer": {
+			"approve": "موافقة",
+			"reject": "رفض",
+			"approved": "تمت الموافقة",
+			"rejected": "تم الرفض",
+			"cancelled": "تم الإلغاء",
+			"answered": "تمت الإجابة",
+			"submitted": "تم الإرسال",
+			"change": "تغيير",
+			"waiting_others": "بانتظار الإجابات الأخرى",
+			"expired": "منتهي الصلاحية",
+			"dismiss": "تجاهل",
+			"awaiting_approval": "بانتظار الموافقة",
+			"approval_request": "هل تريد تشغيل هذه الأداة؟"
+		},
+		"ask_user": {
+			"title": "أسئلة موجّهة إليك",
+			"invalid": "طرح الوكيل سؤالًا غير صالح",
+			"progress": "السؤال {{current}} من {{total}}",
+			"position": "{{current}} من {{total}}",
+			"previous": "السؤال السابق",
+			"next": "السؤال التالي",
+			"skip": "تخطّي",
+			"dismiss": "تجاهل الأسئلة",
+			"custom_placeholder": "إجابة أخرى",
+			"send": "إرسال",
+			"label": "سؤال من الوكيل",
+			"skipped": "تم التخطّي",
+			"no_answer": "لا توجد إجابة"
+		},
 		"error": {
 			"usage_limit": "تم بلوغ حدّ الاستخدام",
 			"rate_limited": "طلبات كثيرة جدًا، حاول مرة أخرى بعد قليل",

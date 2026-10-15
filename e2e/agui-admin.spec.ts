@@ -33,6 +33,7 @@ const openDrawer = async (control: Locator, drawer: Locator) => {
 }
 // antd's Table sets data-row-key from rowKey on each body row.
 const rowById = (page: Page, id: string) => page.locator(`tr[data-row-key="${id}"]`)
+const stopButton = (page: Page) => page.getByRole('button', { name: 'Stop loading' })
 const senderBox = (page: Page) => page.getByPlaceholder('Type a message')
 
 const seedAguiApp = (id: string, name: string) =>
@@ -142,6 +143,55 @@ test.describe('AG-UI apps in the admin', () => {
 			await expect(
 				page.locator('.ant-bubble-start').last().locator('strong', { hasText: 'stub agent' }),
 			).toBeVisible()
+			// The run settles before the app goes, or its last write meets the deleted app (an FK violation in the server log).
+			await expect(stopButton(page)).toHaveCount(0)
+		} finally {
+			await dropApp(id)
+		}
+	})
+
+	// Part 2 spec §6.2 and plan calls P1 and P16: the switch is off by default, saves into the settings, and the next run
+	// advertises ask_user only while it is on (the stub asks only when `tools` names it, Task 16).
+	test('the Ask the user switch saves, and the chat offers ask_user only while it is on', async ({
+		page,
+	}, testInfo) => {
+		const id = ownId(410, testInfo)
+		await seedAguiApp(id, `AG-UI ask ${testInfo.project.name}`)
+		try {
+			await page.goto(`/chat/${id}?isNewCvst=1`)
+			await senderBox(page).fill('question')
+			await page.keyboard.press('Enter')
+			await expect(
+				page
+					.locator('.ant-bubble-start')
+					.last()
+					.getByText('No ask_user tool was offered, so I cannot ask you.'),
+			).toBeVisible()
+
+			await page.goto('/app-management')
+			const edit = page.getByRole('dialog').filter({ hasText: 'Edit app configuration' })
+			await openDrawer(rowById(page, id).getByRole('button', { name: 'Edit' }), edit)
+			// antd Switch is a button with role="switch" and aria-checked, named by its Form.Item label.
+			const askUser = edit.getByRole('switch', { name: 'Ask the user' })
+			await expect(askUser).not.toBeChecked()
+			await askUser.click()
+			await expect(askUser).toBeChecked()
+			await edit.getByRole('button', { name: 'Update' }).click()
+			await expect(edit).toBeHidden()
+			const settings = await withDb(async db => {
+				const { rows } = await db.query<{ settings: Record<string, unknown> }>(
+					'SELECT settings FROM apps WHERE id = $1',
+					[id],
+				)
+				return rows[0]?.settings
+			})
+			expect(settings).toMatchObject({ askUser: true })
+
+			await page.goto(`/chat/${id}?isNewCvst=1`)
+			await senderBox(page).fill('question')
+			await page.keyboard.press('Enter')
+			await expect(page.getByRole('group', { name: 'Question 1 of 2' })).toBeVisible()
+			await expect(stopButton(page)).toHaveCount(0)
 		} finally {
 			await dropApp(id)
 		}

@@ -19,6 +19,12 @@ export const aguiSettingsSchema = z.object({
 	agentUrl: agentUrlSchema,
 	/** The JWT's `aud`; it must match the agent's AGENT_JWT_AUDIENCE (spec §2.3). */
 	audience: z.string().trim().min(1).max(255),
+	/**
+	 * Spec §6.2: advertise the hub's `ask_user` tool in every run's `tools`. Off by default, because Pydantic AI fails a
+	 * run whose agent already has a tool of that name (research `part2-hitl-state-files.md`, Implications A.2); a zod
+	 * default, so a document 2a wrote reads with it off (zod 4 `.default()`: a missing key takes the default).
+	 */
+	askUser: z.boolean().default(false),
 })
 
 export type AguiSettings = z.infer<typeof aguiSettingsSchema>
@@ -41,10 +47,11 @@ export const aguiSecretsUpdateSchema = z.object({
 		.transform(value => value || undefined),
 })
 
-/** What the form starts a new AG-UI app from: both fields empty, for the admin to fill. */
+/** What the form starts a new AG-UI app from: both connection fields empty, for the admin to fill, and `ask_user` off. */
 export const AGUI_DEFAULT_SETTINGS: z.input<typeof aguiSettingsSchema> = {
 	agentUrl: '',
 	audience: '',
+	askUser: false,
 }
 
 /** The form's secret field, blank: a new app's secret is typed, an edit's blank secret keeps the stored one. */

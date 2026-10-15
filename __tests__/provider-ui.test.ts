@@ -77,7 +77,7 @@ describe('the client registry (spec §3)', () => {
 				...common,
 				provider: 'agui',
 				invalid: false,
-				settings: { agentUrl: 'http://agents:8000/agents/a', audience: 'a' },
+				settings: { agentUrl: 'http://agents:8000/agents/a', audience: 'a', askUser: false },
 				secretsSet: { jwtSecret: true },
 			}),
 		).toBeUndefined()

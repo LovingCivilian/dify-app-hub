@@ -1,15 +1,16 @@
 import 'server-only'
 
-import type { Message, ResumeEntry } from '@ag-ui/core'
+import type { Message, ResumeEntry, Tool } from '@ag-ui/core'
 
 import type { SessionUser } from '@/lib/auth/session'
 import {
+	continuedRun,
 	finishRun,
-	lastRun,
 	loadThread,
 	startRun,
 	truncateStaleRun,
 	type ConversationRecord,
+	type RunEnd,
 	type RunKey,
 } from '@/lib/data/conversations'
 import { logActionError } from '@/lib/error-log'
@@ -25,7 +26,8 @@ import {
 	type ChatTurnOpened,
 	type UpstreamErrorCode,
 } from './adapter'
-import { checkAnswers, openItemsOf } from './answers'
+import { anyOpen, checkAnswers, openItemsOf } from './answers'
+import { hubToolDefinitions } from './hub-tools'
 import { conversationNotFound, resolveConversation } from './route'
 import type { RunBody } from './schemas'
 import { RunSession } from './session'
@@ -79,9 +81,11 @@ const logRun = (appId: string, runId: string, code: string) =>
 
 /**
  * Spec §4.3. Step 1, the checks: the conversation is the actor's (§4.1); a run this process lost is truncated first
- * (§3.2 step 5); a message while something is open answers 409 answer_pending (decision 50), answers that do not cover
- * what is open 400 answers_invalid. Step 2, the store: the messages and the run in one transaction (startRun; an active
- * run answers 409 run_in_progress), a new conversation created with them. Steps 3–5 in streamRun.
+ * (§3.2 step 5); then the open items are read (decision 62: the continued run's interrupts and, while the app advertises
+ * ask_user, the thread's unanswered calls to it): a message while anything is open answers 409 answer_pending (decision
+ * 50), answers that do not cover exactly what is open 400 answers_invalid. Step 2, the store: the messages and the run in
+ * one transaction (startRun; an active run answers 409 run_in_progress), a new conversation created with them. Steps 3–5
+ * in streamRun.
  */
 export const runTurn = async ({
 	request,
@@ -97,25 +101,34 @@ export const runTurn = async ({
 		conversation = found.conversation
 		await reconcileStaleRun(conversation)
 	}
-	const open = openItemsOf(conversation ? await lastRun(conversation.id) : null)
+	// The thread is read after the reconcile, which answers a crashed run's calls, and before startRun: the open questions
+	// are its unanswered ask_user calls. The hub's tools are the app's switch as it is now (plan call P1; decision 62).
+	const thread = conversation ? threadForAgent(await loadThread(conversation.id)) : []
+	const hubTools = chat.hubTools(app.settings)
+	const open = openItemsOf(
+		conversation ? await continuedRun(conversation.id) : null,
+		thread,
+		hubTools,
+	)
 	let resume: ResumeEntry[] | undefined
 	let answers: Message[] = []
 	if (body.answers) {
 		const checked = checkAnswers(open, body.answers)
 		if (!checked.ok) return errorResponse('answers_invalid', ANSWERS_INVALID, 400)
-		resume = checked.resume
+		// Answers to questions alone resume no interrupt: the run carries their tool messages and no `resume` (AG-UI
+		// "Tool calls" › Frontend tools: "the next run's `messages` carry a tool message per call").
+		resume = checked.resume.length > 0 ? checked.resume : undefined
 		answers = checked.toolMessages
-	} else if (open.interrupts.length > 0) return errorResponse('answer_pending', ANSWER_PENDING, 409)
+	} else if (anyOpen(open)) return errorResponse('answer_pending', ANSWER_PENDING, 409)
 
 	// Plan call P4 (spec §6.2): a call to a tool the hub never advertised, left without a result, is answered with an error
-	// tool message, so the next history is valid. The calls the answers cover, and a gated call an open interrupt names
-	// (its result comes from the resumed run), are left alone.
-	const rows = conversation ? await loadThread(conversation.id) : []
+	// tool message, so the next history is valid. The open questions (the answers cover exactly them), and a gated call an
+	// open interrupt names (its result comes from the resumed run), are left alone.
 	const kept = new Set([
-		...answers.flatMap(message => (message.role === 'tool' ? [message.toolCallId] : [])),
+		...open.questions.map(question => question.toolCallId),
 		...open.interrupts.flatMap(interrupt => (interrupt.toolCallId ? [interrupt.toolCallId] : [])),
 	])
-	const notAvailable = unansweredToolCalls(threadForAgent(rows))
+	const notAvailable = unansweredToolCalls(thread)
 		.filter(call => !kept.has(call.toolCallId))
 		.map(call =>
 			errorToolMessage(call.toolCallId, UNAVAILABLE_TOOL_ERROR, UNAVAILABLE_TOOL_CONTENT),
@@ -163,14 +176,23 @@ export const runTurn = async ({
 		title,
 		state: conversation?.state ?? {},
 		resume,
+		tools: hubToolDefinitions(hubTools),
+		withdraw: answers.map(message => message.id),
 	})
 }
 
 /**
  * Steps 3–5. The thread is read back from the store (§3.3), the rows just written included, and handed to the adapter
- * with the run's own AbortController, which the stop route (§4.5) and a disconnect abort through activeRuns. The session
- * writes `hub:run` before the adapter can report an event. A refusal before any stream (§4.3 step 4) answers the envelope
- * and stores the run failed, unless a stop caused it: then, as every other run, it is settled by the session (§4.5).
+ * with the run's own AbortController, which the stop route (§4.5) and a disconnect abort through activeRuns, and with
+ * the hub's tools the app advertises (§6.2). The session writes `hub:run` before the adapter can report an event. A
+ * refusal before any stream (§4.3 step 4) answers the envelope and stores the run failed, unless a stop caused it: then,
+ * as every other run, it is settled by the session (§4.5).
+ *
+ * A run the agent never started, refused before its stream or failed by the hub before it was sent, is stored with
+ * `beforeStream` and withdraws the answers' tool messages it carried, in the transaction that ends it (plan call P10;
+ * decision 62's first answer): what they answered stays open, and the next answers resume the run the agent did start.
+ * Its `resume` stays on the row for the Logs. Plan call P4's answers stay (no open item waits for them), and so does a
+ * user message, as 2a stores it (#66).
  */
 const streamRun = async ({
 	request,
@@ -182,13 +204,24 @@ const streamRun = async ({
 	title,
 	state,
 	resume,
+	tools,
+	withdraw,
 }: Omit<RunTurnArgs, 'body'> & {
 	key: RunKey
 	controller: AbortController
 	title: string
 	state: unknown
 	resume: ResumeEntry[] | undefined
+	tools: Tool[]
+	/** The ids of the tool messages the answers added (plan call P10). */
+	withdraw: string[]
 }): Promise<Response> => {
+	const endBeforeStream = (code: string, message: string): RunEnd => ({
+		status: 'failed',
+		error: { code, message, beforeStream: true },
+		custom: [],
+		...(withdraw.length > 0 ? { withdraw } : {}),
+	})
 	const out = createEventStream()
 	let onDisconnect: (() => void) | undefined
 	const detach = () => {
@@ -215,7 +248,7 @@ const streamRun = async ({
 				runId: key.runId,
 				messages,
 				state,
-				tools: [],
+				tools,
 				resume,
 				caller: { id: actor.id, source: actor.source, role: actor.role },
 				abortController: controller,
@@ -229,11 +262,7 @@ const streamRun = async ({
 		detach()
 		// The run is stored before it is released, as in settle: a concurrent request must not truncate it meanwhile.
 		try {
-			await finishRun(key, {
-				status: 'failed',
-				error: { code: 'internal_error', message: '' },
-				custom: [],
-			})
+			await finishRun(key, endBeforeStream('internal_error', ''))
 		} catch (finishError) {
 			logActionError(finishError, 'runTurn')
 		} finally {
@@ -245,11 +274,7 @@ const streamRun = async ({
 		logRun(app.id, key.runId, opened.code)
 		detach()
 		try {
-			await finishRun(key, {
-				status: 'failed',
-				error: { code: opened.code, message: UPSTREAM_MESSAGES[opened.code] },
-				custom: [],
-			})
+			await finishRun(key, endBeforeStream(opened.code, UPSTREAM_MESSAGES[opened.code]))
 		} finally {
 			endStream(out, key.runId)
 		}

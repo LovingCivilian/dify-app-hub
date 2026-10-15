@@ -3,7 +3,10 @@ import type { MessageInfo } from '@ant-design/x-sdk'
 
 import type { Turn } from '@/lib/chat/turn'
 
-/** Nothing to render yet: no part, no open interrupt, and no run that ended in an error or a stop (all show in the bubble). */
+/**
+ * Nothing to render yet: no part, no open interrupt, and no run that ended in an error or a stop (all show in the
+ * bubble). A call that waits for an answer (plan call P9) is a part, so a turn that only asks is never empty either.
+ */
 const isEmpty = (turn: Turn) =>
 	turn.parts.length === 0 &&
 	turn.interrupts.length === 0 &&

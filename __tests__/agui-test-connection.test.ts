@@ -5,7 +5,11 @@ vi.mock('@/lib/env', () => ({ env: () => ({ agentJwtIssuer: 'nextjs-bff' }) }))
 
 import { AGUI_TEST_TIMEOUT_MS, testAguiConnection } from '@/lib/providers/agui/test-connection'
 
-const settings = { agentUrl: 'http://agents:8000/agents/assistant', audience: 'assistant' }
+const settings = {
+	agentUrl: 'http://agents:8000/agents/assistant',
+	audience: 'assistant',
+	askUser: false,
+}
 const secrets = { jwtSecret: 'an-app-secret-of-at-least-32-chars!' }
 const admin = {
 	id: 'b6f1c2d4-0000-4000-8000-000000000002',

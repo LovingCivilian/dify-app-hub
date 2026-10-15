@@ -30,6 +30,7 @@ import HumanInputForm from '../message/human-input-form'
 import { parseConversationKey } from '../provider/keys'
 import type { DifyChatMessage } from '../provider/message'
 import AssistantContent from './assistant-content'
+import type { ChatScrollHandle } from './chat-scroll'
 import ChatSender, { type SenderRef } from './chat-sender'
 import styles from './chat-view.module.css'
 import ConversationDrawer from './conversation-drawer'
@@ -70,6 +71,7 @@ export default function ChatView() {
 	const [keptParams] = useState(() => keptParamsOf(searchParams))
 	const [inputsForm] = Form.useForm<Record<string, unknown>>()
 	const senderRef = useRef<SenderRef>(null)
+	const scrollRef = useRef<ChatScrollHandle>(null)
 	const [drawerOpen, setDrawerOpen] = useState(false)
 	// The sider's collapsed state and, when collapsed, the popover that holds the list (spec §5.1).
 	const [collapsed, setCollapsed] = useState(false)
@@ -252,6 +254,8 @@ export default function ChatView() {
 				files: extra.files ?? attachedFiles,
 			})
 			if (sent) {
+				// A sent message brings the reader to it, also from further up (chat-scroll.tsx).
+				scrollRef.current?.scrollToBottom()
 				clearSuggestions()
 				if (withAttachments) resetAttachments()
 				// The conversation keeps what was sent, which the form may only hold from a link or a default.
@@ -590,6 +594,7 @@ export default function ChatView() {
 							maxWidth={bubbleWidth}
 							renderAssistant={renderAssistant}
 							renderFooter={renderFooter}
+							scrollRef={scrollRef}
 						/>
 						{suggestions.suggestions.length > 0 && !chat.isRequesting && (
 							<div

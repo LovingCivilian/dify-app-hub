@@ -10,7 +10,8 @@ import {
 const ID = '3b241101-e2bb-4255-8caf-4136c566a962'
 const resolved = { interruptId: 'int-1', status: 'resolved', payload: { approved: true } }
 
-// Spec §4.2: exactly one of message and answers; answers continue a conversation; the text is 1–32,000 characters.
+// Spec §4.2: exactly one of message and answers; answers continue a conversation; the text is 1–32,000 characters; a
+// payload is an object or a boolean (plan call P6).
 describe('runBodySchema', () => {
 	it.each([
 		['a first message', { message: { text: 'hi' } }],
@@ -19,6 +20,10 @@ describe('runBodySchema', () => {
 		[
 			'a cancelled answer without a payload',
 			{ conversationId: ID, answers: { resume: [{ interruptId: 'int-1', status: 'cancelled' }] } },
+		],
+		[
+			'a bare boolean payload (plan call P6)',
+			{ conversationId: ID, answers: { resume: [{ ...resolved, payload: false }] } },
 		],
 		['a message of the longest length', { message: { text: 'x'.repeat(MESSAGE_TEXT_MAX) } }],
 	])('takes %s', (_case, body) => {
@@ -41,8 +46,12 @@ describe('runBodySchema', () => {
 			{ conversationId: ID, answers: { resume: [{ ...resolved, status: 'maybe' }] } },
 		],
 		[
-			'a payload that is no object',
+			'a payload that is an array',
 			{ conversationId: ID, answers: { resume: [{ ...resolved, payload: [true] }] } },
+		],
+		[
+			'a payload that is a string',
+			{ conversationId: ID, answers: { resume: [{ ...resolved, payload: 'yes' }] } },
 		],
 		[
 			'more than 50 answers',

@@ -113,21 +113,30 @@ describe('the user DTOs (spec §2.3)', () => {
 		})
 		expect(JSON.stringify(dto)).not.toContain('dify.example')
 	})
-	// Part 2 spec §2.2: in 2a an AG-UI app's chat DTO and card carry nothing of its documents.
-	it('an AG-UI app’s chat DTO and card carry no agent URL, audience or provider fields', () => {
+	// Part 2 spec §2.2: an AG-UI app's chat DTO carries the ask_user switch only, its card nothing of its documents.
+	it('an AG-UI app’s chat DTO carries the ask_user switch, never the agent URL or the audience', () => {
 		const agui = {
 			...record,
 			provider: 'agui' as const,
-			settings: { agentUrl: 'http://agents:8000/agents/assistant', audience: 'assistant' },
+			settings: {
+				agentUrl: 'http://agents:8000/agents/assistant',
+				audience: 'assistant',
+				askUser: true,
+			},
 		}
-		expect(toChatAppDto(agui)).toEqual({
+		const dto = toChatAppDto(agui)
+		expect(dto).toEqual({
 			id: 'a1',
 			provider: 'agui',
 			name: 'Tea',
 			description: 'desc',
 			enabled: true,
 			hasIcon: true,
+			askUser: true,
 		})
+		expect(dto).not.toHaveProperty('agentUrl')
+		expect(dto).not.toHaveProperty('audience')
+		expect(dto).not.toHaveProperty('jwtSecret')
 		expect(toAppSummary(agui)).toEqual({
 			id: 'a1',
 			provider: 'agui',
@@ -210,6 +219,7 @@ describe('the admin DTO (spec §2.3)', () => {
 		expect(dto).not.toHaveProperty('settings')
 		expect(dto).not.toHaveProperty('secretsSet')
 	})
+	// Spec §2.2: a document 2a wrote reads with ask_user off, so the edit form opens with the switch off.
 	it('carries an AG-UI app’s settings and whether its secret is set, never the secret', () => {
 		const agui = { agentUrl: 'http://agents:8000/agents/assistant', audience: 'assistant' }
 		const jwtSecret = 'an-app-secret-of-at-least-32-chars!'
@@ -221,7 +231,7 @@ describe('the admin DTO (spec §2.3)', () => {
 		expect(dto).toMatchObject({
 			provider: 'agui',
 			invalid: false,
-			settings: agui,
+			settings: { ...agui, askUser: false },
 			secretsSet: { jwtSecret: true },
 		})
 		expect(JSON.stringify(dto)).not.toContain(jwtSecret)

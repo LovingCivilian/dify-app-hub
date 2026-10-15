@@ -2,12 +2,13 @@
 
 import { MenuOutlined } from '@ant-design/icons'
 import { useLocalStorageState } from 'ahooks'
-import { Alert, App, Button, Layout, Typography, theme } from 'antd'
+import { Alert, App, Button, Flex, Layout, Typography, theme } from 'antd'
 import { useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ChatAppInfoContext } from '@/components/chat/chat-view/app-info-context'
+import type { ChatScrollHandle } from '@/components/chat/chat-view/chat-scroll'
 import ChatSender, { type SenderRef } from '@/components/chat/chat-view/chat-sender'
 import styles from '@/components/chat/chat-view/chat-view.module.css'
 import ConversationDrawer from '@/components/chat/chat-view/conversation-drawer'
@@ -20,14 +21,22 @@ import { useConversationMenu } from '@/components/chat/chat-view/use-conversatio
 import WidthToggle from '@/components/chat/chat-view/width-toggle'
 import AppSider from '@/components/shell/app-sider'
 import UserShell from '@/components/shell/user-shell'
+import { hasOpenItems } from '@/lib/chat/open-items'
+import { planOf } from '@/lib/chat/plan-state'
 import type { Turn } from '@/lib/chat/turn'
 import type { ChatAppDto } from '@/lib/data/apps'
 
+import { TurnAnswersContext, type TurnAnswers } from './answer-context'
 import { createSharedChatApi } from './api'
+import AskUserCard from './ask-user-card'
 import AssistantTurn from './assistant-turn'
+import { useExpiryClock } from './hooks/use-expiry-clock'
 import { useSharedChat } from './hooks/use-shared-chat'
 import { useSharedConversations } from './hooks/use-shared-conversations'
+import PlanPanel from './plan-panel'
+import type { ToolAnswer } from './provider/ag-ui-chat-provider'
 import { requestFailureText } from './run-error'
+import shared from './shared-chat.module.css'
 import SharedWelcome from './shared-welcome'
 import TurnFooter from './turn-footer'
 import TurnList from './turn-list'
@@ -39,7 +48,9 @@ export type AguiChatApp = Extract<ChatAppDto, { provider: 'agui' }>
  * The shared chat (Part 2 spec §5): the Dify chat's page layout (UserShell, AppSider with the conversation sidebar or
  * its collapsed rail, the mobile ConversationDrawer, the reading-width toggle and the chat column's CSS Module), reused
  * as spec §5.1 lists, around the turn list and the X Sender. The app's name, description and icon reach the shared
- * sidebar pieces through ChatAppInfoContext (Task 14; React 19 renders a context as its own provider).
+ * sidebar pieces through ChatAppInfoContext (Task 14; React 19 renders a context as its own provider). Human in the
+ * loop (spec §6): the turn that waits gets the answers' context for its cards, and above the Sender sit the plan panel,
+ * the ask_user card and, while anything is open, a visible hint (decision 50).
  */
 export default function SharedChat({ app }: { app: AguiChatApp }) {
 	const { t } = useTranslation()
@@ -48,6 +59,7 @@ export default function SharedChat({ app }: { app: AguiChatApp }) {
 	const searchParams = useSearchParams()
 	const api = useMemo(() => createSharedChatApi(app.id), [app.id])
 	const senderRef = useRef<SenderRef>(null)
+	const scrollRef = useRef<ChatScrollHandle>(null)
 	const [drawerOpen, setDrawerOpen] = useState(false)
 	// The sider's collapsed state and, when collapsed, the popover that holds the list (the Dify chat's).
 	const [collapsed, setCollapsed] = useState(false)
@@ -78,6 +90,8 @@ export default function SharedChat({ app }: { app: AguiChatApp }) {
 		getConversationId: readConversationId,
 		// The stream named its conversation (hub:run): the item keeps its key and takes the id and title (ADR-0017).
 		onRun: (key, value) => markConversation(key, value.conversationId, value.title),
+		// Spec §6.2, decision 62: a waiting ask_user call is open while the app's switch is on now.
+		askUser: app.askUser,
 	})
 
 	// When a reply ends the list is reloaded for its `updated_at` order (the Dify chat's rule).
@@ -123,8 +137,48 @@ export default function SharedChat({ app }: { app: AguiChatApp }) {
 	const historyPending = chat.isDefaultMessagesRequesting && chat.messages.length === 0
 	const showWelcome =
 		Boolean(activeKey) && !historyPending && !chat.historyError && chat.messages.length === 0
-	// Plan call P3 and decision 50: an open interrupt blocks the composer; 2b's cards answer it.
-	const waiting = chat.openInterrupts.length > 0 && !chat.isRequesting
+	// Decision 50: an open approval, question or interrupt blocks the composer until the cards answer it (spec §6.3).
+	const open = chat.openItems
+	const waiting = hasOpenItems(open) && !chat.isRequesting
+	// The clock the cards judge expiry by (plan call P14): it ticks when the next expiresAt passes.
+	const now = useExpiryClock(open.interrupts)
+	// The turn that waits: the last one, when it is an answer with open items (useSharedChat reads them from it).
+	const lastTurn = chat.messages.at(-1)?.message
+	const waitingTurn = lastTurn?.role === 'assistant' && hasOpenItems(open) ? lastTurn : undefined
+	const answersDisabled = chat.isRequesting || !activeKey
+	const { draft, answer, retract } = chat
+	// The cards in the turn read this through useTurnAnswers (Task 11), so the role map's callbacks above stay stable:
+	// a new value re-renders the components that read the context (React reference, `useContext`), not the role map.
+	const turnAnswers = useMemo<TurnAnswers | null>(
+		() =>
+			waitingTurn
+				? {
+						turn: waitingTurn,
+						open,
+						draft,
+						disabled: answersDisabled,
+						now,
+						answer,
+						retract,
+					}
+				: null,
+		[waitingTurn, open, draft, answersDisabled, now, answer, retract],
+	)
+	// The ask_user questions without a decision yet (plan call P13): a drafted call leaves the card while other items
+	// wait, and a "Change" (retract) brings it back.
+	const questions = useMemo(
+		() => open.questions.filter(part => !Object.hasOwn(draft.tools, part.toolCallId)),
+		[open.questions, draft.tools],
+	)
+	const answerQuestions = useCallback(
+		(answers: ToolAnswer[]) => {
+			for (const toolAnswer of answers) answer({ kind: 'tool', ...toolAnswer })
+		},
+		[answer],
+	)
+	const asking = questions.length > 0 && !chat.isRequesting
+	// Spec §6.4: the panel shows only for state that reads as a plan.
+	const plan = useMemo(() => planOf(chat.state), [chat.state])
 
 	// The list's callbacks and menu are stable, so the memoised sidebar does not re-render per streamed chunk.
 	const { setActiveKey, createTemp, rename, remove, canRename } = list
@@ -258,27 +312,70 @@ export default function SharedChat({ app }: { app: AguiChatApp }) {
 							>
 								<SharedWelcome visible={showWelcome} />
 							</div>
-							<TurnList
-								messages={chat.messages}
-								conversationKey={activeKey}
-								isDefaultMessagesRequesting={chat.isDefaultMessagesRequesting}
-								hasMore={chat.hasMore}
-								loadEarlier={chat.loadEarlier}
-								maxWidth={bubbleWidth}
-								renderAssistant={renderAssistant}
-								renderFooter={renderFooter}
-							/>
+							<TurnAnswersContext value={turnAnswers}>
+								<TurnList
+									messages={chat.messages}
+									conversationKey={activeKey}
+									isDefaultMessagesRequesting={chat.isDefaultMessagesRequesting}
+									hasMore={chat.hasMore}
+									loadEarlier={chat.loadEarlier}
+									maxWidth={bubbleWidth}
+									renderAssistant={renderAssistant}
+									renderFooter={renderFooter}
+									scrollRef={scrollRef}
+								/>
+							</TurnAnswersContext>
+							{(plan || asking) && (
+								<div
+									className={`${shared.dock} ${styles.reading}`}
+									style={readingStyle}
+								>
+									<Flex
+										vertical
+										gap="small"
+									>
+										{plan && (
+											<PlanPanel
+												// React "Resetting all state when a prop changes": each conversation's panel starts afresh.
+												key={activeKey}
+												steps={plan}
+											/>
+										)}
+										{asking && (
+											<AskUserCard
+												// A fresh stepper whenever the set of undecided calls changes.
+												key={questions.map(part => part.toolCallId).join()}
+												questions={questions}
+												disabled={answersDisabled}
+												onAnswer={answerQuestions}
+											/>
+										)}
+									</Flex>
+								</div>
+							)}
 							<div
 								className={`${styles.composer} ${styles.reading}`}
 								style={readingStyle}
 							>
+								{waiting && (
+									// Plan call P15 (#69): a visible line says why the box is disabled.
+									<Typography.Text
+										type="secondary"
+										className={shared.hint}
+									>
+										{t('shared_chat.answer_pending_hint')}
+									</Typography.Text>
+								)}
 								<ChatSender
 									loading={chat.isRequesting}
 									disabled={!activeKey || waiting}
-									// The box says why it waits (spec §6.3's hint; plan call P3's 2a wording).
-									placeholder={waiting ? t('shared_chat.answer_pending_hint') : undefined}
 									senderRef={senderRef}
-									onSend={text => chat.send(text)}
+									onSend={text => {
+										const sent = chat.send(text)
+										// A sent message brings the reader to it, also from further up (chat-scroll.tsx).
+										if (sent) scrollRef.current?.scrollToBottom()
+										return sent
+									}}
 									onStop={() => void chat.stop()}
 								/>
 							</div>

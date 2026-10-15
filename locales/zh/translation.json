@@ -532,7 +532,9 @@
 		"jwt_secret_tooltip": "应用中心用来签署每次请求令牌的密钥，智能体持有相同的值。至少 32 个随机字符，例如由 openssl rand -base64 48 生成",
 		"jwt_secret_placeholder": "请输入 JWT 密钥",
 		"jwt_secret_required": "请输入 JWT 密钥",
-		"jwt_secret_invalid": "请输入 32 到 512 个字符"
+		"jwt_secret_invalid": "请输入 32 到 512 个字符",
+		"ask_user": "向用户提问",
+		"ask_user_tooltip": "为智能体提供应用中心的 ask_user 工具，使其可以提出附带建议答案的问题。如果智能体已有名为 ask_user 的工具，请保持关闭。"
 	},
 	"workflow": {
 		"title": "工作流",
@@ -616,9 +618,64 @@
 	},
 	"shared_chat": {
 		"stopped_time_limit": "已停止：达到时间限制",
-		"answer_pending_hint": "此对话正在等待一个本聊天暂时无法显示的回答。请新建对话继续。",
+		"answer_pending_hint": "请先回应上方的智能体，然后继续。",
 		"tool_arguments": "参数",
 		"tool_result": "结果",
+		"tool_status": {
+			"running": "运行中",
+			"waiting": "等待中",
+			"completed": "已完成",
+			"error": "出错",
+			"stopped": "已停止"
+		},
+		"plan": {
+			"label": "计划",
+			"progress": "{{done}}/{{total}}"
+		},
+		"activity": {
+			"content": "内容",
+			"truncated": "仅显示部分内容：内容超过 10 KB。"
+		},
+		"interrupt": {
+			"submit": "提交",
+			"cancel": "取消",
+			"yes": "是",
+			"no": "否",
+			"title_input_required": "智能体需要更多信息",
+			"title_confirmation": "智能体请你确认",
+			"title_tool_call": "智能体请求运行一个工具",
+			"waiting": "等待你的回复"
+		},
+		"answer": {
+			"approve": "批准",
+			"reject": "拒绝",
+			"approved": "已批准",
+			"rejected": "已拒绝",
+			"cancelled": "已取消",
+			"answered": "已回答",
+			"submitted": "已提交",
+			"change": "更改",
+			"waiting_others": "正在等待其他回答",
+			"expired": "已过期",
+			"dismiss": "忽略",
+			"awaiting_approval": "等待批准",
+			"approval_request": "要运行此工具吗？"
+		},
+		"ask_user": {
+			"title": "需要您回答的问题",
+			"invalid": "智能体提出了无效的问题",
+			"progress": "第 {{current}} 个问题，共 {{total}} 个",
+			"position": "{{current}} / {{total}}",
+			"previous": "上一个问题",
+			"next": "下一个问题",
+			"skip": "跳过",
+			"dismiss": "忽略这些问题",
+			"custom_placeholder": "其他回答",
+			"send": "发送",
+			"label": "来自智能体的问题",
+			"skipped": "已跳过",
+			"no_answer": "未回答"
+		},
 		"error": {
 			"usage_limit": "已达到使用上限",
 			"rate_limited": "请求过于频繁，请稍后再试",

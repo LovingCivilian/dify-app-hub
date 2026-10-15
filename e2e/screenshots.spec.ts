@@ -111,7 +111,7 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 			await expect(page.getByText('A short note about coffee.')).toBeVisible()
 		},
 	},
-	// The shared chat (Part 2 spec §5.3): the stub's `tool` scenario, its card opened.
+	// The shared chat (Part 2 spec §5.3): the stub's `tool` scenario, its card open once the call completed (ADR-0035).
 	'chat-agui': {
 		path: `/chat/${AGUI_APP.id}?isNewCvst=1`,
 		ready: async page => {
@@ -120,8 +120,47 @@ const signedInPages: Record<string, { path: string; ready: (page: Page) => Promi
 			await senderBox(page).fill('tool')
 			await page.keyboard.press('Enter')
 			await expect(page.getByText('It is 18 °C and cloudy in Paris.')).toBeVisible()
-			await page.getByText('get_weather', { exact: true }).click()
 			await expect(page.getByText('Arguments', { exact: true })).toBeVisible()
+		},
+	},
+	// Part 2b (spec §6.1): the stub's `gated` approval on its tool card, the Sender blocked with its hint.
+	'chat-agui-approval': {
+		path: `/chat/${AGUI_APP.id}?isNewCvst=1`,
+		ready: async page => {
+			await noSpinner(page)
+			await expect(header(page)).toBeVisible()
+			await senderBox(page).fill('gated')
+			await page.keyboard.press('Enter')
+			await expect(page.getByRole('button', { name: 'Approve' })).toBeEnabled()
+			await expect(page.getByText('Answer the agent above to continue.')).toBeVisible()
+		},
+	},
+	// Spec §6.2: the stub's `question` scenario, the ask_user card above the composer.
+	'chat-agui-question': {
+		path: `/chat/${AGUI_APP.id}?isNewCvst=1`,
+		ready: async page => {
+			await noSpinner(page)
+			await expect(header(page)).toBeVisible()
+			await senderBox(page).fill('question')
+			await page.keyboard.press('Enter')
+			await expect(page.getByRole('group', { name: 'Question 1 of 2' })).toBeVisible()
+			await expect(page.getByText('Paris')).toBeVisible()
+		},
+	},
+	// Spec §6.4: the stub's `plan` scenario, the plan panel open above the composer.
+	'chat-agui-plan': {
+		path: `/chat/${AGUI_APP.id}?isNewCvst=1`,
+		ready: async page => {
+			await noSpinner(page)
+			await expect(header(page)).toBeVisible()
+			await senderBox(page).fill('plan')
+			await page.keyboard.press('Enter')
+			await expect(page.getByText('I made a plan and finished its first step.')).toBeVisible()
+			await expect(page.getByRole('button', { name: 'Plan 1/3' })).toHaveAttribute(
+				'aria-expanded',
+				'true',
+			)
+			await expect(page.getByText('Review the draft', { exact: true })).toBeVisible()
 		},
 	},
 }

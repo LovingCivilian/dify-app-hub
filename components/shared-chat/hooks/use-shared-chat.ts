@@ -10,9 +10,11 @@ import {
 } from 'react'
 
 import { prependOlder } from '@/components/chat/hooks/history-paging'
+import { createQueuedSends, type QueuedSends } from '@/components/chat/hooks/queued-sends'
 import { emptyAssistantTurn, type HubRunValue, type Turn } from '@/lib/chat/turn'
 import type { RequestError } from '@/lib/http/browser'
 
+import { decide, EMPTY_DRAFT, withoutAnswer, type AnswerDraft, type ItemAnswer } from '../answers'
 import type { SharedChatApi } from '../api'
 import { createHubFetch, runsUrl } from '../hub-fetch'
 import { parseConversationKey } from '../keys'
@@ -20,7 +22,7 @@ import { AgUiChatProvider, type SharedChatInput } from '../provider/ag-ui-chat-p
 import { getProvider } from '../provider-cache'
 import {
 	fallbackTurn,
-	openInterruptsOf,
+	openItemsOf,
 	prependLatestTurns,
 	sendDecision,
 	toMessageInfo,
@@ -36,6 +38,8 @@ interface Options {
 	getConversationId: () => string | undefined
 	/** A stream of `key` named its conversation and run (`hub:run`), whichever conversation is on screen by then. */
 	onRun?: (key: string, value: HubRunValue) => void
+	/** The app's ask_user switch now (spec §6.2): its waiting calls are open items only while it is on (decision 62). */
+	askUser: boolean
 }
 
 // Per conversation key and module-global, like the SDK's message store they serve (use-x-chat: defaultMessages runs
@@ -47,6 +51,8 @@ const cursors = new Map<string, string | null>()
 const historyErrors = new Map<string, RequestError>()
 /** The agent's state per key (spec §5.2: the side store holds it; 2b's plan panel reads it). */
 const states = new Map<string, unknown>()
+/** The decisions so far per key (spec §5.2: "the pending answers"; plan call P13), until the last open item has one. */
+const drafts = new Map<string, AnswerDraft>()
 const listeners = new Set<() => void>()
 const notify = () => {
 	for (const listener of listeners) listener()
@@ -64,6 +70,10 @@ const setStateOf = (key: string, state: unknown) => {
 	states.set(key, state)
 	notify()
 }
+const setDraft = (key: string, draft: AnswerDraft) => {
+	drafts.set(key, draft)
+	notify()
+}
 const subscribe = (listener: () => void) => {
 	listeners.add(listener)
 	return () => {
@@ -76,6 +86,8 @@ const pagesInFlight = new Set<string>()
 const conversationIdReaders = new Map<string, () => string | undefined>()
 /** The latest `onRun` given for each key; the key's cached provider calls it from its stream. */
 const runSinks = new Map<string, (key: string, value: HubRunValue) => void>()
+/** The latest hook's queued-send `clear` for each key; the key's cached provider calls it when a reply ends (#68). */
+const queuedClearers = new Map<string, QueuedSends['clear']>()
 
 /** The latest page of a conversation (its first load, or a retry of it); sets the key's cursor and state. */
 const loadLatestPage = async (api: SharedChatApi, key: string, conversationId: string) => {
@@ -97,6 +109,7 @@ export const useSharedChat = ({
 	api,
 	getConversationId,
 	onRun,
+	askUser,
 }: Options) => {
 	// No provider (useXChat's `provider` is optional) and no key until there is a conversation: nothing is cached for a
 	// placeholder key, and a send without one is ignored.
@@ -109,6 +122,14 @@ export const useSharedChat = ({
 						request: XRequest<SharedChatInput, SSEOutput, Turn>(runsUrl(appId), {
 							manual: true,
 							fetch: createHubFetch(appId),
+							// The end of every request, whatever ended it (x-chat-provider skill, "callbacks": onError
+							// includes AbortError): the key's queued send no longer waits, whichever conversation is on
+							// screen (#68; x-sdk 2.9.0 AbstractChatProvider.injectRequest calls these after useXChat's own
+							// handlers, for every key).
+							callbacks: {
+								onSuccess: () => queuedClearers.get(conversationKey)?.(conversationKey),
+								onError: () => queuedClearers.get(conversationKey)?.(conversationKey),
+							},
 						}),
 						getConversationId: () => conversationIdReaders.get(conversationKey)?.(),
 						onRun: value => runSinks.get(conversationKey)?.(conversationKey, value),
@@ -138,44 +159,48 @@ export const useSharedChat = ({
 			fallbackTurn(error, messageInfo?.message ?? params.continues),
 	})
 
+	// Keys with a send waiting in the SDK's queue, per hook instance like that queue (useDifyChat's rule, the same
+	// queued-sends.ts): `has` answers `send` at once, the state renders the view's guard.
+	const [queuedKeys, setQueuedKeys] = useState<ReadonlySet<string>>(() => new Set())
+	const [queued] = useState(() => createQueuedSends(setQueuedKeys))
+
 	// The callbacks below stay stable and read the committed render's values here (React: refs are written in effects,
 	// not during rendering).
-	const latest = useRef({ chat, provider, conversationKey, api })
+	const latest = useRef({ chat, provider, conversationKey, api, askUser })
 	useLayoutEffect(() => {
-		latest.current = { chat, provider, conversationKey, api }
+		latest.current = { chat, provider, conversationKey, api, askUser }
 		if (!conversationKey) return
 		conversationIdReaders.set(conversationKey, getConversationId)
 		if (onRun) runSinks.set(conversationKey, onRun)
+		queuedClearers.set(conversationKey, queued.clear)
 	})
 
-	// Keys with a send waiting in the SDK's queue, per hook instance like that queue (useDifyChat's rule): the ref
-	// answers `send` at once, the state renders the view's guard.
-	const queuedRef = useRef(new Set<string>())
-	const [queuedKeys, setQueuedKeys] = useState<ReadonlySet<string>>(() => new Set())
+	// The queued send has left once its key requests (useDifyChat's rule); a reply that ends while another conversation
+	// is on screen clears its key from the provider's callbacks (#68).
 	useEffect(() => {
-		if (!chat.isRequesting || !queuedRef.current.has(conversationKey)) return
-		queuedRef.current.delete(conversationKey)
-		setQueuedKeys(new Set(queuedRef.current))
-	}, [chat.isRequesting, conversationKey])
+		if (chat.isRequesting) queued.clear(conversationKey)
+	}, [chat.isRequesting, conversationKey, queued])
 
 	/** Sends, or queues while the history loads (sendDecision); false when the send was ignored. */
-	const send = useCallback((text: string) => {
-		const { chat, conversationKey: key } = latest.current
-		if (!key) return false
-		const decision = sendDecision({
-			isRequesting: chat.isRequesting,
-			isDefaultMessagesRequesting: chat.isDefaultMessagesRequesting,
-			queued: queuedRef.current.has(key),
-		})
-		if (decision === 'ignore') return false
-		const request: Partial<SharedChatInput> = { message: { text } }
-		if (decision === 'queue') {
-			queuedRef.current.add(key)
-			setQueuedKeys(new Set(queuedRef.current))
-			chat.queueRequest(key, request)
-		} else chat.onRequest(request)
-		return true
-	}, [])
+	const send = useCallback(
+		(text: string) => {
+			const { chat, conversationKey: key } = latest.current
+			if (!key) return false
+			const decision = sendDecision({
+				isRequesting: chat.isRequesting,
+				isDefaultMessagesRequesting: chat.isDefaultMessagesRequesting,
+				queued: queued.has(key),
+			})
+			if (decision === 'ignore') return false
+			const request: Partial<SharedChatInput> = { message: { text } }
+			if (decision === 'queue') {
+				queued.add(key)
+				chat.queueRequest(key, request)
+			} else chat.onRequest(request)
+			return true
+		},
+		[queued],
+	)
 
 	/**
 	 * Spec §4.5 and §5.2: the hub's stop route aborts the agent and ends the stream with `RUN_FINISHED` cancelled, so the
@@ -198,6 +223,45 @@ export const useSharedChat = ({
 		}
 		// XRequest's abort() reads an AbortController that exists only once a request has run (useDifyChat's guard).
 		if (latest.current.chat.isRequesting) latest.current.chat.abort()
+	}, [])
+
+	/**
+	 * One card's decision (spec §6; decision 62's third answer; plan call P13): kept in the key's draft until every open
+	 * item has one, then all of them go at once through `onReload`, which continues the turn in place (spike, "Browser
+	 * side": approvals, ask-user and input_required continue one turn). The draft is emptied before the request, so a
+	 * failed one leaves the cards to start over, and `decide` ignores a decision while a request runs, so one decision
+	 * never sends twice.
+	 */
+	const answer = useCallback((item: ItemAnswer) => {
+		const { chat, provider: current, conversationKey: key, askUser: advertised } = latest.current
+		const last = chat.messages.at(-1)
+		if (!key || !last) return
+		const decision = decide({
+			open: openItemsOf(chat.messages, advertised),
+			// The draft as it is now, not as a render saw it: a card may record several decisions in one handler.
+			draft: drafts.get(key) ?? EMPTY_DRAFT,
+			answer: item,
+			// The request's own flag turns at once when onReload runs it (x-request API, XRequestClass `isRequesting`);
+			// the hook's turns with the next render.
+			isRequesting: chat.isRequesting || Boolean(current?.request.isRequesting),
+			// Read when the card is clicked (an event handler, not a render): a resolved decision for an interrupt that
+			// expired since then no longer counts (P14).
+			now: new Date(),
+		})
+		if (decision.action === 'ignore') return
+		if (decision.action === 'keep') {
+			setDraft(key, decision.draft)
+			return
+		}
+		setDraft(key, EMPTY_DRAFT)
+		chat.onReload(last.id, { answers: decision.body, continues: last.message })
+	}, [])
+
+	/** "Change" (plan call P13): forgets an item's decision, until the answers have gone. */
+	const retract = useCallback((itemId: string) => {
+		const { chat, conversationKey: key } = latest.current
+		if (!key || chat.isRequesting) return
+		setDraft(key, withoutAnswer(drafts.get(key) ?? EMPTY_DRAFT, itemId))
 	}, [])
 
 	/** Prepends the next older page (plan call P8); rejects with a RequestError. */
@@ -253,7 +317,12 @@ export const useSharedChat = ({
 		() => states.get(conversationKey),
 		() => undefined,
 	)
-	const openInterrupts = useMemo(() => openInterruptsOf(chat.messages), [chat.messages])
+	const draft = useSyncExternalStore(
+		subscribe,
+		() => drafts.get(conversationKey) ?? EMPTY_DRAFT,
+		() => EMPTY_DRAFT,
+	)
+	const openItems = useMemo(() => openItemsOf(chat.messages, askUser), [chat.messages, askUser])
 
 	return {
 		messages: chat.messages,
@@ -269,7 +338,11 @@ export const useSharedChat = ({
 		retryHistory,
 		/** The agent's last state (spec §5.2); 2b's plan panel reads it. */
 		state,
-		/** The last turn's open interrupts (spec §3.3); while any is open the Sender is disabled (plan call P3). */
-		openInterrupts,
+		/** What the last turn waits for (spec §3.3, §6); while anything is open the Sender is disabled (decision 50). */
+		openItems,
+		/** The decisions so far for those items (plan call P13). */
+		draft,
+		answer,
+		retract,
 	}
 }

@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { toBubbleItems } from '../hooks/bubble-items'
 import type { useDifyChat } from '../hooks/use-dify-chat'
 import type { DifyChatMessage } from '../provider/message'
+import ChatScroll, { type ChatScrollHandle } from './chat-scroll'
 import styles from './chat-view.module.css'
 import UserContent from './user-content'
 
@@ -30,6 +31,8 @@ export interface MessageListProps {
 	renderAssistant: (message: DifyChatMessage, info: BubbleInfo) => React.ReactNode
 	/** An assistant bubble's footer (Bubble's `footer` slot); keep it stable for the same reason. */
 	renderFooter?: (message: DifyChatMessage, info: BubbleInfo) => React.ReactNode
+	/** The scroll region's handle, for the chat's send (chat-scroll.tsx). */
+	scrollRef: React.RefObject<ChatScrollHandle | null>
 }
 
 /** X Bubble.List over the conversation's messages, with "load earlier" above it (spec §5.2). */
@@ -39,6 +42,7 @@ export default function MessageList({
 	maxWidth,
 	renderAssistant,
 	renderFooter,
+	scrollRef,
 }: MessageListProps) {
 	const { t } = useTranslation()
 	const { message: toast } = App.useApp()
@@ -65,21 +69,35 @@ export default function MessageList({
 
 	// One object per width, like the role map: Bubble.List hands it to every item on each render.
 	const rowStyles = useMemo<BubbleListProps['styles']>(() => {
-		const row = { maxWidth, marginInline: 'auto' }
-		return { bubble: row, system: row, divider: row }
+		// The reading width replaces X's own gap: Bubble.List pads a start bubble's end and an end bubble's start by 15 %
+		// (`es/bubble/style/list.js`), a share of the whole list's width, so inside a row capped at the reading width the
+		// content got narrower as the window got wider (the owner, 2026-10-15). While the row is capped, its padding is 0;
+		// wide (no cap) keeps X's gap.
+		const row = {
+			maxWidth,
+			marginInline: 'auto',
+			...(maxWidth === 'none' ? {} : { paddingInline: 0 }),
+		}
+		// X's own scroll box (`scroll`) is no scroll container while ChatScroll scrolls (chat-scroll.tsx): left `overflow-y:
+		// auto`, it is where use-stick-to-bottom's wheel handler stops looking for the region's box, so a wheel up over the
+		// messages would not let go of a streaming answer.
+		return { bubble: row, system: row, divider: row, scroll: { overflow: 'visible' } }
 	}, [maxWidth])
 
 	const items = useMemo(() => toBubbleItems(chat.messages), [chat.messages])
 
 	const loadEarlier = async () => {
 		const firstKey = items[0]?.key
+		// The reader goes up: the region lets go of the bottom first (chat-scroll.tsx `stopScroll`).
+		scrollRef.current?.stopScroll()
 		try {
 			await chat.loadEarlier()
 		} catch {
 			toast.error(t('common.request_failed_retry'))
 			return
 		}
-		// The message that was first stays where the reader is instead of the list jumping (spec §5.2).
+		// The message that was first stays where the reader is instead of the list jumping (spec §5.2): Bubble.List's
+		// `scrollTo` with a key scrolls it into view (`scrollIntoView`), which scrolls ChatScroll's box.
 		if (firstKey !== undefined) {
 			listRef.current?.scrollTo({ key: firstKey, block: 'start', behavior: 'instant' })
 		}
@@ -107,19 +125,22 @@ export default function MessageList({
 					</Button>
 				</div>
 			)}
-			<Bubble.List
+			{/* Each conversation opens at its latest message (ChatScroll's `initial`, keyed by the conversation). */}
+			<ChatScroll
 				key={conversationKey}
-				ref={listRef}
-				items={items}
-				role={role}
-				autoScroll
-				className={styles.bubbleList}
-				// Bubble.List's semantic slots (ListSemanticType): `scroll` is the scroll box, which spans the
-				// chat column and carries the inline padding; `bubble`, `system` and `divider` are the roots of
-				// the three bubble kinds (BubbleListItem), centred at the reading width (cosmetic sweep 1, item 1).
-				classNames={{ scroll: styles.scrollBox }}
-				styles={rowStyles}
-			/>
+				ref={scrollRef}
+			>
+				<Bubble.List
+					ref={listRef}
+					items={items}
+					role={role}
+					// ChatScroll scrolls and follows the answer; X's own auto-scroll is off (chat-scroll.tsx).
+					autoScroll={false}
+					// Bubble.List's semantic slots (ListSemanticType): `bubble`, `system` and `divider` are the roots of the
+					// three bubble kinds (BubbleListItem), centred at the reading width (cosmetic sweep 1, item 1).
+					styles={rowStyles}
+				/>
+			</ChatScroll>
 		</div>
 	)
 }

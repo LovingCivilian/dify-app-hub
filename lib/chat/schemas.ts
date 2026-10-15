@@ -13,11 +13,16 @@ export const MESSAGE_TEXT_MAX = 32_000
 /** The hub's own bound on one body's answers (docs silent; OWASP Input Validation Cheat Sheet: minimum and maximum length). */
 const ANSWERS_MAX = 50
 
-/** An answer to one open interrupt (AG-UI 1.0 interrupt-resume: `{ interruptId, status, payload? }`, payload an object here). */
+/**
+ * An answer to one open interrupt (AG-UI 1.0 interrupt-resume: `{ interruptId, status, payload? }`). The payload is an
+ * object, or a bare boolean for a `confirmation` without a `responseSchema` (plan call P6; AG-UI Concepts › Interrupts,
+ * reason taxonomy: "`responseSchema` optional; boolean default"); zod 4 "Unions" checks the options in order. Which
+ * payload an interrupt accepts is checked against the interrupt itself (lib/chat/answers.ts).
+ */
 const resumeEntrySchema = z.object({
 	interruptId: z.string().min(1).max(256),
 	status: z.enum(['resolved', 'cancelled']),
-	payload: z.record(z.string(), z.unknown()).optional(),
+	payload: z.union([z.record(z.string(), z.unknown()), z.boolean()]).optional(),
 })
 
 const toolResultSchema = z.object({

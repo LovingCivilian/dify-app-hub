@@ -113,7 +113,11 @@ describe('checkDocuments (spec §2.3)', () => {
 		const jwtSecret = 'k'.repeat(32)
 		expect(checkDocuments('agui', agui, { jwtSecret })).toEqual({
 			ok: true,
-			documents: { provider: 'agui', settings: agui, secrets: { jwtSecret } },
+			documents: {
+				provider: 'agui',
+				settings: { ...agui, askUser: false },
+				secrets: { jwtSecret },
+			},
 		})
 		expect(checkDocuments('agui', settings, { jwtSecret })).toEqual({
 			ok: false,

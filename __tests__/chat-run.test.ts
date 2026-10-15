@@ -10,7 +10,7 @@ type FakeSession = {
 const { dal, sessions } = vi.hoisted(() => ({
 	dal: {
 		findConversation: vi.fn(),
-		lastRun: vi.fn(),
+		continuedRun: vi.fn(),
 		loadThread: vi.fn(),
 		startRun: vi.fn(),
 		finishRun: vi.fn(),
@@ -43,6 +43,8 @@ vi.mock('@/lib/chat/session', () => ({
 
 import { activeRuns } from '@/lib/chat/active-runs'
 import { UPSTREAM_STATUS, type UpstreamErrorCode } from '@/lib/chat/adapter'
+import { ASK_USER_TOOL_NAME } from '@/lib/chat/ask-user'
+import { ASK_USER_TOOL } from '@/lib/chat/hub-tools'
 import { runTurn, UPSTREAM_MESSAGES } from '@/lib/chat/run'
 import { SSE_HEADERS } from '@/lib/chat/stream'
 import { threadForAgent, UNAVAILABLE_TOOL_CONTENT, UNAVAILABLE_TOOL_ERROR } from '@/lib/chat/thread'
@@ -60,9 +62,11 @@ const app = {
 	id: APP_ID,
 	enabled: true,
 	provider: 'agui' as const,
-	settings: { agentUrl: 'http://agent/agents/a', audience: 'a' },
+	settings: { agentUrl: 'http://agent/agents/a', audience: 'a', askUser: false },
 	secrets: { jwtSecret: 'x'.repeat(32) },
 }
+/** The same app with its `ask_user` switch on (spec §6.2). */
+const askingApp = { ...app, settings: { ...app.settings, askUser: true } }
 const conversation = {
 	id: CONVERSATION_ID,
 	appId: APP_ID,
@@ -91,6 +95,27 @@ const callRow = (seq: number, ...ids: string[]) =>
 			function: { name: 'lookup', arguments: '{}' },
 		})),
 	})
+const QUESTION_ARGS = JSON.stringify({
+	questions: [{ question: 'Which city?', options: ['Paris', 'Rome'] }],
+})
+const TRANSCRIPT = 'Q: Which city?\nA: Paris'
+const askRow = (seq: number, id: string) =>
+	row(seq, {
+		id: `a${seq}`,
+		role: 'assistant',
+		toolCalls: [
+			{ id, type: 'function', function: { name: ASK_USER_TOOL_NAME, arguments: QUESTION_ARGS } },
+		],
+	})
+const succeeded = {
+	id: 'r0',
+	status: 'succeeded',
+	outcome: { type: 'success' },
+	error: null,
+	custom: [],
+	startedAt: new Date(),
+	finishedAt: new Date(),
+}
 const interrupted = (interrupts: unknown[]) => ({
 	id: 'r0',
 	status: 'interrupted',
@@ -101,14 +126,17 @@ const interrupted = (interrupts: unknown[]) => ({
 	finishedAt: new Date(),
 })
 
-const chat = { runTurn: vi.fn() }
+const chat = { hubTools: vi.fn(), runTurn: vi.fn() }
 const opens = (opened: unknown, finished: Promise<unknown> = Promise.resolve({ failed: false })) =>
 	chat.runTurn.mockReturnValue({ opened: Promise.resolve(opened), finished })
-const run = (body: Record<string, unknown>, signal?: AbortSignal) =>
+const run = (
+	body: Record<string, unknown>,
+	{ signal, target = app }: { signal?: AbortSignal; target?: typeof app } = {},
+) =>
 	runTurn({
 		request: new Request(`http://hub/api/apps/${APP_ID}/runs`, { method: 'POST', signal }),
 		actor,
-		app,
+		app: target,
 		chat,
 		body,
 	})
@@ -122,9 +150,14 @@ const adapterInput = () => chat.runTurn.mock.calls[0][1]
 beforeEach(() => {
 	for (const fn of Object.values(dal)) fn.mockReset()
 	chat.runTurn.mockReset()
+	// AG-UI's rule (lib/providers/agui/chat.ts): ask_user while the app's switch is on.
+	chat.hubTools.mockReset()
+	chat.hubTools.mockImplementation((settings: { askUser: boolean }) =>
+		settings.askUser ? [ASK_USER_TOOL_NAME] : [],
+	)
 	sessions.length = 0
 	dal.findConversation.mockResolvedValue(conversation)
-	dal.lastRun.mockResolvedValue(null)
+	dal.continuedRun.mockResolvedValue(null)
 	dal.loadThread.mockResolvedValue([])
 	dal.finishRun.mockResolvedValue(undefined)
 	dal.startRun.mockImplementation(
@@ -264,9 +297,12 @@ describe('runTurn: a run that opens', () => {
 			conversationId: CONVERSATION_ID,
 			runId: 'r-old',
 		})
-		expect(dal.truncateStaleRun.mock.invocationCallOrder[0]).toBeLessThan(
-			dal.lastRun.mock.invocationCallOrder[0],
-		)
+		// The open items are read after the reconcile and before startRun (the plan's cross-task ordering).
+		const order = (fn: ReturnType<typeof vi.fn>) => fn.mock.invocationCallOrder[0]
+		expect(order(dal.truncateStaleRun)).toBeLessThan(order(dal.loadThread))
+		expect(order(dal.truncateStaleRun)).toBeLessThan(order(dal.continuedRun))
+		expect(order(dal.loadThread)).toBeLessThan(order(dal.startRun))
+		expect(order(dal.continuedRun)).toBeLessThan(order(dal.startRun))
 		await vi.waitFor(() => expect(sessions[0].finish).toHaveBeenCalled())
 
 		dal.truncateStaleRun.mockReset()
@@ -281,12 +317,26 @@ describe('runTurn: a run that opens', () => {
 	})
 })
 
+// Spec §6.2, plan call P1: the hub's own tools, read from the app's switch as it is now.
+describe('runTurn: the hub’s tools', () => {
+	it.each([
+		['off', app, []],
+		['on', askingApp, [ASK_USER_TOOL]],
+	])('advertises ask_user only while the switch is on (%s)', async (_case, target, tools) => {
+		opens({ ok: true })
+		await run({ message: { text: 'hi' } }, { target })
+		expect(chat.hubTools).toHaveBeenCalledWith(target.settings)
+		expect(adapterInput().tools).toEqual(tools)
+		await vi.waitFor(() => expect(sessions[0].finish).toHaveBeenCalled())
+	})
+})
+
 // Spec §4.3 step 1 (decision 50; plan call P3).
 describe('runTurn: what the conversation waits for', () => {
 	const approval = { id: 'int-1', reason: 'tool_call', toolCallId: 'call-1' }
 
 	it('refuses a message while an interrupt is open, storing nothing', async () => {
-		dal.lastRun.mockResolvedValue(interrupted([approval]))
+		dal.continuedRun.mockResolvedValue(interrupted([approval]))
 		expect(
 			await envelope(await run({ conversationId: CONVERSATION_ID, message: { text: 'hi' } })),
 		).toEqual({
@@ -297,7 +347,7 @@ describe('runTurn: what the conversation waits for', () => {
 	})
 
 	it('refuses answers that do not match what is open', async () => {
-		dal.lastRun.mockResolvedValue(interrupted([approval]))
+		dal.continuedRun.mockResolvedValue(interrupted([approval]))
 		const response = await run({
 			conversationId: CONVERSATION_ID,
 			answers: { resume: [{ interruptId: 'int-9', status: 'resolved' }] },
@@ -315,7 +365,7 @@ describe('runTurn: what the conversation waits for', () => {
 
 	it('resumes with the answers, and leaves the gated call to the agent', async () => {
 		opens({ ok: true })
-		dal.lastRun.mockResolvedValue(interrupted([approval]))
+		dal.continuedRun.mockResolvedValue(interrupted([approval]))
 		dal.loadThread.mockResolvedValue([
 			userRow(1, 'm1', 'Delete it'),
 			callRow(2, 'call-1', 'call-2'),
@@ -352,6 +402,56 @@ describe('runTurn: what the conversation waits for', () => {
 		await vi.waitFor(() => expect(sessions[0].finish).toHaveBeenCalled())
 	})
 
+	it('refuses a message while an ask_user question is open, storing nothing', async () => {
+		dal.continuedRun.mockResolvedValue(succeeded)
+		dal.loadThread.mockResolvedValue([userRow(1, 'm1', 'Plan a trip'), askRow(2, 'q1')])
+		expect(
+			await envelope(
+				await run(
+					{ conversationId: CONVERSATION_ID, message: { text: 'hi' } },
+					{ target: askingApp },
+				),
+			),
+		).toEqual({
+			status: 409,
+			body: { code: 'answer_pending', message: 'Answer the open question first.', status: 409 },
+		})
+		expect(dal.startRun).not.toHaveBeenCalled()
+	})
+
+	// Decision 62's fourth answer: with the switch off, a pending call is no question, and plan call P4 answers it.
+	it('answers a pending ask_user call as not available once the switch is off', async () => {
+		opens({ ok: true })
+		dal.continuedRun.mockResolvedValue(succeeded)
+		dal.loadThread.mockResolvedValue([userRow(1, 'm1', 'Plan a trip'), askRow(2, 'q1')])
+		await run({ conversationId: CONVERSATION_ID, message: { text: 'Never mind' } })
+		expect(started().messages).toEqual([
+			expect.objectContaining({ role: 'tool', toolCallId: 'q1', error: UNAVAILABLE_TOOL_ERROR }),
+			expect.objectContaining({ role: 'user', content: 'Never mind' }),
+		])
+		await vi.waitFor(() => expect(sessions[0].finish).toHaveBeenCalled())
+	})
+
+	// Spec §6.2: the answer is a tool message the hub stores; no interrupt is resumed, so the run has no resume list.
+	it('stores the answer to a question and starts the run with no resume', async () => {
+		opens({ ok: true })
+		dal.continuedRun.mockResolvedValue(succeeded)
+		dal.loadThread.mockResolvedValue([userRow(1, 'm1', 'Plan a trip'), askRow(2, 'q1')])
+		await run(
+			{
+				conversationId: CONVERSATION_ID,
+				answers: { toolResults: [{ toolCallId: 'q1', content: TRANSCRIPT }] },
+			},
+			{ target: askingApp },
+		)
+		expect(started().messages).toEqual([
+			{ id: expect.any(String), role: 'tool', toolCallId: 'q1', content: TRANSCRIPT },
+		])
+		expect(started().resume).toBeUndefined()
+		expect(adapterInput()).toMatchObject({ resume: undefined, tools: [ASK_USER_TOOL] })
+		await vi.waitFor(() => expect(sessions[0].finish).toHaveBeenCalled())
+	})
+
 	it('answers 409 when the conversation already runs', async () => {
 		dal.startRun.mockResolvedValue({ ok: false, code: 'run_in_progress' })
 		expect(
@@ -381,11 +481,13 @@ describe('runTurn: an agent that refuses before the stream', () => {
 				body: { code, message: UPSTREAM_MESSAGES[code], status },
 			})
 			const key = { conversationId: started().conversation.id, runId: started().runId }
+			// Plan call P10: the agent never started the run. A message is not withdrawn (#66).
 			expect(dal.finishRun).toHaveBeenCalledWith(key, {
 				status: 'failed',
-				error: { code, message: UPSTREAM_MESSAGES[code] },
+				error: { code, message: UPSTREAM_MESSAGES[code], beforeStream: true },
 				custom: [],
 			})
+			expect(dal.finishRun.mock.calls[0][1]).not.toHaveProperty('withdraw')
 			expect(errorSpy).toHaveBeenCalledWith('runTurn:', { appId: APP_ID, runId: key.runId, code })
 			expect(sessions[0].finish).not.toHaveBeenCalled()
 			expect(activeRuns.has(key.runId)).toBe(false)
@@ -406,13 +508,102 @@ describe('runTurn: an agent that refuses before the stream', () => {
 		errorSpy.mockRestore()
 	})
 
+	// Plan call P10, decision 62's first answer: the answers never reached the agent, so what they answered stays open.
+	it('stores a refused answering run before it releases it, withdrawing exactly its answers', async () => {
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+		const held: boolean[] = []
+		dal.finishRun.mockImplementation(async (key: { runId: string }) => {
+			held.push(activeRuns.has(key.runId))
+		})
+		opens({ ok: false, code: 'agent_rejected_input' }, Promise.resolve({ failed: true }))
+		dal.continuedRun.mockResolvedValue(
+			interrupted([{ id: 'int-1', reason: 'tool_call', toolCallId: 'call-1' }]),
+		)
+		dal.loadThread.mockResolvedValue([
+			userRow(1, 'm1', 'Clean up'),
+			callRow(2, 'call-1'),
+			askRow(3, 'q1'),
+			askRow(4, 'q2'),
+			callRow(5, 'call-9'),
+		])
+		const resume = [{ interruptId: 'int-1', status: 'resolved', payload: { approved: true } }]
+		const response = await run(
+			{
+				conversationId: CONVERSATION_ID,
+				answers: {
+					resume,
+					toolResults: [
+						{ toolCallId: 'q2', content: TRANSCRIPT },
+						{ toolCallId: 'q1', content: TRANSCRIPT },
+					],
+				},
+			},
+			{ target: askingApp },
+		)
+		expect((await envelope(response)).status).toBe(502)
+		const messages: { id: string; toolCallId: string; error?: string }[] = started().messages
+		// call-9's not-available answer (plan call P4) is stored with the run and never withdrawn.
+		expect(messages.map(message => [message.toolCallId, message.error])).toEqual([
+			['call-9', UNAVAILABLE_TOOL_ERROR],
+			['q1', undefined],
+			['q2', undefined],
+		])
+		expect(started().resume).toEqual(resume)
+		expect(dal.finishRun).toHaveBeenCalledWith(
+			{ conversationId: CONVERSATION_ID, runId: started().runId },
+			{
+				status: 'failed',
+				error: {
+					code: 'agent_rejected_input',
+					message: UPSTREAM_MESSAGES.agent_rejected_input,
+					beforeStream: true,
+				},
+				custom: [],
+				withdraw: [messages[1].id, messages[2].id],
+			},
+		)
+		expect(held).toEqual([true])
+		expect(activeRuns.has(started().runId)).toBe(false)
+		errorSpy.mockRestore()
+	})
+
+	it('withdraws the answers when the hub cannot hand the answering run to the agent', async () => {
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+		const thread = [userRow(1, 'm1', 'Plan a trip'), askRow(2, 'q1')]
+		dal.continuedRun.mockResolvedValue(succeeded)
+		dal.loadThread.mockResolvedValueOnce(thread).mockRejectedValueOnce(new Error('db down'))
+		await expect(
+			run(
+				{
+					conversationId: CONVERSATION_ID,
+					answers: { toolResults: [{ toolCallId: 'q1', content: TRANSCRIPT }] },
+				},
+				{ target: askingApp },
+			),
+		).rejects.toThrow('db down')
+		expect(dal.finishRun).toHaveBeenCalledWith(
+			{ conversationId: CONVERSATION_ID, runId: started().runId },
+			{
+				status: 'failed',
+				error: { code: 'internal_error', message: '', beforeStream: true },
+				custom: [],
+				withdraw: [started().messages[0].id],
+			},
+		)
+		errorSpy.mockRestore()
+	})
+
 	it('stores the run failed and rethrows when the hub cannot hand it to the agent', async () => {
 		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 		dal.loadThread.mockRejectedValueOnce(new Error('db down'))
 		await expect(run({ message: { text: 'hi' } })).rejects.toThrow('db down')
 		expect(dal.finishRun).toHaveBeenCalledWith(
 			{ conversationId: started().conversation.id, runId: started().runId },
-			{ status: 'failed', error: { code: 'internal_error', message: '' }, custom: [] },
+			{
+				status: 'failed',
+				error: { code: 'internal_error', message: '', beforeStream: true },
+				custom: [],
+			},
 		)
 		expect(chat.runTurn).not.toHaveBeenCalled()
 		expect(activeRuns.has(started().runId)).toBe(false)
@@ -441,7 +632,7 @@ describe('runTurn: a browser that leaves', () => {
 		let end!: (value: { failed: boolean }) => void
 		opens({ ok: true }, new Promise(resolve => (end = resolve)))
 		const browser = new AbortController()
-		const response = await run({ message: { text: 'hi' } }, browser.signal)
+		const response = await run({ message: { text: 'hi' } }, { signal: browser.signal })
 		expect(response.status).toBe(200)
 		browser.abort()
 		expect(adapterInput().abortController.signal.aborted).toBe(true)
@@ -466,7 +657,7 @@ describe('runTurn: a browser that leaves', () => {
 			},
 		)
 		const browser = new AbortController()
-		const pending = run({ message: { text: 'hi' } }, browser.signal)
+		const pending = run({ message: { text: 'hi' } }, { signal: browser.signal })
 		await vi.waitFor(() => expect(chat.runTurn).toHaveBeenCalled())
 		browser.abort()
 		const response = await pending

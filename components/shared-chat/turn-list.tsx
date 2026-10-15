@@ -6,6 +6,7 @@ import { App, Button, Skeleton } from 'antd'
 import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ChatScroll, { type ChatScrollHandle } from '@/components/chat/chat-view/chat-scroll'
 import styles from '@/components/chat/chat-view/chat-view.module.css'
 import type { BubbleInfo } from '@/components/chat/chat-view/message-list'
 import type { Turn } from '@/lib/chat/turn'
@@ -29,11 +30,13 @@ export interface TurnListProps {
 	/** An answer's content; keep it stable (useCallback): the role map, and so every bubble, follows it. */
 	renderAssistant: (turn: Turn, info: BubbleInfo) => React.ReactNode
 	renderFooter?: (turn: Turn, info: BubbleInfo) => React.ReactNode
+	/** The scroll region's handle, for the chat's send (chat-scroll.tsx). */
+	scrollRef: React.RefObject<ChatScrollHandle | null>
 }
 
 /**
  * X Bubble.List over the conversation's turns, with "load earlier" above it: the Dify chat's MessageList for the shared
- * turn (spec §5.1; plan call P11), the same role map, widths, skeleton and scroll anchoring.
+ * turn (spec §5.1; plan call P11), the same role map, widths, skeleton and scroll region (chat-scroll.tsx).
  */
 export default function TurnList({
 	messages,
@@ -44,6 +47,7 @@ export default function TurnList({
 	maxWidth,
 	renderAssistant,
 	renderFooter,
+	scrollRef,
 }: TurnListProps) {
 	const { t } = useTranslation()
 	const { message: toast } = App.useApp()
@@ -55,6 +59,21 @@ export default function TurnList({
 			assistant: {
 				placement: 'start',
 				variant: 'borderless',
+				// The chat's width, so a card or a thought keeps one width open or closed (the owner, 2026-10-15: "the width
+				// should be fixed to the chat width"): X sizes a start bubble to its content (`es/bubble/style/bubble.js`:
+				// `align-self: flex-start`, the body `max-width: 100%`), so its semantic `root` and `body` (Bubble API `styles`)
+				// take the row's width. A role's `styles` replace the list's (`es/bubble/BubbleList.js`: "items configuration
+				// has higher priority, overrides", `style: rootStyle || bubbleStyle`), so the root carries the list's row cap
+				// too (rowStyles below: the chat-width switch's `maxWidth`, centred, and no 15 % gap while capped).
+				styles: {
+					root: {
+						width: '100%',
+						maxWidth,
+						marginInline: 'auto',
+						...(maxWidth === 'none' ? {} : { paddingInline: 0 }),
+					},
+					body: { width: '100%' },
+				},
 				contentRender: (content, info) => renderAssistant(content as Turn, info),
 				footer: renderFooter ? (content, info) => renderFooter(content as Turn, info) : undefined,
 			},
@@ -63,26 +82,40 @@ export default function TurnList({
 				contentRender: content => <UserTurn turn={content as Turn} />,
 			},
 		}),
-		[renderAssistant, renderFooter],
+		[maxWidth, renderAssistant, renderFooter],
 	)
 
 	// One object per width, like the role map: Bubble.List hands it to every item on each render.
 	const rowStyles = useMemo<BubbleListProps['styles']>(() => {
-		const row = { maxWidth, marginInline: 'auto' }
-		return { bubble: row, system: row, divider: row }
+		// The reading width replaces X's own gap: Bubble.List pads a start bubble's end and an end bubble's start by 15 %
+		// (`es/bubble/style/list.js`), a share of the whole list's width, so inside a row capped at the reading width the
+		// content got narrower as the window got wider (the owner, 2026-10-15). While the row is capped, its padding is 0;
+		// wide (no cap) keeps X's gap.
+		const row = {
+			maxWidth,
+			marginInline: 'auto',
+			...(maxWidth === 'none' ? {} : { paddingInline: 0 }),
+		}
+		// X's own scroll box (`scroll`) is no scroll container while ChatScroll scrolls (chat-scroll.tsx): left `overflow-y:
+		// auto`, it is where use-stick-to-bottom's wheel handler stops looking for the region's box, so a wheel up over the
+		// messages would not let go of a streaming answer.
+		return { bubble: row, system: row, divider: row, scroll: { overflow: 'visible' } }
 	}, [maxWidth])
 
 	const items = useMemo(() => toBubbleItems(messages), [messages])
 
 	const onLoadEarlier = async () => {
 		const firstKey = items[0]?.key
+		// The reader goes up: the region lets go of the bottom first (chat-scroll.tsx `stopScroll`).
+		scrollRef.current?.stopScroll()
 		try {
 			await loadEarlier()
 		} catch {
 			toast.error(t('common.request_failed_retry'))
 			return
 		}
-		// The turn that was first stays where the reader is instead of the list jumping (the Dify chat's rule).
+		// The turn that was first stays where the reader is instead of the list jumping (the Dify chat's rule): Bubble.List's
+		// `scrollTo` with a key scrolls it into view (`scrollIntoView`), which scrolls ChatScroll's box.
 		if (firstKey !== undefined)
 			listRef.current?.scrollTo({ key: firstKey, block: 'start', behavior: 'instant' })
 	}
@@ -109,16 +142,20 @@ export default function TurnList({
 					</Button>
 				</div>
 			)}
-			<Bubble.List
+			{/* Each conversation opens at its latest turn (ChatScroll's `initial`, keyed by the conversation). */}
+			<ChatScroll
 				key={conversationKey}
-				ref={listRef}
-				items={items}
-				role={role}
-				autoScroll
-				className={styles.bubbleList}
-				classNames={{ scroll: styles.scrollBox }}
-				styles={rowStyles}
-			/>
+				ref={scrollRef}
+			>
+				<Bubble.List
+					ref={listRef}
+					items={items}
+					role={role}
+					// ChatScroll scrolls and follows the answer; X's own auto-scroll is off (chat-scroll.tsx).
+					autoScroll={false}
+					styles={rowStyles}
+				/>
+			</ChatScroll>
 		</div>
 	)
 }

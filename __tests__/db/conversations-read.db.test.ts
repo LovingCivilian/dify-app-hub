@@ -209,6 +209,55 @@ describe('a page of history (spec §3.3, plan call P8)', () => {
 		expect(turns[3].turn.runs).toEqual([{ runId: turn2.runId, outcome: 'success' }])
 	})
 
+	// The owner, 2026-10-15 ("record everything that happens in the chat"): each run's answers come back with the page.
+	it('answers each run’s sent answers (`resume`), which the grouping records in the turn', async () => {
+		const actor = await insertAccount(actorFor())
+		const appId = await insertApp()
+		const conversationId = await insertConversation(actor, appId)
+		const base = Date.now() - 60_000
+		const approval = { id: 'int-1', reason: 'tool_call', toolCallId: 'call-1' }
+		const resume = [{ interruptId: 'int-1', status: 'resolved', payload: { approved: true } }]
+		const asked = crypto.randomUUID()
+		const answered = crypto.randomUUID()
+		await testDb.insert(conversationRuns).values([
+			{
+				id: asked,
+				conversationId,
+				status: 'interrupted',
+				outcome: { type: 'interrupt', interrupts: [approval] },
+				startedAt: new Date(base),
+				finishedAt: new Date(base),
+			},
+			{
+				id: answered,
+				conversationId,
+				status: 'succeeded',
+				resume,
+				startedAt: new Date(base + 1000),
+				finishedAt: new Date(base + 1000),
+			},
+		])
+		await insertMessage(conversationId, asked, {
+			id: crypto.randomUUID(),
+			role: 'user',
+			content: 'Delete a.txt',
+		})
+		await insertMessage(conversationId, asked, {
+			id: crypto.randomUUID(),
+			role: 'assistant',
+			toolCalls: [
+				{ id: 'call-1', type: 'function', function: { name: 'delete_file', arguments: '{}' } },
+			],
+		})
+		const page = await readThreadPage(actor, appId, conversationId, { turns: 20 })
+		expect(page?.runs.map(run => [run.id, run.resume])).toEqual([
+			[asked, null],
+			[answered, resume],
+		])
+		const turns = turnsFromMessages(page!.rows, page!.runs)
+		expect(turns[1].turn.parts[0]).toMatchObject({ toolCallId: 'call-1', decision: 'approved' })
+	})
+
 	it('answers null for another account’s conversation, another app’s, or a deleted one', async () => {
 		const actor = await insertAccount(actorFor())
 		const stranger = await insertAccount(actorFor())

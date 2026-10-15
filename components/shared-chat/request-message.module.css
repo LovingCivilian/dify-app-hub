@@ -1,0 +1,4 @@
+/* An agent's request in a card (its interrupt's message): its line breaks kept. */
+.request {
+	white-space: pre-wrap;
+}

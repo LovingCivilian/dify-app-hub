@@ -4,7 +4,15 @@ import {
 	AgUiChatProvider,
 	parseHubEvent,
 } from '@/components/shared-chat/provider/ag-ui-chat-provider'
-import { emptyAssistantTurn, HUB_RUN_EVENT, userTurn, type Turn } from '@/lib/chat/turn'
+import { ASK_USER_TOOL_NAME } from '@/lib/chat/ask-user'
+import { INVALID_QUESTION_CONTENT } from '@/lib/chat/statuses'
+import {
+	emptyAssistantTurn,
+	HUB_RUN_EVENT,
+	userTurn,
+	type ToolPart,
+	type Turn,
+} from '@/lib/chat/turn'
 
 const chunk = (event: object) => ({ data: JSON.stringify(event) })
 
@@ -57,6 +65,96 @@ describe('AgUiChatProvider.transformParams (spec §4.2)', () => {
 		expect(body).toEqual({ conversationId: 'conv-1', answers })
 		expect(body).not.toHaveProperty('continues')
 		expect(body).not.toHaveProperty('message')
+	})
+	it("sends a confirmation's bare boolean as it is (plan call P6)", () => {
+		const answers = {
+			resume: [{ interruptId: 'int-1', status: 'resolved' as const, payload: false }],
+		}
+		expect(makeProvider().transformParams({ answers, continues: emptyAssistantTurn() })).toEqual({
+			conversationId: 'conv-1',
+			answers,
+		})
+	})
+})
+
+describe('AgUiChatProvider: ask_user answers merge when the request starts (plan call P11)', () => {
+	const call = (toolCallId: string, args: string): ToolPart => ({
+		kind: 'tool',
+		toolCallId,
+		name: ASK_USER_TOOL_NAME,
+		args,
+		status: 'waiting',
+	})
+	const valid = call('q1', '{"questions":[{"question":"Which city?"}]}')
+	const invalid = call('q2', '{"questions":[]}')
+	const asked: Turn = {
+		...emptyAssistantTurn(),
+		parts: [valid, invalid],
+		runs: [{ runId: 'r1', outcome: 'success' }],
+	}
+	const answers = {
+		toolResults: [
+			{ toolCallId: 'q1', content: 'Q: Which city?\nA: Paris' },
+			{ toolCallId: 'q2', content: '' },
+		],
+	}
+
+	it('sends the answers, and leaves the turn it was given unanswered for the placeholder', () => {
+		const provider = makeProvider()
+		expect(provider.transformParams({ answers, continues: asked })).toEqual({
+			conversationId: 'conv-1',
+			answers,
+		})
+		// requestPlaceholder shows `continues` until the first chunk: a refusal before the stream keeps the questions open.
+		expect(asked.parts).toEqual([valid, invalid])
+	})
+	it('shows the merged turn from the first chunk: done with the transcript, or the invalid question an error', () => {
+		const provider = makeProvider()
+		provider.transformParams({ answers, continues: asked })
+		const turn = feed(provider, [chunk({ ...hubRun, value: { ...hubRun.value, runId: 'r2' } })])
+		expect(turn.parts).toEqual([
+			{ ...valid, status: 'done', result: 'Q: Which city?\nA: Paris' },
+			{ ...invalid, status: 'error', error: INVALID_QUESTION_CONTENT },
+		])
+		expect(turn.runs.map(run => run.runId)).toEqual(['r1', 'r2'])
+	})
+})
+
+describe('AgUiChatProvider: the sent answers are recorded when the request starts (the owner, 2026-10-15)', () => {
+	const gated: ToolPart = {
+		kind: 'tool',
+		toolCallId: 'call-1',
+		name: 'delete_file',
+		args: '{"path":"a.txt"}',
+		status: 'waiting',
+	}
+	const approval = { id: 'int-1', reason: 'tool_call', toolCallId: 'call-1' }
+	const confirm = { id: 'int-2', reason: 'confirmation', message: 'Proceed?' }
+	const waiting: Turn = {
+		...emptyAssistantTurn(),
+		parts: [gated],
+		runs: [{ runId: 'r1', outcome: 'interrupt' }],
+		interrupts: [approval, confirm],
+	}
+	const answers = {
+		resume: [
+			{ interruptId: 'int-1', status: 'resolved' as const, payload: { approved: false } },
+			{ interruptId: 'int-2', status: 'resolved' as const, payload: true },
+		],
+	}
+
+	it('leaves the turn it was given as it was, for the placeholder and a refusal before the stream', () => {
+		makeProvider().transformParams({ answers, continues: waiting })
+		expect(waiting.parts).toEqual([gated])
+		expect(waiting.answered).toEqual([])
+	})
+	it('shows the decision on the call and the other answers from the first chunk, over the turn’s open interrupts', () => {
+		const provider = makeProvider()
+		provider.transformParams({ answers, continues: waiting })
+		const turn = feed(provider, [chunk({ ...hubRun, value: { ...hubRun.value, runId: 'r2' } })])
+		expect(turn.parts).toEqual([{ ...gated, decision: 'rejected' }])
+		expect(turn.answered).toEqual([{ interrupt: confirm, status: 'resolved', payload: true }])
+		expect(turn.interrupts).toEqual([])
 	})
 })
 

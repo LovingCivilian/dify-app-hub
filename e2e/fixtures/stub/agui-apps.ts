@@ -8,18 +8,22 @@ export interface StubAguiApp {
 	name: string
 	/** The last path segment of the agent URL, as the owner's service names agents (`<base>/agents/<name>`). */
 	agent: string
+	/** The app's `askUser` switch (Part 2 spec §6.2; plan call P18): while it is on, its runs advertise ask_user. */
+	askUser: boolean
 }
 
 export const AGUI_APP: StubAguiApp = {
 	id: 'e2e00000-0000-4000-8000-0000000000a1',
 	name: 'Stub AG-UI agent',
 	agent: 'assistant',
+	askUser: true,
 }
 
 export const AGUI_MISSING_APP: StubAguiApp = {
 	id: 'e2e00000-0000-4000-8000-0000000000a2',
 	name: 'Stub AG-UI missing',
 	agent: 'missing',
+	askUser: false,
 }
 
 export const STUB_AGUI_APPS: StubAguiApp[] = [AGUI_APP, AGUI_MISSING_APP]

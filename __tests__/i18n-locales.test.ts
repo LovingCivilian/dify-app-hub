@@ -63,11 +63,13 @@ describe('locale files', () => {
 
 	it('write the Arabic file in Arabic script', () => {
 		// Keys that are legitimately Latin-only (product names, format strings) are listed here.
-		// The directory connection's protocol names (spec §6.6) and the provider names stay as written in every language.
+		// The directory connection's protocol names (spec §6.6) and the provider names stay as written in every language,
+		// and so does the plan panel's progress badge, a format string of two numbers ("1/3").
 		const latinOnly = new Set<string>([
 			'admin_users.directory_ldaps',
 			'admin_users.directory_starttls',
 			'provider.dify',
+			'shared_chat.plan.progress',
 		])
 		const notArabic = Object.entries(translations.ar)
 			.filter(([key, value]) => !latinOnly.has(key) && !/[؀-ۿ]/.test(value))

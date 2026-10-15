@@ -54,3 +54,7 @@ export const STOPPED_TOOL_CONTENT = 'The run was stopped before this tool return
 /** Spec §6.2's last bullet (plan call P4): a call to a tool the hub never advertised. */
 export const UNAVAILABLE_TOOL_ERROR = 'not_available'
 export const UNAVAILABLE_TOOL_CONTENT = 'This tool is not available here.'
+/** 2b's plan call P3: an ask_user call whose arguments failed the schema, which the hub answers on Dismiss. */
+export const INVALID_QUESTION_ERROR = 'invalid_arguments'
+export const INVALID_QUESTION_CONTENT =
+	'The questions did not match the parameters of the ask_user tool, so the user could not answer them.'

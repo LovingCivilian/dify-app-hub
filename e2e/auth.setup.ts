@@ -61,7 +61,8 @@ setup(
 				)
 			}
 			// Part 2 spec §10: two AG-UI apps on the stub agent (plan call P14), open to everyone like the stub apps. The
-			// documents are the AG-UI provider's (spec §2.2): the agent's URL, the JWT audience and the shared secret.
+			// documents are the AG-UI provider's (spec §2.2): the agent's URL, the JWT audience, the `askUser` switch (2b's
+			// plan call P18: on for the agent that answers) and the shared secret.
 			for (const app of STUB_AGUI_APPS) {
 				await db.query(
 					"INSERT INTO apps (id, provider, name, description, is_enabled, access_mode, settings, secrets) VALUES ($1, 'agui', $2, 'Seeded for the e2e suite', true, 'everyone', $3::jsonb, $4::jsonb) ON CONFLICT (id) DO UPDATE SET is_enabled = EXCLUDED.is_enabled, access_mode = EXCLUDED.access_mode, settings = EXCLUDED.settings, secrets = EXCLUDED.secrets, icon_image = NULL, icon_mime = NULL",
@@ -71,6 +72,7 @@ setup(
 						JSON.stringify({
 							agentUrl: aguiAgentUrl(stubPort, app.agent),
 							audience: STUB_AGUI_AUDIENCE,
+							askUser: app.askUser,
 						}),
 						JSON.stringify({ jwtSecret: e2eEnv.E2E_AGUI_JWT_SECRET }),
 					],

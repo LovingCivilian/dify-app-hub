@@ -1,0 +1,5 @@
+/* Text whose line breaks are kept: an ask_user call's questions and answers, and a result that is not their transcript,
+   as it went back to the agent (plan call P3). */
+.lines {
+	white-space: pre-wrap;
+}

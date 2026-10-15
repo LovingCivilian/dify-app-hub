@@ -34,6 +34,8 @@ import {
 export interface RunError {
 	code?: string
 	message: string
+	/** P10: the agent never started this run (refused before its stream, or the hub failed before sending it). */
+	beforeStream?: true
 }
 
 export interface CustomRecord {
@@ -76,7 +78,13 @@ export interface RunKey {
 	runId: string
 }
 
-const runErrorSchema = z.object({ code: z.string().optional(), message: z.string() })
+// zod 4 "Literals" (`z.literal(true)`) and "Objects" (an object drops keys it does not declare): the refusal flag reads
+// back only as `true`, the one value the hub writes (plan call P10).
+const runErrorSchema = z.object({
+	code: z.string().optional(),
+	message: z.string(),
+	beforeStream: z.literal(true).optional(),
+})
 // zod 4 "Unknown": "As object properties, their keys are required, matching `{ a: any }` in TypeScript", which is
 // CustomRecord's shape; AG-UI's CUSTOM event requires `value` too ("Events", CUSTOM).
 const customSchema = z.array(z.object({ name: z.string(), value: z.unknown() }))
@@ -168,12 +176,24 @@ export async function findConversation(
 	return row ?? null
 }
 
-/** The conversation's newest run (spec §4.3 step 1 reads its open interrupts), or null before the first. */
-export async function lastRun(conversationId: string): Promise<StoredRun | null> {
+/**
+ * The run the conversation continues from (spec §4.3 step 1 reads its open interrupts; plan call P10, decision 62): its
+ * newest run the agent started, so a run refused before its stream is passed over and what it answered stays open; null
+ * before the first. `error ->> 'beforeStream'` is the flag as text, and NULL when `error` is NULL or has no such key
+ * (PostgreSQL 18 "JSON Functions and Operators", Table 9.47 and its note: the extraction operators "return NULL, rather
+ * than failing"), which `coalesce` reads as not refused. The condition is a Drizzle `sql` template inside `and()`
+ * (Drizzle "Magical sql operator": the column is mapped to its escaped name; the template holds no value).
+ */
+export async function continuedRun(conversationId: string): Promise<StoredRun | null> {
 	const [row] = await getDb()
 		.select(runColumns)
 		.from(conversationRuns)
-		.where(eq(conversationRuns.conversationId, conversationId))
+		.where(
+			and(
+				eq(conversationRuns.conversationId, conversationId),
+				sql`coalesce(${conversationRuns.error} ->> 'beforeStream', 'false') <> 'true'`,
+			),
+		)
 		.orderBy(desc(conversationRuns.startedAt), desc(conversationRuns.id))
 		.limit(1)
 	return row ? toStoredRun(row) : null
@@ -328,13 +348,17 @@ export interface RunEnd {
 	custom: CustomRecord[]
 	/** Stop, failure or truncation (spec §3.2 step 4): rows to mark incomplete, and the tool messages that answer cut-off calls. */
 	close?: { messageIds: string[]; toolMessages: Message[] }
+	/** P10: message ids this run carried that the agent never received; deleted with the run's end. */
+	withdraw?: string[]
 }
 
 /**
  * Spec §3.2 steps 3 and 4, in one transaction and once: the run row is ended only while it is still running (an UPDATE
  * … WHERE status = 'running' RETURNING, so a second call, or a stale-run check racing the run's own end, writes
- * nothing); then the rows `close` names become incomplete and its tool messages are added under the run; the
- * conversation's active run is cleared where it is still this one, and its last activity is touched.
+ * nothing); then the rows `withdraw` names are deleted, only this run's own (plan call P10: the answers of a run the
+ * agent never started go, so their items stay open, and no request sees the run ended with them still stored); the rows
+ * `close` names become incomplete and its tool messages are added under the run; the conversation's active run is
+ * cleared where it is still this one, and its last activity is touched.
  */
 export async function finishRun(key: RunKey, end: RunEnd): Promise<void> {
 	const now = new Date()
@@ -358,6 +382,18 @@ export async function finishRun(key: RunKey, end: RunEnd): Promise<void> {
 			)
 			.returning({ id: conversationRuns.id })
 		if (!ended.length) return
+		const withdraw = end.withdraw ?? []
+		// Drizzle "Delete" (`.delete(table).where(…)`) with `and`, `eq` and `inArray` (Drizzle "Filters").
+		if (withdraw.length)
+			await tx
+				.delete(conversationMessages)
+				.where(
+					and(
+						eq(conversationMessages.conversationId, key.conversationId),
+						eq(conversationMessages.runId, key.runId),
+						inArray(conversationMessages.messageId, withdraw),
+					),
+				)
 		const messageIds = end.close?.messageIds ?? []
 		if (messageIds.length)
 			await tx
@@ -497,10 +533,16 @@ export async function listConversations(
 	}
 }
 
+/** A run as a history page answers it: with the answers it was started with, which `turnsFromMessages` records. */
+export interface ThreadRun extends StoredRun {
+	/** The `resume` list startRun stored, as stored (null for a run that answered nothing); `readResume` reads it. */
+	resume: unknown
+}
+
 export interface ThreadPage {
 	conversation: ConversationRecord
 	rows: StoredMessage[]
-	runs: StoredRun[]
+	runs: ThreadRun[]
 	/** The seq of the oldest user message shown, as a string; null when nothing is older (plan call P8). */
 	cursor: string | null
 }
@@ -510,7 +552,8 @@ export interface ThreadPage {
  * (a `seq`), and every row from the oldest of them on, so a page holds whole turns; the cursor names that oldest user
  * message while an older one exists. The runs are the ones started from that user message's run on (and before
  * `before`'s), message-less runs included, such as one the agent refused before its stream, so each turn shows every
- * run that answered it. Null when the conversation is not the actor's of this app, or deleted.
+ * run that answered it, each with the answers it was started with. Null when the conversation is not the actor's of
+ * this app, or deleted.
  */
 export async function readThreadPage(
 	actor: SessionUser,
@@ -553,7 +596,7 @@ export async function readThreadPage(
 	const from = await runStart(first)
 	const to = page.before === undefined ? undefined : await runStart(page.before)
 	const runs = await db
-		.select(runColumns)
+		.select({ ...runColumns, resume: conversationRuns.resume })
 		.from(conversationRuns)
 		.where(
 			and(
@@ -566,7 +609,7 @@ export async function readThreadPage(
 	return {
 		conversation,
 		rows,
-		runs: runs.map(toStoredRun),
+		runs: runs.map(({ resume, ...run }) => ({ ...toStoredRun(run), resume })),
 		cursor: starts.length > page.turns ? String(first) : null,
 	}
 }

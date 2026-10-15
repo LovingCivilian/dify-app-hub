@@ -7,11 +7,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/env', () => ({ env: () => ({ agentJwtIssuer: 'nextjs-bff' }) }))
 
 import type { ChatTurnInput } from '@/lib/chat/adapter'
+import { ASK_USER_TOOL_NAME } from '@/lib/chat/ask-user'
+import { ASK_USER_TOOL } from '@/lib/chat/hub-tools'
 import { aguiChat, upstreamCodeFor } from '@/lib/providers/agui/chat'
 
 const SECRET = 'a-test-secret-of-at-least-32-characters'
 const app = {
-	settings: { agentUrl: 'http://agents.test:8000/agents/assistant', audience: 'assistant' },
+	settings: {
+		agentUrl: 'http://agents.test:8000/agents/assistant',
+		audience: 'assistant',
+		askUser: false,
+	},
 	secrets: { jwtSecret: SECRET },
 }
 const encoder = new EventEncoder()
@@ -77,6 +83,14 @@ describe('upstreamCodeFor', () => {
 	})
 })
 
+// Spec §6.2, plan call P1: ask_user is advertised only while the app's switch is on (decision 62: as it is now).
+describe('aguiChat.hubTools', () => {
+	it('names ask_user while the switch is on, and nothing while it is off', () => {
+		expect(aguiChat.hubTools({ ...app.settings, askUser: true })).toEqual([ASK_USER_TOOL_NAME])
+		expect(aguiChat.hubTools({ ...app.settings, askUser: false })).toEqual([])
+	})
+})
+
 describe('aguiChat.runTurn', () => {
 	const finishedRun = [
 		ev('RUN_STARTED', { threadId: 'conversation-1', runId: 'run-1' }),
@@ -136,6 +150,14 @@ describe('aguiChat.runTurn', () => {
 			forwardedProps: {},
 			resume: [{ interruptId: 'int-1', status: 'cancelled' }],
 		})
+	})
+
+	// Spec §2.3, §6.2: the agent contract's one change in 2b, RunAgentInput.tools, sent as the run gives it.
+	it('sends the hub’s tools it is given', async () => {
+		fetchMock.mockResolvedValue(sse(finishedRun))
+		await aguiChat.runTurn(app, input({ tools: [ASK_USER_TOOL] }), recordingSink().sink).finished
+		const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+		expect(JSON.parse(String(init.body)).tools).toEqual([ASK_USER_TOOL])
 	})
 
 	// Spec §2.3: a token minted for each request.

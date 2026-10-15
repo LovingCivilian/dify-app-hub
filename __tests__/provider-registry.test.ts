@@ -29,8 +29,16 @@ describe('the server registry (spec §3)', () => {
 
 // Part 2 spec §2.2: what each DTO may carry of an AG-UI app's documents.
 describe("AG-UI's DTO fields", () => {
-	it('give the chat and the gallery nothing of the agent URL or the audience', () => {
-		expect(PROVIDERS.agui.chatFields()).toEqual({})
+	const aguiSettings = {
+		agentUrl: 'http://agents:8000/agents/assistant',
+		audience: 'assistant',
+		askUser: true,
+	}
+	it('give the chat the ask_user switch only, and the gallery nothing', () => {
+		expect(PROVIDERS.agui.chatFields(aguiSettings)).toEqual({ askUser: true })
+		expect(PROVIDERS.agui.chatFields({ ...aguiSettings, askUser: false })).toEqual({
+			askUser: false,
+		})
 		expect(PROVIDERS.agui.summaryFields()).toEqual({})
 	})
 	it('say whether the secret is set, never its value', () => {
