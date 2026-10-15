@@ -1,7 +1,7 @@
 'use client'
 
 import type { Interrupt } from '@ag-ui/core'
-import { Alert, Button, Flex } from 'antd'
+import { Button, Card, Flex, Tag, Typography } from 'antd'
 import { use } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,16 +20,14 @@ const DECISION_TAGS = {
 } as const satisfies Record<ApprovalDecision, { color: string; key: string }>
 
 /**
- * The request on the gated tool's ThoughtChain item (spec §6.1; the approved design of 2026-10-15, B.2–B.4, after AI
- * Elements' `Confirmation`: a slim alert with the request and small buttons at its end, Reject then Approve), with the
- * arguments read-only in the item above (agenticos's rule). An antd Alert (`antd info Alert`: `title`, which replaces
- * the deprecated `message`; `action`; `showIcon`; `type`) carries the interrupt's message as plain text, as the agent
- * sent it (spec §6.4), or "Run this tool?" when it has none; its `actions` slot sits at the alert's end and the text
- * wraps beside it (antd `es/alert/style/index.js`: the section is `flex: 1; min-width: 0`), or, on a phone, above it
- * (approval-actions.module.css, through the semantic `classNames`: `antd semantic Alert`). The answer follows the
- * interrupt's own `responseSchema` (approvalPayload, plan call P5); an expired approval is a warning with Dismiss only,
- * which answers it `cancelled` (plan call P14); a recorded decision gives way to a DecisionNote with Change until the
- * last open item has one (plan call P13). Outside a waiting chat it renders nothing.
+ * The request inside the gated tool's card, between its arguments and its result (spec §6.1; AI Elements' `Tool` with its
+ * `Confirmation` inside the card: a bordered box, the request's text above, Reject then Accept at the end; the owner,
+ * 2026-10-15: "the approval should be shown inside the block like how AI Elements does it"). An antd Card (`size="small"`,
+ * `antd info Card --version 6.6.5`) holds the interrupt's message as plain text, as the agent sent it (spec §6.4), or "Run
+ * this tool?" when it has none, and below it the buttons at the end. The answer follows the interrupt's own
+ * `responseSchema` (approvalPayload, plan call P5); an expired approval shows "Expired" with Dismiss only, which answers it
+ * `cancelled` (plan call P14); a recorded decision shows its DecisionNote with Change until the last open item has one
+ * (plan call P13). Outside a waiting chat it renders nothing.
  */
 export default function ApprovalActions({ interrupt }: { interrupt: Interrupt }) {
 	const { t } = useTranslation()
@@ -39,11 +37,13 @@ export default function ApprovalActions({ interrupt }: { interrupt: Interrupt })
 	const view = approvalView(interrupt, answers)
 	if (view.kind === 'decided')
 		return (
-			<DecisionNote
-				itemId={interrupt.id}
-				color={DECISION_TAGS[view.decision].color}
-				label={t(DECISION_TAGS[view.decision].key)}
-			/>
+			<Card size="small">
+				<DecisionNote
+					itemId={interrupt.id}
+					color={DECISION_TAGS[view.decision].color}
+					label={t(DECISION_TAGS[view.decision].key)}
+				/>
+			</Card>
 		)
 	const resolve = (approved: boolean) =>
 		answer({
@@ -53,19 +53,25 @@ export default function ApprovalActions({ interrupt }: { interrupt: Interrupt })
 			payload: approvalPayload(interrupt.responseSchema, approved),
 		})
 	return (
-		<Alert
-			type={view.kind === 'open' ? 'info' : 'warning'}
-			showIcon
-			title={interrupt.message || t('shared_chat.answer.approval_request')}
-			classNames={{ root: styles.approval, title: styles.request, actions: styles.actions }}
-			action={
-				view.kind === 'open' ? (
+		<Card size="small">
+			<Flex
+				vertical
+				gap="small"
+			>
+				<Typography.Paragraph
+					type="secondary"
+					className={styles.request}
+					style={{ marginBottom: 0 }}
+				>
+					{interrupt.message || t('shared_chat.answer.approval_request')}
+				</Typography.Paragraph>
+				{view.kind === 'open' ? (
 					<Flex
 						gap="small"
 						justify="end"
+						wrap
 					>
 						<Button
-							size="small"
 							disabled={disabled}
 							onClick={() => resolve(false)}
 						>
@@ -73,7 +79,6 @@ export default function ApprovalActions({ interrupt }: { interrupt: Interrupt })
 						</Button>
 						<Button
 							type="primary"
-							size="small"
 							disabled={disabled}
 							onClick={() => resolve(true)}
 						>
@@ -81,17 +86,24 @@ export default function ApprovalActions({ interrupt }: { interrupt: Interrupt })
 						</Button>
 					</Flex>
 				) : (
-					<Button
-						size="small"
-						disabled={disabled}
-						onClick={() =>
-							answer({ kind: 'resume', interruptId: interrupt.id, status: 'cancelled' })
-						}
+					<Flex
+						gap="small"
+						justify="end"
+						align="center"
+						wrap
 					>
-						{t('shared_chat.answer.dismiss')}
-					</Button>
-				)
-			}
-		/>
+						<Tag color="warning">{t('shared_chat.answer.expired')}</Tag>
+						<Button
+							disabled={disabled}
+							onClick={() =>
+								answer({ kind: 'resume', interruptId: interrupt.id, status: 'cancelled' })
+							}
+						>
+							{t('shared_chat.answer.dismiss')}
+						</Button>
+					</Flex>
+				)}
+			</Flex>
+		</Card>
 	)
 }

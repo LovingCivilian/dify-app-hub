@@ -1,24 +1,4 @@
-/*
- * The request as an antd Alert (its semantic `root` and `actions`): on a phone the buttons take a row of their own under
- * the text, at its end, as AI Elements' `Confirmation` lays out its actions; from screenMD they sit beside the text, where
- * antd puts `action`. antd sets neither `flex-wrap` nor `flex-basis` on these (`es/alert/style/index.js`).
- */
-.approval {
-	flex-wrap: wrap;
-	row-gap: var(--ant-margin-xs);
-}
-
-.actions {
-	flex-basis: 100%;
-}
-
-@media (min-width: 768px /* screenMD */) {
-	.actions {
-		flex-basis: auto;
-	}
-}
-
-/* The approval's request (the Alert's title): the agent's message as sent, its line breaks kept. */
+/* The approval's request (the agent's message): its line breaks kept. */
 .request {
 	white-space: pre-wrap;
 }

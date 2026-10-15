@@ -70,15 +70,26 @@ const BADGES = {
  * `defaultActiveKey`, item `showArrow`: `antd info Collapse --version 6.6.5`), its header the tool's icon, name and status
  * badge, its body the arguments and the result (tool-views.tsx). It starts open as AI Elements' does for a completed or
  * failed tool, and for one that waits for its approval; the card is keyed by that, so it opens when its call completes
- * (React: resetting state with a key). A card with no body has no chevron; the hub's `ask_user` card stays open. Below
- * the card, in the turn that waits (TurnAnswersContext), sits the approval's request with Reject and Approve (spec §6.1,
- * AI Elements' separate `Confirmation`), or "Answered" with Change for drafted `ask_user` answers (plan call P13).
+ * (React: resetting state with a key). A card with no body has no chevron; the hub's `ask_user` card stays open. Inside
+ * the card, in the turn that waits (TurnAnswersContext), sits the approval's request with Reject and Approve between
+ * the arguments and the result (spec §6.1; AI Elements puts its `Confirmation` there), or "Answered" with Change under
+ * drafted `ask_user` answers (plan call P13).
  */
 function ToolCard({ tool }: { tool: ToolPart }) {
 	const { t } = useTranslation()
 	const answers = use(TurnAnswersContext)
-	const view = toolItemView(tool, t)
 	const footer = answers ? toolFooter(tool, answers) : null
+	const inner =
+		footer?.kind === 'approval' ? (
+			<ApprovalActions interrupt={footer.interrupt} />
+		) : footer?.kind === 'answered' ? (
+			<DecisionNote
+				itemId={tool.toolCallId}
+				color="success"
+				label={t('shared_chat.answer.answered')}
+			/>
+		) : undefined
+	const view = toolItemView(tool, t, inner)
 	const approval =
 		answers && footer?.kind === 'approval' ? approvalView(footer.interrupt, answers) : null
 	const badgeKind = toolBadge(tool.status, approval)
@@ -86,53 +97,39 @@ function ToolCard({ tool }: { tool: ToolPart }) {
 	const open = view.alwaysOpen || (view.content !== undefined && toolOpenByDefault(badgeKind))
 	const fixed = view.alwaysOpen || view.content === undefined
 	return (
-		<Flex
-			vertical
-			gap="small"
-		>
-			<Collapse
-				key={open ? 'open' : 'closed'}
-				size="small"
-				expandIconPlacement="end"
-				// A card without a body, or the `ask_user` card, is held open or closed through the controlled `activeKey`
-				// with no `onChange`, and shows no arrow (antd: "If false, panel will not show arrow icon").
-				{...(fixed
-					? { activeKey: view.alwaysOpen ? [tool.toolCallId] : [] }
-					: { defaultActiveKey: open ? [tool.toolCallId] : [] })}
-				items={[
-					{
-						key: tool.toolCallId,
-						showArrow: !fixed,
-						label: (
-							<Flex
-								align="center"
-								gap="small"
-								wrap
+		<Collapse
+			key={open ? 'open' : 'closed'}
+			size="small"
+			expandIconPlacement="end"
+			// A card without a body, or the `ask_user` card, is held open or closed through the controlled `activeKey`
+			// with no `onChange`, and shows no arrow (antd: "If false, panel will not show arrow icon").
+			{...(fixed
+				? { activeKey: view.alwaysOpen ? [tool.toolCallId] : [] }
+				: { defaultActiveKey: open ? [tool.toolCallId] : [] })}
+			items={[
+				{
+					key: tool.toolCallId,
+					showArrow: !fixed,
+					label: (
+						<Flex
+							align="center"
+							gap="small"
+							wrap
+						>
+							<ToolOutlined />
+							<Typography.Text strong>{view.title}</Typography.Text>
+							<Tag
+								color={badge.color}
+								icon={badge.icon}
 							>
-								<ToolOutlined />
-								<Typography.Text strong>{view.title}</Typography.Text>
-								<Tag
-									color={badge.color}
-									icon={badge.icon}
-								>
-									{t(badge.key)}
-								</Tag>
-							</Flex>
-						),
-						children: view.content,
-					},
-				]}
-			/>
-			{footer?.kind === 'approval' ? (
-				<ApprovalActions interrupt={footer.interrupt} />
-			) : footer?.kind === 'answered' ? (
-				<DecisionNote
-					itemId={tool.toolCallId}
-					color="success"
-					label={t('shared_chat.answer.answered')}
-				/>
-			) : null}
-		</Flex>
+								{t(badge.key)}
+							</Tag>
+						</Flex>
+					),
+					children: view.content,
+				},
+			]}
+		/>
 	)
 }
 
