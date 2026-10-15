@@ -60,9 +60,14 @@ export default function TurnList({
 				// `align-self: flex-start`, the body `max-width: 100%`), so its semantic `root` and `body` (Bubble API `styles`)
 				// take the row's width. A role's `styles` replace the list's (`es/bubble/BubbleList.js`: "items configuration
 				// has higher priority, overrides", `style: rootStyle || bubbleStyle`), so the root carries the list's row cap
-				// too (rowStyles below: the chat-width switch's `maxWidth`, centred).
+				// too (rowStyles below: the chat-width switch's `maxWidth`, centred, and no 15 % gap while capped).
 				styles: {
-					root: { width: '100%', maxWidth, marginInline: 'auto' },
+					root: {
+						width: '100%',
+						maxWidth,
+						marginInline: 'auto',
+						...(maxWidth === 'none' ? {} : { paddingInline: 0 }),
+					},
 					body: { width: '100%' },
 				},
 				contentRender: (content, info) => renderAssistant(content as Turn, info),
@@ -78,7 +83,15 @@ export default function TurnList({
 
 	// One object per width, like the role map: Bubble.List hands it to every item on each render.
 	const rowStyles = useMemo<BubbleListProps['styles']>(() => {
-		const row = { maxWidth, marginInline: 'auto' }
+		// The reading width replaces X's own gap: Bubble.List pads a start bubble's end and an end bubble's start by 15 %
+		// (`es/bubble/style/list.js`), a share of the whole list's width, so inside a row capped at the reading width the
+		// content got narrower as the window got wider (the owner, 2026-10-15). While the row is capped, its padding is 0;
+		// wide (no cap) keeps X's gap.
+		const row = {
+			maxWidth,
+			marginInline: 'auto',
+			...(maxWidth === 'none' ? {} : { paddingInline: 0 }),
+		}
 		return { bubble: row, system: row, divider: row }
 	}, [maxWidth])
 
