@@ -629,7 +629,8 @@
 			"stopped": "متوقف"
 		},
 		"plan": {
-			"title": "الخطة {{done}}/{{total}}"
+			"label": "الخطة",
+			"progress": "{{done}}/{{total}}"
 		},
 		"activity": {
 			"content": "المحتوى",
@@ -642,7 +643,8 @@
 			"no": "لا",
 			"title_input_required": "يحتاج الوكيل إلى مزيد من المعلومات",
 			"title_confirmation": "يطلب منك الوكيل التأكيد",
-			"title_tool_call": "يطلب الوكيل تشغيل أداة"
+			"title_tool_call": "يطلب الوكيل تشغيل أداة",
+			"waiting": "بانتظار ردّك"
 		},
 		"answer": {
 			"approve": "موافقة",

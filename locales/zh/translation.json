@@ -629,7 +629,8 @@
 			"stopped": "已停止"
 		},
 		"plan": {
-			"title": "计划 {{done}}/{{total}}"
+			"label": "计划",
+			"progress": "{{done}}/{{total}}"
 		},
 		"activity": {
 			"content": "内容",
@@ -642,7 +643,8 @@
 			"no": "否",
 			"title_input_required": "智能体需要更多信息",
 			"title_confirmation": "智能体请你确认",
-			"title_tool_call": "智能体请求运行一个工具"
+			"title_tool_call": "智能体请求运行一个工具",
+			"waiting": "等待你的回复"
 		},
 		"answer": {
 			"approve": "批准",

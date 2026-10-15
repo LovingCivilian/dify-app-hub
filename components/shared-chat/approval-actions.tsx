@@ -1,15 +1,15 @@
 'use client'
 
 import type { Interrupt } from '@ag-ui/core'
-import { Button, Card, Flex, Tag, Typography } from 'antd'
+import { Button, Card, Flex, Tag } from 'antd'
 import { use } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { approvalPayload } from '@/lib/chat/interrupt-answers'
 
 import { TurnAnswersContext } from './answer-context'
-import styles from './approval-actions.module.css'
 import DecisionNote from './decision-note'
+import RequestMessage from './request-message'
 import { approvalView, type ApprovalDecision } from './tool-view-data'
 
 /** A recorded decision's Tag (antd Tag `color`: the preset status colours `success`, `error`, `default`). */
@@ -23,11 +23,11 @@ const DECISION_TAGS = {
  * The request inside the gated tool's card, between its arguments and its result (spec §6.1; AI Elements' `Tool` with its
  * `Confirmation` inside the card: a bordered box, the request's text above, Reject then Accept at the end; the owner,
  * 2026-10-15: "the approval should be shown inside the block like how AI Elements does it"). An antd Card (`size="small"`,
- * `antd info Card --version 6.6.5`) holds the interrupt's message as plain text, as the agent sent it (spec §6.4), or "Run
- * this tool?" when it has none, and below it the buttons at the end. The answer follows the interrupt's own
- * `responseSchema` (approvalPayload, plan call P5); an expired approval shows "Expired" with Dismiss only, which answers it
- * `cancelled` (plan call P14); a recorded decision shows its DecisionNote with Change until the last open item has one
- * (plan call P13). Outside a waiting chat it renders nothing.
+ * `antd info Card --version 6.6.5`) holds the interrupt's message as plain text, as the agent sent it (spec §6.4;
+ * RequestMessage), or "Run this tool?" when it has none, and below it the buttons at the end. The answer follows the
+ * interrupt's own `responseSchema` (approvalPayload, plan call P5); an expired approval shows "Expired" with Dismiss
+ * only, which answers it `cancelled` (plan call P14); a recorded decision shows its DecisionNote with Change until the
+ * last open item has one (plan call P13). Outside a waiting chat it renders nothing.
  */
 export default function ApprovalActions({ interrupt }: { interrupt: Interrupt }) {
 	const { t } = useTranslation()
@@ -58,13 +58,9 @@ export default function ApprovalActions({ interrupt }: { interrupt: Interrupt })
 				vertical
 				gap="small"
 			>
-				<Typography.Paragraph
-					type="secondary"
-					className={styles.request}
-					style={{ marginBottom: 0 }}
-				>
+				<RequestMessage>
 					{interrupt.message || t('shared_chat.answer.approval_request')}
-				</Typography.Paragraph>
+				</RequestMessage>
 				{view.kind === 'open' ? (
 					<Flex
 						gap="small"

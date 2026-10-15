@@ -1,14 +1,18 @@
 'use client'
 
 import type { Interrupt } from '@ag-ui/core'
-import { Button, Card, Flex, Form, Input, InputNumber, Radio, Switch, Tag, Typography } from 'antd'
+import { Button, Card, Flex, Form, Input, InputNumber, Radio, Switch } from 'antd'
 import { use, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import formStyles from '@/components/chat/chat-view/inputs-form.module.css'
-import { approvalPayload, isExpired, type FlatField } from '@/lib/chat/interrupt-answers'
+import { approvalPayload, type FlatField } from '@/lib/chat/interrupt-answers'
 
 import { TurnAnswersContext, type TurnAnswers } from './answer-context'
+import { cardBadge, INTERRUPT_ICONS } from './card-icons'
+import ChatCard from './chat-card'
+import { draftTagColor, interruptIcon, openInterruptBadge } from './chat-card-view'
+import DecisionNote from './decision-note'
 import {
 	fieldRules,
 	initialValuesOf,
@@ -16,6 +20,7 @@ import {
 	interruptTitleKey,
 	payloadOf,
 } from './interrupt-form'
+import RequestMessage from './request-message'
 
 /** JSON Schema's string length (P7): code points, the count antd's own "emoji as length 1" demo swaps in. */
 const codePointCount = (text: string) => Array.from(text).length
@@ -128,7 +133,10 @@ function InterruptForm({ interrupt, answers, fields }: AnswerProps & { fields: F
 	)
 }
 
-/** The card's actions (interruptCardView): the decision with Change, Dismiss, or the answer the kind allows. */
+/**
+ * The card's actions (interruptCardView): the decision as the approval's DecisionNote with Change (plan call P13),
+ * Dismiss, or the answer the kind allows.
+ */
 function InterruptAnswer({ interrupt, answers }: AnswerProps) {
 	const { t } = useTranslation()
 	const view = interruptCardView(interrupt, answers.draft, answers.now)
@@ -140,24 +148,11 @@ function InterruptAnswer({ interrupt, answers }: AnswerProps) {
 	switch (view.kind) {
 		case 'decided':
 			return (
-				<Flex
-					align="center"
-					gap="small"
-					wrap
-				>
-					<Tag>{t(view.tagKey)}</Tag>
-					<Typography.Text type="secondary">
-						{t('shared_chat.answer.waiting_others')}
-					</Typography.Text>
-					<Button
-						type="link"
-						size="small"
-						disabled={disabled}
-						onClick={() => answers.retract(interrupt.id)}
-					>
-						{t('shared_chat.answer.change')}
-					</Button>
-				</Flex>
+				<DecisionNote
+					itemId={interrupt.id}
+					color={draftTagColor(view.tagKey)}
+					label={t(view.tagKey)}
+				/>
 			)
 		case 'expired':
 			return (
@@ -241,38 +236,44 @@ function InterruptAnswer({ interrupt, answers }: AnswerProps) {
 }
 
 /**
- * An interrupt that is not a gated call on screen (spec §6.3; plan calls P6, P8, P13, P14), as one antd Card in the
- * turn: titled from its reason (the three core reasons localised, any other as sent), an "Expired" Tag when its
- * `expiresAt` has passed, its message, then the answer: a form for a flat schema, Yes and No for a confirmation without
- * one, Approve and Reject for an approval whose call has no tool part in the turn, Cancel alone otherwise, and Dismiss
- * once expired. Every card has a way out (decision 50). The answers come from the turn's TurnAnswersContext (React
- * `use`); an interrupt that is not open there shows its title and message only. Every agent string renders as text.
+ * An interrupt that is not a gated call on screen (spec §6.3; plan calls P6, P8, P13, P14), as the chat's card in the
+ * turn (chat-card.tsx), held open: the user must see it to answer. Its header: an icon by how it is answered
+ * (chat-card-view.ts `interruptIcon`), the title from its reason (the three core reasons localised, any other as sent)
+ * and "Waiting for you", or "Expired" once its `expiresAt` has passed. Its body: the bordered box of the tool card's
+ * approval (an antd Card `size="small"`, approval-actions.tsx; `antd info Card --version 6.6.5`) with its message,
+ * then the answer: a form for a flat schema, Yes and No for a confirmation without one, Approve and Reject for an
+ * approval whose call has no tool part in the turn, Cancel alone otherwise, and Dismiss once expired. Every card has a
+ * way out (decision 50). The answers come from the turn's TurnAnswersContext (React `use`); an interrupt that is not
+ * open there shows its title and message only. Every agent string renders as text.
  */
 export default function InterruptCard({ interrupt }: { interrupt: Interrupt }) {
 	const { t } = useTranslation()
 	const context = use(TurnAnswersContext)
 	const answers = context?.open.interrupts.some(open => open.id === interrupt.id) ? context : null
 	const titleKey = interruptTitleKey(interrupt.reason)
-	const expired = answers !== null && isExpired(interrupt, answers.now)
 	return (
-		<Card
-			size="small"
-			variant="outlined"
+		<ChatCard
+			fixed="open"
+			icon={INTERRUPT_ICONS[interruptIcon(interrupt)]}
 			title={titleKey ? t(titleKey) : interrupt.reason}
-			extra={expired && <Tag color="warning">{t('shared_chat.answer.expired')}</Tag>}
+			badge={answers ? cardBadge(openInterruptBadge(interrupt, answers.now), t) : undefined}
 		>
-			<Flex
-				vertical
-				gap="small"
-			>
-				{interrupt.message && <Typography.Text>{interrupt.message}</Typography.Text>}
-				{answers && (
-					<InterruptAnswer
-						interrupt={interrupt}
-						answers={answers}
-					/>
-				)}
-			</Flex>
-		</Card>
+			{(interrupt.message || answers) && (
+				<Card size="small">
+					<Flex
+						vertical
+						gap="small"
+					>
+						{interrupt.message && <RequestMessage>{interrupt.message}</RequestMessage>}
+						{answers && (
+							<InterruptAnswer
+								interrupt={interrupt}
+								answers={answers}
+							/>
+						)}
+					</Flex>
+				</Card>
+			)}
+		</ChatCard>
 	)
 }

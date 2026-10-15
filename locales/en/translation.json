@@ -629,7 +629,8 @@
 			"stopped": "Stopped"
 		},
 		"plan": {
-			"title": "Plan {{done}}/{{total}}"
+			"label": "Plan",
+			"progress": "{{done}}/{{total}}"
 		},
 		"activity": {
 			"content": "Content",
@@ -642,7 +643,8 @@
 			"no": "No",
 			"title_input_required": "The agent needs more information",
 			"title_confirmation": "The agent asks you to confirm",
-			"title_tool_call": "The agent asks to run a tool"
+			"title_tool_call": "The agent asks to run a tool",
+			"waiting": "Waiting for you"
 		},
 		"answer": {
 			"approve": "Approve",

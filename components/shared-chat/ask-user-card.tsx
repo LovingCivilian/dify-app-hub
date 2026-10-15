@@ -6,9 +6,10 @@ import {
 	EditOutlined,
 	EnterOutlined,
 	LeftOutlined,
+	QuestionCircleOutlined,
 	RightOutlined,
 } from '@ant-design/icons'
-import { Button, Card, Divider, Flex, Input, Tag, theme, Typography } from 'antd'
+import { Button, Divider, Flex, Input, Tag, theme, Typography } from 'antd'
 import type { InputRef } from 'antd'
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +18,8 @@ import { ASK_USER_ANSWER_MAX, type AskUserAnswer, type AskUserQuestion } from '@
 import type { ToolPart } from '@/lib/chat/turn'
 
 import styles from './ask-user-card.module.css'
+import { cardBadge } from './card-icons'
+import ChatCard from './chat-card'
 import {
 	answerStep,
 	canGoBack,
@@ -41,12 +44,14 @@ export interface AskUserCardProps {
 
 /**
  * The hub's `ask_user` card above the composer (spec §6.2) in the layout of Claude's question prompt (owner, 2026-10-15),
- * on antd: the question as the Card's title, `‹ 1 of 3 ›` across the calls (plan call P4) and an icon-only Dismiss (the
- * rest) in its `extra`; the options as full-width text Buttons with their digit key as a Tag; under a Divider, a
- * borderless Input for a free answer when the question allows one, and Skip (this question). ‹ goes back to change an
- * earlier answer until the last step has one; then, like the full-stack template's `onComplete`, the card hands every
- * call over at once. The card starts over when the set of calls changes: React resets a component's state when its
- * `key` changes (react.dev "Resetting all state when a prop changes").
+ * in the frame of the chat's other cards (chat-card.tsx, held open; the owner, 2026-10-15: "keep the same layout, but
+ * change the card style to match the others"): the question as the card's title, `‹ 1 of 3 ›` across the calls (plan
+ * call P4) and an icon-only Dismiss (the rest) at the header's end (ChatCard `extra`, the Collapse item's `extra`:
+ * `antd info Collapse --version 6.6.5`); the options as full-width text Buttons with their digit key as a Tag; under a
+ * Divider, a borderless Input for a free answer when the question allows one, and Skip (this question). ‹ goes back to
+ * change an earlier answer until the last step has one; then, like the full-stack template's `onComplete`, the card
+ * hands every call over at once. The card starts over when the set of calls changes: React resets a component's state
+ * when its `key` changes (react.dev "Resetting all state when a prop changes").
  */
 export default function AskUserCard({ questions, disabled, onAnswer }: AskUserCardProps) {
 	if (!questions.length) return null
@@ -82,30 +87,25 @@ function QuestionStepper({ questions, disabled, onAnswer }: AskUserCardProps) {
 		if (complete) onAnswer(complete)
 	}
 
+	// Handed over: the card says so, with no body, until its calls leave it or their request ends.
 	if (!step)
 		return (
-			<Card size="small">
-				<Tag color="success">{t('shared_chat.answer.answered')}</Tag>
-			</Card>
+			<ChatCard
+				fixed="closed"
+				icon={<QuestionCircleOutlined />}
+				title={t('shared_chat.ask_user.title')}
+				badge={cardBadge('answered', t)}
+			/>
 		)
 
 	const position = { current: index + 1, total: steps.length }
 	return (
-		<Card
-			size="small"
+		<ChatCard
+			fixed="open"
+			icon={<QuestionCircleOutlined />}
 			title={
 				<span id={titleId}>{step.question?.question ?? t('shared_chat.ask_user.invalid')}</span>
 			}
-			// antd Card semantic DOM (`antd semantic Card`): the title is an ellipsis by default; the question wraps
-			// instead, and the header gets block padding so a wrapped title keeps the header's spacing. The body's inline
-			// padding is narrow so the option rows' highlight reaches near the card's edges while their badges line up
-			// with the title (the template's one column: QuestionPrompt's `px-4` on every row).
-			styles={{
-				header: { paddingBlock: token.paddingXS },
-				title: { whiteSpace: 'normal', overflowWrap: 'anywhere' },
-				extra: { alignSelf: 'flex-start' },
-				body: { paddingBlock: token.paddingXS, paddingInline: token.paddingXXS },
-			}}
 			extra={
 				<Flex
 					align="center"
@@ -160,7 +160,7 @@ function QuestionStepper({ questions, disabled, onAnswer }: AskUserCardProps) {
 				disabled={disabled}
 				onCommit={answer => apply(answerStep(questions, answers, index, answer))}
 			/>
-		</Card>
+		</ChatCard>
 	)
 }
 
@@ -295,7 +295,7 @@ function QuestionStep({ question, answer, labelId, disabled, onCommit }: Questio
 								disabled={disabled}
 								className={styles.option}
 								// antd Button semantic DOM (`antd semantic Button`): a long option wraps, so the row grows; the inline
-								// padding puts the badge under the title (body padding + border + padding = the header's paddingSM).
+								// padding (border + padding) lines the badges up with ✎ below.
 								styles={{
 									root: {
 										height: 'auto',
@@ -348,7 +348,7 @@ function QuestionStep({ question, answer, labelId, disabled, onCommit }: Questio
 					<Input
 						ref={inputRef}
 						variant="borderless"
-						// ✎ lines up with the option badges and the title.
+						// ✎ lines up with the option badges.
 						style={{ paddingInline: token.paddingXS - token.lineWidth }}
 						prefix={
 							<span className={styles.muted}>

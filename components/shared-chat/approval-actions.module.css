@@ -1,4 +1,0 @@
-/* The approval's request (the agent's message): its line breaks kept. */
-.request {
-	white-space: pre-wrap;
-}
