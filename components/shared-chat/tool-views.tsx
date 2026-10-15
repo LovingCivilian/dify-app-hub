@@ -25,11 +25,17 @@ export interface ToolItemView {
 	collapsible: boolean
 }
 
-// Dark scheme, as the Markdown code block does (components/chat/message/markdown/code-block.tsx): CodeHighlighter
-// highlights with Prism's one-light style, and `highlightProps.style` replaces it. A module constant: X memoises on it.
+// The highlighter's `<pre>` keeps Prism's own inline corners (one-light's and one-dark's `pre[class*="language-"]`:
+// `borderRadius: '0.3em'`); `customStyle` ("combined with the top level style on the pre tag, styles here will overwrite
+// earlier styles", react-syntax-highlighter README) squares them, so the code box's corners (`JsonCode`) are the ones
+// seen. Light keeps X's own one-light style (X spreads `highlightProps` after its defaults,
+// `es/code-highlighter/CodeHighlighter.js`); dark swaps it as the Markdown code block does
+// (components/chat/message/markdown/code-block.tsx). Module constants: X memoises on them.
+const PRE_STYLE = { margin: 0, borderRadius: 0 }
+const LIGHT_HIGHLIGHT: CodeHighlighterProps['highlightProps'] = { customStyle: PRE_STYLE }
 const DARK_HIGHLIGHT: CodeHighlighterProps['highlightProps'] = {
 	style: oneDark,
-	customStyle: { margin: 0 },
+	customStyle: PRE_STYLE,
 }
 
 /** A part of the card's body that has nothing to show (no result yet, an empty object). */
@@ -84,18 +90,31 @@ function JsonTable({ rows }: { rows: JsonRow[] }) {
 }
 
 /**
- * The JSON view: X CodeHighlighter as it ships, without its header (`header={false}`, X 2.9
- * `es/code-highlighter/interface.d.ts`; the owner, 2026-10-15: "remove the json header"), no other overrides (`lang`
- * "json"; Prism's light mode loads the one `json` grammar, X CodeHighlighter API `prismLightMode`; "keep it default ant
- * design"). Dark mode swaps the style as the Markdown code block does.
+ * The JSON view: X CodeHighlighter without its header (`header={false}`, X 2.9 `es/code-highlighter/interface.d.ts`; the
+ * owner, 2026-10-15: "remove the json header"). X styles the code box as the part below a header
+ * (`es/code-highlighter/style/index.js`: `borderTop: 'none'`, the two start corners 0, the two end corners
+ * `token.borderRadius`), so without one the box would be open at the top; its semantic `styles.code` gives it the top
+ * border and all four corners at X's own radius (the owner, 2026-10-15: "override this so it has the radius and border"),
+ * setting the same properties X's rule sets, so the inline value is the one applied. `lang` "json": Prism's light mode
+ * loads the one `json` grammar (X CodeHighlighter API `prismLightMode`).
  */
 function JsonCode({ json }: { json: string }) {
 	const { isDark } = useThemeContext()
+	const { token } = theme.useToken()
 	return (
 		<CodeHighlighter
 			lang="json"
 			header={false}
-			highlightProps={isDark ? DARK_HIGHLIGHT : undefined}
+			highlightProps={isDark ? DARK_HIGHLIGHT : LIGHT_HIGHLIGHT}
+			styles={{
+				code: {
+					borderTop: `${token.lineWidth}px ${token.lineType} ${token.colorBorderSecondary}`,
+					borderStartStartRadius: token.borderRadius,
+					borderStartEndRadius: token.borderRadius,
+					borderEndStartRadius: token.borderRadius,
+					borderEndEndRadius: token.borderRadius,
+				},
+			}}
 		>
 			{json}
 		</CodeHighlighter>
