@@ -78,10 +78,13 @@ test.describe('human in the loop in the AG-UI chat', () => {
 		const answer = answers(page).last()
 		// Spec §6.1: Approve and Reject on the gated call's card, with the interrupt's message.
 		await expect(answer.getByText('Approve delete_file({"path": "report.pdf"})?')).toBeVisible()
+		// The approved design of 2026-10-15, B.1: the open approval's badge beside the call's name.
+		await expect(answer.getByText('Awaiting approval', { exact: true })).toBeVisible()
 		await expect(senderBox(page)).toBeDisabled()
 		await expect(hint(page)).toBeVisible()
 		await activate(answer.getByRole('button', { name: 'Approve' }), isMobile)
 		await expect(answer.getByText('Done: report.pdf deleted.')).toBeVisible()
+		await expect(answer.getByText('Awaiting approval', { exact: true })).toHaveCount(0)
 		// The resumed run continues the same turn (spec §6.1, onReload), and its result lands on the gated call's card.
 		await expect(answers(page)).toHaveCount(1)
 		await openToolCards(answer, 'delete_file')
@@ -113,12 +116,16 @@ test.describe('human in the loop in the AG-UI chat', () => {
 		await send(page, 'double')
 		const answer = answers(page).last()
 		const approve = answer.getByRole('button', { name: 'Approve' })
+		const awaiting = answer.getByText('Awaiting approval', { exact: true })
 		await expect(approve).toHaveCount(2)
+		await expect(awaiting).toHaveCount(2)
 		await expect(stopButton(page)).toHaveCount(0)
 		expect(runs).toHaveLength(1)
-		// Decision 62's third answer: the first decision is kept in the browser, and nothing is sent yet.
+		// Decision 62's third answer: the first decision is kept in the browser, and nothing is sent yet; the decided
+		// call loses its badge (B.1), the other keeps it.
 		await activate(approve.first(), isMobile)
 		await expect(approve).toHaveCount(1)
+		await expect(awaiting).toHaveCount(1)
 		await expect(hint(page)).toBeVisible()
 		await expect(senderBox(page)).toBeDisabled()
 		expect(runs).toHaveLength(1)
@@ -140,8 +147,9 @@ test.describe('human in the loop in the AG-UI chat', () => {
 		const answer = answers(page).last()
 		const approve = answer.getByRole('button', { name: 'Approve' })
 		await activate(approve, isMobile)
-		// Decision 62's first answer (#67): the refusal shows under the card, which stays answerable.
-		const alert = answer.getByRole('alert')
+		// Decision 62's first answer (#67): the refusal shows under the card, which stays answerable. The open approval's
+		// request is an Alert too (B.2), so the refusal is found by its text.
+		const alert = answer.getByRole('alert').filter({ hasText: 'The agent refused the request' })
 		await expect(alert).toContainText('The agent refused the request')
 		await expect(approve).toBeEnabled()
 		expect(await top(alert)).toBeGreaterThan(await top(approve))
