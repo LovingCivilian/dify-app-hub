@@ -1,6 +1,11 @@
 import type { Interrupt } from '@ag-ui/core'
 
-import { parseAskUserArgs } from '@/lib/chat/ask-user'
+import {
+	askUserAnswersOf,
+	parseAskUserArgs,
+	type AskUserAnswer,
+	type AskUserArgs,
+} from '@/lib/chat/ask-user'
 import { approvalKey, isApproval, isExpired } from '@/lib/chat/interrupt-answers'
 import type { TurnOpenItems } from '@/lib/chat/open-items'
 import type { ApprovalDecision } from '@/lib/chat/sent-answers'
@@ -99,25 +104,54 @@ export type AskUserView =
 	| { kind: 'pending' }
 	/** It waits for its answers (or its run was stopped first): the questions it asked. */
 	| { kind: 'questions'; questions: string[] }
-	/** Answered: the Q/A transcript that went back to the agent, as it was sent (plan call P3). */
+	/**
+	 * Answered, or its answers wait in the draft (plan call P13): each question with its answer, read back from the Q/A
+	 * transcript (plan call P3; askUserAnswersOf).
+	 */
+	| { kind: 'answers'; answers: { question: string; answer: AskUserAnswer }[] }
+	/** Answered with a result that is not the transcript of its questions: the result as it was sent. */
 	| { kind: 'transcript'; text: string }
 	/** Its arguments fail the tool's schema (plan call P3). */
 	| { kind: 'invalid' }
 	/** Answered with an error tool message: its text. */
 	| { kind: 'error'; text: string }
 
+/** Each question beside its answer, when the text is the transcript of these questions (askUserAnswersOf). */
+const answersView = (args: AskUserArgs | null, transcript: string): AskUserView | null => {
+	const answers = args && askUserAnswersOf(args.questions, transcript)
+	return answers
+		? {
+				kind: 'answers',
+				answers: args.questions.map((question, index) => ({
+					question: question.question,
+					answer: answers[index],
+				})),
+			}
+		: null
+}
+
 /**
  * The template's rule ("once answered, the result is already a Q/A transcript, so render it as-is; while waiting, list
- * the questions"), with the hub's two additions: arguments that fail `askUserArgsSchema` read as an invalid question
+ * the questions"), with the hub's additions: the transcript of the call's own questions reads as each question with
+ * its answer (the owner, 2026-10-15: the content without a border and the choice in the box), as do the answers that
+ * wait in the draft (`drafted`, their transcript); arguments that fail `askUserArgsSchema` read as an invalid question
  * (plan call P3), and an error answer shows its text. A result wins over the arguments, so an agent's own tool of the
  * same name still shows what it returned.
  */
-export const askUserView = (part: ToolPart): AskUserView => {
-	if (part.status === 'done') return { kind: 'transcript', text: part.result ?? '' }
+export const askUserView = (part: ToolPart, drafted?: string): AskUserView => {
 	const args = parseAskUserArgs(part.args)
+	if (part.status === 'done') {
+		const text = part.result ?? ''
+		return answersView(args, text) ?? { kind: 'transcript', text }
+	}
 	if (!args) return part.status === 'running' ? { kind: 'pending' } : { kind: 'invalid' }
 	if (part.status === 'error') return { kind: 'error', text: part.error ?? '' }
-	return { kind: 'questions', questions: args.questions.map(question => question.question) }
+	return (
+		(drafted === undefined ? null : answersView(args, drafted)) ?? {
+			kind: 'questions',
+			questions: args.questions.map(question => question.question),
+		}
+	)
 }
 
 /** A decision on an approval, in the draft or sent (lib/chat/sent-answers.ts owns the type, so lib/chat reads it too). */

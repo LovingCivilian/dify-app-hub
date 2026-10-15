@@ -9,6 +9,8 @@ import formStyles from '@/components/chat/chat-view/inputs-form.module.css'
 import { approvalPayload, type FlatField } from '@/lib/chat/interrupt-answers'
 
 import { TurnAnswersContext, type TurnAnswers } from './answer-context'
+import { answeredReceipt } from './answer-receipt'
+import AnswerRecord from './answer-record'
 import { cardBadge, INTERRUPT_ICONS } from './card-icons'
 import ChatCard from './chat-card'
 import { draftTagColor, interruptIcon, openInterruptBadge } from './chat-card-view'
@@ -159,8 +161,9 @@ function InterruptForm({ interrupt, answers, fields }: AnswerProps & { fields: F
 }
 
 /**
- * The card's actions (interruptCardView): the decision as the approval's DecisionNote with Change (plan call P13),
- * Dismiss, or the answer the kind allows.
+ * The card's actions (interruptCardView): the decision as the approval's DecisionNote with Change (plan call P13), in
+ * the box under the message and a form's values as the answered card shows them, Dismiss, or the answer the kind
+ * allows.
  */
 function InterruptAnswer({ interrupt, answers }: AnswerProps) {
 	const { t } = useTranslation()
@@ -171,16 +174,31 @@ function InterruptAnswer({ interrupt, answers }: AnswerProps) {
 	const cancel = () =>
 		answers.answer({ kind: 'resume', interruptId: interrupt.id, status: 'cancelled' })
 	switch (view.kind) {
-		case 'decided':
+		case 'decided': {
+			// The card reads as it will once the answer went (answer-record.tsx), with Change in the box. A decided view
+			// has its entry (interruptCardView), read by own key: an interrupt id is the agent's string.
+			const recorded = Object.hasOwn(answers.draft.resume, interrupt.id)
+				? answers.draft.resume[interrupt.id]
+				: undefined
+			const { values } = answeredReceipt({
+				interrupt,
+				status: recorded?.status ?? 'cancelled',
+				payload: recorded?.payload,
+			})
 			return (
-				<Card size="small">
+				<AnswerRecord
+					message={interrupt.message}
+					values={values}
+					payload={recorded?.payload}
+				>
 					<DecisionNote
 						itemId={interrupt.id}
 						color={draftTagColor(view.tagKey)}
 						label={t(view.tagKey)}
 					/>
-				</Card>
+				</AnswerRecord>
 			)
+		}
 		case 'expired':
 			return (
 				<ActionBox message={interrupt.message}>
@@ -257,7 +275,8 @@ function InterruptAnswer({ interrupt, answers }: AnswerProps) {
  * and "Waiting for you", or "Expired" once its `expiresAt` has passed. Its body as a tool card's: a form's fields with
  * no border, then the bordered box (ActionBox) with its message and the answer at its end: Cancel and Submit for a
  * flat schema, No and Yes for a confirmation without one, Reject and Approve for an approval whose call has no tool part
- * in the turn, Cancel alone otherwise, and Dismiss once expired; a drafted decision in the box with Change. Every card has a
+ * in the turn, Cancel alone otherwise, and Dismiss once expired; a drafted decision as the answered card shows it
+ * (answer-record.tsx), with Change in the box. Every card has a
  * way out (decision 50). The answers come from the turn's TurnAnswersContext (React `use`); an interrupt that is not
  * open there shows its title and message only. Every agent string renders as text.
  */

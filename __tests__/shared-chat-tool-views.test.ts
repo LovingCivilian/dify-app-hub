@@ -35,11 +35,35 @@ describe('askUserView (spec §6.2, plan call P3)', () => {
 				questions: ['Which city?', 'When?'],
 			})
 	})
-	it('shows the transcript once answered, as it was sent', () => {
+	it('shows each question with its answer once answered (the owner, 2026-10-15: the box holds your choice)', () => {
 		const result = 'Q: Which city?\nA: Paris\n\nQ: When?\nA: (skipped)'
 		expect(askUserView(call({ status: 'done', result }))).toEqual({
+			kind: 'answers',
+			answers: [
+				{ question: 'Which city?', answer: { answer: 'Paris', skipped: false } },
+				{ question: 'When?', answer: { answer: '', skipped: true } },
+			],
+		})
+	})
+	it('shows a result that is not the transcript of its questions as it was sent', () => {
+		expect(askUserView(call({ status: 'done', result: 'Paris, tomorrow' }))).toEqual({
 			kind: 'transcript',
-			text: result,
+			text: 'Paris, tomorrow',
+		})
+	})
+	it('shows the answers waiting in the draft beside their questions until they go (plan call P13)', () => {
+		const drafted = 'Q: Which city?\nA: Rome\n\nQ: When?\nA: (no answer)'
+		expect(askUserView(call(), drafted)).toEqual({
+			kind: 'answers',
+			answers: [
+				{ question: 'Which city?', answer: { answer: 'Rome', skipped: false } },
+				{ question: 'When?', answer: { answer: '', skipped: false } },
+			],
+		})
+		// A drafted answer for an invalid call ('') leaves the questions as they are.
+		expect(askUserView(call(), '')).toEqual({
+			kind: 'questions',
+			questions: ['Which city?', 'When?'],
 		})
 	})
 	it('keeps a result over arguments of another shape (an agent tool of the same name)', () => {

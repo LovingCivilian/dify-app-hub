@@ -672,7 +672,9 @@
 			"dismiss": "忽略这些问题",
 			"custom_placeholder": "其他回答",
 			"send": "发送",
-			"label": "来自智能体的问题"
+			"label": "来自智能体的问题",
+			"skipped": "已跳过",
+			"no_answer": "未回答"
 		},
 		"error": {
 			"usage_limit": "已达到使用上限",

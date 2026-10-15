@@ -101,3 +101,40 @@ export const askUserTranscript = (
 			return `Q: ${question.question}\nA: ${text}`
 		})
 		.join('\n\n')
+
+/**
+ * The answers a transcript of these questions holds (askUserTranscript read back), or null for any other text, such as
+ * an agent's own tool of the same name. Each question's "Q: …\nA: " opens its answer, which runs to the next question's
+ * opening, or to the end for the last; "(skipped)" reads as skipped and "(no answer)" as blank. The card's free answer
+ * is one line (an `<input>`), so an answer with a line break that is not one of its question's options is not the
+ * card's, and the answers read back must write the same text again.
+ */
+export const askUserAnswersOf = (
+	questions: readonly AskUserQuestion[],
+	transcript: string,
+): AskUserAnswer[] | null => {
+	const opening = (index: number) =>
+		`${index === 0 ? '' : '\n\n'}Q: ${questions[index].question}\nA: `
+	const answers: AskUserAnswer[] = []
+	let position = 0
+	for (let index = 0; index < questions.length; index++) {
+		if (!transcript.startsWith(opening(index), position)) return null
+		const start = position + opening(index).length
+		const end =
+			index + 1 < questions.length
+				? transcript.indexOf(opening(index + 1), start)
+				: transcript.length
+		if (end < 0) return null
+		const text = transcript.slice(start, end)
+		if (text.includes('\n') && !questions[index].options.includes(text)) return null
+		answers.push(
+			text === SKIPPED_ANSWER
+				? { answer: '', skipped: true }
+				: { answer: text === NO_ANSWER ? '' : text, skipped: false },
+		)
+		position = end
+	}
+	return questions.length > 0 && askUserTranscript(questions, answers) === transcript
+		? answers
+		: null
+}

@@ -7,6 +7,7 @@ import {
 	ASK_USER_OPTION_MAX,
 	ASK_USER_QUESTION_MAX,
 	ASK_USER_TOOL_NAME,
+	askUserAnswersOf,
 	askUserArgsSchema,
 	askUserTranscript,
 	NO_ANSWER,
@@ -161,6 +162,62 @@ describe('askUserTranscript', () => {
 		}))
 		const answers = longest.map(() => ({ answer: 'a'.repeat(ASK_USER_ANSWER_MAX), skipped: false }))
 		expect(askUserTranscript(longest, answers).length).toBeLessThanOrEqual(MESSAGE_TEXT_MAX)
+	})
+})
+
+// The card in the turn shows each question with its answer (the owner, 2026-10-15: the box holds your choice).
+describe('askUserAnswersOf', () => {
+	const asked: AskUserQuestion[] = [
+		{ question: 'Which city?', options: ['Paris', 'Rome'], allow_custom: true },
+		{ question: 'How many nights?', options: [], allow_custom: true },
+		{ question: 'Any wishes?', options: [], allow_custom: true },
+	]
+
+	it('reads the transcript of these questions back into their answers: given, skipped and blank', () => {
+		const answers = [
+			{ answer: 'Paris', skipped: false },
+			{ answer: '', skipped: true },
+			{ answer: '', skipped: false },
+		]
+		expect(askUserAnswersOf(asked, askUserTranscript(asked, answers))).toEqual(answers)
+	})
+	it('reads a question that holds line breaks and the transcript’s own words', () => {
+		const tricky: AskUserQuestion[] = [
+			{ question: 'First line\n\nQ: second line?', options: [], allow_custom: true },
+			{ question: 'A: really?', options: [], allow_custom: true },
+		]
+		const answers = [
+			{ answer: 'Q: yes', skipped: false },
+			{ answer: 'A: no', skipped: false },
+		]
+		expect(askUserAnswersOf(tricky, askUserTranscript(tricky, answers))).toEqual(answers)
+	})
+	it('reads an option with a line break, as the agent wrote it', () => {
+		const multiline: AskUserQuestion[] = [
+			{ question: 'Which plan?', options: ['Basic\nmonthly', 'Pro'], allow_custom: true },
+			{ question: 'Anything else?', options: [], allow_custom: true },
+		]
+		const answers = [
+			{ answer: 'Basic\nmonthly', skipped: false },
+			{ answer: 'No', skipped: false },
+		]
+		expect(askUserAnswersOf(multiline, askUserTranscript(multiline, answers))).toEqual(answers)
+	})
+	it('reads nothing from a text that is not the transcript of these questions', () => {
+		expect(askUserAnswersOf(asked, 'ok')).toBeNull()
+		expect(askUserAnswersOf(asked, '')).toBeNull()
+		// Another question set, one question short, and text after the last answer.
+		expect(askUserAnswersOf(asked, 'Q: Which town?\nA: Paris')).toBeNull()
+		expect(
+			askUserAnswersOf(asked, 'Q: Which city?\nA: Paris\n\nQ: How many nights?\nA: 3'),
+		).toBeNull()
+		const full = askUserTranscript(asked, [{ answer: 'Rome', skipped: false }])
+		expect(askUserAnswersOf(asked, `${full}\n\nQ: More?\nA: x`)).toBeNull()
+		expect(askUserAnswersOf(asked, ` ${full}`)).toBeNull()
+	})
+	it('reads an answer that was trimmed when it was written as the text that went', () => {
+		const text = askUserTranscript(asked, [{ answer: ' 3 nights ', skipped: false }])
+		expect(askUserAnswersOf(asked, text)?.[0]).toEqual({ answer: '3 nights', skipped: false })
 	})
 })
 

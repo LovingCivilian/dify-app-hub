@@ -73,11 +73,11 @@ const BADGES = {
  * waits for its approval, and opens when its call completes (ChatCard `defaultOpen`). A card with no body is held
  * closed and the hub's `ask_user` card held open, neither with a chevron (ChatCard `fixed`). Inside the card, in the
  * turn that waits (TurnAnswersContext), sits the approval's request with Reject and Approve between the arguments and
- * the result (spec §6.1; AI Elements puts its `Confirmation` there), or "Answered" with Change under drafted `ask_user`
- * answers (plan call P13). Once the approval's answer went, the same place keeps it read-only in the request's
- * bordered box, an antd Card `size="small"` (approval-actions.tsx), after the tool has run too, as AI Elements keeps
- * "✓ Accepted" between the parameters and the result (the owner, 2026-10-15: "record everything that happens in the
- * chat").
+ * the result (spec §6.1; AI Elements puts its `Confirmation` there), or "Answered" with Change in the same bordered box
+ * under drafted `ask_user` answers, which show beside their questions (plan call P13). Once the approval's answer went,
+ * the same place keeps it read-only in the request's bordered box, an antd Card `size="small"` (approval-actions.tsx),
+ * after the tool has run too, as AI Elements keeps "✓ Accepted" between the parameters and the result (the owner,
+ * 2026-10-15: "record everything that happens in the chat").
  */
 function ToolCard({ tool }: { tool: ToolPart }) {
 	const { t } = useTranslation()
@@ -87,17 +87,23 @@ function ToolCard({ tool }: { tool: ToolPart }) {
 		footer?.kind === 'approval' ? (
 			<ApprovalActions interrupt={footer.interrupt} />
 		) : footer?.kind === 'answered' ? (
-			<DecisionNote
-				itemId={tool.toolCallId}
-				color="success"
-				label={t('shared_chat.answer.answered')}
-			/>
+			<Card size="small">
+				<DecisionNote
+					itemId={tool.toolCallId}
+					color="success"
+					label={t('shared_chat.answer.answered')}
+				/>
+			</Card>
 		) : tool.decision ? (
 			<Card size="small">
 				<DecisionReceipt mark={tool.decision} />
 			</Card>
 		) : undefined
-	const view = toolItemView(tool, t, inner)
+	const drafted =
+		footer?.kind === 'answered' && answers
+			? answers.draft.tools[tool.toolCallId]?.content
+			: undefined
+	const view = toolItemView(tool, t, { inner, drafted })
 	const approval =
 		answers && footer?.kind === 'approval' ? approvalView(footer.interrupt, answers) : null
 	const badgeKind = toolBadge(tool.status, approval)
