@@ -7,3 +7,19 @@
 .text {
 	white-space: pre-wrap;
 }
+
+/*
+ * The tree table (tool-views.tsx `JsonTable`): its frame, one border with all four corners at the JSON view's radius
+ * (X CodeHighlighter's `token.borderRadius`), clipping the rows inside it, since antd rounds only a table's top corners
+ * (`es/table/style/radius.js`); and the column line antd's `bordered` drew between name and value (`tableBorder`:
+ * lineWidth, lineType, the Table's borderColor colorBorderSecondary), which an unbordered table's cells do not draw.
+ */
+.tree {
+	border: var(--ant-line-width) var(--ant-line-type) var(--ant-color-border-secondary);
+	border-radius: var(--ant-border-radius);
+	overflow: hidden;
+}
+
+.name {
+	border-inline-end: var(--ant-line-width) var(--ant-line-type) var(--ant-color-border-secondary);
+}

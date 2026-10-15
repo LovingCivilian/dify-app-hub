@@ -54,6 +54,7 @@ const COLUMNS: TableColumnsType<JsonRow> = [
 	{
 		key: 'name',
 		dataIndex: 'name',
+		className: styles.name,
 		render: (name: JsonRow['name']) => <Typography.Text type="secondary">{name}</Typography.Text>,
 	},
 	{
@@ -69,23 +70,34 @@ const COLUMNS: TableColumnsType<JsonRow> = [
 ]
 
 /**
- * A JSON object or array as one small, bordered antd Table with tree data, antd's defaults otherwise (json-tree brief,
- * item 1; `size`, `bordered`, `showHeader`, `pagination`: `antd info Table --version 6.6.5`; the owner, 2026-10-15: "keep
- * it default ant design, no hacks and workarounds"): a nested object or array is a row with `children`, which the Table
- * shows collapsed behind its own expand arrow (`expandable.defaultExpandAllRows` is false); a flat object has no
- * `children`, so no arrows and no indent. No header (the columns have no titles) and no pagination (every row of the
- * value is shown).
+ * A JSON object or array as one small antd Table with tree data (json-tree brief, item 1; `size`, `showHeader`,
+ * `pagination`, `styles.root`: `antd info Table --version 6.6.5`): a nested object or array is a row with `children`,
+ * which the Table shows collapsed behind its own expand arrow (`expandable.defaultExpandAllRows` is false); a flat
+ * object has no `children`, so no arrows and no indent. No header (the columns have no titles) and no pagination (every
+ * row of the value is shown).
+ *
+ * The frame is the module's `.tree` wrapper, not antd's `bordered`, so its corners match the JSON view's at X's
+ * `token.borderRadius`, the bottom ones included (the owner, 2026-10-15: "apply the border fix where the table has a
+ * radius on the bottom … the table should match the json radius"). antd rounds only a table's top corners and leaves
+ * the bottom to a footer or pagination (`es/table/style/radius.js`), and has no documented way to round them without
+ * one, so this is a workaround the owner asked for: the unbordered Table draws only its rows' bottom lines, the wrapper
+ * draws one border with all four corners rounded and clips the rows, and the root's negative end margin of one line
+ * width tucks the last row's bottom line under the wrapper's own. It relies on each body row drawing one lineWidth
+ * bottom line: if antd changes its row borders, check this edge first.
  */
 function JsonTable({ rows }: { rows: JsonRow[] }) {
+	const { token } = theme.useToken()
 	return (
-		<Table<JsonRow>
-			size="small"
-			bordered
-			showHeader={false}
-			pagination={false}
-			columns={COLUMNS}
-			dataSource={rows}
-		/>
+		<div className={styles.tree}>
+			<Table<JsonRow>
+				size="small"
+				showHeader={false}
+				pagination={false}
+				columns={COLUMNS}
+				dataSource={rows}
+				styles={{ root: { marginBlockEnd: -token.lineWidth } }}
+			/>
+		</div>
 	)
 }
 
