@@ -18,6 +18,12 @@ import type {
 } from '@ag-ui/core'
 
 import {
+	readResume,
+	withSentAnswers,
+	type AnsweredInterrupt,
+	type ApprovalDecision,
+} from './sent-answers'
+import {
 	type MessageRole,
 	type MessageStatus,
 	type RunStatus,
@@ -53,6 +59,8 @@ export type TurnPart =
 			status: ToolStatus
 			result?: string
 			error?: string
+			/** The sent answer to the approval that names this call (spec §6.1; lib/chat/sent-answers.ts). */
+			decision?: ApprovalDecision
 	  }
 	| { kind: 'activity'; messageId: string; activityType: string; content: unknown }
 
@@ -77,6 +85,11 @@ export interface Turn {
 	runs: TurnRun[]
 	/** The open interrupts of the turn's last run the agent started (spec §3.3, plan call P10). */
 	interrupts: Interrupt[]
+	/**
+	 * The sent answers to interrupts no tool part of the turn shows, in the order sent (lib/chat/sent-answers.ts): an
+	 * approval bound to one of its calls is that call's `decision` instead.
+	 */
+	answered: AnsweredInterrupt[]
 }
 
 /** The hub's first event on every run stream (spec §4.4): the browser learns the conversation and the run to stop. */
@@ -96,6 +109,7 @@ export const emptyAssistantTurn = (): Turn => ({
 	parts: [],
 	runs: [],
 	interrupts: [],
+	answered: [],
 })
 
 export const userTurn = (messageId: string, text: string): Turn => ({
@@ -103,6 +117,7 @@ export const userTurn = (messageId: string, text: string): Turn => ({
 	parts: [{ kind: 'text', messageId, text }],
 	runs: [],
 	interrupts: [],
+	answered: [],
 })
 
 /** A user message's, a tool result's or a tool message's content as text: a string as it is, else its text parts joined. */
@@ -312,6 +327,8 @@ export interface TurnRunRow {
 	error: { code?: string; message: string; beforeStream?: true } | null
 	custom: { name: string; value: unknown }[]
 	startedAt: Date
+	/** The answers the run was started with (lib/data/conversations.ts `startRun`), read by `readResume`. */
+	resume: unknown
 }
 /** A turn with its id (plan call P9): a user message's id, or `turn-<its first run id>`. */
 export interface HistoryTurn {
@@ -355,6 +372,22 @@ const interruptsOf = (outcome: unknown): Interrupt[] =>
 	isRecord(outcome) && outcome.type === 'interrupt' && Array.isArray(outcome.interrupts)
 		? (outcome.interrupts as Interrupt[])
 		: []
+
+/**
+ * The answers the turn's runs sent (lib/chat/sent-answers.ts), in run order: each answering run the agent started
+ * answered the interrupts of the run it continued, the newest run before it the agent started (plan call P10), while
+ * that run is interrupted, as the server read them when it checked the answers (lib/chat/answers.ts `openItemsOf`). A
+ * run refused before its stream records nothing: its answers never reached the agent (decision 62).
+ */
+const withAnswersSent = (turn: Turn, runs: readonly TurnRunRow[]): Turn =>
+	runs.reduce((recorded, run, index) => {
+		if (!continues(run)) return recorded
+		const resume = readResume(run.resume)
+		if (resume.length === 0) return recorded
+		const answeredRun = runs.slice(0, index).findLast(continues)
+		const open = answeredRun?.status === 'interrupted' ? interruptsOf(answeredRun.outcome) : []
+		return withSentAnswers(recorded, open, resume)
+	}, turn)
 
 /** Plan call P9: what a call without a tool message reads by how the turn's last run ended (applyAgUiEvent's settleParts). */
 const TOOL_STATUS_AT_END: Record<RunOutcome, ToolStatus> = {
@@ -418,6 +451,7 @@ const foldRow = (parts: TurnPart[], body: Message): TurnPart[] => {
  * row up to the next user message, across the runs that resumed it. A call without a tool message reads how the turn's
  * last run ended, and the last turn carries the open interrupts while that run is interrupted, so they survive a reload;
  * that run is the last one the agent started (plan call P10), while every run, a refused one included, shows in `runs`.
+ * The answers the turn's runs sent are recorded in it (`withAnswersSent`), as the browser recorded them when they went.
  */
 export const turnsFromMessages = (
 	rows: readonly TurnMessageRow[],
@@ -467,24 +501,29 @@ export const turnsFromMessages = (
 				id: user.messageId,
 				turn: userTurn(user.messageId, contentText(user.body.content)),
 			})
-		const ordered = [...group.runIds].sort((a, b) => startOf(a) - startOf(b))
-		const turnRuns = ordered.flatMap(id => {
-			const run = runById.get(id)
-			return run ? [toTurnRun(run)] : []
-		})
-		if (!turnRuns.length && !group.parts.length) continue
-		const continued = ordered.map(id => runById.get(id)).findLast(continues)
+		const stored = [...group.runIds]
+			.sort((a, b) => startOf(a) - startOf(b))
+			.flatMap(id => {
+				const run = runById.get(id)
+				return run ? [run] : []
+			})
+		if (!stored.length && !group.parts.length) continue
+		const continued = stored.findLast(continues)
 		const atEnd = TOOL_STATUS_AT_END[continued ? runOutcomeOf(continued.status) : 'success']
 		turns.push({
 			id: `turn-${group.runIds[0] ?? group.firstId}`,
-			turn: {
-				role: 'assistant',
-				parts: group.parts.map(part =>
-					part.kind === 'tool' && part.status === 'running' ? { ...part, status: atEnd } : part,
-				),
-				runs: turnRuns,
-				interrupts: [],
-			},
+			turn: withAnswersSent(
+				{
+					role: 'assistant',
+					parts: group.parts.map(part =>
+						part.kind === 'tool' && part.status === 'running' ? { ...part, status: atEnd } : part,
+					),
+					runs: stored.map(toTurnRun),
+					interrupts: [],
+					answered: [],
+				},
+				stored,
+			),
 		})
 	}
 	const lastTurn = turns.at(-1)

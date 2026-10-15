@@ -533,10 +533,16 @@ export async function listConversations(
 	}
 }
 
+/** A run as a history page answers it: with the answers it was started with, which `turnsFromMessages` records. */
+export interface ThreadRun extends StoredRun {
+	/** The `resume` list startRun stored, as stored (null for a run that answered nothing); `readResume` reads it. */
+	resume: unknown
+}
+
 export interface ThreadPage {
 	conversation: ConversationRecord
 	rows: StoredMessage[]
-	runs: StoredRun[]
+	runs: ThreadRun[]
 	/** The seq of the oldest user message shown, as a string; null when nothing is older (plan call P8). */
 	cursor: string | null
 }
@@ -546,7 +552,8 @@ export interface ThreadPage {
  * (a `seq`), and every row from the oldest of them on, so a page holds whole turns; the cursor names that oldest user
  * message while an older one exists. The runs are the ones started from that user message's run on (and before
  * `before`'s), message-less runs included, such as one the agent refused before its stream, so each turn shows every
- * run that answered it. Null when the conversation is not the actor's of this app, or deleted.
+ * run that answered it, each with the answers it was started with. Null when the conversation is not the actor's of
+ * this app, or deleted.
  */
 export async function readThreadPage(
 	actor: SessionUser,
@@ -589,7 +596,7 @@ export async function readThreadPage(
 	const from = await runStart(first)
 	const to = page.before === undefined ? undefined : await runStart(page.before)
 	const runs = await db
-		.select(runColumns)
+		.select({ ...runColumns, resume: conversationRuns.resume })
 		.from(conversationRuns)
 		.where(
 			and(
@@ -602,7 +609,7 @@ export async function readThreadPage(
 	return {
 		conversation,
 		rows,
-		runs: runs.map(toStoredRun),
+		runs: runs.map(({ resume, ...run }) => ({ ...toStoredRun(run), resume })),
 		cursor: starts.length > page.turns ? String(first) : null,
 	}
 }

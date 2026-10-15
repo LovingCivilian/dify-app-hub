@@ -120,6 +120,44 @@ describe('AgUiChatProvider: ask_user answers merge when the request starts (plan
 	})
 })
 
+describe('AgUiChatProvider: the sent answers are recorded when the request starts (the owner, 2026-10-15)', () => {
+	const gated: ToolPart = {
+		kind: 'tool',
+		toolCallId: 'call-1',
+		name: 'delete_file',
+		args: '{"path":"a.txt"}',
+		status: 'waiting',
+	}
+	const approval = { id: 'int-1', reason: 'tool_call', toolCallId: 'call-1' }
+	const confirm = { id: 'int-2', reason: 'confirmation', message: 'Proceed?' }
+	const waiting: Turn = {
+		...emptyAssistantTurn(),
+		parts: [gated],
+		runs: [{ runId: 'r1', outcome: 'interrupt' }],
+		interrupts: [approval, confirm],
+	}
+	const answers = {
+		resume: [
+			{ interruptId: 'int-1', status: 'resolved' as const, payload: { approved: false } },
+			{ interruptId: 'int-2', status: 'resolved' as const, payload: true },
+		],
+	}
+
+	it('leaves the turn it was given as it was, for the placeholder and a refusal before the stream', () => {
+		makeProvider().transformParams({ answers, continues: waiting })
+		expect(waiting.parts).toEqual([gated])
+		expect(waiting.answered).toEqual([])
+	})
+	it('shows the decision on the call and the other answers from the first chunk, over the turn’s open interrupts', () => {
+		const provider = makeProvider()
+		provider.transformParams({ answers, continues: waiting })
+		const turn = feed(provider, [chunk({ ...hubRun, value: { ...hubRun.value, runId: 'r2' } })])
+		expect(turn.parts).toEqual([{ ...gated, decision: 'rejected' }])
+		expect(turn.answered).toEqual([{ interrupt: confirm, status: 'resolved', payload: true }])
+		expect(turn.interrupts).toEqual([])
+	})
+})
+
 describe('AgUiChatProvider.transformLocalMessage', () => {
 	it('shows the user turn of a message, and none for answers', () => {
 		const provider = makeProvider()

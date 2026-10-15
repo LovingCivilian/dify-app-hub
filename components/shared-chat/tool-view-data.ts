@@ -3,6 +3,7 @@ import type { Interrupt } from '@ag-ui/core'
 import { parseAskUserArgs } from '@/lib/chat/ask-user'
 import { approvalKey, isApproval, isExpired } from '@/lib/chat/interrupt-answers'
 import type { TurnOpenItems } from '@/lib/chat/open-items'
+import type { ApprovalDecision } from '@/lib/chat/sent-answers'
 import type { ToolPart, ToolStatus } from '@/lib/chat/turn'
 
 import type { AnswerDraft } from './answers'
@@ -119,7 +120,8 @@ export const askUserView = (part: ToolPart): AskUserView => {
 	return { kind: 'questions', questions: args.questions.map(question => question.question) }
 }
 
-export type ApprovalDecision = 'approved' | 'rejected' | 'cancelled'
+/** A decision on an approval, in the draft or sent (lib/chat/sent-answers.ts owns the type, so lib/chat reads it too). */
+export type { ApprovalDecision } from '@/lib/chat/sent-answers'
 
 /** The gated call's footer (spec §6.1): open, expired, or decided (plan call P13). */
 export type ApprovalView =

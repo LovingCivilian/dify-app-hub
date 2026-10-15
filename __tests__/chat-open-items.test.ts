@@ -158,6 +158,7 @@ describe('open items of a reloaded turn (plan call P10)', () => {
 		error: null,
 		custom: [],
 		startedAt: new Date('2026-10-14T10:00:00Z'),
+		resume: null,
 		...over,
 	})
 	const lastTurn = (runs: TurnRunRow[]) => turnsFromMessages(rows, runs).at(-1)?.turn

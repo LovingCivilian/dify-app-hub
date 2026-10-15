@@ -3,6 +3,7 @@ import type { BaseEvent, Message } from '@ag-ui/core'
 import { EventEncoder } from '@ag-ui/encoder'
 import { describe, expect, it } from 'vitest'
 
+import { withSentAnswers, type SentAnswer } from '@/lib/chat/sent-answers'
 import { STOPPED_TOOL_CONTENT, STOPPED_TOOL_ERROR } from '@/lib/chat/statuses'
 
 import {
@@ -80,12 +81,32 @@ const runRow = (over: Partial<TurnRunRow> = {}): TurnRunRow => ({
 	error: null,
 	custom: [],
 	startedAt: new Date('2026-10-14T10:00:00Z'),
+	resume: null,
 	...over,
 })
 /** A run started `minutes` after the first one. */
 const at = (minutes: number) => new Date(Date.UTC(2026, 9, 14, 10, minutes))
 /** An approval (spec §6.1): a tool_call interrupt naming its call. */
 const APPROVAL = { id: 'int-1', reason: 'tool_call', toolCallId: 'call-1' }
+/** Pydantic AI's approval schema (spec §6.1). */
+const APPROVAL_SCHEMA = {
+	type: 'object',
+	properties: { approved: { type: 'boolean' } },
+	required: ['approved'],
+}
+/** A flat form (plan call P7), a confirmation (P6) and an approval for a call no turn holds (P8). */
+const FORM = {
+	id: 'int-f',
+	reason: 'input_required',
+	message: 'Which region?',
+	responseSchema: {
+		type: 'object',
+		properties: { region: { type: 'string' } },
+		required: ['region'],
+	},
+}
+const CONFIRM = { id: 'int-c', reason: 'confirmation', message: 'Proceed?' }
+const UNBOUND = { id: 'int-u', reason: 'tool_call', toolCallId: 'call-elsewhere' }
 
 /* Scenarios modelled on the e2e stub's (Task 13) and the spike's multi-message run, with the run each one stores. */
 const SCENARIOS: [string, BaseEvent[], Partial<TurnRunRow>][] = [
@@ -397,6 +418,89 @@ describe('turnsFromMessages agrees with the live reducer', () => {
 		expect(history[1].turn).toEqual(live([...agentEvents, ...closings]))
 		expect(history[1].turn.parts[1]).toMatchObject({ kind: 'tool', status: 'stopped' })
 	})
+	// The owner, 2026-10-15: "record everything that happens in the chat, so even with other browsers or devices, it will
+	// still have all the data". The browser records the answers when they go (the provider's transformParams merge); the
+	// store reads them back from each answering run's `resume`.
+	it('for the answers that went: the live merge and the stored runs record the same decisions', async () => {
+		const gate = { ...APPROVAL, message: 'Delete notes.txt?', responseSchema: APPROVAL_SCHEMA }
+		const run1 = [
+			started,
+			ev('TOOL_CALL_START', { toolCallId: 'call-1', toolCallName: 'delete_file' }),
+			ev('TOOL_CALL_ARGS', { toolCallId: 'call-1', delta: '{"path":"notes.txt"}' }),
+			ev('TOOL_CALL_END', { toolCallId: 'call-1' }),
+			finished({ type: 'interrupt', interrupts: [gate, FORM] }),
+		]
+		const resume1: SentAnswer[] = [
+			{ interruptId: gate.id, status: 'resolved', payload: { approved: true } },
+			{ interruptId: FORM.id, status: 'resolved', payload: { region: 'EU' } },
+		]
+		const run2 = [
+			ev('TOOL_CALL_RESULT', { messageId: 'result-1', toolCallId: 'call-1', content: 'Deleted' }),
+			ev('RUN_FINISHED', {
+				threadId: THREAD,
+				runId: 'run-2',
+				outcome: { type: 'interrupt', interrupts: [CONFIRM, UNBOUND] },
+			}),
+		]
+		const resume2: SentAnswer[] = [
+			{ interruptId: CONFIRM.id, status: 'resolved', payload: false },
+			{ interruptId: UNBOUND.id, status: 'cancelled' },
+		]
+		const run3 = [
+			...text('m-3', 'Done.'),
+			ev('RUN_FINISHED', { threadId: THREAD, runId: 'run-3', outcome: { type: 'success' } }),
+		]
+		// Live: each answering request merges its answers into the turn it continues, over that turn's open interrupts.
+		const afterRun1 = live(run1)
+		const afterRun2 = [hubRun('run-2'), ...run2].reduce(
+			applyAgUiEvent,
+			withSentAnswers(afterRun1, afterRun1.interrupts, resume1),
+		)
+		const liveTurn = [hubRun('run-3'), ...run3].reduce(
+			applyAgUiEvent,
+			withSentAnswers(afterRun2, afterRun2.interrupts, resume2),
+		)
+		// History: the rows and runs the store holds, each answering run with the answers it was started with.
+		const rows: TurnMessageRow[] = [
+			...rowsOf(await storedMessages(run1)),
+			{
+				messageId: 'result-1',
+				runId: 'run-2',
+				role: 'tool',
+				body: { id: 'result-1', role: 'tool', toolCallId: 'call-1', content: 'Deleted' },
+				status: 'complete',
+			},
+			{
+				messageId: 'm-3',
+				runId: 'run-3',
+				role: 'assistant',
+				body: { id: 'm-3', role: 'assistant', content: 'Done.' },
+				status: 'complete',
+			},
+		]
+		const history = turnsFromMessages(rows, [
+			runRow({
+				status: 'interrupted',
+				outcome: { type: 'interrupt', interrupts: [gate, FORM] },
+				startedAt: at(0),
+			}),
+			runRow({
+				id: 'run-2',
+				status: 'interrupted',
+				outcome: { type: 'interrupt', interrupts: [CONFIRM, UNBOUND] },
+				startedAt: at(1),
+				resume: resume1,
+			}),
+			runRow({ id: 'run-3', startedAt: at(2), resume: resume2 }),
+		])
+		expect(history[1].turn).toEqual(liveTurn)
+		expect(liveTurn.parts[0]).toMatchObject({ toolCallId: 'call-1', decision: 'approved' })
+		expect(liveTurn.answered).toEqual([
+			{ interrupt: FORM, status: 'resolved', payload: { region: 'EU' } },
+			{ interrupt: CONFIRM, status: 'resolved', payload: false },
+			{ interrupt: UNBOUND, status: 'cancelled' },
+		])
+	})
 })
 
 describe('turnsFromMessages', () => {
@@ -495,6 +599,7 @@ describe('turnsFromMessages', () => {
 				parts: [],
 				runs: [{ runId: 'r-1', outcome: 'error', error: { code: 'agent_not_found', message: '' } }],
 				interrupts: [],
+				answered: [],
 			},
 		})
 	})
@@ -743,6 +848,145 @@ describe('turnsFromMessages', () => {
 				interrupts: [],
 				runs: [{ runId: 'r-1', outcome: 'error' }],
 			})
+		})
+	})
+
+	// The owner, 2026-10-15 ("record everything that happens in the chat"): each answering run's `resume` (decision 62),
+	// read over the interrupts of the run it continued (plan call P10).
+	describe('the answers its runs sent', () => {
+		const gate = { ...APPROVAL, responseSchema: APPROVAL_SCHEMA }
+		const rows = [
+			user('u-1', 'r-1', 'Delete it'),
+			assistant('a-1', 'r-1', {
+				toolCalls: [
+					{ id: 'call-1', type: 'function', function: { name: 'delete_file', arguments: '{}' } },
+				],
+			}),
+		]
+		const interrupted = (interrupts: unknown[]) =>
+			runRow({
+				id: 'r-1',
+				status: 'interrupted',
+				outcome: { type: 'interrupt', interrupts },
+				startedAt: at(0),
+			})
+		const answering = (resume: unknown, over: Partial<TurnRunRow> = {}) =>
+			runRow({ id: 'r-2', startedAt: at(1), resume, ...over })
+		const turnOf = (runs: TurnRunRow[], messages: TurnMessageRow[] = rows) =>
+			turnsFromMessages(messages, runs)[1].turn
+		const approved = { interruptId: gate.id, status: 'resolved', payload: { approved: true } }
+
+		it('puts an approval’s decision on its call: approved, rejected or cancelled', () => {
+			const decided = (entry: unknown) => turnOf([interrupted([gate]), answering([entry])])
+			expect(decided(approved).parts[0]).toMatchObject({ decision: 'approved' })
+			expect(
+				decided({ interruptId: gate.id, status: 'resolved', payload: { approved: false } })
+					.parts[0],
+			).toMatchObject({ decision: 'rejected' })
+			const dismissed = decided({ interruptId: gate.id, status: 'cancelled' })
+			expect(dismissed.parts[0]).toMatchObject({ decision: 'cancelled' })
+			expect(dismissed.answered).toEqual([])
+		})
+
+		it('records a form, a confirmation and an approval of a call the turn does not hold, in the order sent', () => {
+			const turn = turnOf([
+				interrupted([FORM, CONFIRM, UNBOUND]),
+				answering([
+					{ interruptId: FORM.id, status: 'resolved', payload: { region: 'EU' } },
+					{ interruptId: CONFIRM.id, status: 'resolved', payload: true },
+					{ interruptId: UNBOUND.id, status: 'resolved', payload: { approved: true } },
+				]),
+			])
+			expect(turn.answered).toEqual([
+				{ interrupt: FORM, status: 'resolved', payload: { region: 'EU' } },
+				{ interrupt: CONFIRM, status: 'resolved', payload: true },
+				{ interrupt: UNBOUND, status: 'resolved', payload: { approved: true } },
+			])
+			expect(turn.parts[0]).not.toHaveProperty('decision')
+		})
+
+		it('records nothing for a run refused before its stream, and the next run answers what it left open', () => {
+			const refused = answering([approved], {
+				status: 'failed',
+				outcome: null,
+				error: { code: 'provider_unreachable', message: '', beforeStream: true },
+			})
+			const left = turnOf([interrupted([gate, FORM]), refused])
+			expect(left.parts[0]).not.toHaveProperty('decision')
+			expect(left.answered).toEqual([])
+			expect(left.interrupts).toEqual([gate, FORM])
+			const retried = turnOf([
+				interrupted([gate]),
+				refused,
+				runRow({
+					id: 'r-3',
+					startedAt: at(2),
+					resume: [{ interruptId: gate.id, status: 'resolved', payload: { approved: false } }],
+				}),
+			])
+			expect(retried.parts[0]).toMatchObject({ decision: 'rejected' })
+		})
+
+		it('ignores an answer to an interrupt the continued run does not hold, and a resume that is no list', () => {
+			const turn = turnOf([
+				interrupted([gate]),
+				answering([
+					{ interruptId: 'int-gone', status: 'cancelled' },
+					{ interruptId: gate.id, status: 'cancelled' },
+				]),
+			])
+			expect(turn.answered).toEqual([])
+			expect(turn.parts[0]).toMatchObject({ decision: 'cancelled' })
+			const unread = turnOf([interrupted([gate]), answering({ interruptId: gate.id })])
+			expect(unread.parts[0]).not.toHaveProperty('decision')
+			// Answers after a run that did not end on an interrupt answered nothing.
+			const after = turnOf([runRow({ id: 'r-1', startedAt: at(0) }), answering([approved])])
+			expect(after.parts[0]).not.toHaveProperty('decision')
+		})
+
+		it('reads each answering run against the run it continued: two in one turn', () => {
+			const second = { ...gate, id: 'int-2', toolCallId: 'call-2' }
+			const turn = turnOf(
+				[
+					interrupted([gate, FORM]),
+					answering(
+						[approved, { interruptId: FORM.id, status: 'resolved', payload: { region: 'EU' } }],
+						{
+							status: 'interrupted',
+							outcome: { type: 'interrupt', interrupts: [second, CONFIRM] },
+						},
+					),
+					runRow({
+						id: 'r-3',
+						startedAt: at(2),
+						resume: [
+							{ interruptId: second.id, status: 'cancelled' },
+							{ interruptId: CONFIRM.id, status: 'resolved', payload: false },
+						],
+					}),
+				],
+				[
+					...rows,
+					assistant('a-2', 'r-2', {
+						toolCalls: [
+							{
+								id: 'call-2',
+								type: 'function',
+								function: { name: 'delete_file', arguments: '{}' },
+							},
+						],
+					}),
+				],
+			)
+			expect(turn.parts.map(part => (part.kind === 'tool' ? part.decision : part.kind))).toEqual([
+				'approved',
+				'cancelled',
+			])
+			expect(turn.answered).toEqual([
+				{ interrupt: FORM, status: 'resolved', payload: { region: 'EU' } },
+				{ interrupt: CONFIRM, status: 'resolved', payload: false },
+			])
+			expect(turn.interrupts).toEqual([])
 		})
 	})
 })
