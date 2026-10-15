@@ -27,7 +27,7 @@ export interface ToolItemView {
 
 // The highlighter's `<pre>` keeps Prism's own inline corners (one-light's and one-dark's `pre[class*="language-"]`:
 // `borderRadius: '0.3em'`); `customStyle` ("combined with the top level style on the pre tag, styles here will overwrite
-// earlier styles", react-syntax-highlighter README) squares them, so the code box's corners (`JsonCode`) are the ones
+// earlier styles", react-syntax-highlighter README) squares them, so the code box's corners (`CodeBox`) are the ones
 // seen. Light keeps X's own one-light style (X spreads `highlightProps` after its defaults,
 // `es/code-highlighter/CodeHighlighter.js`); dark swaps it as the Markdown code block does
 // (components/chat/message/markdown/code-block.tsx). Module constants: X memoises on them.
@@ -102,20 +102,22 @@ function JsonTable({ rows }: { rows: JsonRow[] }) {
 }
 
 /**
- * The JSON view: X CodeHighlighter without its header (`header={false}`, X 2.9 `es/code-highlighter/interface.d.ts`; the
+ * The Raw view: X CodeHighlighter without its header (`header={false}`, X 2.9 `es/code-highlighter/interface.d.ts`; the
  * owner, 2026-10-15: "remove the json header"). X styles the code box as the part below a header
  * (`es/code-highlighter/style/index.js`: `borderTop: 'none'`, the two start corners 0, the two end corners
  * `token.borderRadius`), so without one the box would be open at the top; its semantic `styles.code` gives it the top
  * border and all four corners at X's own radius (the owner, 2026-10-15: "override this so it has the radius and border"),
- * setting the same properties X's rule sets, so the inline value is the one applied. `lang` "json": Prism's light mode
- * loads the one `json` grammar (X CodeHighlighter API `prismLightMode`).
+ * setting the same properties X's rule sets, so the inline value is the one applied. `lang` is "json" for JSON and
+ * "markdown" for text (the owner, 2026-10-15: "for the text raw, use x code and for the language use md"); Prism's light
+ * mode loads only that grammar (X CodeHighlighter API `prismLightMode`; both are react-syntax-highlighter Prism
+ * languages, `dist/esm/languages/prism/{json,markdown}.js`).
  */
-function JsonCode({ json }: { json: string }) {
+function CodeBox({ code, lang }: { code: string; lang: 'json' | 'markdown' }) {
 	const { isDark } = useThemeContext()
 	const { token } = theme.useToken()
 	return (
 		<CodeHighlighter
-			lang="json"
+			lang={lang}
 			header={false}
 			highlightProps={isDark ? DARK_HIGHLIGHT : LIGHT_HIGHLIGHT}
 			styles={{
@@ -128,7 +130,7 @@ function JsonCode({ json }: { json: string }) {
 				},
 			}}
 		>
-			{json}
+			{code}
 		</CodeHighlighter>
 	)
 }
@@ -136,8 +138,8 @@ function JsonCode({ json }: { json: string }) {
 /**
  * One part of the card's body as its kind says (tool-view-data.ts `toolDetail`) and as its switch says (the owner,
  * 2026-10-15: "Formatted | Raw"): JSON as the tree table, or raw as the indented JSON in the code box; text in a frame
- * like the table's, keeping its line breaks, or raw in a monospace box, as received. Every text renders as text, never
- * HTML.
+ * like the table's, keeping its line breaks, or raw in the same code box as Markdown source, as received. Every text
+ * renders as text, never HTML.
  */
 function DetailBody({
 	detail,
@@ -149,7 +151,10 @@ function DetailBody({
 	switch (detail.kind) {
 		case 'text':
 			return view === 'raw' ? (
-				<div className={`${styles.box} ${styles.raw}`}>{detail.text}</div>
+				<CodeBox
+					code={detail.text}
+					lang="markdown"
+				/>
 			) : (
 				<div className={styles.box}>
 					<Typography.Paragraph
@@ -161,7 +166,14 @@ function DetailBody({
 				</div>
 			)
 		case 'tree':
-			return view === 'raw' ? <JsonCode json={detail.json} /> : <JsonTable rows={detail.rows} />
+			return view === 'raw' ? (
+				<CodeBox
+					code={detail.json}
+					lang="json"
+				/>
+			) : (
+				<JsonTable rows={detail.rows} />
+			)
 		default:
 			return detail satisfies never
 	}
