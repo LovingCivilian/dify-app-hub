@@ -24,6 +24,8 @@ The issuer is the hub-wide `AGENT_JWT_ISSUER` (default `nextjs-bff`).
 
 Your agent is stateless: the hub re-sends the whole history every run.
 
+The body is sent whole, with a `Content-Length` (never chunked): `@ag-ui/client`'s `HttpAgent` posts it as a JSON string. Runs of one conversation never overlap: while a run is active, the hub refuses the user's next request itself (409 `run_in_progress`), so your agent never sees two runs of one `threadId` at once. A user message is plain text of at most 32,000 characters; the hub sends no files yet.
+
 ## The JWT
 
 HS256, signed with the app's JWT secret as UTF-8 bytes, minted fresh for every request (each run and each Test connection):
@@ -73,7 +75,9 @@ A refused connection reads as "The agent is restarting, try again" (`provider_un
 
 In the stream, a failure is `RUN_ERROR` with a `code` and a `message` the user may read. The hub titles these codes: `usage_limit`, `rate_limited`, `busy`, `model_unavailable`, `agent_error`; any other code gets a generic title. A run that hits your time limit sends `CUSTOM { name: 'run_cancelled', value: { reason: 'run_timeout' } }` and then `RUN_FINISHED`; the hub keeps the partial answer and shows "Stopped: time limit".
 
-The hub shows text, reasoning, tool calls with their results, run errors, your interrupts (see "Interrupts"), a plan from your state and your activity messages (see "State and activity"). It does not show `RAW` events or `REASONING_ENCRYPTED_VALUE` (it keeps the value in the stored message and sends it back with the history).
+The hub shows text, reasoning, tool calls with their results, run errors, your interrupts (see "Interrupts"), a plan from your state and your activity messages (see "State and activity"). It does not show `RAW` events or `REASONING_ENCRYPTED_VALUE` (it keeps the value in the stored message and sends it back with the history), and it keeps `CUSTOM` events other than `run_cancelled` with the run without showing them.
+
+Stream your content as events (`TEXT_MESSAGE_*`, `REASONING_*`, `TOOL_CALL_*`): the hub folds `MESSAGES_SNAPSHOT` into its store on the server only and never sends it to the browser, so content your agent sends only in snapshots appears after a reload, not while it streams.
 
 ## Asking the user
 
@@ -137,6 +141,8 @@ The hub never sends `editedArgs`: the arguments are not editable. An approval wh
 
 **One resume:** every interrupt of your run is answered in one `resume` list, never a partial one (AG-UI: "The resume list MUST cover every interrupt"). If your agent refuses that run before its stream (any error status before the stream, a 5xx included, no connection, or the hub failing before it sends), the interrupts stay open and the user can answer again.
 
+A Stop, or the user leaving, after the hub has sent the answering run is not a refusal: the request may already have reached your agent, which may have acted on the answers, so the run is stored as stopped and its answers count as given. If that happens before your stream starts, your agent never sees the `resume`, and the conversation's next run is the user's next message, without one. Do not assume every interrupt gets a `resume`.
+
 **LangGraph:** the hub reads only the 1.0 interrupt outcome of `RUN_FINISHED`. `ag-ui-langgraph` sends it only with `emit_interrupt_outcome=True` (`emitInterruptOutcome` in TypeScript; off by default); without it, interrupts arrive as the legacy `CUSTOM on_interrupt` event, which the hub does not read, and the run looks finished.
 
 ## State and activity
@@ -169,6 +175,11 @@ It is the shape of AG-UI's Dojo `agentic_generative_ui` and Pydantic AI's exampl
 **Activity:** an `activity` message (`ACTIVITY_SNAPSHOT`, `ACTIVITY_DELTA`) shows read-only in its turn as a small card titled with its `activityType`: an object whose values are strings, numbers, booleans or null as a list of fields, anything else as indented JSON, cut at 10,240 characters. Activity messages are stripped from the `messages` your next run receives (AG-UI "Activity": a consumer "MUST strip activity messages" from the messages it sends), so keep nothing you need only there.
 
 Everything your agent sends is shown as plain text, never as HTML.
+
+## Ids and limits
+
+- **Unique ids:** keep message ids and tool-call ids unique across the whole thread, not only within a run. The hub stores one message per id, and two waiting calls with one id cannot be answered.
+- **Bounds on what waits:** interrupt ids and tool-call ids are at most 256 characters, and one run leaves at most 50 interrupts and at most 50 `ask_user` calls open. The user's answers are checked against these bounds, so a run beyond them leaves a conversation nobody can answer: Stop does not clear it (there is no run to stop), only deleting the conversation does, or, when the stuck items are `ask_user` calls, turning the app's switch off.
 
 ## Stop and silence
 
