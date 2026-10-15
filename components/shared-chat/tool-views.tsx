@@ -75,7 +75,10 @@ const COLUMNS: TableColumnsType<JsonRow> = [
  * footer `0 0 r r`), so a bordered table without one ends in square corners (the owner, 2026-10-15: "why does it have
  * sharp corners on the bottom?"). Unbordered, the Table draws only its rows' bottom lines; the wrapper draws the outer
  * border with all four corners rounded and clips the rows inside it, and the root's negative end margin of one line
- * width tucks the last row's bottom line under the wrapper's own, so the bottom edge is one line, not two.
+ * width tucks the last row's bottom line under the wrapper's own, so the bottom edge is one line, not two. antd has no
+ * documented way to round a table's bottom corners without a footer: the negative margin is a workaround that relies on
+ * each body row drawing one lineWidth bottom line, kept on the owner's word over a footer or square corners (2026-10-15:
+ * "keep it"). If antd changes its row borders, check this edge first.
  */
 function JsonTable({ rows }: { rows: JsonRow[] }) {
 	const { token } = theme.useToken()
@@ -103,7 +106,9 @@ function JsonTable({ rows }: { rows: JsonRow[] }) {
  * The JSON view: X CodeHighlighter (`lang` "json"; Prism's light mode loads the one `json` grammar, X CodeHighlighter API
  * `prismLightMode`) without its header (`header?: false | ReactNode`, X 2.9 `es/code-highlighter/interface.d.ts`). X
  * styles the code box as the part below a header (`es/code-highlighter/style/index.js`: no top border, no top radius),
- * so its semantic `styles.code` closes the box with the same border and radius.
+ * so its semantic `styles.code` closes the box with the same border. Its radius is the table frame's, borderRadiusLG
+ * (antd Table's `headerBorderRadius`), not X's own `token.borderRadius`, so the Table and JSON views of one section have
+ * the same corners (the owner, 2026-10-15: "why does the code and table have diff radius?").
  */
 function JsonCode({ json }: { json: string }) {
 	const { isDark } = useThemeContext()
@@ -116,7 +121,7 @@ function JsonCode({ json }: { json: string }) {
 			styles={{
 				code: {
 					borderBlockStart: `${token.lineWidth}px ${token.lineType} ${token.colorBorderSecondary}`,
-					borderRadius: token.borderRadius,
+					borderRadius: token.borderRadiusLG,
 				},
 			}}
 		>
