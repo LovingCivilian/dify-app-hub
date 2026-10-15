@@ -3,10 +3,9 @@ import type { Interrupt } from '@ag-ui/core'
 import { parseAskUserArgs } from '@/lib/chat/ask-user'
 import { approvalKey, isApproval, isExpired } from '@/lib/chat/interrupt-answers'
 import type { TurnOpenItems } from '@/lib/chat/open-items'
-import type { ToolPart } from '@/lib/chat/turn'
+import type { ToolPart, ToolStatus } from '@/lib/chat/turn'
 
 import type { AnswerDraft } from './answers'
-import { jsonRows, type JsonRow } from './json-tree'
 
 /*
  * What the tool cards show, decided outside React so the unit suite covers it (tool-views.tsx, approval-actions.tsx and
@@ -22,35 +21,76 @@ const parseJson = (text: string): { value: unknown } | null => {
 	}
 }
 
-/** One part of an expanded tool card, its arguments or its result, as the card renders it (A.2). */
+/**
+ * One part of an expanded tool card, its arguments or its result, as AI Elements' `Tool` shows it: a code block (its
+ * `ToolInput` and `ToolOutput`: JSON in a `CodeBlock`, a string output in one too; vercel/ai-elements
+ * `packages/elements/src/tool.tsx`; the owner, 2026-10-15: "Parameters and Result be plain JSON code blocks like AI
+ * Elements").
+ */
 export type ToolDetail =
-	/** Nothing to show: no text, or an empty object. */
+	/** Nothing to show: no text, a blank string, or an empty object. */
 	| { kind: 'empty' }
-	/** Text, as plain text with its line breaks. */
-	| { kind: 'text'; text: string }
-	/** An object or array: its rows for the antd tree table, and its JSON indented by two spaces for the JSON view. */
-	| { kind: 'tree'; rows: JsonRow[]; json: string }
+	/** The code block's text and language: JSON indented by two spaces, or text as sent, read as Markdown source. */
+	| { kind: 'code'; code: string; lang: 'json' | 'markdown' }
 
 const EMPTY: ToolDetail = { kind: 'empty' }
 
 /**
- * A.2 with the json-tree brief (items 1 and 3): every JSON object or array as the rows of one tree table (json-tree.ts),
- * with its indented JSON for the "Show JSON" toggle. Text that is not JSON (a plain-text result, arguments still
- * streaming) is shown as sent, a JSON string as its text (nothing when it is blank), and any other JSON scalar as sent;
- * an empty object is nothing to show, and an empty array, which a table would show as a table without rows, is shown as
- * sent like a scalar. The card puts all of it into text nodes, never HTML.
+ * Any JSON value but a string as indented JSON; a JSON string, and text that is not JSON (a plain-text result,
+ * arguments still streaming), as its text in a Markdown block (the owner, 2026-10-15: "for the language use md"). The
+ * card puts it into the code block as text, never HTML.
  */
 export const toolDetail = (text: string): ToolDetail => {
 	if (text.trim() === '') return EMPTY
 	const json = parseJson(text)
-	if (!json) return { kind: 'text', text }
+	if (!json) return { kind: 'code', code: text, lang: 'markdown' }
 	const { value } = json
-	if (typeof value === 'string') return value.trim() === '' ? EMPTY : { kind: 'text', text: value }
-	if (typeof value !== 'object' || value === null) return { kind: 'text', text }
-	const rows = jsonRows(value)
-	if (rows.length > 0) return { kind: 'tree', rows, json: JSON.stringify(value, null, 2) }
-	return Array.isArray(value) ? { kind: 'text', text } : EMPTY
+	if (typeof value === 'string')
+		return value.trim() === '' ? EMPTY : { kind: 'code', code: value, lang: 'markdown' }
+	if (
+		typeof value === 'object' &&
+		value !== null &&
+		!Array.isArray(value) &&
+		Object.keys(value).length === 0
+	)
+		return EMPTY
+	return { kind: 'code', code: JSON.stringify(value, null, 2), lang: 'json' }
 }
+
+/**
+ * The status badge in a tool card's header (AI Elements' `getStatusBadge`: Pending, Running, Completed, Error, Awaiting
+ * Approval…), from the call's status and, in the turn that waits, its approval: an open approval reads "Awaiting
+ * approval" and an expired one "Expired" over the call's own `waiting` (plan call P9).
+ */
+export type ToolBadge =
+	| 'running'
+	| 'waiting'
+	| 'completed'
+	| 'error'
+	| 'stopped'
+	| 'awaiting_approval'
+	| 'expired'
+
+const STATUS_BADGES: Record<ToolStatus, ToolBadge> = {
+	running: 'running',
+	waiting: 'waiting',
+	done: 'completed',
+	error: 'error',
+	stopped: 'stopped',
+}
+
+export const toolBadge = (status: ToolStatus, approval: ApprovalView | null): ToolBadge => {
+	if (approval?.kind === 'open') return 'awaiting_approval'
+	if (approval?.kind === 'expired') return 'expired'
+	return STATUS_BADGES[status]
+}
+
+/**
+ * Whether a tool card starts open: AI Elements opens completed and failed tools ("Auto-opens completed tools by default",
+ * its Tool docs), and a call that waits for its approval opens so its arguments are in view beside Approve and Reject.
+ */
+export const toolOpenByDefault = (badge: ToolBadge): boolean =>
+	badge === 'completed' || badge === 'error' || badge === 'awaiting_approval'
 
 /** The `ask_user` call in the turn (spec §6.2; the full-stack template's `AskUserResult`). */
 export type AskUserView =

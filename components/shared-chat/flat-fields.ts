@@ -1,6 +1,6 @@
 /*
- * The flat-object rule 2b's plan call P17 wrote for the activity card (activity-view.ts); the tool cards read their JSON
- * as a tree instead (json-tree.ts). Pure and client-safe; the card puts the fields into text nodes, never HTML
+ * The flat-object rule 2b's plan call P17 wrote for the activity card (activity-view.ts); the tool cards show their JSON
+ * as code blocks instead (tool-view-data.ts `toolDetail`). Pure and client-safe; the card puts the fields into text nodes, never HTML
  * (spec §6.4).
  */
 

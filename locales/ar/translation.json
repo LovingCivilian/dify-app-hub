@@ -621,8 +621,13 @@
 		"answer_pending_hint": "أجب الوكيل أعلاه للمتابعة.",
 		"tool_arguments": "المُدخلات",
 		"tool_result": "النتيجة",
-		"tool_view_formatted": "منسّق",
-		"tool_view_raw": "خام",
+		"tool_status": {
+			"running": "قيد التشغيل",
+			"waiting": "بانتظار",
+			"completed": "مكتمل",
+			"error": "خطأ",
+			"stopped": "متوقف"
+		},
 		"plan": {
 			"title": "الخطة {{done}}/{{total}}"
 		},

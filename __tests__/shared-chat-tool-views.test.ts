@@ -2,12 +2,13 @@ import type { Interrupt } from '@ag-ui/core'
 import { describe, expect, it } from 'vitest'
 
 import { EMPTY_DRAFT, type AnswerDraft } from '@/components/shared-chat/answers'
-import { jsonRows } from '@/components/shared-chat/json-tree'
 import {
 	approvalView,
 	askUserView,
+	toolBadge,
 	toolDetail,
 	toolFooter,
+	toolOpenByDefault,
 } from '@/components/shared-chat/tool-view-data'
 import { approvalPayload } from '@/lib/chat/interrupt-answers'
 import type { TurnOpenItems } from '@/lib/chat/open-items'
@@ -181,69 +182,73 @@ describe('toolFooter (spec §6.1, plan call P13)', () => {
 })
 
 // The approved design (2026-10-15), A.1, one level deep since the json-tree brief (item 4): the card's summary line.
-describe('toolDetail', () => {
-	it('reads a flat object as tree rows, one per key, and its JSON indented by two spaces', () => {
-		expect(toolDetail('{"city": "Paris", "temperature_c": 18, "cloudy": true}')).toEqual({
-			kind: 'tree',
-			rows: [
-				{ key: '/city', name: 'city', value: 'Paris' },
-				{ key: '/temperature_c', name: 'temperature_c', value: '18' },
-				{ key: '/cloudy', name: 'cloudy', value: 'true' },
-			],
-			json: '{\n  "city": "Paris",\n  "temperature_c": 18,\n  "cloudy": true\n}',
+describe('toolDetail (AI Elements: parameters and result as code blocks)', () => {
+	it('reads an object or an array as JSON indented by two spaces', () => {
+		expect(toolDetail('{"city": "Paris", "temperature_c": 18}')).toEqual({
+			kind: 'code',
+			code: '{\n  "city": "Paris",\n  "temperature_c": 18\n}',
+			lang: 'json',
 		})
-	})
-	it('reads nested JSON as tree rows with children', () => {
-		const detail = toolDetail('{"city":"Paris","hours":[{"open":9},{"open":10}]}')
-		expect(detail).toEqual({
-			kind: 'tree',
-			rows: jsonRows({ city: 'Paris', hours: [{ open: 9 }, { open: 10 }] }),
-			json: JSON.stringify({ city: 'Paris', hours: [{ open: 9 }, { open: 10 }] }, null, 2),
+		expect(toolDetail('{"hours":[{"open":9}]}')).toEqual({
+			kind: 'code',
+			code: JSON.stringify({ hours: [{ open: 9 }] }, null, 2),
+			lang: 'json',
 		})
-		expect(detail.kind === 'tree' && detail.rows[1]?.children).toHaveLength(2)
-	})
-	it('reads a top-level array as tree rows by index', () => {
 		expect(toolDetail('["Paris","Rome"]')).toEqual({
-			kind: 'tree',
-			rows: [
-				{ key: '/0', name: 0, value: 'Paris' },
-				{ key: '/1', name: 1, value: 'Rome' },
-			],
-			json: '[\n  "Paris",\n  "Rome"\n]',
+			kind: 'code',
+			code: '[\n  "Paris",\n  "Rome"\n]',
+			lang: 'json',
 		})
+		expect(toolDetail('[]')).toEqual({ kind: 'code', code: '[]', lang: 'json' })
 	})
-	it('reads an empty object, an empty text and blank text as nothing to show', () => {
-		for (const text of ['{}', '{ }', '', '  \n'])
+	it('reads an empty object, blank text and a blank JSON string as nothing to show', () => {
+		for (const text of ['{}', '{ }', '', '  \n', '""', '"  "'])
 			expect(toolDetail(text)).toEqual({ kind: 'empty' })
 	})
-	it('shows an empty array as sent, as it shows a scalar: a table would have no rows', () => {
-		expect(toolDetail('[]')).toEqual({ kind: 'text', text: '[]' })
-	})
-	it('reads a JSON string that is empty or blank as nothing to show', () => {
-		for (const text of ['""', '"  "']) expect(toolDetail(text)).toEqual({ kind: 'empty' })
-	})
-	it('shows text that is not JSON as sent: a plain-text result, or arguments still streaming', () => {
+	it('shows text that is not JSON as sent, as Markdown source: a plain-text result, or arguments still streaming', () => {
 		expect(toolDetail('Deleted report.pdf.\nNothing else changed.')).toEqual({
-			kind: 'text',
-			text: 'Deleted report.pdf.\nNothing else changed.',
+			kind: 'code',
+			code: 'Deleted report.pdf.\nNothing else changed.',
+			lang: 'markdown',
 		})
-		expect(toolDetail('{"city": ')).toEqual({ kind: 'text', text: '{"city": ' })
+		expect(toolDetail('{"city": ')).toEqual({ kind: 'code', code: '{"city": ', lang: 'markdown' })
 	})
-	it('shows a JSON string as its text, and any other JSON scalar as sent', () => {
+	it('shows a JSON string as its text, and any other JSON scalar as JSON', () => {
 		expect(toolDetail('"Deleted report.pdf."')).toEqual({
-			kind: 'text',
-			text: 'Deleted report.pdf.',
+			kind: 'code',
+			code: 'Deleted report.pdf.',
+			lang: 'markdown',
 		})
-		expect(toolDetail('18')).toEqual({ kind: 'text', text: '18' })
-		expect(toolDetail('null')).toEqual({ kind: 'text', text: 'null' })
-		expect(toolDetail('true')).toEqual({ kind: 'text', text: 'true' })
+		expect(toolDetail('18')).toEqual({ kind: 'code', code: '18', lang: 'json' })
+		expect(toolDetail('null')).toEqual({ kind: 'code', code: 'null', lang: 'json' })
 	})
-	it('keeps markup as text for the card to render as text', () => {
-		expect(toolDetail('<b>bold</b>')).toEqual({ kind: 'text', text: '<b>bold</b>' })
-		expect(toolDetail('{"note": "<b>bold</b>"}')).toEqual({
-			kind: 'tree',
-			rows: [{ key: '/note', name: 'note', value: '<b>bold</b>' }],
-			json: '{\n  "note": "<b>bold</b>"\n}',
+	it('keeps markup as text for the code block', () => {
+		expect(toolDetail('<b>bold</b>')).toEqual({
+			kind: 'code',
+			code: '<b>bold</b>',
+			lang: 'markdown',
 		})
+	})
+})
+
+describe('toolBadge and toolOpenByDefault (AI Elements: the status badge, completed tools open)', () => {
+	it('reads the call status as its badge', () => {
+		expect(toolBadge('running', null)).toBe('running')
+		expect(toolBadge('waiting', null)).toBe('waiting')
+		expect(toolBadge('done', null)).toBe('completed')
+		expect(toolBadge('error', null)).toBe('error')
+		expect(toolBadge('stopped', null)).toBe('stopped')
+	})
+	it('reads an open approval as awaiting approval and an expired one as expired, over the waiting status', () => {
+		expect(toolBadge('waiting', { kind: 'open' })).toBe('awaiting_approval')
+		expect(toolBadge('waiting', { kind: 'expired' })).toBe('expired')
+		expect(toolBadge('waiting', { kind: 'decided', decision: 'approved' })).toBe('waiting')
+	})
+	it('opens completed and failed calls, and one awaiting approval', () => {
+		expect(toolOpenByDefault('completed')).toBe(true)
+		expect(toolOpenByDefault('error')).toBe(true)
+		expect(toolOpenByDefault('awaiting_approval')).toBe(true)
+		for (const badge of ['running', 'waiting', 'stopped', 'expired'] as const)
+			expect(toolOpenByDefault(badge)).toBe(false)
 	})
 })

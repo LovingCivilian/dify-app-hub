@@ -621,8 +621,13 @@
 		"answer_pending_hint": "Answer the agent above to continue.",
 		"tool_arguments": "Arguments",
 		"tool_result": "Result",
-		"tool_view_formatted": "Formatted",
-		"tool_view_raw": "Raw",
+		"tool_status": {
+			"running": "Running",
+			"waiting": "Waiting",
+			"completed": "Completed",
+			"error": "Error",
+			"stopped": "Stopped"
+		},
 		"plan": {
 			"title": "Plan {{done}}/{{total}}"
 		},

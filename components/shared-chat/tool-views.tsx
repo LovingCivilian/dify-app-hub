@@ -2,10 +2,9 @@
 
 import { CodeHighlighter } from '@ant-design/x'
 import type { CodeHighlighterProps } from '@ant-design/x'
-import { Flex, Radio, Table, Typography, theme } from 'antd'
-import type { TableColumnsType } from 'antd'
+import { Alert, Flex, Typography, theme } from 'antd'
 import type { TFunction } from 'i18next'
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
@@ -13,228 +12,69 @@ import { ASK_USER_TOOL_NAME } from '@/lib/chat/ask-user'
 import type { ToolPart } from '@/lib/chat/turn'
 import { useThemeContext } from '@/lib/theme'
 
-import type { JsonRow } from './json-tree'
 import { askUserView, toolDetail, type AskUserView, type ToolDetail } from './tool-view-data'
 import styles from './tool-views.module.css'
 
-/** One ThoughtChain item's own fields (X 2.9.0 `ThoughtChainItemType`); the chain adds the key, status and footer. */
+/** What a tool's card shows (tool-chain.tsx draws the card): its title, and its body, if any. */
 export interface ToolItemView {
 	title: ReactNode
-	description?: ReactNode
 	content?: ReactNode
-	collapsible: boolean
+	/** The body is always in view, never behind the chevron (the hub's own `ask_user` card). */
+	alwaysOpen?: boolean
 }
 
-// The highlighter's `<pre>` keeps Prism's own inline corners (one-light's and one-dark's `pre[class*="language-"]`:
-// `borderRadius: '0.3em'`); `customStyle` ("combined with the top level style on the pre tag, styles here will overwrite
-// earlier styles", react-syntax-highlighter README) squares them, so the code box's corners (`CodeBox`) are the ones
-// seen. Light keeps X's own one-light style (X spreads `highlightProps` after its defaults,
-// `es/code-highlighter/CodeHighlighter.js`); dark swaps it as the Markdown code block does
-// (components/chat/message/markdown/code-block.tsx). Module constants: X memoises on them.
-const PRE_STYLE = { margin: 0, borderRadius: 0 }
-const LIGHT_HIGHLIGHT: CodeHighlighterProps['highlightProps'] = { customStyle: PRE_STYLE }
+// Dark scheme, as the Markdown code block does (components/chat/message/markdown/code-block.tsx): CodeHighlighter
+// highlights with Prism's one-light style, and `highlightProps.style` replaces it. A module constant: X memoises on it.
 const DARK_HIGHLIGHT: CodeHighlighterProps['highlightProps'] = {
 	style: oneDark,
-	customStyle: PRE_STYLE,
+	customStyle: { margin: 0 },
 }
 
-/** A part of the card's body that has nothing to show (no result yet, an empty object). */
-const EMPTY: ToolDetail = { kind: 'empty' }
-
-/** What a section with JSON shows: the tree table, or the indented JSON (its "Show JSON" toggle). */
-type DetailView = 'formatted' | 'raw'
-
 /**
- * The tree table's two columns, name and value (no header: `showHeader={false}`). A row's own expand arrow and indent sit
- * in the first column (antd Table "Tree data"). Names and values are text nodes in Typography.Text, whose `word-break:
- * break-word` lets a long value wrap inside the card (`es/typography/style/index.js`); a branch's preview (`{a, b}`,
- * `[n]`) is secondary text, so it does not read as a string value.
+ * One labelled part of the body ("Arguments", "Result"), left out when it has nothing to show: a small secondary label
+ * over X CodeHighlighter as it ships, its header ("json" or "markdown" and copy) included (AI Elements' `ToolInput` and
+ * `ToolOutput`: a small label over a code block; `lang`: Prism's light mode loads only that grammar, X CodeHighlighter API
+ * `prismLightMode`). Every text goes into the code block as text, never HTML.
  */
-const COLUMNS: TableColumnsType<JsonRow> = [
-	{
-		key: 'name',
-		dataIndex: 'name',
-		className: styles.name,
-		render: (name: JsonRow['name']) => <Typography.Text type="secondary">{name}</Typography.Text>,
-	},
-	{
-		key: 'value',
-		dataIndex: 'value',
-		render: (value: string, row) =>
-			row.children ? (
-				<Typography.Text type="secondary">{value}</Typography.Text>
-			) : (
-				<Typography.Text className={styles.text}>{value}</Typography.Text>
-			),
-	},
-]
-
-/**
- * A JSON object or array as one small antd Table with tree data (json-tree brief, item 1; `size`, `showHeader`,
- * `pagination`, `styles.root`: `antd info Table --version 6.6.5`): a nested object or array is a row with `children`,
- * which the Table shows collapsed behind its own expand arrow (`expandable.defaultExpandAllRows` is false); a flat
- * object has no `children`, so no arrows and no indent. No header (the columns have no titles) and no pagination (every
- * row of the value is shown).
- *
- * The frame is the module's `.tree` wrapper, not antd's `bordered`, so its corners match the JSON view's at X's
- * `token.borderRadius`, the bottom ones included (the owner, 2026-10-15: "apply the border fix where the table has a
- * radius on the bottom … the table should match the json radius"). antd rounds only a table's top corners and leaves
- * the bottom to a footer or pagination (`es/table/style/radius.js`), and has no documented way to round them without
- * one, so this is a workaround the owner asked for: the unbordered Table draws only its rows' bottom lines, the wrapper
- * draws one border with all four corners rounded and clips the rows, and the root's negative end margin of one line
- * width tucks the last row's bottom line under the wrapper's own. It relies on each body row drawing one lineWidth
- * bottom line: if antd changes its row borders, check this edge first.
- */
-function JsonTable({ rows }: { rows: JsonRow[] }) {
+function CodeSection({ label, detail }: { label: string; detail: ToolDetail }) {
 	const { token } = theme.useToken()
-	return (
-		<div className={styles.tree}>
-			<Table<JsonRow>
-				size="small"
-				showHeader={false}
-				pagination={false}
-				columns={COLUMNS}
-				dataSource={rows}
-				styles={{ root: { marginBlockEnd: -token.lineWidth } }}
-			/>
-		</div>
-	)
-}
-
-/**
- * The Raw view: X CodeHighlighter without its header (`header={false}`, X 2.9 `es/code-highlighter/interface.d.ts`; the
- * owner, 2026-10-15: "remove the json header"). X styles the code box as the part below a header
- * (`es/code-highlighter/style/index.js`: `borderTop: 'none'`, the two start corners 0, the two end corners
- * `token.borderRadius`), so without one the box would be open at the top; its semantic `styles.code` gives it the top
- * border and all four corners at X's own radius (the owner, 2026-10-15: "override this so it has the radius and border"),
- * setting the same properties X's rule sets, so the inline value is the one applied. `lang` is "json" for JSON and
- * "markdown" for text (the owner, 2026-10-15: "for the text raw, use x code and for the language use md"); Prism's light
- * mode loads only that grammar (X CodeHighlighter API `prismLightMode`; both are react-syntax-highlighter Prism
- * languages, `dist/esm/languages/prism/{json,markdown}.js`).
- */
-function CodeBox({ code, lang }: { code: string; lang: 'json' | 'markdown' }) {
 	const { isDark } = useThemeContext()
-	const { token } = theme.useToken()
-	return (
-		<CodeHighlighter
-			lang={lang}
-			header={false}
-			highlightProps={isDark ? DARK_HIGHLIGHT : LIGHT_HIGHLIGHT}
-			styles={{
-				code: {
-					borderTop: `${token.lineWidth}px ${token.lineType} ${token.colorBorderSecondary}`,
-					borderStartStartRadius: token.borderRadius,
-					borderStartEndRadius: token.borderRadius,
-					borderEndStartRadius: token.borderRadius,
-					borderEndEndRadius: token.borderRadius,
-				},
-			}}
-		>
-			{code}
-		</CodeHighlighter>
-	)
-}
-
-/**
- * One part of the card's body as its kind says (tool-view-data.ts `toolDetail`) and as its switch says (the owner,
- * 2026-10-15: "Formatted | Raw"): JSON as the tree table, or raw as the indented JSON in the code box; text in a frame
- * like the table's, keeping its line breaks, or raw in the same code box as Markdown source, as received. Every text
- * renders as text, never HTML.
- */
-function DetailBody({
-	detail,
-	view,
-}: {
-	detail: Exclude<ToolDetail, { kind: 'empty' }>
-	view: DetailView
-}) {
-	switch (detail.kind) {
-		case 'text':
-			return view === 'raw' ? (
-				<CodeBox
-					code={detail.text}
-					lang="markdown"
-				/>
-			) : (
-				<div className={styles.box}>
-					<Typography.Paragraph
-						className={styles.text}
-						style={{ marginBottom: 0 }}
-					>
-						{detail.text}
-					</Typography.Paragraph>
-				</div>
-			)
-		case 'tree':
-			return view === 'raw' ? (
-				<CodeBox
-					code={detail.json}
-					lang="json"
-				/>
-			) : (
-				<JsonTable rows={detail.rows} />
-			)
-		default:
-			return detail satisfies never
-	}
-}
-
-/**
- * A labelled part of the body ("Arguments", "Result"), left out when it has nothing to show. Every part carries,
- * beside its label, the Formatted | Raw switch (the owner, 2026-10-15), a small antd Radio.Group drawn as two joined buttons, the selected one filled (`optionType="button"`,
- * `buttonStyle="solid"`, `size`, `options`, `value`, `onChange`: `antd info Radio --version 6.6.5`, the "radiobutton-solid"
- * demo; the owner, 2026-10-15: "two buttons that are joined and switch which one is selected"). The group is a
- * `radiogroup` named by the label (antd `es/radio/group.js` passes `aria-*` through `pickAttrs`); its state is the
- * section's own and starts at Formatted.
- */
-function DetailSection({ label, detail }: { label: string; detail: ToolDetail }) {
-	const { t } = useTranslation()
-	const { token } = theme.useToken()
-	const [view, setView] = useState<DetailView>('formatted')
 	if (detail.kind === 'empty') return null
 	return (
 		<Flex
 			vertical
 			gap={token.marginXXS}
 		>
-			<Flex
-				justify="space-between"
-				align="center"
-				gap={token.marginXS}
+			<Typography.Text
+				type="secondary"
+				style={{ fontSize: token.fontSizeSM }}
 			>
-				<Typography.Text
-					type="secondary"
-					style={{ fontSize: token.fontSizeSM }}
-				>
-					{label}
-				</Typography.Text>
-				<Radio.Group
-					optionType="button"
-					buttonStyle="solid"
-					size="small"
-					aria-label={label}
-					value={view}
-					// antd types the event's value as `any` (es/radio/interface.d.ts); read it back to the two views.
-					onChange={event => setView(event.target.value === 'raw' ? 'raw' : 'formatted')}
-					options={[
-						{ value: 'formatted', label: t('shared_chat.tool_view_formatted') },
-						{ value: 'raw', label: t('shared_chat.tool_view_raw') },
-					]}
-				/>
-			</Flex>
-			<DetailBody
-				detail={detail}
-				view={view}
-			/>
+				{label}
+			</Typography.Text>
+			<CodeHighlighter
+				lang={detail.lang}
+				highlightProps={isDark ? DARK_HIGHLIGHT : undefined}
+			>
+				{detail.code}
+			</CodeHighlighter>
 		</Flex>
 	)
 }
 
 /**
- * The generic card's body (spec §5.3; the approved design of 2026-10-15, A.2, after AI Elements' `Tool`, whose
- * arguments and result sit behind the chevron under small labels): the arguments, then the result once there is one.
+ * The generic card's body (AI Elements' `ToolContent`: the parameters, then the result or the error): the arguments and
+ * the result as code blocks, and a call's error in an antd Alert (`type="error"`, `showIcon`, `title`: `antd info Alert
+ * --version 6.6.5`; AI Elements tints its error output red), its text as sent.
  */
-function ToolCallDetails({ args, result }: { args: ToolDetail; result: ToolDetail }) {
+function ToolCallDetails({
+	args,
+	result,
+	error,
+}: {
+	args: ToolDetail
+	result: ToolDetail
+	error?: string
+}) {
 	const { t } = useTranslation()
 	const { token } = theme.useToken()
 	return (
@@ -242,34 +82,42 @@ function ToolCallDetails({ args, result }: { args: ToolDetail; result: ToolDetai
 			vertical
 			gap={token.marginSM}
 		>
-			<DetailSection
+			<CodeSection
 				label={t('shared_chat.tool_arguments')}
 				detail={args}
 			/>
-			<DetailSection
+			<CodeSection
 				label={t('shared_chat.tool_result')}
 				detail={result}
 			/>
+			{error && (
+				<Alert
+					type="error"
+					showIcon
+					title={error}
+				/>
+			)}
 		</Flex>
 	)
 }
 
+const EMPTY: ToolDetail = { kind: 'empty' }
+
 /**
- * Any tool: title = its name and a collapsible body with the arguments and the result (A.2); no line under the name
- * (the owner, 2026-10-15: "remove the subtitle under the tool call"). A call with nothing in either has no body, so no
- * chevron (X draws it only with `content`, `es/thought-chain/Node.js`).
+ * Any tool: title = its name, and a body with its arguments, result and error. A call with nothing in any of them has no
+ * body, so its card has no chevron.
  */
 const genericView = (part: ToolPart): ToolItemView => {
 	const args = toolDetail(part.args)
 	const result = part.result === undefined ? EMPTY : toolDetail(part.result)
-	const empty = args.kind === 'empty' && result.kind === 'empty'
+	const empty = args.kind === 'empty' && result.kind === 'empty' && !part.error
 	return {
 		title: part.name,
-		collapsible: !empty,
 		content: empty ? undefined : (
 			<ToolCallDetails
 				args={args}
 				result={result}
+				error={part.error}
 			/>
 		),
 	}
@@ -303,13 +151,13 @@ const askUserContent = (view: AskUserView, t: TFunction): ReactNode => {
 
 /**
  * The hub's own `ask_user` tool in the turn (spec §6.2: "Afterwards the ask_user card in the transcript shows the
- * questions and answers"; the template's `AskUserResult`): not collapsible, so the questions, or the transcript once
+ * questions and answers"; the template's `AskUserResult`): always open, so the questions, or the transcript once
  * answered, are always in view. The card that answers it sits above the composer (ask-user-card.tsx).
  */
 const askUserItemView = (part: ToolPart, t: TFunction): ToolItemView => ({
 	title: t('shared_chat.ask_user.title'),
-	collapsible: false,
 	content: askUserContent(askUserView(part), t),
+	alwaysOpen: true,
 })
 
 /**
