@@ -56,6 +56,8 @@ An Architecture Decision Record (ADR) captures an important architecture decisio
 | [0032](0032-organise-apps-by-provider-with-a-shared-core-and-provider-modules.md) | Organise apps by provider: a shared core with provider modules | accepted | 2026-10-11 |
 | [0033](0033-use-ag-ui-as-the-hubs-chat-protocol-with-a-hub-side-conversation-store.md) | Use AG-UI as the hub's chat protocol, with a hub-side conversation store | accepted | 2026-10-14 |
 | [0034](0034-add-ag-ui-agents-as-a-provider.md) | Add AG-UI agents as a provider | accepted | 2026-10-14 |
+| [0035](0035-show-the-shared-chats-tool-calls-and-requests-as-one-card-and-record-the-sent-answers.md) | Show the shared chat's tool calls and requests as one card, and record the sent answers | accepted | 2026-10-15 |
+| [0036](0036-scroll-the-chats-with-use-stick-to-bottom.md) | Scroll the chats with use-stick-to-bottom | accepted | 2026-10-15 |
 
 ## Inherited from upstream (not fork decisions)
 

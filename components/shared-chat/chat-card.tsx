@@ -36,7 +36,7 @@ export type ChatCardProps = ChatCardOpening & {
 const PANEL_KEY = 'card'
 
 /**
- * Every card in the shared chat, in the tool card's look (the owner, 2026-10-15: "i like the new card look, so can we
+ * ADR-0035. Every card in the shared chat, in the tool card's look (the owner, 2026-10-15: "i like the new card look, so can we
  * make everything follow that?"), which follows AI Elements' `Tool` (vercel/ai-elements
  * `packages/elements/src/tool.tsx`): a bordered, rounded card that opens and closes, an antd Collapse with one panel
  * (`size`, `expandIconPlacement`, `items`, `activeKey`, `defaultActiveKey`, `onChange`; item `label`, `extra`,

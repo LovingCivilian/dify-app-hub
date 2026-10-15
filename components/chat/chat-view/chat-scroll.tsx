@@ -77,7 +77,7 @@ function useScrollBoxResize(context: RefObject<StickToBottomContext | null>) {
 }
 
 /**
- * The chats' scroll region (the Dify chat's MessageList and the shared chat's TurnList), as AI Elements' `Conversation`
+ * ADR-0036. The chats' scroll region (the Dify chat's MessageList and the shared chat's TurnList), as AI Elements' `Conversation`
  * builds it (vercel/ai-elements `packages/elements/src/conversation.tsx`): use-stick-to-bottom's `StickToBottom` and
  * its `Content` (README "`<StickToBottom>` Component"), around a Bubble.List with `autoScroll` off. The messages flow
  * from the top, so a card or a thought that opens grows downwards and nothing above it moves; the region follows the
