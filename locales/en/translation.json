@@ -647,7 +647,9 @@
 			"change": "Change",
 			"waiting_others": "Waiting for the other answers",
 			"expired": "Expired",
-			"dismiss": "Dismiss"
+			"dismiss": "Dismiss",
+			"awaiting_approval": "Awaiting approval",
+			"approval_request": "Run this tool?"
 		},
 		"ask_user": {
 			"title": "Questions for you",

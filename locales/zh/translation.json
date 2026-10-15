@@ -647,7 +647,9 @@
 			"change": "更改",
 			"waiting_others": "正在等待其他回答",
 			"expired": "已过期",
-			"dismiss": "忽略"
+			"dismiss": "忽略",
+			"awaiting_approval": "等待批准",
+			"approval_request": "要运行此工具吗？"
 		},
 		"ask_user": {
 			"title": "需要您回答的问题",

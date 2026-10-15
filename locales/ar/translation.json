@@ -647,7 +647,9 @@
 			"change": "تغيير",
 			"waiting_others": "بانتظار الإجابات الأخرى",
 			"expired": "منتهي الصلاحية",
-			"dismiss": "تجاهل"
+			"dismiss": "تجاهل",
+			"awaiting_approval": "بانتظار الموافقة",
+			"approval_request": "هل تريد تشغيل هذه الأداة؟"
 		},
 		"ask_user": {
 			"title": "أسئلة موجّهة إليك",
